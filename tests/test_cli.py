@@ -279,6 +279,38 @@ def test_cmapss_validate_feature_candidates_repeated_command_writes_aggregate_ta
     assert csv_path.exists()
 
 
+def test_cmapss_validate_hgb_grid_command_writes_result_table(
+    tmp_path,
+    capsys,
+) -> None:
+    write_all_tiny_cmapss_subsets(tmp_path)
+    csv_path = tmp_path / "nested" / "hgb_grid.csv"
+
+    exit_code = main(
+        [
+            "cmapss-validate-hgb-grid",
+            "--data-dir",
+            str(tmp_path),
+            "--subsets",
+            "FD001",
+            "--validation-horizon",
+            "1",
+            "--n-regimes",
+            "2",
+            "--output-csv",
+            str(csv_path),
+        ]
+    )
+
+    terminal_output = capsys.readouterr().out
+
+    assert exit_code == 0
+    assert "param_grid=default,slow_regularized,shallow_fast" in terminal_output
+    assert "FD001,hist_gradient_boosting_regime_engineered_w10_r1_default,True" in terminal_output
+    assert "selected_by_nasa=FD001:" in terminal_output
+    assert csv_path.exists()
+
+
 def test_cmapss_eda_command_writes_json_report(tmp_path, capsys) -> None:
     write_tiny_cmapss_subset(tmp_path)
     output_path = tmp_path / "eda" / "fd001.json"

@@ -3,6 +3,7 @@ from __future__ import annotations
 from aerospace_prognostics.data.cmapss import load_cmapss_subset
 from aerospace_prognostics.experiments.cmapss_baseline import (
     CMAPSS_ENGINEERED_DEFAULT_WINDOWS,
+    CMAPSS_HGB_PARAM_GRID,
     CMAPSS_VALIDATION_SELECTED_FEATURES,
     make_cmapss_temporal_validation_split,
     run_all_cmapss_engineered_default_windows,
@@ -16,6 +17,7 @@ from aerospace_prognostics.experiments.cmapss_baseline import (
     run_cmapss_regime_aware_engineered_hist_gradient_boosting,
     run_cmapss_repeated_validation_feature_comparison,
     run_cmapss_validation_feature_comparison,
+    run_cmapss_validation_selected_hgb_grid,
 )
 from tests.cmapss_fixtures import write_all_tiny_cmapss_subsets, write_tiny_cmapss_subset
 
@@ -229,3 +231,25 @@ def test_run_cmapss_repeated_validation_feature_comparison_aggregates_candidates
     assert all(result.dataset == "C-MAPSS-validation-aggregate" for result in results)
     assert all(result.runs == 2 for result in results)
     assert sum(result.wins_by_nasa for result in results) == 2
+
+
+def test_run_cmapss_validation_selected_hgb_grid_returns_param_candidates(
+    tmp_path,
+) -> None:
+    write_all_tiny_cmapss_subsets(tmp_path)
+
+    results = run_cmapss_validation_selected_hgb_grid(
+        tmp_path,
+        subsets=("FD001",),
+        validation_horizon=1,
+        n_regimes=2,
+    )
+
+    assert len(results) == len(CMAPSS_HGB_PARAM_GRID)
+    assert all(result.dataset == "C-MAPSS-validation-hgb-grid" for result in results)
+    assert all(result.subset == "FD001" for result in results)
+    assert [result.model_name for result in results] == [
+        "hist_gradient_boosting_regime_engineered_w10_r1_default",
+        "hist_gradient_boosting_regime_engineered_w10_r1_slow_regularized",
+        "hist_gradient_boosting_regime_engineered_w10_r1_shallow_fast",
+    ]

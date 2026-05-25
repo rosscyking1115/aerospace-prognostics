@@ -224,6 +224,52 @@ Official test results:
 
 Compared with the selected-window engineered checkpoint, the validation-selected policy improves FD001 and FD004, keeps FD002 unchanged, and worsens FD003. Aggregate NASA score still improves slightly, from 16626.005901 to 16597.477390, but the FD003 mismatch shows that the validation design is not yet a perfect proxy for the official test distribution. This is the current honest Phase 1 classical baseline policy, while the best observed test-only per-subset mix remains a diagnostic reference rather than a model-selection procedure.
 
+## Compact HGB Hyperparameter Check
+
+The validation-selected feature policy was then checked against a small HistGradientBoosting parameter grid. This is intentionally compact: the goal is to test whether the fixed baseline settings are obviously leaving classical-model performance on the table without turning Phase 1 into a large tuning exercise.
+
+Command:
+
+```powershell
+uv run aerospace-prognostics cmapss-validate-hgb-grid --data-dir data/raw/cmapss --output-json artifacts/results/cmapss_validation_hgb_grid.json --output-csv artifacts/results/cmapss_validation_hgb_grid.csv
+```
+
+Grid:
+
+| Label | Learning Rate | Max Iterations | L2 Regularization | Max Leaf Nodes |
+|---|---:|---:|---:|---:|
+| `default` | 0.05 | 200 | 0.01 | default |
+| `slow_regularized` | 0.03 | 350 | 0.05 | default |
+| `shallow_fast` | 0.08 | 160 | 0.02 | 15 |
+
+Validation results:
+
+| Subset | Candidate | Validation RMSE | Validation NASA Score |
+|---|---|---:|---:|
+| FD001 | `hist_gradient_boosting_regime_engineered_w10_r6_default` | 7.523112 | 19.265706 |
+| FD001 | `hist_gradient_boosting_regime_engineered_w10_r6_slow_regularized` | 7.759949 | 20.168248 |
+| FD001 | `hist_gradient_boosting_regime_engineered_w10_r6_shallow_fast` | 7.866713 | 22.616798 |
+| FD002 | `hist_gradient_boosting_engineered_w3_default` | 17.313590 | 389.055355 |
+| FD002 | `hist_gradient_boosting_engineered_w3_slow_regularized` | 16.966055 | 362.389803 |
+| FD002 | `hist_gradient_boosting_engineered_w3_shallow_fast` | 19.839673 | 733.031141 |
+| FD003 | `hist_gradient_boosting_regime_engineered_w5_r6_default` | 6.301167 | 15.833362 |
+| FD003 | `hist_gradient_boosting_regime_engineered_w5_r6_slow_regularized` | 5.983843 | 14.666385 |
+| FD003 | `hist_gradient_boosting_regime_engineered_w5_r6_shallow_fast` | 6.441664 | 16.104216 |
+| FD004 | `hist_gradient_boosting_regime_engineered_w3_r6_default` | 13.574715 | 174.416271 |
+| FD004 | `hist_gradient_boosting_regime_engineered_w3_r6_slow_regularized` | 13.715958 | 189.839433 |
+| FD004 | `hist_gradient_boosting_regime_engineered_w3_r6_shallow_fast` | 13.360296 | 175.446008 |
+
+Selected by validation NASA score:
+
+| Subset | Validation-Selected HGB Candidate |
+|---|---|
+| FD001 | `default` |
+| FD002 | `slow_regularized` |
+| FD003 | `slow_regularized` |
+| FD004 | `default` |
+
+The slower, more regularized candidate helps FD002 and FD003 on validation, while the original default remains strongest for FD001 and FD004. The next checkpoint should evaluate this per-subset HGB policy on the official test table and verify whether it resolves or worsens the FD003 validation mismatch.
+
 ## Provenance Checksums
 
 | File | SHA-256 |
@@ -260,7 +306,7 @@ The next Phase 1 modelling step should improve the selected-window engineered ba
 - Per-subset validation for when regime-aware features should be enabled.
 - Regime-specific normalization or cluster-specific feature summaries for FD002 and FD004.
 - Stronger validation design for FD003, where repeated validation and official test scoring disagree.
-- Hyperparameter search over gradient-boosting settings.
+- Official-test checkpoint for the compact HGB parameter policy selected above.
 - Sensor filtering using the EDA near-constant and drift summaries.
 - Stronger sequence-ready feature exports for CNN/LSTM/Transformer experiments.
 

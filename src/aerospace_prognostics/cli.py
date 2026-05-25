@@ -24,6 +24,7 @@ from aerospace_prognostics.evaluation import (
 )
 from aerospace_prognostics.experiments.cmapss_baseline import (
     CMAPSS_ENGINEERED_DEFAULT_WINDOWS,
+    CMAPSS_HGB_PARAM_GRID,
     CMAPSS_VALIDATION_SELECTED_FEATURES,
     CmapssValidationAggregateResult,
     run_all_cmapss_engineered_default_windows,
@@ -36,6 +37,7 @@ from aerospace_prognostics.experiments.cmapss_baseline import (
     run_cmapss_hist_gradient_boosting,
     run_cmapss_repeated_validation_feature_comparison,
     run_cmapss_validation_feature_comparison,
+    run_cmapss_validation_selected_hgb_grid,
 )
 from aerospace_prognostics.workflows.phase1 import run_phase1_cmapss_workflow
 
@@ -217,6 +219,26 @@ def _build_parser() -> argparse.ArgumentParser:
     repeated_validation.add_argument("--output-json", type=Path)
     repeated_validation.add_argument("--output-csv", type=Path)
     repeated_validation.add_argument("--no-standardize", action="store_true")
+
+    hgb_grid = subparsers.add_parser(
+        "cmapss-validate-hgb-grid",
+        help="Validate compact HGB parameter candidates for the current feature policy",
+    )
+    hgb_grid.add_argument("--data-dir", type=Path, required=True)
+    hgb_grid.add_argument(
+        "--subsets",
+        nargs="+",
+        choices=CMAPSS_SUBSETS,
+        default=list(CMAPSS_SUBSETS),
+    )
+    hgb_grid.add_argument("--rul-cap", type=int, default=125)
+    hgb_grid.add_argument("--random-state", type=int, default=42)
+    hgb_grid.add_argument("--n-regimes", type=int, default=6)
+    hgb_grid.add_argument("--validation-fraction", type=float, default=0.2)
+    hgb_grid.add_argument("--validation-horizon", type=int, default=30)
+    hgb_grid.add_argument("--output-json", type=Path)
+    hgb_grid.add_argument("--output-csv", type=Path)
+    hgb_grid.add_argument("--no-standardize", action="store_true")
 
     eda = subparsers.add_parser("cmapss-eda", help="Build a C-MAPSS EDA summary report")
     eda.add_argument("--data-dir", type=Path, required=True)
@@ -524,6 +546,48 @@ def main(argv: list[str] | None = None) -> int:
             _write_validation_aggregate_json(results, args.output_json)
         if args.output_csv is not None:
             _write_validation_aggregate_csv(results, args.output_csv)
+        return 0
+
+    if args.command == "cmapss-validate-hgb-grid":
+        results = run_cmapss_validation_selected_hgb_grid(
+            args.data_dir,
+            subsets=tuple(args.subsets),
+            rul_cap=args.rul_cap,
+            random_state=args.random_state,
+            n_regimes=args.n_regimes,
+            validation_fraction=args.validation_fraction,
+            validation_horizon=args.validation_horizon,
+            standardize=not args.no_standardize,
+        )
+        print(
+            "rolling_windows="
+            + ",".join(
+                f"{subset}:{CMAPSS_ENGINEERED_DEFAULT_WINDOWS[subset]}"
+                for subset in args.subsets
+            )
+        )
+        print(
+            "feature_policy="
+            + ",".join(
+                f"{subset}:{CMAPSS_VALIDATION_SELECTED_FEATURES[subset]}"
+                for subset in args.subsets
+            )
+        )
+        print(f"validation_fraction={args.validation_fraction}")
+        print(f"validation_horizon={args.validation_horizon}")
+        print(f"param_grid={','.join(str(params['label']) for params in CMAPSS_HGB_PARAM_GRID)}")
+        _print_results_table(results)
+        print(
+            "selected_by_nasa="
+            + ",".join(
+                f"{subset}:{_best_result_for_subset(results, subset).model_name}"
+                for subset in args.subsets
+            )
+        )
+        if args.output_json is not None:
+            write_results_json(results, args.output_json)
+        if args.output_csv is not None:
+            write_results_csv(results, args.output_csv)
         return 0
 
     if args.command == "cmapss-eda":

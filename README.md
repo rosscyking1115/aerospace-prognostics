@@ -22,6 +22,7 @@ The working plan is tracked in [Aerospace_Prognostics_Project_Plan.md](Aerospace
 - `aerospace-prognostics cmapss-validation-selected-baseline-all` CLI for the current repeated-validation-selected classical baseline policy.
 - `aerospace-prognostics cmapss-validate-feature-candidates` CLI for unit-held-out temporal validation before official test scoring.
 - `aerospace-prognostics cmapss-validate-feature-candidates-repeated` CLI for repeated validation across seeds and truncation horizons.
+- `aerospace-prognostics cmapss-validate-hgb-grid` CLI for compact HistGradientBoosting hyperparameter checks.
 - CI scaffold with linting, tests, and dependency audit.
 
 ## Phase 1 Artifacts
@@ -58,5 +59,6 @@ uv run aerospace-prognostics cmapss-regime-engineered-best-baseline-all --data-d
 uv run aerospace-prognostics cmapss-validation-selected-baseline-all --data-dir data/raw/cmapss --output-json artifacts/results/cmapss_validation_selected_baseline.json --output-csv artifacts/results/cmapss_validation_selected_baseline.csv
 uv run aerospace-prognostics cmapss-validate-feature-candidates --data-dir data/raw/cmapss --output-json artifacts/results/cmapss_validation_feature_candidates.json --output-csv artifacts/results/cmapss_validation_feature_candidates.csv
 uv run aerospace-prognostics cmapss-validate-feature-candidates-repeated --data-dir data/raw/cmapss --output-json artifacts/results/cmapss_validation_feature_candidates_repeated.json --output-csv artifacts/results/cmapss_validation_feature_candidates_repeated.csv
+uv run aerospace-prognostics cmapss-validate-hgb-grid --data-dir data/raw/cmapss --output-json artifacts/results/cmapss_validation_hgb_grid.json --output-csv artifacts/results/cmapss_validation_hgb_grid.csv
 uv run aerospace-prognostics phase1-cmapss --data-dir data/raw/cmapss --artifact-dir artifacts/phase1
 ```
