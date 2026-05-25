@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from aerospace_prognostics.data.cmapss import load_cmapss_subset
+from aerospace_prognostics.data.cmapss import CMAPSS_SUBSETS, load_cmapss_subset
 from aerospace_prognostics.evaluation import RegressionRunResult
 from aerospace_prognostics.features import cycle_feature_table, last_cycle_feature_table
 from aerospace_prognostics.metrics import nasa_rul_score, rmse
@@ -52,3 +52,25 @@ def run_cmapss_hist_gradient_boosting(
         random_state=random_state,
         standardize=standardize,
     )
+
+
+def run_all_cmapss_hist_gradient_boosting(
+    data_dir: str | Path,
+    *,
+    subsets: tuple[str, ...] = CMAPSS_SUBSETS,
+    rul_cap: int = 125,
+    random_state: int = 42,
+    standardize: bool = False,
+) -> list[RegressionRunResult]:
+    """Train and evaluate the baseline for each requested C-MAPSS subset."""
+
+    return [
+        run_cmapss_hist_gradient_boosting(
+            data_dir,
+            subset,
+            rul_cap=rul_cap,
+            random_state=random_state,
+            standardize=standardize,
+        )
+        for subset in subsets
+    ]

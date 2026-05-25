@@ -32,4 +32,5 @@ Once C-MAPSS files are available locally:
 uv run aerospace-prognostics cmapss-summary --data-dir data/raw/cmapss --subset FD001
 uv run aerospace-prognostics cmapss-baseline --data-dir data/raw/cmapss --subset FD001
 uv run aerospace-prognostics cmapss-baseline --data-dir data/raw/cmapss --subset FD001 --standardize --output-json artifacts/results/fd001_baseline.json
+uv run aerospace-prognostics cmapss-baseline-all --data-dir data/raw/cmapss --standardize --output-json artifacts/results/cmapss_baseline.json --output-csv artifacts/results/cmapss_baseline.csv
 ```

@@ -28,3 +28,7 @@ def write_tiny_cmapss_subset(path: Path, subset: str = "FD001") -> None:
     (path / f"test_{subset}.txt").write_text("\n".join(test_rows) + "\n", encoding="utf-8")
     (path / f"RUL_{subset}.txt").write_text("1\n1\n", encoding="utf-8")
 
+
+def write_all_tiny_cmapss_subsets(path: Path) -> None:
+    for subset in ("FD001", "FD002", "FD003", "FD004"):
+        write_tiny_cmapss_subset(path, subset=subset)
