@@ -5,12 +5,14 @@ from aerospace_prognostics.experiments.cmapss_baseline import (
     CMAPSS_ENGINEERED_DEFAULT_WINDOWS,
     CMAPSS_HGB_PARAM_GRID,
     CMAPSS_VALIDATION_SELECTED_FEATURES,
+    CMAPSS_VALIDATION_SELECTED_HGB_PARAMS,
     make_cmapss_temporal_validation_split,
     run_all_cmapss_engineered_default_windows,
     run_all_cmapss_engineered_hist_gradient_boosting,
     run_all_cmapss_hist_gradient_boosting,
     run_all_cmapss_regime_aware_engineered_default_windows,
     run_all_cmapss_validation_selected_default_windows,
+    run_all_cmapss_validation_selected_hgb_policy_default_windows,
     run_cmapss_engineered_hist_gradient_boosting,
     run_cmapss_engineered_window_sweep,
     run_cmapss_hist_gradient_boosting,
@@ -173,6 +175,26 @@ def test_run_all_cmapss_validation_selected_default_windows_uses_policy(
         "hist_gradient_boosting_engineered_w3",
         "hist_gradient_boosting_regime_engineered_w5_r1",
         "hist_gradient_boosting_regime_engineered_w3_r1",
+    ]
+
+
+def test_run_all_cmapss_validation_selected_hgb_policy_default_windows_uses_policy(
+    tmp_path,
+) -> None:
+    write_all_tiny_cmapss_subsets(tmp_path)
+
+    results = run_all_cmapss_validation_selected_hgb_policy_default_windows(
+        tmp_path,
+        n_regimes=2,
+    )
+
+    assert CMAPSS_VALIDATION_SELECTED_HGB_PARAMS["FD002"] == "slow_regularized"
+    assert [result.subset for result in results] == ["FD001", "FD002", "FD003", "FD004"]
+    assert [result.model_name for result in results] == [
+        "hist_gradient_boosting_regime_engineered_w10_r1_default",
+        "hist_gradient_boosting_engineered_w3_slow_regularized",
+        "hist_gradient_boosting_regime_engineered_w5_r1_slow_regularized",
+        "hist_gradient_boosting_regime_engineered_w3_r1_default",
     ]
 
 

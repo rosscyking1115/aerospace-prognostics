@@ -270,6 +270,36 @@ Selected by validation NASA score:
 
 The slower, more regularized candidate helps FD002 and FD003 on validation, while the original default remains strongest for FD001 and FD004. The next checkpoint should evaluate this per-subset HGB policy on the official test table and verify whether it resolves or worsens the FD003 validation mismatch.
 
+## HGB Policy Official Test Baseline
+
+The compact HGB policy was then evaluated once on the official C-MAPSS test RUL files, using the repeated-validation feature policy and the validation-selected HGB parameter label for each subset.
+
+Command:
+
+```powershell
+uv run aerospace-prognostics cmapss-hgb-policy-baseline-all --data-dir data/raw/cmapss --output-json artifacts/results/cmapss_hgb_policy_baseline.json --output-csv artifacts/results/cmapss_hgb_policy_baseline.csv
+```
+
+Policy:
+
+| Subset | Feature Candidate | HGB Candidate |
+|---|---|---|
+| FD001 | `regime_engineered` | `default` |
+| FD002 | `engineered` | `slow_regularized` |
+| FD003 | `regime_engineered` | `slow_regularized` |
+| FD004 | `regime_engineered` | `default` |
+
+Official test results:
+
+| Subset | Model | RMSE | NASA Score |
+|---|---|---:|---:|
+| FD001 | `hist_gradient_boosting_regime_engineered_w10_r6_default` | 13.012889 | 253.465322 |
+| FD002 | `hist_gradient_boosting_engineered_w3_slow_regularized` | 27.568929 | 8697.396161 |
+| FD003 | `hist_gradient_boosting_regime_engineered_w5_r6_slow_regularized` | 14.394433 | 358.507217 |
+| FD004 | `hist_gradient_boosting_regime_engineered_w3_r6_default` | 29.215870 | 7106.739881 |
+
+Compared with the validation-selected feature baseline, the HGB policy improves FD002 and FD003 while leaving FD001 and FD004 unchanged. Aggregate NASA score improves from 16597.477390 to 16416.108581. The FD003 gap versus the selected-window engineered baseline remains, but the compact parameter policy reduces it without using official test data for model selection.
+
 ## Provenance Checksums
 
 | File | SHA-256 |
@@ -306,7 +336,6 @@ The next Phase 1 modelling step should improve the selected-window engineered ba
 - Per-subset validation for when regime-aware features should be enabled.
 - Regime-specific normalization or cluster-specific feature summaries for FD002 and FD004.
 - Stronger validation design for FD003, where repeated validation and official test scoring disagree.
-- Official-test checkpoint for the compact HGB parameter policy selected above.
 - Sensor filtering using the EDA near-constant and drift summaries.
 - Stronger sequence-ready feature exports for CNN/LSTM/Transformer experiments.
 

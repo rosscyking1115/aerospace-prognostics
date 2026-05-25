@@ -210,6 +210,34 @@ def test_cmapss_validation_selected_baseline_all_command_writes_result_tables(
     assert csv_path.exists()
 
 
+def test_cmapss_hgb_policy_baseline_all_command_writes_result_tables(
+    tmp_path,
+    capsys,
+) -> None:
+    write_all_tiny_cmapss_subsets(tmp_path)
+    csv_path = tmp_path / "nested" / "hgb_policy_results.csv"
+
+    exit_code = main(
+        [
+            "cmapss-hgb-policy-baseline-all",
+            "--data-dir",
+            str(tmp_path),
+            "--n-regimes",
+            "2",
+            "--output-csv",
+            str(csv_path),
+        ]
+    )
+
+    terminal_output = capsys.readouterr().out
+
+    assert exit_code == 0
+    assert "hgb_policy=FD001:default,FD002:slow_regularized" in terminal_output
+    assert "FD001,hist_gradient_boosting_regime_engineered_w10_r1_default,True" in terminal_output
+    assert "FD002,hist_gradient_boosting_engineered_w3_slow_regularized,True" in terminal_output
+    assert csv_path.exists()
+
+
 def test_cmapss_validate_feature_candidates_command_writes_result_tables(
     tmp_path,
     capsys,

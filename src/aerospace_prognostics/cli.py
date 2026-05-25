@@ -26,12 +26,14 @@ from aerospace_prognostics.experiments.cmapss_baseline import (
     CMAPSS_ENGINEERED_DEFAULT_WINDOWS,
     CMAPSS_HGB_PARAM_GRID,
     CMAPSS_VALIDATION_SELECTED_FEATURES,
+    CMAPSS_VALIDATION_SELECTED_HGB_PARAMS,
     CmapssValidationAggregateResult,
     run_all_cmapss_engineered_default_windows,
     run_all_cmapss_engineered_hist_gradient_boosting,
     run_all_cmapss_hist_gradient_boosting,
     run_all_cmapss_regime_aware_engineered_default_windows,
     run_all_cmapss_validation_selected_default_windows,
+    run_all_cmapss_validation_selected_hgb_policy_default_windows,
     run_cmapss_engineered_hist_gradient_boosting,
     run_cmapss_engineered_window_sweep,
     run_cmapss_hist_gradient_boosting,
@@ -179,6 +181,24 @@ def _build_parser() -> argparse.ArgumentParser:
     validation_selected.add_argument("--output-json", type=Path)
     validation_selected.add_argument("--output-csv", type=Path)
     validation_selected.add_argument("--no-standardize", action="store_true")
+
+    hgb_policy = subparsers.add_parser(
+        "cmapss-hgb-policy-baseline-all",
+        help="Train official-test baselines using validation-selected features and HGB params",
+    )
+    hgb_policy.add_argument("--data-dir", type=Path, required=True)
+    hgb_policy.add_argument(
+        "--subsets",
+        nargs="+",
+        choices=CMAPSS_SUBSETS,
+        default=list(CMAPSS_SUBSETS),
+    )
+    hgb_policy.add_argument("--rul-cap", type=int, default=125)
+    hgb_policy.add_argument("--random-state", type=int, default=42)
+    hgb_policy.add_argument("--n-regimes", type=int, default=6)
+    hgb_policy.add_argument("--output-json", type=Path)
+    hgb_policy.add_argument("--output-csv", type=Path)
+    hgb_policy.add_argument("--no-standardize", action="store_true")
 
     validation_candidates = subparsers.add_parser(
         "cmapss-validate-feature-candidates",
@@ -466,6 +486,44 @@ def main(argv: list[str] | None = None) -> int:
             "feature_policy="
             + ",".join(
                 f"{subset}:{CMAPSS_VALIDATION_SELECTED_FEATURES[subset]}"
+                for subset in args.subsets
+            )
+        )
+        print(f"max_regimes={args.n_regimes}")
+        _print_results_table(results)
+        if args.output_json is not None:
+            write_results_json(results, args.output_json)
+        if args.output_csv is not None:
+            write_results_csv(results, args.output_csv)
+        return 0
+
+    if args.command == "cmapss-hgb-policy-baseline-all":
+        results = run_all_cmapss_validation_selected_hgb_policy_default_windows(
+            args.data_dir,
+            subsets=tuple(args.subsets),
+            rul_cap=args.rul_cap,
+            random_state=args.random_state,
+            n_regimes=args.n_regimes,
+            standardize=not args.no_standardize,
+        )
+        print(
+            "rolling_windows="
+            + ",".join(
+                f"{subset}:{CMAPSS_ENGINEERED_DEFAULT_WINDOWS[subset]}"
+                for subset in args.subsets
+            )
+        )
+        print(
+            "feature_policy="
+            + ",".join(
+                f"{subset}:{CMAPSS_VALIDATION_SELECTED_FEATURES[subset]}"
+                for subset in args.subsets
+            )
+        )
+        print(
+            "hgb_policy="
+            + ",".join(
+                f"{subset}:{CMAPSS_VALIDATION_SELECTED_HGB_PARAMS[subset]}"
                 for subset in args.subsets
             )
         )

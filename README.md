@@ -20,6 +20,7 @@ The working plan is tracked in [Aerospace_Prognostics_Project_Plan.md](Aerospace
 - `aerospace-prognostics cmapss-engineered-baseline-all` CLI for rolling/delta feature baselines.
 - `aerospace-prognostics cmapss-regime-engineered-best-baseline-all` CLI for an experimental operating-regime-aware feature baseline.
 - `aerospace-prognostics cmapss-validation-selected-baseline-all` CLI for the current repeated-validation-selected classical baseline policy.
+- `aerospace-prognostics cmapss-hgb-policy-baseline-all` CLI for the current validation-selected feature and HGB parameter policy.
 - `aerospace-prognostics cmapss-validate-feature-candidates` CLI for unit-held-out temporal validation before official test scoring.
 - `aerospace-prognostics cmapss-validate-feature-candidates-repeated` CLI for repeated validation across seeds and truncation horizons.
 - `aerospace-prognostics cmapss-validate-hgb-grid` CLI for compact HistGradientBoosting hyperparameter checks.
@@ -57,6 +58,7 @@ uv run aerospace-prognostics cmapss-engineered-window-sweep --data-dir data/raw/
 uv run aerospace-prognostics cmapss-engineered-best-baseline-all --data-dir data/raw/cmapss --output-json artifacts/results/cmapss_engineered_best_baseline.json --output-csv artifacts/results/cmapss_engineered_best_baseline.csv
 uv run aerospace-prognostics cmapss-regime-engineered-best-baseline-all --data-dir data/raw/cmapss --output-json artifacts/results/cmapss_regime_engineered_best_baseline.json --output-csv artifacts/results/cmapss_regime_engineered_best_baseline.csv
 uv run aerospace-prognostics cmapss-validation-selected-baseline-all --data-dir data/raw/cmapss --output-json artifacts/results/cmapss_validation_selected_baseline.json --output-csv artifacts/results/cmapss_validation_selected_baseline.csv
+uv run aerospace-prognostics cmapss-hgb-policy-baseline-all --data-dir data/raw/cmapss --output-json artifacts/results/cmapss_hgb_policy_baseline.json --output-csv artifacts/results/cmapss_hgb_policy_baseline.csv
 uv run aerospace-prognostics cmapss-validate-feature-candidates --data-dir data/raw/cmapss --output-json artifacts/results/cmapss_validation_feature_candidates.json --output-csv artifacts/results/cmapss_validation_feature_candidates.csv
 uv run aerospace-prognostics cmapss-validate-feature-candidates-repeated --data-dir data/raw/cmapss --output-json artifacts/results/cmapss_validation_feature_candidates_repeated.json --output-csv artifacts/results/cmapss_validation_feature_candidates_repeated.csv
 uv run aerospace-prognostics cmapss-validate-hgb-grid --data-dir data/raw/cmapss --output-json artifacts/results/cmapss_validation_hgb_grid.json --output-csv artifacts/results/cmapss_validation_hgb_grid.csv

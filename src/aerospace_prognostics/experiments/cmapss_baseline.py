@@ -60,6 +60,13 @@ CMAPSS_HGB_PARAM_GRID = (
     },
 )
 
+CMAPSS_VALIDATION_SELECTED_HGB_PARAMS = {
+    "FD001": "default",
+    "FD002": "slow_regularized",
+    "FD003": "slow_regularized",
+    "FD004": "default",
+}
+
 
 @dataclass(frozen=True)
 class CmapssTemporalValidationSplit:
@@ -487,6 +494,50 @@ def run_all_cmapss_validation_selected_default_windows(
     return results
 
 
+def run_all_cmapss_validation_selected_hgb_policy_default_windows(
+    data_dir: str | Path,
+    *,
+    subsets: tuple[str, ...] = CMAPSS_SUBSETS,
+    window_by_subset: dict[str, int] | None = None,
+    feature_policy_by_subset: dict[str, str] | None = None,
+    hgb_policy_by_subset: dict[str, str] | None = None,
+    rul_cap: int = 125,
+    random_state: int = 42,
+    n_regimes: int = 6,
+    standardize: bool = True,
+) -> list[RegressionRunResult]:
+    """Train official-test baselines with validation-selected features and HGB params."""
+
+    windows = window_by_subset or CMAPSS_ENGINEERED_DEFAULT_WINDOWS
+    feature_policy = feature_policy_by_subset or CMAPSS_VALIDATION_SELECTED_FEATURES
+    hgb_policy = hgb_policy_by_subset or CMAPSS_VALIDATION_SELECTED_HGB_PARAMS
+    missing_windows = [subset for subset in subsets if subset not in windows]
+    if missing_windows:
+        raise ValueError(f"missing rolling-window defaults for subsets: {missing_windows}")
+    missing_feature_policy = [subset for subset in subsets if subset not in feature_policy]
+    if missing_feature_policy:
+        raise ValueError(f"missing feature-policy defaults for subsets: {missing_feature_policy}")
+    missing_hgb_policy = [subset for subset in subsets if subset not in hgb_policy]
+    if missing_hgb_policy:
+        raise ValueError(f"missing HGB-policy defaults for subsets: {missing_hgb_policy}")
+
+    params_by_label = _hgb_params_by_label(CMAPSS_HGB_PARAM_GRID)
+    return [
+        _run_cmapss_official_hgb_policy_candidate(
+            data_dir,
+            subset,
+            feature_candidate=feature_policy[subset],
+            rolling_window=windows[subset],
+            hgb_params=params_by_label[hgb_policy[subset]],
+            rul_cap=rul_cap,
+            random_state=random_state,
+            n_regimes=n_regimes,
+            standardize=standardize,
+        )
+        for subset in subsets
+    ]
+
+
 def run_cmapss_engineered_validation_hist_gradient_boosting(
     data_dir: str | Path,
     subset: str,
@@ -854,3 +905,90 @@ def _run_cmapss_validation_selected_hgb_candidate(
         random_state=random_state,
         standardize=standardize,
     )
+
+
+def _run_cmapss_official_hgb_policy_candidate(
+    data_dir: str | Path,
+    subset: str,
+    *,
+    feature_candidate: str,
+    rolling_window: int,
+    hgb_params: dict[str, float | int | str],
+    rul_cap: int,
+    random_state: int,
+    n_regimes: int,
+    standardize: bool,
+) -> RegressionRunResult:
+    bundle = load_cmapss_subset(data_dir, subset, rul_cap=rul_cap)
+
+    if feature_candidate == "engineered":
+        train_features, train_target = engineered_cycle_feature_table(
+            bundle.train,
+            rolling_window=rolling_window,
+        )
+        test_features = engineered_last_cycle_feature_table(
+            bundle.test,
+            rolling_window=rolling_window,
+        )
+        model_prefix = f"hist_gradient_boosting_engineered_w{rolling_window}"
+    elif feature_candidate == "regime_engineered":
+        transformer = OperatingRegimeFeatureTransformer.fit(
+            bundle.train,
+            n_regimes=n_regimes,
+            random_state=random_state,
+        )
+        train_features = transformer.transform_engineered_frame(
+            bundle.train,
+            rolling_window=rolling_window,
+        )
+        train_target = bundle.train.loc[train_features.index, "rul_capped"].copy()
+        test_features = transformer.transform_engineered_last_cycle_frame(
+            bundle.test,
+            rolling_window=rolling_window,
+        )
+        model_prefix = (
+            f"hist_gradient_boosting_regime_engineered_w{rolling_window}"
+            f"_r{transformer.n_regimes}"
+        )
+    else:
+        raise ValueError("feature_candidate must be 'engineered' or 'regime_engineered'")
+
+    if standardize:
+        standardizer = FeatureStandardizer.fit(
+            train_features,
+            feature_columns=list(train_features.columns),
+        )
+        train_features = standardizer.transform_features(train_features)
+        test_features = standardizer.transform_features(test_features)
+
+    params = {key: value for key, value in hgb_params.items() if key != "label"}
+    model = hist_gradient_boosting_rul(random_state=random_state, **params)
+    model.fit(train_features, train_target)
+    predictions = model.predict(test_features)
+    label = hgb_params.get("label", "candidate")
+
+    return RegressionRunResult(
+        dataset="C-MAPSS",
+        subset=bundle.subset,
+        model_name=f"{model_prefix}_{label}",
+        rmse=rmse(bundle.test_rul, predictions),
+        nasa_score=nasa_rul_score(bundle.test_rul, predictions),
+        train_rows=len(bundle.train),
+        train_units=bundle.train["unit_number"].nunique(),
+        test_rows=len(bundle.test),
+        test_units=bundle.test["unit_number"].nunique(),
+        test_rul_values=len(bundle.test_rul),
+        rul_cap=rul_cap,
+        random_state=random_state,
+        standardize=standardize,
+    )
+
+
+def _hgb_params_by_label(
+    param_grid: tuple[dict[str, float | int | str], ...],
+) -> dict[str, dict[str, float | int | str]]:
+    params_by_label = {}
+    for params in param_grid:
+        label = str(params["label"])
+        params_by_label[label] = params
+    return params_by_label
