@@ -6,9 +6,7 @@ import argparse
 from pathlib import Path
 
 from aerospace_prognostics.data.cmapss import load_cmapss_subset
-from aerospace_prognostics.features import cycle_feature_table, last_cycle_feature_table
-from aerospace_prognostics.metrics import nasa_rul_score, rmse
-from aerospace_prognostics.models.baselines import hist_gradient_boosting_rul
+from aerospace_prognostics.experiments.cmapss_baseline import run_cmapss_hist_gradient_boosting
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -28,6 +26,7 @@ def _build_parser() -> argparse.ArgumentParser:
     baseline.add_argument("--subset", choices=["FD001", "FD002", "FD003", "FD004"], required=True)
     baseline.add_argument("--rul-cap", type=int, default=125)
     baseline.add_argument("--random-state", type=int, default=42)
+    baseline.add_argument("--output-json", type=Path)
 
     return parser
 
@@ -47,17 +46,19 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     if args.command == "cmapss-baseline":
-        bundle = load_cmapss_subset(args.data_dir, args.subset, rul_cap=args.rul_cap)
-        train_features, train_target = cycle_feature_table(bundle.train)
-        test_features = last_cycle_feature_table(bundle.test)
-
-        model = hist_gradient_boosting_rul(random_state=args.random_state)
-        model.fit(train_features, train_target)
-        predictions = model.predict(test_features)
-
-        print(f"subset={bundle.subset}")
-        print(f"rmse={rmse(bundle.test_rul, predictions):.6f}")
-        print(f"nasa_score={nasa_rul_score(bundle.test_rul, predictions):.6f}")
+        result = run_cmapss_hist_gradient_boosting(
+            args.data_dir,
+            args.subset,
+            rul_cap=args.rul_cap,
+            random_state=args.random_state,
+        )
+        print(f"dataset={result.dataset}")
+        print(f"subset={result.subset}")
+        print(f"model={result.model_name}")
+        print(f"rmse={result.rmse:.6f}")
+        print(f"nasa_score={result.nasa_score:.6f}")
+        if args.output_json is not None:
+            result.write_json(args.output_json)
         return 0
 
     parser.error(f"unknown command: {args.command}")

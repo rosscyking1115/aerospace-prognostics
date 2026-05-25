@@ -29,4 +29,5 @@ Once C-MAPSS files are available locally:
 ```powershell
 uv run aerospace-prognostics cmapss-summary --data-dir data/raw/cmapss --subset FD001
 uv run aerospace-prognostics cmapss-baseline --data-dir data/raw/cmapss --subset FD001
+uv run aerospace-prognostics cmapss-baseline --data-dir data/raw/cmapss --subset FD001 --output-json artifacts/results/fd001_baseline.json
 ```
