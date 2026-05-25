@@ -14,9 +14,15 @@ The working plan is tracked in [Aerospace_Prognostics_Project_Plan.md](Aerospace
 - Dataset checksum utilities for reproducible local data handling.
 - C-MAPSS EDA summaries for sensor drift, flat sensors, correlations, and operating settings.
 - C-MAPSS manifest and verification commands for dataset provenance.
+- Phase 1 C-MAPSS workflow command for provenance, EDA, baseline results, and a markdown run summary.
 - `aerospace-prognostics cmapss-summary` CLI for sanity-checking local C-MAPSS files.
 - `aerospace-prognostics cmapss-baseline` CLI for a first-pass scikit-learn gradient-boosting RUL baseline.
 - CI scaffold with linting, tests, and dependency audit.
+
+## Phase 1 Artifacts
+
+- Domain notes: [docs/phase1_turbofan_notes.md](docs/phase1_turbofan_notes.md)
+- EDA notebook scaffold: [notebooks/01_cmapss_phase1_eda.ipynb](notebooks/01_cmapss_phase1_eda.ipynb)
 
 ## Developer Quickstart
 
