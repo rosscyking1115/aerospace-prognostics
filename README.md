@@ -22,6 +22,7 @@ The working plan is tracked in [Aerospace_Prognostics_Project_Plan.md](Aerospace
 ## Phase 1 Artifacts
 
 - Domain notes: [docs/phase1_turbofan_notes.md](docs/phase1_turbofan_notes.md)
+- Real C-MAPSS baseline results: [docs/phase1_cmapss_baseline_results.md](docs/phase1_cmapss_baseline_results.md)
 - EDA notebook scaffold: [notebooks/01_cmapss_phase1_eda.ipynb](notebooks/01_cmapss_phase1_eda.ipynb)
 
 ## Developer Quickstart
