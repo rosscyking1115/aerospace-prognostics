@@ -121,6 +121,38 @@ uv run aerospace-prognostics cmapss-regime-engineered-best-baseline-all --data-d
 
 This is a useful experiment, but not a clean replacement for the selected-window engineered baseline. It improves NASA score on FD001 and FD004, slightly improves FD002 RMSE while worsening the asymmetric NASA score, and worsens FD003. The current Phase 1 default remains the selected-window engineered baseline until regime-aware adoption is selected per subset by validation data or improved with a stronger modelling strategy.
 
+## Temporal Validation Candidate Check
+
+To avoid tuning feature decisions directly against the official test RUL files, the next checkpoint adds a deterministic train-only validation split. It holds out 20% of training units, truncates each held-out unit 30 cycles before failure, trains on the remaining full run-to-failure units, and scores the candidate models against the known remaining cycles.
+
+Command:
+
+```powershell
+uv run aerospace-prognostics cmapss-validate-feature-candidates --data-dir data/raw/cmapss --output-json artifacts/results/cmapss_validation_feature_candidates.json --output-csv artifacts/results/cmapss_validation_feature_candidates.csv
+```
+
+| Subset | Candidate | Validation RMSE | Validation NASA Score |
+|---|---|---:|---:|
+| FD001 | `hist_gradient_boosting_engineered_w10` | 7.785278 | 20.707446 |
+| FD001 | `hist_gradient_boosting_regime_engineered_w10_r6` | 7.523112 | 19.265706 |
+| FD002 | `hist_gradient_boosting_engineered_w3` | 17.313590 | 389.055355 |
+| FD002 | `hist_gradient_boosting_regime_engineered_w3_r6` | 17.259898 | 333.644731 |
+| FD003 | `hist_gradient_boosting_engineered_w5` | 6.922679 | 18.011404 |
+| FD003 | `hist_gradient_boosting_regime_engineered_w5_r6` | 6.301167 | 15.833362 |
+| FD004 | `hist_gradient_boosting_engineered_w3` | 15.238235 | 261.455072 |
+| FD004 | `hist_gradient_boosting_regime_engineered_w3_r6` | 13.574715 | 174.416271 |
+
+Selected by validation NASA score:
+
+| Subset | Validation-Selected Candidate |
+|---|---|
+| FD001 | `hist_gradient_boosting_regime_engineered_w10_r6` |
+| FD002 | `hist_gradient_boosting_regime_engineered_w3_r6` |
+| FD003 | `hist_gradient_boosting_regime_engineered_w5_r6` |
+| FD004 | `hist_gradient_boosting_regime_engineered_w3_r6` |
+
+This validation split favours regime-aware features for every subset. However, the official test comparison above is mixed for FD002 and FD003, so this is evidence that regime context is promising, not proof that the current split is sufficient for final model selection. The next iteration should use repeated unit-held-out validation or multiple truncation horizons before promoting a candidate to the default baseline.
+
 ## Provenance Checksums
 
 | File | SHA-256 |
@@ -156,6 +188,7 @@ The next Phase 1 modelling step should improve the selected-window engineered ba
 
 - Per-subset validation for when regime-aware features should be enabled.
 - Regime-specific normalization or cluster-specific feature summaries for FD002 and FD004.
+- Repeated temporal validation across multiple random seeds and truncation horizons.
 - Hyperparameter search over gradient-boosting settings.
 - Sensor filtering using the EDA near-constant and drift summaries.
 - Stronger sequence-ready feature exports for CNN/LSTM/Transformer experiments.

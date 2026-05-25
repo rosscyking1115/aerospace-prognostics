@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+from aerospace_prognostics.data.cmapss import load_cmapss_subset
 from aerospace_prognostics.experiments.cmapss_baseline import (
     CMAPSS_ENGINEERED_DEFAULT_WINDOWS,
+    make_cmapss_temporal_validation_split,
     run_all_cmapss_engineered_default_windows,
     run_all_cmapss_engineered_hist_gradient_boosting,
     run_all_cmapss_hist_gradient_boosting,
@@ -10,6 +12,7 @@ from aerospace_prognostics.experiments.cmapss_baseline import (
     run_cmapss_engineered_window_sweep,
     run_cmapss_hist_gradient_boosting,
     run_cmapss_regime_aware_engineered_hist_gradient_boosting,
+    run_cmapss_validation_feature_comparison,
 )
 from tests.cmapss_fixtures import write_all_tiny_cmapss_subsets, write_tiny_cmapss_subset
 
@@ -146,3 +149,41 @@ def test_run_all_cmapss_regime_aware_engineered_default_windows_returns_each_sub
 
     assert [result.subset for result in results] == ["FD001", "FD002", "FD003", "FD004"]
     assert all("regime_engineered" in result.model_name for result in results)
+
+
+def test_make_cmapss_temporal_validation_split_holds_out_truncated_units(tmp_path) -> None:
+    write_tiny_cmapss_subset(tmp_path)
+    bundle = load_cmapss_subset(tmp_path, "FD001")
+
+    split = make_cmapss_temporal_validation_split(
+        bundle.train,
+        validation_fraction=0.5,
+        validation_horizon=1,
+        random_state=1,
+    )
+
+    assert split.train["unit_number"].nunique() == 1
+    assert split.validation["unit_number"].nunique() == 1
+    assert split.validation["time_in_cycles"].max() == 2
+    assert split.validation_rul.tolist() == [1.0]
+
+
+def test_run_cmapss_validation_feature_comparison_returns_two_candidates_per_subset(
+    tmp_path,
+) -> None:
+    write_all_tiny_cmapss_subsets(tmp_path)
+
+    results = run_cmapss_validation_feature_comparison(
+        tmp_path,
+        subsets=("FD001",),
+        validation_horizon=1,
+        n_regimes=2,
+    )
+
+    assert [result.dataset for result in results] == [
+        "C-MAPSS-validation",
+        "C-MAPSS-validation",
+    ]
+    assert [result.subset for result in results] == ["FD001", "FD001"]
+    assert "regime_engineered" not in results[0].model_name
+    assert "regime_engineered" in results[1].model_name

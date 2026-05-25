@@ -29,6 +29,7 @@ from aerospace_prognostics.experiments.cmapss_baseline import (
     run_cmapss_engineered_hist_gradient_boosting,
     run_cmapss_engineered_window_sweep,
     run_cmapss_hist_gradient_boosting,
+    run_cmapss_validation_feature_comparison,
 )
 from aerospace_prognostics.workflows.phase1 import run_phase1_cmapss_workflow
 
@@ -152,6 +153,26 @@ def _build_parser() -> argparse.ArgumentParser:
     regime_engineered.add_argument("--output-json", type=Path)
     regime_engineered.add_argument("--output-csv", type=Path)
     regime_engineered.add_argument("--no-standardize", action="store_true")
+
+    validation_candidates = subparsers.add_parser(
+        "cmapss-validate-feature-candidates",
+        help="Compare engineered and regime-aware candidates on temporal validation splits",
+    )
+    validation_candidates.add_argument("--data-dir", type=Path, required=True)
+    validation_candidates.add_argument(
+        "--subsets",
+        nargs="+",
+        choices=CMAPSS_SUBSETS,
+        default=list(CMAPSS_SUBSETS),
+    )
+    validation_candidates.add_argument("--rul-cap", type=int, default=125)
+    validation_candidates.add_argument("--random-state", type=int, default=42)
+    validation_candidates.add_argument("--n-regimes", type=int, default=6)
+    validation_candidates.add_argument("--validation-fraction", type=float, default=0.2)
+    validation_candidates.add_argument("--validation-horizon", type=int, default=30)
+    validation_candidates.add_argument("--output-json", type=Path)
+    validation_candidates.add_argument("--output-csv", type=Path)
+    validation_candidates.add_argument("--no-standardize", action="store_true")
 
     eda = subparsers.add_parser("cmapss-eda", help="Build a C-MAPSS EDA summary report")
     eda.add_argument("--data-dir", type=Path, required=True)
@@ -359,6 +380,41 @@ def main(argv: list[str] | None = None) -> int:
             write_results_csv(results, args.output_csv)
         return 0
 
+    if args.command == "cmapss-validate-feature-candidates":
+        results = run_cmapss_validation_feature_comparison(
+            args.data_dir,
+            subsets=tuple(args.subsets),
+            rul_cap=args.rul_cap,
+            random_state=args.random_state,
+            n_regimes=args.n_regimes,
+            validation_fraction=args.validation_fraction,
+            validation_horizon=args.validation_horizon,
+            standardize=not args.no_standardize,
+        )
+        print(
+            "rolling_windows="
+            + ",".join(
+                f"{subset}:{CMAPSS_ENGINEERED_DEFAULT_WINDOWS[subset]}"
+                for subset in args.subsets
+            )
+        )
+        print(f"validation_fraction={args.validation_fraction}")
+        print(f"validation_horizon={args.validation_horizon}")
+        print(f"max_regimes={args.n_regimes}")
+        _print_results_table(results)
+        print(
+            "selected_by_nasa="
+            + ",".join(
+                f"{subset}:{_best_result_for_subset(results, subset).model_name}"
+                for subset in args.subsets
+            )
+        )
+        if args.output_json is not None:
+            write_results_json(results, args.output_json)
+        if args.output_csv is not None:
+            write_results_csv(results, args.output_csv)
+        return 0
+
     if args.command == "cmapss-eda":
         bundle = load_cmapss_subset(args.data_dir, args.subset, rul_cap=args.rul_cap)
         report = build_cmapss_eda_report(bundle)
@@ -440,6 +496,16 @@ def _print_results_table(results: Iterable[RegressionRunResult]) -> None:
             f"{result.rmse:.6f},"
             f"{result.nasa_score:.6f}"
         )
+
+
+def _best_result_for_subset(
+    results: Iterable[RegressionRunResult],
+    subset: str,
+) -> RegressionRunResult:
+    subset_results = [result for result in results if result.subset == subset]
+    if not subset_results:
+        raise ValueError(f"no results for subset: {subset}")
+    return min(subset_results, key=lambda result: result.nasa_score)
 
 
 if __name__ == "__main__":

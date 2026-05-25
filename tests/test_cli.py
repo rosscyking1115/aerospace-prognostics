@@ -182,6 +182,39 @@ def test_cmapss_regime_engineered_best_baseline_all_command_writes_result_tables
     assert csv_path.exists()
 
 
+def test_cmapss_validate_feature_candidates_command_writes_result_tables(
+    tmp_path,
+    capsys,
+) -> None:
+    write_all_tiny_cmapss_subsets(tmp_path)
+    csv_path = tmp_path / "nested" / "validation_results.csv"
+
+    exit_code = main(
+        [
+            "cmapss-validate-feature-candidates",
+            "--data-dir",
+            str(tmp_path),
+            "--subsets",
+            "FD001",
+            "--validation-horizon",
+            "1",
+            "--n-regimes",
+            "2",
+            "--output-csv",
+            str(csv_path),
+        ]
+    )
+
+    terminal_output = capsys.readouterr().out
+
+    assert exit_code == 0
+    assert "validation_horizon=1" in terminal_output
+    assert "FD001,hist_gradient_boosting_engineered_w10,True" in terminal_output
+    assert "FD001,hist_gradient_boosting_regime_engineered_w10_r1,True" in terminal_output
+    assert "selected_by_nasa=FD001:" in terminal_output
+    assert csv_path.exists()
+
+
 def test_cmapss_eda_command_writes_json_report(tmp_path, capsys) -> None:
     write_tiny_cmapss_subset(tmp_path)
     output_path = tmp_path / "eda" / "fd001.json"
