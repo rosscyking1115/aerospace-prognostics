@@ -6,6 +6,7 @@ import argparse
 from pathlib import Path
 
 from aerospace_prognostics.data.cmapss import load_cmapss_subset
+from aerospace_prognostics.data.summary import summarise_cmapss_frame
 from aerospace_prognostics.experiments.cmapss_baseline import run_cmapss_hist_gradient_boosting
 
 
@@ -37,11 +38,21 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.command == "cmapss-summary":
         bundle = load_cmapss_subset(args.data_dir, args.subset, rul_cap=args.rul_cap)
-        train_units = bundle.train["unit_number"].nunique()
-        test_units = bundle.test["unit_number"].nunique()
+        train_summary = summarise_cmapss_frame(bundle.train)
+        test_summary = summarise_cmapss_frame(bundle.test)
         print(f"subset={bundle.subset}")
-        print(f"train_rows={len(bundle.train)} train_units={train_units}")
-        print(f"test_rows={len(bundle.test)} test_units={test_units}")
+        print(
+            "train_rows="
+            f"{train_summary.rows} train_units={train_summary.units} "
+            f"train_cycle_range={train_summary.min_cycle}-{train_summary.max_cycle} "
+            f"train_unit_cycle_range={train_summary.min_unit_cycles}-{train_summary.max_unit_cycles}"
+        )
+        print(
+            "test_rows="
+            f"{test_summary.rows} test_units={test_summary.units} "
+            f"test_cycle_range={test_summary.min_cycle}-{test_summary.max_cycle} "
+            f"test_unit_cycle_range={test_summary.min_unit_cycles}-{test_summary.max_unit_cycles}"
+        )
         print(f"test_rul_values={len(bundle.test_rul)}")
         return 0
 
