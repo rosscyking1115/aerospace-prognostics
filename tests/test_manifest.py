@@ -45,7 +45,7 @@ def test_build_read_and_verify_cmapss_manifest(tmp_path) -> None:
 def test_verify_manifest_reports_changed_files(tmp_path) -> None:
     write_tiny_cmapss_subset(tmp_path)
     manifest = build_cmapss_manifest(tmp_path, subsets=("FD001",))
-    (tmp_path / "RUL_FD001.txt").write_text("999\n", encoding="utf-8")
+    (tmp_path / "RUL_FD001.txt").write_text("99999\n", encoding="utf-8")
 
     problems = verify_manifest(manifest, root=tmp_path)
 
