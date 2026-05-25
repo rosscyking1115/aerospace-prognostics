@@ -37,6 +37,7 @@ Raw telemetry and trained artifacts are intentionally ignored by Git. Keep datas
 Once C-MAPSS files are available locally:
 
 ```powershell
+uv run aerospace-prognostics cmapss-download --output-dir data/raw/cmapss --archive-path data/raw/downloads/cmapss_nasa.zip
 uv run aerospace-prognostics cmapss-summary --data-dir data/raw/cmapss --subset FD001
 uv run aerospace-prognostics cmapss-manifest --data-dir data/raw/cmapss --output-json artifacts/data/cmapss_manifest.json
 uv run aerospace-prognostics cmapss-verify --data-dir data/raw/cmapss --manifest artifacts/data/cmapss_manifest.json

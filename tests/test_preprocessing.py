@@ -31,6 +31,17 @@ def test_feature_standardizer_preserves_feature_table_shape() -> None:
     np.testing.assert_allclose(transformed.mean().to_numpy(), np.array([0.0, 0.0]), atol=1e-7)
 
 
+def test_feature_standardizer_transforms_integer_columns_as_floats() -> None:
+    train = pd.DataFrame({"op_setting_1": [0, 1], "sensor_1": [10, 12]})
+    standardizer = FeatureStandardizer.fit(train, feature_columns=["op_setting_1", "sensor_1"])
+
+    transformed = standardizer.transform_frame(train)
+
+    assert transformed["op_setting_1"].dtype.kind == "f"
+    assert transformed["sensor_1"].dtype.kind == "f"
+    np.testing.assert_allclose(transformed["op_setting_1"].to_numpy(), np.array([-1.0, 1.0]))
+
+
 def test_feature_standardizer_transforms_sequence_dataset_metadata_safely() -> None:
     frame = pd.DataFrame(
         {
@@ -64,4 +75,3 @@ def test_feature_standardizer_validates_columns_and_shapes() -> None:
 
     with pytest.raises(ValueError, match="feature dimension"):
         standardizer.transform_windows(np.zeros((1, 2, 2), dtype=np.float32))
-

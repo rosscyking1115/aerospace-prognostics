@@ -43,8 +43,8 @@ class FeatureStandardizer:
         _validate_columns(frame, self.feature_columns)
         result = frame.copy()
         feature_values = result.loc[:, self.feature_columns].to_numpy()
-        result.loc[:, self.feature_columns] = self.scaler.transform(feature_values)
-        return result
+        transformed = self.scaler.transform(feature_values)
+        return result.assign(**dict(zip(self.feature_columns, transformed.T, strict=True)))
 
     def transform_features(self, features: pd.DataFrame) -> pd.DataFrame:
         """Standardise a feature table and preserve its index/columns."""

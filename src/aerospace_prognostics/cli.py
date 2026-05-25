@@ -8,6 +8,7 @@ from pathlib import Path
 
 from aerospace_prognostics.analysis.cmapss_eda import build_cmapss_eda_report
 from aerospace_prognostics.data.cmapss import CMAPSS_SUBSETS, load_cmapss_subset
+from aerospace_prognostics.data.downloads import NASA_CMAPSS_URL, download_cmapss_dataset
 from aerospace_prognostics.data.manifest import (
     build_cmapss_manifest,
     read_manifest,
@@ -82,6 +83,19 @@ def _build_parser() -> argparse.ArgumentParser:
     verify = subparsers.add_parser("cmapss-verify", help="Verify C-MAPSS files against a manifest")
     verify.add_argument("--data-dir", type=Path, required=True)
     verify.add_argument("--manifest", type=Path, required=True)
+
+    download = subparsers.add_parser(
+        "cmapss-download",
+        help="Download and extract the official NASA C-MAPSS raw text files",
+    )
+    download.add_argument("--output-dir", type=Path, default=Path("data/raw/cmapss"))
+    download.add_argument(
+        "--archive-path",
+        type=Path,
+        default=Path("data/raw/downloads/cmapss_nasa.zip"),
+    )
+    download.add_argument("--source-url", default=NASA_CMAPSS_URL)
+    download.add_argument("--force", action="store_true")
 
     phase1 = subparsers.add_parser(
         "phase1-cmapss",
@@ -193,6 +207,20 @@ def main(argv: list[str] | None = None) -> int:
             return 1
         print("status=ok")
         print(f"files={len(manifest.entries)}")
+        return 0
+
+    if args.command == "cmapss-download":
+        result = download_cmapss_dataset(
+            args.output_dir,
+            source_url=args.source_url,
+            archive_path=args.archive_path,
+            force=args.force,
+        )
+        print(f"source_url={result.source_url}")
+        print(f"archive={result.archive_path}")
+        print(f"output_dir={result.output_dir}")
+        print(f"metadata={result.metadata_path}")
+        print(f"files={len(result.extracted_files)}")
         return 0
 
     if args.command == "phase1-cmapss":

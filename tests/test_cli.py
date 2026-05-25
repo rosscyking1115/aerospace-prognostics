@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import zipfile
 
 from aerospace_prognostics.cli import main
 from tests.cmapss_fixtures import write_all_tiny_cmapss_subsets, write_tiny_cmapss_subset
@@ -184,3 +185,30 @@ def test_phase1_cmapss_command_runs_full_workflow(tmp_path, capsys) -> None:
     assert exit_code == 0
     assert "eda_reports=4" in output
     assert (artifact_dir / "phase1_summary.md").exists()
+
+
+def test_cmapss_download_command_extracts_archive(tmp_path, capsys) -> None:
+    source_zip = tmp_path / "source.zip"
+    with zipfile.ZipFile(source_zip, "w") as archive:
+        for subset in ("FD001", "FD002", "FD003", "FD004"):
+            archive.writestr(f"nested/train_{subset}.txt", "1 1 0\n")
+            archive.writestr(f"nested/test_{subset}.txt", "1 1 0\n")
+            archive.writestr(f"nested/RUL_{subset}.txt", "1\n")
+
+    output_dir = tmp_path / "raw" / "cmapss"
+    exit_code = main(
+        [
+            "cmapss-download",
+            "--output-dir",
+            str(output_dir),
+            "--archive-path",
+            str(tmp_path / "downloads" / "cmapss.zip"),
+            "--source-url",
+            source_zip.as_uri(),
+        ]
+    )
+    output = capsys.readouterr().out
+
+    assert exit_code == 0
+    assert "files=12" in output
+    assert (output_dir / "train_FD001.txt").exists()
