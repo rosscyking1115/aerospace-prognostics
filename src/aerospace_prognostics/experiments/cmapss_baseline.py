@@ -5,6 +5,7 @@ from __future__ import annotations
 import random
 from dataclasses import dataclass
 from pathlib import Path
+from statistics import mean
 from typing import TYPE_CHECKING
 
 from aerospace_prognostics.data.cmapss import CMAPSS_SUBSETS, load_cmapss_subset
@@ -40,6 +41,34 @@ class CmapssTemporalValidationSplit:
     validation_rul: pd.Series
     validation_units: tuple[int, ...]
     validation_horizon: int
+
+
+@dataclass(frozen=True)
+class CmapssValidationAggregateResult:
+    """Aggregate repeated temporal-validation metrics for one candidate."""
+
+    dataset: str
+    subset: str
+    model_name: str
+    runs: int
+    wins_by_nasa: int
+    mean_rmse: float
+    mean_nasa_score: float
+    standardize: bool
+
+    def to_dict(self) -> dict[str, bool | float | int | str]:
+        """Return a JSON-serialisable dictionary."""
+
+        return {
+            "dataset": self.dataset,
+            "subset": self.subset,
+            "model_name": self.model_name,
+            "runs": self.runs,
+            "wins_by_nasa": self.wins_by_nasa,
+            "mean_rmse": self.mean_rmse,
+            "mean_nasa_score": self.mean_nasa_score,
+            "standardize": self.standardize,
+        }
 
 
 def make_cmapss_temporal_validation_split(
@@ -547,3 +576,65 @@ def run_cmapss_validation_feature_comparison(
             )
         )
     return results
+
+
+def run_cmapss_repeated_validation_feature_comparison(
+    data_dir: str | Path,
+    *,
+    subsets: tuple[str, ...] = CMAPSS_SUBSETS,
+    window_by_subset: dict[str, int] | None = None,
+    rul_cap: int = 125,
+    random_states: tuple[int, ...] = (11, 42),
+    n_regimes: int = 6,
+    validation_fraction: float = 0.2,
+    validation_horizons: tuple[int, ...] = (20, 30),
+    standardize: bool = True,
+) -> list[CmapssValidationAggregateResult]:
+    """Aggregate feature-candidate validation across seeds and truncation horizons."""
+
+    if not random_states:
+        raise ValueError("random_states must contain at least one seed")
+    if not validation_horizons:
+        raise ValueError("validation_horizons must contain at least one horizon")
+
+    grouped_results: dict[tuple[str, str], list[RegressionRunResult]] = {}
+    wins_by_candidate: dict[tuple[str, str], int] = {}
+
+    for random_state in random_states:
+        for validation_horizon in validation_horizons:
+            comparison_results = run_cmapss_validation_feature_comparison(
+                data_dir,
+                subsets=subsets,
+                window_by_subset=window_by_subset,
+                rul_cap=rul_cap,
+                random_state=random_state,
+                n_regimes=n_regimes,
+                validation_fraction=validation_fraction,
+                validation_horizon=validation_horizon,
+                standardize=standardize,
+            )
+            for result in comparison_results:
+                key = (result.subset, result.model_name)
+                grouped_results.setdefault(key, []).append(result)
+            for subset in subsets:
+                subset_results = [
+                    result for result in comparison_results if result.subset == subset
+                ]
+                best_result = min(subset_results, key=lambda result: result.nasa_score)
+                wins_by_candidate[(best_result.subset, best_result.model_name)] = (
+                    wins_by_candidate.get((best_result.subset, best_result.model_name), 0) + 1
+                )
+
+    return [
+        CmapssValidationAggregateResult(
+            dataset="C-MAPSS-validation-aggregate",
+            subset=subset,
+            model_name=model_name,
+            runs=len(results),
+            wins_by_nasa=wins_by_candidate.get((subset, model_name), 0),
+            mean_rmse=mean(result.rmse for result in results),
+            mean_nasa_score=mean(result.nasa_score for result in results),
+            standardize=standardize,
+        )
+        for (subset, model_name), results in sorted(grouped_results.items())
+    ]

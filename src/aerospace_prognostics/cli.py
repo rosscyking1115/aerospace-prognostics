@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import argparse
+import csv
+import json
 from collections.abc import Iterable
 from pathlib import Path
 
@@ -22,6 +24,7 @@ from aerospace_prognostics.evaluation import (
 )
 from aerospace_prognostics.experiments.cmapss_baseline import (
     CMAPSS_ENGINEERED_DEFAULT_WINDOWS,
+    CmapssValidationAggregateResult,
     run_all_cmapss_engineered_default_windows,
     run_all_cmapss_engineered_hist_gradient_boosting,
     run_all_cmapss_hist_gradient_boosting,
@@ -29,6 +32,7 @@ from aerospace_prognostics.experiments.cmapss_baseline import (
     run_cmapss_engineered_hist_gradient_boosting,
     run_cmapss_engineered_window_sweep,
     run_cmapss_hist_gradient_boosting,
+    run_cmapss_repeated_validation_feature_comparison,
     run_cmapss_validation_feature_comparison,
 )
 from aerospace_prognostics.workflows.phase1 import run_phase1_cmapss_workflow
@@ -173,6 +177,26 @@ def _build_parser() -> argparse.ArgumentParser:
     validation_candidates.add_argument("--output-json", type=Path)
     validation_candidates.add_argument("--output-csv", type=Path)
     validation_candidates.add_argument("--no-standardize", action="store_true")
+
+    repeated_validation = subparsers.add_parser(
+        "cmapss-validate-feature-candidates-repeated",
+        help="Aggregate candidate validation across multiple seeds and horizons",
+    )
+    repeated_validation.add_argument("--data-dir", type=Path, required=True)
+    repeated_validation.add_argument(
+        "--subsets",
+        nargs="+",
+        choices=CMAPSS_SUBSETS,
+        default=list(CMAPSS_SUBSETS),
+    )
+    repeated_validation.add_argument("--rul-cap", type=int, default=125)
+    repeated_validation.add_argument("--random-states", nargs="+", type=int, default=[11, 42])
+    repeated_validation.add_argument("--n-regimes", type=int, default=6)
+    repeated_validation.add_argument("--validation-fraction", type=float, default=0.2)
+    repeated_validation.add_argument("--validation-horizons", nargs="+", type=int, default=[20, 30])
+    repeated_validation.add_argument("--output-json", type=Path)
+    repeated_validation.add_argument("--output-csv", type=Path)
+    repeated_validation.add_argument("--no-standardize", action="store_true")
 
     eda = subparsers.add_parser("cmapss-eda", help="Build a C-MAPSS EDA summary report")
     eda.add_argument("--data-dir", type=Path, required=True)
@@ -415,6 +439,42 @@ def main(argv: list[str] | None = None) -> int:
             write_results_csv(results, args.output_csv)
         return 0
 
+    if args.command == "cmapss-validate-feature-candidates-repeated":
+        results = run_cmapss_repeated_validation_feature_comparison(
+            args.data_dir,
+            subsets=tuple(args.subsets),
+            rul_cap=args.rul_cap,
+            random_states=tuple(args.random_states),
+            n_regimes=args.n_regimes,
+            validation_fraction=args.validation_fraction,
+            validation_horizons=tuple(args.validation_horizons),
+            standardize=not args.no_standardize,
+        )
+        print(
+            "rolling_windows="
+            + ",".join(
+                f"{subset}:{CMAPSS_ENGINEERED_DEFAULT_WINDOWS[subset]}"
+                for subset in args.subsets
+            )
+        )
+        print(f"validation_fraction={args.validation_fraction}")
+        print(f"validation_horizons={','.join(str(value) for value in args.validation_horizons)}")
+        print(f"random_states={','.join(str(value) for value in args.random_states)}")
+        print(f"max_regimes={args.n_regimes}")
+        _print_validation_aggregate_table(results)
+        print(
+            "selected_by_mean_nasa="
+            + ",".join(
+                f"{subset}:{_best_aggregate_for_subset(results, subset).model_name}"
+                for subset in args.subsets
+            )
+        )
+        if args.output_json is not None:
+            _write_validation_aggregate_json(results, args.output_json)
+        if args.output_csv is not None:
+            _write_validation_aggregate_csv(results, args.output_csv)
+        return 0
+
     if args.command == "cmapss-eda":
         bundle = load_cmapss_subset(args.data_dir, args.subset, rul_cap=args.rul_cap)
         report = build_cmapss_eda_report(bundle)
@@ -506,6 +566,59 @@ def _best_result_for_subset(
     if not subset_results:
         raise ValueError(f"no results for subset: {subset}")
     return min(subset_results, key=lambda result: result.nasa_score)
+
+
+def _print_validation_aggregate_table(
+    results: Iterable[CmapssValidationAggregateResult],
+) -> None:
+    print("subset,model,standardize,runs,wins_by_nasa,mean_rmse,mean_nasa_score")
+    for result in results:
+        print(
+            f"{result.subset},"
+            f"{result.model_name},"
+            f"{result.standardize},"
+            f"{result.runs},"
+            f"{result.wins_by_nasa},"
+            f"{result.mean_rmse:.6f},"
+            f"{result.mean_nasa_score:.6f}"
+        )
+
+
+def _best_aggregate_for_subset(
+    results: Iterable[CmapssValidationAggregateResult],
+    subset: str,
+) -> CmapssValidationAggregateResult:
+    subset_results = [result for result in results if result.subset == subset]
+    if not subset_results:
+        raise ValueError(f"no aggregate results for subset: {subset}")
+    return min(subset_results, key=lambda result: result.mean_nasa_score)
+
+
+def _write_validation_aggregate_json(
+    results: list[CmapssValidationAggregateResult],
+    path: Path,
+) -> None:
+    output_path = _prepare_output_path(path)
+    payload = [result.to_dict() for result in results]
+    output_path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n")
+
+
+def _write_validation_aggregate_csv(
+    results: list[CmapssValidationAggregateResult],
+    path: Path,
+) -> None:
+    if not results:
+        raise ValueError("results must contain at least one item")
+    output_path = _prepare_output_path(path)
+    with output_path.open("w", encoding="utf-8", newline="") as file:
+        writer = csv.DictWriter(file, fieldnames=list(results[0].to_dict()))
+        writer.writeheader()
+        writer.writerows(result.to_dict() for result in results)
+
+
+def _prepare_output_path(path: Path) -> Path:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    return path
 
 
 if __name__ == "__main__":

@@ -12,6 +12,7 @@ from aerospace_prognostics.experiments.cmapss_baseline import (
     run_cmapss_engineered_window_sweep,
     run_cmapss_hist_gradient_boosting,
     run_cmapss_regime_aware_engineered_hist_gradient_boosting,
+    run_cmapss_repeated_validation_feature_comparison,
     run_cmapss_validation_feature_comparison,
 )
 from tests.cmapss_fixtures import write_all_tiny_cmapss_subsets, write_tiny_cmapss_subset
@@ -187,3 +188,22 @@ def test_run_cmapss_validation_feature_comparison_returns_two_candidates_per_sub
     assert [result.subset for result in results] == ["FD001", "FD001"]
     assert "regime_engineered" not in results[0].model_name
     assert "regime_engineered" in results[1].model_name
+
+
+def test_run_cmapss_repeated_validation_feature_comparison_aggregates_candidates(
+    tmp_path,
+) -> None:
+    write_all_tiny_cmapss_subsets(tmp_path)
+
+    results = run_cmapss_repeated_validation_feature_comparison(
+        tmp_path,
+        subsets=("FD001",),
+        random_states=(1, 2),
+        validation_horizons=(1,),
+        n_regimes=2,
+    )
+
+    assert [result.subset for result in results] == ["FD001", "FD001"]
+    assert all(result.dataset == "C-MAPSS-validation-aggregate" for result in results)
+    assert all(result.runs == 2 for result in results)
+    assert sum(result.wins_by_nasa for result in results) == 2

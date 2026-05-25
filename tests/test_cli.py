@@ -215,6 +215,42 @@ def test_cmapss_validate_feature_candidates_command_writes_result_tables(
     assert csv_path.exists()
 
 
+def test_cmapss_validate_feature_candidates_repeated_command_writes_aggregate_table(
+    tmp_path,
+    capsys,
+) -> None:
+    write_all_tiny_cmapss_subsets(tmp_path)
+    csv_path = tmp_path / "nested" / "validation_aggregate.csv"
+
+    exit_code = main(
+        [
+            "cmapss-validate-feature-candidates-repeated",
+            "--data-dir",
+            str(tmp_path),
+            "--subsets",
+            "FD001",
+            "--random-states",
+            "1",
+            "2",
+            "--validation-horizons",
+            "1",
+            "--n-regimes",
+            "2",
+            "--output-csv",
+            str(csv_path),
+        ]
+    )
+
+    terminal_output = capsys.readouterr().out
+
+    assert exit_code == 0
+    assert "validation_horizons=1" in terminal_output
+    assert "random_states=1,2" in terminal_output
+    assert "FD001,hist_gradient_boosting_engineered_w10,True,2" in terminal_output
+    assert "selected_by_mean_nasa=FD001:" in terminal_output
+    assert csv_path.exists()
+
+
 def test_cmapss_eda_command_writes_json_report(tmp_path, capsys) -> None:
     write_tiny_cmapss_subset(tmp_path)
     output_path = tmp_path / "eda" / "fd001.json"

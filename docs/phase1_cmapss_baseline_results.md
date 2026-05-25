@@ -151,7 +151,48 @@ Selected by validation NASA score:
 | FD003 | `hist_gradient_boosting_regime_engineered_w5_r6` |
 | FD004 | `hist_gradient_boosting_regime_engineered_w3_r6` |
 
-This validation split favours regime-aware features for every subset. However, the official test comparison above is mixed for FD002 and FD003, so this is evidence that regime context is promising, not proof that the current split is sufficient for final model selection. The next iteration should use repeated unit-held-out validation or multiple truncation horizons before promoting a candidate to the default baseline.
+This validation split favours regime-aware features for every subset. However, the official test comparison above is mixed for FD002 and FD003, so this is evidence that regime context is promising, not proof that one split is sufficient for final model selection. The repeated-validation checkpoint below is the stronger train-only selection signal.
+
+## Repeated Temporal Validation
+
+The one-shot validation split was expanded across two random unit-holdout seeds and two truncation horizons. Each candidate is therefore scored on four train-only validation runs per subset.
+
+Command:
+
+```powershell
+uv run aerospace-prognostics cmapss-validate-feature-candidates-repeated --data-dir data/raw/cmapss --output-json artifacts/results/cmapss_validation_feature_candidates_repeated.json --output-csv artifacts/results/cmapss_validation_feature_candidates_repeated.csv
+```
+
+Configuration:
+
+| Field | Value |
+|---|---|
+| Validation fraction | 20% of train units |
+| Random states | 11, 42 |
+| Truncation horizons | 20, 30 cycles before failure |
+| Runs per candidate | 4 |
+
+| Subset | Candidate | Wins by NASA | Mean RMSE | Mean NASA Score |
+|---|---|---:|---:|---:|
+| FD001 | `hist_gradient_boosting_engineered_w10` | 1 | 7.312349 | 20.458500 |
+| FD001 | `hist_gradient_boosting_regime_engineered_w10_r6` | 3 | 7.087184 | 18.494492 |
+| FD002 | `hist_gradient_boosting_engineered_w3` | 1 | 14.039413 | 217.108673 |
+| FD002 | `hist_gradient_boosting_regime_engineered_w3_r6` | 3 | 14.154992 | 226.452779 |
+| FD003 | `hist_gradient_boosting_engineered_w5` | 2 | 6.869311 | 18.146537 |
+| FD003 | `hist_gradient_boosting_regime_engineered_w5_r6` | 2 | 6.605450 | 16.933487 |
+| FD004 | `hist_gradient_boosting_engineered_w3` | 1 | 13.877963 | 224.599241 |
+| FD004 | `hist_gradient_boosting_regime_engineered_w3_r6` | 3 | 12.273893 | 204.179565 |
+
+Selected by mean validation NASA score:
+
+| Subset | Repeated-Validation-Selected Candidate |
+|---|---|
+| FD001 | `hist_gradient_boosting_regime_engineered_w10_r6` |
+| FD002 | `hist_gradient_boosting_engineered_w3` |
+| FD003 | `hist_gradient_boosting_regime_engineered_w5_r6` |
+| FD004 | `hist_gradient_boosting_regime_engineered_w3_r6` |
+
+This is now the most defensible train-only model-selection signal in Phase 1. FD002 is the cautionary case: regime-aware features win more individual validation runs, but their mean NASA score is worse because the asymmetric penalty is sensitive to larger late-prediction errors. The validation-selected policy should therefore be per-subset rather than globally enabling regime-aware features.
 
 ## Provenance Checksums
 
