@@ -85,6 +85,23 @@ Best by NASA score:
 
 Shorter windows perform better on the multi-regime FD002 and FD004 subsets, while FD001 benefits from the longer 10-cycle summary. That suggests the next improvement should not force one feature horizon across all subsets.
 
+The per-subset window checkpoint is available as:
+
+```powershell
+uv run aerospace-prognostics cmapss-engineered-best-baseline-all --data-dir data/raw/cmapss --output-json artifacts/results/cmapss_engineered_best_baseline.json --output-csv artifacts/results/cmapss_engineered_best_baseline.csv
+```
+
+Its current output is:
+
+| Subset | Selected Window | RMSE | NASA Score |
+|---|---:|---:|---:|
+| FD001 | 10 | 13.394005 | 269.370224 |
+| FD002 | 3 | 27.608489 | 8877.027954 |
+| FD003 | 5 | 14.248166 | 347.862382 |
+| FD004 | 3 | 29.367205 | 7131.745341 |
+
+Compared with the first raw-cycle baseline, the selected-window engineered checkpoint improves every subset on both RMSE and NASA score. It is now the Phase 1 classical baseline to beat.
+
 ## Provenance Checksums
 
 | File | SHA-256 |

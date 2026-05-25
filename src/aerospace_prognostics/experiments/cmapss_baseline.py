@@ -16,6 +16,13 @@ from aerospace_prognostics.metrics import nasa_rul_score, rmse
 from aerospace_prognostics.models.baselines import hist_gradient_boosting_rul
 from aerospace_prognostics.preprocessing import FeatureStandardizer
 
+CMAPSS_ENGINEERED_DEFAULT_WINDOWS = {
+    "FD001": 10,
+    "FD002": 3,
+    "FD003": 5,
+    "FD004": 3,
+}
+
 
 def run_cmapss_hist_gradient_boosting(
     data_dir: str | Path,
@@ -177,4 +184,33 @@ def run_cmapss_engineered_window_sweep(
             rolling_window=rolling_window,
             standardize=standardize,
         )
+    ]
+
+
+def run_all_cmapss_engineered_default_windows(
+    data_dir: str | Path,
+    *,
+    subsets: tuple[str, ...] = CMAPSS_SUBSETS,
+    window_by_subset: dict[str, int] | None = None,
+    rul_cap: int = 125,
+    random_state: int = 42,
+    standardize: bool = True,
+) -> list[RegressionRunResult]:
+    """Train the engineered baseline with per-subset rolling-window defaults."""
+
+    windows = window_by_subset or CMAPSS_ENGINEERED_DEFAULT_WINDOWS
+    missing = [subset for subset in subsets if subset not in windows]
+    if missing:
+        raise ValueError(f"missing rolling-window defaults for subsets: {missing}")
+
+    return [
+        run_cmapss_engineered_hist_gradient_boosting(
+            data_dir,
+            subset,
+            rul_cap=rul_cap,
+            random_state=random_state,
+            rolling_window=windows[subset],
+            standardize=standardize,
+        )
+        for subset in subsets
     ]

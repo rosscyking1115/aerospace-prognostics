@@ -21,6 +21,8 @@ from aerospace_prognostics.evaluation import (
     write_results_json,
 )
 from aerospace_prognostics.experiments.cmapss_baseline import (
+    CMAPSS_ENGINEERED_DEFAULT_WINDOWS,
+    run_all_cmapss_engineered_default_windows,
     run_all_cmapss_engineered_hist_gradient_boosting,
     run_all_cmapss_hist_gradient_boosting,
     run_cmapss_engineered_hist_gradient_boosting,
@@ -114,6 +116,23 @@ def _build_parser() -> argparse.ArgumentParser:
     engineered_sweep.add_argument("--output-json", type=Path)
     engineered_sweep.add_argument("--output-csv", type=Path)
     engineered_sweep.add_argument("--no-standardize", action="store_true")
+
+    engineered_best = subparsers.add_parser(
+        "cmapss-engineered-best-baseline-all",
+        help="Train engineered baselines using current per-subset rolling-window defaults",
+    )
+    engineered_best.add_argument("--data-dir", type=Path, required=True)
+    engineered_best.add_argument(
+        "--subsets",
+        nargs="+",
+        choices=CMAPSS_SUBSETS,
+        default=list(CMAPSS_SUBSETS),
+    )
+    engineered_best.add_argument("--rul-cap", type=int, default=125)
+    engineered_best.add_argument("--random-state", type=int, default=42)
+    engineered_best.add_argument("--output-json", type=Path)
+    engineered_best.add_argument("--output-csv", type=Path)
+    engineered_best.add_argument("--no-standardize", action="store_true")
 
     eda = subparsers.add_parser("cmapss-eda", help="Build a C-MAPSS EDA summary report")
     eda.add_argument("--data-dir", type=Path, required=True)
@@ -267,6 +286,28 @@ def main(argv: list[str] | None = None) -> int:
             rul_cap=args.rul_cap,
             random_state=args.random_state,
             standardize=not args.no_standardize,
+        )
+        _print_results_table(results)
+        if args.output_json is not None:
+            write_results_json(results, args.output_json)
+        if args.output_csv is not None:
+            write_results_csv(results, args.output_csv)
+        return 0
+
+    if args.command == "cmapss-engineered-best-baseline-all":
+        results = run_all_cmapss_engineered_default_windows(
+            args.data_dir,
+            subsets=tuple(args.subsets),
+            rul_cap=args.rul_cap,
+            random_state=args.random_state,
+            standardize=not args.no_standardize,
+        )
+        print(
+            "rolling_windows="
+            + ",".join(
+                f"{subset}:{CMAPSS_ENGINEERED_DEFAULT_WINDOWS[subset]}"
+                for subset in args.subsets
+            )
         )
         _print_results_table(results)
         if args.output_json is not None:

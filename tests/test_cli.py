@@ -130,6 +130,31 @@ def test_cmapss_engineered_window_sweep_command_writes_result_tables(
     assert csv_path.exists()
 
 
+def test_cmapss_engineered_best_baseline_all_command_writes_result_tables(
+    tmp_path,
+    capsys,
+) -> None:
+    write_all_tiny_cmapss_subsets(tmp_path)
+    csv_path = tmp_path / "nested" / "best_results.csv"
+
+    exit_code = main(
+        [
+            "cmapss-engineered-best-baseline-all",
+            "--data-dir",
+            str(tmp_path),
+            "--output-csv",
+            str(csv_path),
+        ]
+    )
+
+    terminal_output = capsys.readouterr().out
+
+    assert exit_code == 0
+    assert "rolling_windows=FD001:10,FD002:3,FD003:5,FD004:3" in terminal_output
+    assert "FD004,hist_gradient_boosting_engineered_w3,True" in terminal_output
+    assert csv_path.exists()
+
+
 def test_cmapss_eda_command_writes_json_report(tmp_path, capsys) -> None:
     write_tiny_cmapss_subset(tmp_path)
     output_path = tmp_path / "eda" / "fd001.json"
