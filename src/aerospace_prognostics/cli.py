@@ -23,6 +23,7 @@ from aerospace_prognostics.experiments.cmapss_baseline import (
     run_all_cmapss_hist_gradient_boosting,
     run_cmapss_hist_gradient_boosting,
 )
+from aerospace_prognostics.workflows.phase1 import run_phase1_cmapss_workflow
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -81,6 +82,22 @@ def _build_parser() -> argparse.ArgumentParser:
     verify = subparsers.add_parser("cmapss-verify", help="Verify C-MAPSS files against a manifest")
     verify.add_argument("--data-dir", type=Path, required=True)
     verify.add_argument("--manifest", type=Path, required=True)
+
+    phase1 = subparsers.add_parser(
+        "phase1-cmapss",
+        help="Run the Phase 1 C-MAPSS provenance, EDA, and baseline workflow",
+    )
+    phase1.add_argument("--data-dir", type=Path, required=True)
+    phase1.add_argument("--artifact-dir", type=Path, default=Path("artifacts/phase1"))
+    phase1.add_argument(
+        "--subsets",
+        nargs="+",
+        choices=CMAPSS_SUBSETS,
+        default=list(CMAPSS_SUBSETS),
+    )
+    phase1.add_argument("--rul-cap", type=int, default=125)
+    phase1.add_argument("--random-state", type=int, default=42)
+    phase1.add_argument("--no-standardize", action="store_true")
 
     return parser
 
@@ -176,6 +193,23 @@ def main(argv: list[str] | None = None) -> int:
             return 1
         print("status=ok")
         print(f"files={len(manifest.entries)}")
+        return 0
+
+    if args.command == "phase1-cmapss":
+        result = run_phase1_cmapss_workflow(
+            args.data_dir,
+            args.artifact_dir,
+            subsets=tuple(args.subsets),
+            rul_cap=args.rul_cap,
+            random_state=args.random_state,
+            standardize=not args.no_standardize,
+        )
+        print(f"artifact_dir={result.artifact_dir}")
+        print(f"manifest={result.manifest_path}")
+        print(f"baseline_json={result.baseline_json_path}")
+        print(f"baseline_csv={result.baseline_csv_path}")
+        print(f"summary={result.summary_markdown_path}")
+        print(f"eda_reports={len(result.eda_paths)}")
         return 0
 
     parser.error(f"unknown command: {args.command}")

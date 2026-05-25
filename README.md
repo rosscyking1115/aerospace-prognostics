@@ -38,4 +38,5 @@ uv run aerospace-prognostics cmapss-eda --data-dir data/raw/cmapss --subset FD00
 uv run aerospace-prognostics cmapss-baseline --data-dir data/raw/cmapss --subset FD001
 uv run aerospace-prognostics cmapss-baseline --data-dir data/raw/cmapss --subset FD001 --standardize --output-json artifacts/results/fd001_baseline.json
 uv run aerospace-prognostics cmapss-baseline-all --data-dir data/raw/cmapss --standardize --output-json artifacts/results/cmapss_baseline.json --output-csv artifacts/results/cmapss_baseline.csv
+uv run aerospace-prognostics phase1-cmapss --data-dir data/raw/cmapss --artifact-dir artifacts/phase1
 ```

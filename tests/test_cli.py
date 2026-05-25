@@ -164,3 +164,23 @@ def test_cmapss_verify_command_returns_failure_for_mismatch(tmp_path, capsys) ->
     assert exit_code == 1
     assert "status=failed" in output
     assert "problem=RUL_FD001.txt has unexpected sha256" in output
+
+
+def test_phase1_cmapss_command_runs_full_workflow(tmp_path, capsys) -> None:
+    write_all_tiny_cmapss_subsets(tmp_path)
+    artifact_dir = tmp_path / "artifacts"
+
+    exit_code = main(
+        [
+            "phase1-cmapss",
+            "--data-dir",
+            str(tmp_path),
+            "--artifact-dir",
+            str(artifact_dir),
+        ]
+    )
+    output = capsys.readouterr().out
+
+    assert exit_code == 0
+    assert "eda_reports=4" in output
+    assert (artifact_dir / "phase1_summary.md").exists()
