@@ -12,6 +12,7 @@ The working plan is tracked in [Aerospace_Prognostics_Project_Plan.md](Aerospace
 - Train-fitted feature standardisation utilities to avoid test leakage.
 - Sliding-window helpers for later CNN/LSTM/Transformer sequence models.
 - Dataset checksum utilities for reproducible local data handling.
+- C-MAPSS EDA summaries for sensor drift, flat sensors, correlations, and operating settings.
 - `aerospace-prognostics cmapss-summary` CLI for sanity-checking local C-MAPSS files.
 - `aerospace-prognostics cmapss-baseline` CLI for a first-pass scikit-learn gradient-boosting RUL baseline.
 - CI scaffold with linting, tests, and dependency audit.
@@ -30,6 +31,7 @@ Once C-MAPSS files are available locally:
 
 ```powershell
 uv run aerospace-prognostics cmapss-summary --data-dir data/raw/cmapss --subset FD001
+uv run aerospace-prognostics cmapss-eda --data-dir data/raw/cmapss --subset FD001 --output-json artifacts/eda/fd001.json
 uv run aerospace-prognostics cmapss-baseline --data-dir data/raw/cmapss --subset FD001
 uv run aerospace-prognostics cmapss-baseline --data-dir data/raw/cmapss --subset FD001 --standardize --output-json artifacts/results/fd001_baseline.json
 uv run aerospace-prognostics cmapss-baseline-all --data-dir data/raw/cmapss --standardize --output-json artifacts/results/cmapss_baseline.json --output-csv artifacts/results/cmapss_baseline.csv

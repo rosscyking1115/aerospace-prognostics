@@ -74,3 +74,28 @@ def test_cmapss_baseline_all_command_writes_result_tables(tmp_path, capsys) -> N
     assert "FD004,hist_gradient_boosting,True" in terminal_output
     assert json_path.exists()
     assert csv_path.exists()
+
+
+def test_cmapss_eda_command_writes_json_report(tmp_path, capsys) -> None:
+    write_tiny_cmapss_subset(tmp_path)
+    output_path = tmp_path / "eda" / "fd001.json"
+
+    exit_code = main(
+        [
+            "cmapss-eda",
+            "--data-dir",
+            str(tmp_path),
+            "--subset",
+            "FD001",
+            "--output-json",
+            str(output_path),
+        ]
+    )
+
+    terminal_output = capsys.readouterr().out
+    report = json.loads(output_path.read_text(encoding="utf-8"))
+
+    assert exit_code == 0
+    assert "subset=FD001" in terminal_output
+    assert "largest_abs_drift_sensor=sensor_1" in terminal_output
+    assert report["train_rows"] == 6
