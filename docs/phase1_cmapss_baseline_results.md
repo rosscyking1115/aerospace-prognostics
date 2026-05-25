@@ -102,6 +102,25 @@ Its current output is:
 
 Compared with the first raw-cycle baseline, the selected-window engineered checkpoint improves every subset on both RMSE and NASA score. It is now the Phase 1 classical baseline to beat.
 
+## Regime-Aware Feature Check
+
+The multi-regime subsets mix operating-condition effects with degradation effects, so the next check adds train-fitted operating-regime context. It clusters operational settings, adds one-hot regime indicators, and subtracts each train-fitted regime's sensor mean to create regime-residual sensor features. No test rows are used to fit the regime scaler, clusterer, or residual means.
+
+Command:
+
+```powershell
+uv run aerospace-prognostics cmapss-regime-engineered-best-baseline-all --data-dir data/raw/cmapss --output-json artifacts/results/cmapss_regime_engineered_best_baseline.json --output-csv artifacts/results/cmapss_regime_engineered_best_baseline.csv
+```
+
+| Subset | Selected-Window RMSE | Regime-Aware RMSE | Selected-Window NASA Score | Regime-Aware NASA Score | NASA Score Change |
+|---|---:|---:|---:|---:|---:|
+| FD001 | 13.394005 | 13.012889 | 269.370224 | 253.465322 | -15.904902 |
+| FD002 | 27.608489 | 27.310525 | 8877.027954 | 9264.345504 | 387.317550 |
+| FD003 | 14.248166 | 14.512316 | 347.862382 | 360.244233 | 12.381851 |
+| FD004 | 29.367205 | 29.215870 | 7131.745341 | 7106.739881 | -24.005460 |
+
+This is a useful experiment, but not a clean replacement for the selected-window engineered baseline. It improves NASA score on FD001 and FD004, slightly improves FD002 RMSE while worsening the asymmetric NASA score, and worsens FD003. The current Phase 1 default remains the selected-window engineered baseline until regime-aware adoption is selected per subset by validation data or improved with a stronger modelling strategy.
+
 ## Provenance Checksums
 
 | File | SHA-256 |
@@ -133,11 +152,12 @@ The engineered baseline is a better Phase 1 checkpoint. The large gains on FD001
 
 ## Next Baseline Upgrade
 
-The next Phase 1 modelling step should improve the engineered baseline with:
+The next Phase 1 modelling step should improve the selected-window engineered baseline with:
 
-- Regime-aware normalization or cluster-specific feature summaries for FD002 and FD004.
+- Per-subset validation for when regime-aware features should be enabled.
+- Regime-specific normalization or cluster-specific feature summaries for FD002 and FD004.
 - Hyperparameter search over gradient-boosting settings.
 - Sensor filtering using the EDA near-constant and drift summaries.
-- Per-subset rolling-window defaults rather than a single global feature horizon.
+- Stronger sequence-ready feature exports for CNN/LSTM/Transformer experiments.
 
 Those changes should be reported as a third table beside the two checkpoints above so progress stays measurable.

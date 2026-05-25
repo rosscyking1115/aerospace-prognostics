@@ -18,6 +18,7 @@ The working plan is tracked in [Aerospace_Prognostics_Project_Plan.md](Aerospace
 - `aerospace-prognostics cmapss-summary` CLI for sanity-checking local C-MAPSS files.
 - `aerospace-prognostics cmapss-baseline` CLI for a first-pass scikit-learn gradient-boosting RUL baseline.
 - `aerospace-prognostics cmapss-engineered-baseline-all` CLI for rolling/delta feature baselines.
+- `aerospace-prognostics cmapss-regime-engineered-best-baseline-all` CLI for an experimental operating-regime-aware feature baseline.
 - CI scaffold with linting, tests, and dependency audit.
 
 ## Phase 1 Artifacts
@@ -50,5 +51,6 @@ uv run aerospace-prognostics cmapss-baseline-all --data-dir data/raw/cmapss --st
 uv run aerospace-prognostics cmapss-engineered-baseline-all --data-dir data/raw/cmapss --output-json artifacts/results/cmapss_engineered_baseline.json --output-csv artifacts/results/cmapss_engineered_baseline.csv
 uv run aerospace-prognostics cmapss-engineered-window-sweep --data-dir data/raw/cmapss --rolling-windows 3 5 10 --output-json artifacts/results/cmapss_engineered_window_sweep.json --output-csv artifacts/results/cmapss_engineered_window_sweep.csv
 uv run aerospace-prognostics cmapss-engineered-best-baseline-all --data-dir data/raw/cmapss --output-json artifacts/results/cmapss_engineered_best_baseline.json --output-csv artifacts/results/cmapss_engineered_best_baseline.csv
+uv run aerospace-prognostics cmapss-regime-engineered-best-baseline-all --data-dir data/raw/cmapss --output-json artifacts/results/cmapss_regime_engineered_best_baseline.json --output-csv artifacts/results/cmapss_regime_engineered_best_baseline.csv
 uv run aerospace-prognostics phase1-cmapss --data-dir data/raw/cmapss --artifact-dir artifacts/phase1
 ```

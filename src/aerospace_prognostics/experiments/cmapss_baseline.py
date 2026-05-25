@@ -7,6 +7,7 @@ from pathlib import Path
 from aerospace_prognostics.data.cmapss import CMAPSS_SUBSETS, load_cmapss_subset
 from aerospace_prognostics.evaluation import RegressionRunResult
 from aerospace_prognostics.features import (
+    OperatingRegimeFeatureTransformer,
     cycle_feature_table,
     engineered_cycle_feature_table,
     engineered_last_cycle_feature_table,
@@ -210,6 +211,97 @@ def run_all_cmapss_engineered_default_windows(
             rul_cap=rul_cap,
             random_state=random_state,
             rolling_window=windows[subset],
+            standardize=standardize,
+        )
+        for subset in subsets
+    ]
+
+
+def run_cmapss_regime_aware_engineered_hist_gradient_boosting(
+    data_dir: str | Path,
+    subset: str,
+    *,
+    rul_cap: int = 125,
+    random_state: int = 42,
+    rolling_window: int = 5,
+    n_regimes: int = 6,
+    standardize: bool = True,
+) -> RegressionRunResult:
+    """Train a regime-aware engineered C-MAPSS gradient-boosting baseline."""
+
+    bundle = load_cmapss_subset(data_dir, subset, rul_cap=rul_cap)
+    transformer = OperatingRegimeFeatureTransformer.fit(
+        bundle.train,
+        n_regimes=n_regimes,
+        random_state=random_state,
+    )
+    train_features = transformer.transform_engineered_frame(
+        bundle.train,
+        rolling_window=rolling_window,
+    )
+    train_target = bundle.train.loc[train_features.index, "rul_capped"].copy()
+    test_features = transformer.transform_engineered_last_cycle_frame(
+        bundle.test,
+        rolling_window=rolling_window,
+    )
+
+    if standardize:
+        standardizer = FeatureStandardizer.fit(
+            train_features,
+            feature_columns=list(train_features.columns),
+        )
+        train_features = standardizer.transform_features(train_features)
+        test_features = standardizer.transform_features(test_features)
+
+    model = hist_gradient_boosting_rul(random_state=random_state)
+    model.fit(train_features, train_target)
+    predictions = model.predict(test_features)
+
+    return RegressionRunResult(
+        dataset="C-MAPSS",
+        subset=bundle.subset,
+        model_name=(
+            f"hist_gradient_boosting_regime_engineered_w{rolling_window}"
+            f"_r{transformer.n_regimes}"
+        ),
+        rmse=rmse(bundle.test_rul, predictions),
+        nasa_score=nasa_rul_score(bundle.test_rul, predictions),
+        train_rows=len(bundle.train),
+        train_units=bundle.train["unit_number"].nunique(),
+        test_rows=len(bundle.test),
+        test_units=bundle.test["unit_number"].nunique(),
+        test_rul_values=len(bundle.test_rul),
+        rul_cap=rul_cap,
+        random_state=random_state,
+        standardize=standardize,
+    )
+
+
+def run_all_cmapss_regime_aware_engineered_default_windows(
+    data_dir: str | Path,
+    *,
+    subsets: tuple[str, ...] = CMAPSS_SUBSETS,
+    window_by_subset: dict[str, int] | None = None,
+    rul_cap: int = 125,
+    random_state: int = 42,
+    n_regimes: int = 6,
+    standardize: bool = True,
+) -> list[RegressionRunResult]:
+    """Train regime-aware engineered baselines with per-subset window defaults."""
+
+    windows = window_by_subset or CMAPSS_ENGINEERED_DEFAULT_WINDOWS
+    missing = [subset for subset in subsets if subset not in windows]
+    if missing:
+        raise ValueError(f"missing rolling-window defaults for subsets: {missing}")
+
+    return [
+        run_cmapss_regime_aware_engineered_hist_gradient_boosting(
+            data_dir,
+            subset,
+            rul_cap=rul_cap,
+            random_state=random_state,
+            rolling_window=windows[subset],
+            n_regimes=n_regimes,
             standardize=standardize,
         )
         for subset in subsets

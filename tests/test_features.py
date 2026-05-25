@@ -4,6 +4,7 @@ import pandas as pd
 import pytest
 
 from aerospace_prognostics.features import (
+    OperatingRegimeFeatureTransformer,
     cmapss_feature_columns,
     cycle_feature_table,
     engineered_cycle_feature_table,
@@ -81,6 +82,35 @@ def test_engineered_feature_tables_add_rolling_and_delta_features() -> None:
     assert last_features["sensor_1_rolling_slope_2"].tolist() == [3.0, 3.0]
 
 
+def test_operating_regime_feature_transformer_adds_regime_context() -> None:
+    frame = pd.DataFrame(
+        {
+            "unit_number": [1, 1, 2, 2],
+            "time_in_cycles": [1, 2, 1, 2],
+            "op_setting_1": [0.0, 0.0, 10.0, 10.0],
+            "op_setting_2": [0.0, 0.0, 0.0, 0.0],
+            "op_setting_3": [0.0, 0.0, 0.0, 0.0],
+            "sensor_1": [10.0, 12.0, 30.0, 35.0],
+        }
+    )
+
+    transformer = OperatingRegimeFeatureTransformer.fit(
+        frame,
+        feature_columns=["op_setting_1", "op_setting_2", "op_setting_3", "sensor_1"],
+        n_regimes=2,
+    )
+    features = transformer.transform_engineered_frame(frame, rolling_window=2)
+    last_features = transformer.transform_engineered_last_cycle_frame(frame, rolling_window=2)
+
+    assert transformer.n_regimes == 2
+    assert {"op_regime_0", "op_regime_1", "sensor_1_regime_residual"}.issubset(
+        set(features.columns)
+    )
+    assert (features["op_regime_0"] + features["op_regime_1"]).tolist() == [1.0] * 4
+    assert len(last_features) == 2
+    assert "sensor_1_regime_residual" in last_features.columns
+
+
 def test_feature_tables_validate_missing_columns() -> None:
     with pytest.raises(ValueError, match="missing columns"):
         cycle_feature_table(pd.DataFrame({"sensor_1": [1]}), feature_columns=["sensor_1"])
@@ -93,4 +123,18 @@ def test_feature_tables_validate_missing_columns() -> None:
             pd.DataFrame({"unit_number": [1], "time_in_cycles": [1], "sensor_1": [1]}),
             feature_columns=["sensor_1"],
             rolling_window=1,
+        )
+
+    with pytest.raises(ValueError, match="n_regimes"):
+        OperatingRegimeFeatureTransformer.fit(
+            pd.DataFrame(
+                {
+                    "op_setting_1": [0.0],
+                    "op_setting_2": [0.0],
+                    "op_setting_3": [0.0],
+                    "sensor_1": [1.0],
+                }
+            ),
+            feature_columns=["sensor_1"],
+            n_regimes=0,
         )

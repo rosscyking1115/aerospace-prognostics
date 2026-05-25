@@ -2,12 +2,128 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from dataclasses import dataclass
+
+import pandas as pd
+from sklearn.cluster import KMeans
+from sklearn.preprocessing import StandardScaler
 
 from aerospace_prognostics.data.cmapss import OPERATIONAL_SETTING_COLUMNS, SENSOR_COLUMNS
 
-if TYPE_CHECKING:
-    import pandas as pd
+
+@dataclass(frozen=True)
+class OperatingRegimeFeatureTransformer:
+    """Train-fitted operating-regime feature transformer for C-MAPSS."""
+
+    feature_columns: tuple[str, ...]
+    sensor_columns: tuple[str, ...]
+    n_regimes: int
+    setting_scaler: StandardScaler
+    cluster_model: KMeans
+    regime_sensor_means: pd.DataFrame
+
+    @classmethod
+    def fit(
+        cls,
+        frame: pd.DataFrame,
+        *,
+        feature_columns: list[str] | None = None,
+        n_regimes: int = 6,
+        random_state: int = 42,
+    ) -> OperatingRegimeFeatureTransformer:
+        """Fit operating-regime clusters and sensor baselines from training data only."""
+
+        if n_regimes < 1:
+            raise ValueError("n_regimes must be at least 1")
+
+        columns = tuple(feature_columns or cmapss_feature_columns())
+        sensor_columns = tuple(column for column in columns if column in SENSOR_COLUMNS)
+        required = [*OPERATIONAL_SETTING_COLUMNS, *sensor_columns]
+        missing = [column for column in required if column not in frame.columns]
+        if missing:
+            raise ValueError(f"frame is missing columns: {missing}")
+
+        settings = frame.loc[:, OPERATIONAL_SETTING_COLUMNS]
+        actual_regimes = min(n_regimes, len(settings.drop_duplicates()), len(settings))
+        setting_scaler = StandardScaler()
+        scaled_settings = setting_scaler.fit_transform(settings)
+        cluster_model = KMeans(
+            n_clusters=actual_regimes,
+            random_state=random_state,
+            n_init=10,
+        )
+        labels = cluster_model.fit_predict(scaled_settings)
+        regime_sensor_means = (
+            frame.loc[:, sensor_columns]
+            .assign(_operating_regime=labels)
+            .groupby("_operating_regime")
+            .mean()
+        )
+
+        return cls(
+            feature_columns=columns,
+            sensor_columns=sensor_columns,
+            n_regimes=actual_regimes,
+            setting_scaler=setting_scaler,
+            cluster_model=cluster_model,
+            regime_sensor_means=regime_sensor_means,
+        )
+
+    def transform_engineered_frame(
+        self,
+        frame: pd.DataFrame,
+        *,
+        rolling_window: int = 5,
+    ) -> pd.DataFrame:
+        """Build engineered features with train-fitted operating-regime context."""
+
+        features = engineered_feature_frame(
+            frame,
+            feature_columns=list(self.feature_columns),
+            rolling_window=rolling_window,
+        )
+        labels = self.predict_regimes(frame)
+        label_series = pd.Series(labels, index=frame.index).reindex(features.index)
+
+        extra_columns = {
+            f"op_regime_{regime_id}": (label_series == regime_id).astype(float)
+            for regime_id in range(self.n_regimes)
+        }
+        for sensor in self.sensor_columns:
+            sensor_values = frame[sensor].reindex(features.index)
+            baseline = label_series.map(self.regime_sensor_means[sensor])
+            extra_columns[f"{sensor}_regime_residual"] = sensor_values - baseline
+
+        return pd.concat([features, pd.DataFrame(extra_columns, index=features.index)], axis=1)
+
+    def transform_engineered_last_cycle_frame(
+        self,
+        frame: pd.DataFrame,
+        *,
+        rolling_window: int = 5,
+    ) -> pd.DataFrame:
+        """Return one regime-aware engineered feature row per unit."""
+
+        features = self.transform_engineered_frame(frame, rolling_window=rolling_window)
+        keyed_features = features.copy()
+        keyed_features["_unit_number"] = frame["unit_number"].reindex(features.index)
+        keyed_features["_time_in_cycles"] = frame["time_in_cycles"].reindex(features.index)
+        last_rows = (
+            keyed_features.sort_values(["_unit_number", "_time_in_cycles"])
+            .groupby("_unit_number", as_index=False)
+            .tail(1)
+            .sort_values("_unit_number")
+        )
+        return last_rows.loc[:, features.columns].reset_index(drop=True)
+
+    def predict_regimes(self, frame: pd.DataFrame) -> list[int]:
+        """Assign operating-regime clusters to rows using train-fitted settings."""
+
+        missing = [column for column in OPERATIONAL_SETTING_COLUMNS if column not in frame.columns]
+        if missing:
+            raise ValueError(f"frame is missing columns: {missing}")
+        scaled_settings = self.setting_scaler.transform(frame.loc[:, OPERATIONAL_SETTING_COLUMNS])
+        return self.cluster_model.predict(scaled_settings).tolist()
 
 
 def cmapss_feature_columns(*, include_settings: bool = True) -> list[str]:

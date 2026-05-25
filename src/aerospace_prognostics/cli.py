@@ -25,6 +25,7 @@ from aerospace_prognostics.experiments.cmapss_baseline import (
     run_all_cmapss_engineered_default_windows,
     run_all_cmapss_engineered_hist_gradient_boosting,
     run_all_cmapss_hist_gradient_boosting,
+    run_all_cmapss_regime_aware_engineered_default_windows,
     run_cmapss_engineered_hist_gradient_boosting,
     run_cmapss_engineered_window_sweep,
     run_cmapss_hist_gradient_boosting,
@@ -133,6 +134,24 @@ def _build_parser() -> argparse.ArgumentParser:
     engineered_best.add_argument("--output-json", type=Path)
     engineered_best.add_argument("--output-csv", type=Path)
     engineered_best.add_argument("--no-standardize", action="store_true")
+
+    regime_engineered = subparsers.add_parser(
+        "cmapss-regime-engineered-best-baseline-all",
+        help="Train regime-aware engineered baselines with per-subset windows",
+    )
+    regime_engineered.add_argument("--data-dir", type=Path, required=True)
+    regime_engineered.add_argument(
+        "--subsets",
+        nargs="+",
+        choices=CMAPSS_SUBSETS,
+        default=list(CMAPSS_SUBSETS),
+    )
+    regime_engineered.add_argument("--rul-cap", type=int, default=125)
+    regime_engineered.add_argument("--random-state", type=int, default=42)
+    regime_engineered.add_argument("--n-regimes", type=int, default=6)
+    regime_engineered.add_argument("--output-json", type=Path)
+    regime_engineered.add_argument("--output-csv", type=Path)
+    regime_engineered.add_argument("--no-standardize", action="store_true")
 
     eda = subparsers.add_parser("cmapss-eda", help="Build a C-MAPSS EDA summary report")
     eda.add_argument("--data-dir", type=Path, required=True)
@@ -309,6 +328,30 @@ def main(argv: list[str] | None = None) -> int:
                 for subset in args.subsets
             )
         )
+        _print_results_table(results)
+        if args.output_json is not None:
+            write_results_json(results, args.output_json)
+        if args.output_csv is not None:
+            write_results_csv(results, args.output_csv)
+        return 0
+
+    if args.command == "cmapss-regime-engineered-best-baseline-all":
+        results = run_all_cmapss_regime_aware_engineered_default_windows(
+            args.data_dir,
+            subsets=tuple(args.subsets),
+            rul_cap=args.rul_cap,
+            random_state=args.random_state,
+            n_regimes=args.n_regimes,
+            standardize=not args.no_standardize,
+        )
+        print(
+            "rolling_windows="
+            + ",".join(
+                f"{subset}:{CMAPSS_ENGINEERED_DEFAULT_WINDOWS[subset]}"
+                for subset in args.subsets
+            )
+        )
+        print(f"max_regimes={args.n_regimes}")
         _print_results_table(results)
         if args.output_json is not None:
             write_results_json(results, args.output_json)

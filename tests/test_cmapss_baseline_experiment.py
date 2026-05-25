@@ -5,9 +5,11 @@ from aerospace_prognostics.experiments.cmapss_baseline import (
     run_all_cmapss_engineered_default_windows,
     run_all_cmapss_engineered_hist_gradient_boosting,
     run_all_cmapss_hist_gradient_boosting,
+    run_all_cmapss_regime_aware_engineered_default_windows,
     run_cmapss_engineered_hist_gradient_boosting,
     run_cmapss_engineered_window_sweep,
     run_cmapss_hist_gradient_boosting,
+    run_cmapss_regime_aware_engineered_hist_gradient_boosting,
 )
 from tests.cmapss_fixtures import write_all_tiny_cmapss_subsets, write_tiny_cmapss_subset
 
@@ -116,3 +118,31 @@ def test_run_all_cmapss_engineered_default_windows_validates_missing_subset(
         assert "missing rolling-window defaults" in str(exc)
     else:
         raise AssertionError("expected missing default windows to fail")
+
+
+def test_run_cmapss_regime_aware_engineered_hist_gradient_boosting_returns_result(
+    tmp_path,
+) -> None:
+    write_tiny_cmapss_subset(tmp_path)
+
+    result = run_cmapss_regime_aware_engineered_hist_gradient_boosting(
+        tmp_path,
+        "FD001",
+        rolling_window=2,
+        n_regimes=2,
+    )
+
+    assert result.model_name == "hist_gradient_boosting_regime_engineered_w2_r1"
+    assert result.standardize is True
+    assert result.rmse >= 0
+
+
+def test_run_all_cmapss_regime_aware_engineered_default_windows_returns_each_subset(
+    tmp_path,
+) -> None:
+    write_all_tiny_cmapss_subsets(tmp_path)
+
+    results = run_all_cmapss_regime_aware_engineered_default_windows(tmp_path)
+
+    assert [result.subset for result in results] == ["FD001", "FD002", "FD003", "FD004"]
+    assert all("regime_engineered" in result.model_name for result in results)
