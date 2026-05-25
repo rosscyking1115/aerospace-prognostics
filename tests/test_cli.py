@@ -32,6 +32,7 @@ def test_cmapss_baseline_command_writes_json_result(tmp_path, capsys) -> None:
             "FD001",
             "--output-json",
             str(output_path),
+            "--standardize",
         ]
     )
 
@@ -40,7 +41,9 @@ def test_cmapss_baseline_command_writes_json_result(tmp_path, capsys) -> None:
 
     assert exit_code == 0
     assert "model=hist_gradient_boosting" in terminal_output
+    assert "standardize=True" in terminal_output
     assert result["dataset"] == "C-MAPSS"
     assert result["subset"] == "FD001"
     assert result["train_rows"] == 6
     assert result["test_units"] == 2
+    assert result["standardize"] is True

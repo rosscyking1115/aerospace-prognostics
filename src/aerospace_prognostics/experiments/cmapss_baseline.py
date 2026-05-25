@@ -9,6 +9,7 @@ from aerospace_prognostics.evaluation import RegressionRunResult
 from aerospace_prognostics.features import cycle_feature_table, last_cycle_feature_table
 from aerospace_prognostics.metrics import nasa_rul_score, rmse
 from aerospace_prognostics.models.baselines import hist_gradient_boosting_rul
+from aerospace_prognostics.preprocessing import FeatureStandardizer
 
 
 def run_cmapss_hist_gradient_boosting(
@@ -17,12 +18,20 @@ def run_cmapss_hist_gradient_boosting(
     *,
     rul_cap: int = 125,
     random_state: int = 42,
+    standardize: bool = False,
 ) -> RegressionRunResult:
     """Train and evaluate the first-pass C-MAPSS gradient-boosting baseline."""
 
     bundle = load_cmapss_subset(data_dir, subset, rul_cap=rul_cap)
-    train_features, train_target = cycle_feature_table(bundle.train)
-    test_features = last_cycle_feature_table(bundle.test)
+    train_frame = bundle.train
+    test_frame = bundle.test
+    if standardize:
+        standardizer = FeatureStandardizer.fit(train_frame)
+        train_frame = standardizer.transform_frame(train_frame)
+        test_frame = standardizer.transform_frame(test_frame)
+
+    train_features, train_target = cycle_feature_table(train_frame)
+    test_features = last_cycle_feature_table(test_frame)
 
     model = hist_gradient_boosting_rul(random_state=random_state)
     model.fit(train_features, train_target)
@@ -41,5 +50,5 @@ def run_cmapss_hist_gradient_boosting(
         test_rul_values=len(bundle.test_rul),
         rul_cap=rul_cap,
         random_state=random_state,
+        standardize=standardize,
     )
-

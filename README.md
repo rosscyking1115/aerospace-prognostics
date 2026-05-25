@@ -9,6 +9,7 @@ The working plan is tracked in [Aerospace_Prognostics_Project_Plan.md](Aerospace
 - NASA C-MAPSS evaluation metrics: RMSE and asymmetric RUL score.
 - Piecewise-linear RUL cap helper for standard C-MAPSS target generation.
 - C-MAPSS text-file loading, training-target generation, and baseline feature-table helpers.
+- Train-fitted feature standardisation utilities to avoid test leakage.
 - Sliding-window helpers for later CNN/LSTM/Transformer sequence models.
 - Dataset checksum utilities for reproducible local data handling.
 - `aerospace-prognostics cmapss-summary` CLI for sanity-checking local C-MAPSS files.
@@ -30,5 +31,5 @@ Once C-MAPSS files are available locally:
 ```powershell
 uv run aerospace-prognostics cmapss-summary --data-dir data/raw/cmapss --subset FD001
 uv run aerospace-prognostics cmapss-baseline --data-dir data/raw/cmapss --subset FD001
-uv run aerospace-prognostics cmapss-baseline --data-dir data/raw/cmapss --subset FD001 --output-json artifacts/results/fd001_baseline.json
+uv run aerospace-prognostics cmapss-baseline --data-dir data/raw/cmapss --subset FD001 --standardize --output-json artifacts/results/fd001_baseline.json
 ```

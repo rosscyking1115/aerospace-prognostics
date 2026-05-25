@@ -19,6 +19,7 @@ def test_regression_run_result_writes_json(tmp_path) -> None:
         test_rul_values=1,
         rul_cap=125,
         random_state=42,
+        standardize=True,
     )
     output_path = tmp_path / "result.json"
 

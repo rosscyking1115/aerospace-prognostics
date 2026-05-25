@@ -28,6 +28,7 @@ def _build_parser() -> argparse.ArgumentParser:
     baseline.add_argument("--rul-cap", type=int, default=125)
     baseline.add_argument("--random-state", type=int, default=42)
     baseline.add_argument("--output-json", type=Path)
+    baseline.add_argument("--standardize", action="store_true")
 
     return parser
 
@@ -62,10 +63,12 @@ def main(argv: list[str] | None = None) -> int:
             args.subset,
             rul_cap=args.rul_cap,
             random_state=args.random_state,
+            standardize=args.standardize,
         )
         print(f"dataset={result.dataset}")
         print(f"subset={result.subset}")
         print(f"model={result.model_name}")
+        print(f"standardize={result.standardize}")
         print(f"rmse={result.rmse:.6f}")
         print(f"nasa_score={result.nasa_score:.6f}")
         if args.output_json is not None:

@@ -24,6 +24,7 @@ class RegressionRunResult:
     test_rul_values: int
     rul_cap: int
     random_state: int
+    standardize: bool = False
 
     def to_dict(self) -> dict[str, Any]:
         """Return a JSON-serialisable dictionary."""
@@ -34,4 +35,3 @@ class RegressionRunResult:
         """Write this result as pretty JSON."""
 
         Path(path).write_text(json.dumps(self.to_dict(), indent=2, sort_keys=True) + "\n")
-
