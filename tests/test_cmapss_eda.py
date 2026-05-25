@@ -2,7 +2,11 @@ from __future__ import annotations
 
 import json
 
-from aerospace_prognostics.analysis.cmapss_eda import build_cmapss_eda_report
+from aerospace_prognostics.analysis.cmapss_eda import (
+    build_cmapss_eda_report,
+    build_cmapss_sensor_summaries,
+    select_informative_cmapss_sensors,
+)
 from aerospace_prognostics.data.cmapss import load_cmapss_subset
 from tests.cmapss_fixtures import write_tiny_cmapss_subset
 
@@ -36,6 +40,23 @@ def test_cmapss_eda_report_writes_json(tmp_path) -> None:
     assert payload["subset"] == "FD001"
     assert payload["sensor_summaries"][0]["sensor"] == "sensor_1"
     assert payload["operating_regime_clusters"][0]["cluster_id"] == 0
+
+
+def test_select_informative_cmapss_sensors_filters_flat_channels(tmp_path) -> None:
+    write_tiny_cmapss_subset(tmp_path)
+    bundle = load_cmapss_subset(tmp_path, "FD001")
+    frame = bundle.train.copy()
+    frame["sensor_2"] = 7.0
+
+    summaries = build_cmapss_sensor_summaries(frame)
+    selected = select_informative_cmapss_sensors(
+        summaries,
+        min_abs_rul_correlation=0.05,
+        min_abs_standardized_drift=0.2,
+    )
+
+    assert "sensor_1" in selected
+    assert "sensor_2" not in selected
 
 
 def test_build_cmapss_eda_report_clusters_operating_regimes(tmp_path) -> None:

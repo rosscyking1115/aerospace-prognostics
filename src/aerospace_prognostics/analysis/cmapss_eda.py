@@ -89,16 +89,12 @@ def build_cmapss_eda_report(
         raise ValueError("max_operating_regimes must be at least 1")
 
     train = bundle.train
-    sensor_summaries = [
-        _summarise_sensor(
-            train,
-            sensor,
-            early_fraction=early_fraction,
-            late_fraction=late_fraction,
-            near_constant_std=near_constant_std,
-        )
-        for sensor in SENSOR_COLUMNS
-    ]
+    sensor_summaries = build_cmapss_sensor_summaries(
+        train,
+        early_fraction=early_fraction,
+        late_fraction=late_fraction,
+        near_constant_std=near_constant_std,
+    )
 
     return CmapssEdaReport(
         subset=bundle.subset,
@@ -114,6 +110,49 @@ def build_cmapss_eda_report(
             random_state=random_state,
         ),
     )
+
+
+def build_cmapss_sensor_summaries(
+    frame,
+    *,
+    early_fraction: float = 0.25,
+    late_fraction: float = 0.25,
+    near_constant_std: float = 1e-8,
+) -> list[SensorEdaSummary]:
+    """Build per-sensor summaries from a C-MAPSS frame."""
+
+    return [
+        _summarise_sensor(
+            frame,
+            sensor,
+            early_fraction=early_fraction,
+            late_fraction=late_fraction,
+            near_constant_std=near_constant_std,
+        )
+        for sensor in SENSOR_COLUMNS
+    ]
+
+
+def select_informative_cmapss_sensors(
+    sensor_summaries: list[SensorEdaSummary],
+    *,
+    min_abs_rul_correlation: float = 0.05,
+    min_abs_standardized_drift: float = 0.2,
+) -> list[str]:
+    """Select non-flat sensors with train-observed RUL correlation or drift signal."""
+
+    selected = []
+    for summary in sensor_summaries:
+        if summary.is_near_constant:
+            continue
+        abs_correlation = abs(summary.rul_correlation or 0.0)
+        abs_standardized_drift = abs(summary.drift) / summary.std if summary.std else 0.0
+        if (
+            abs_correlation >= min_abs_rul_correlation
+            or abs_standardized_drift >= min_abs_standardized_drift
+        ):
+            selected.append(summary.sensor)
+    return selected
 
 
 def _summarise_sensor(

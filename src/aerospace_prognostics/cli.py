@@ -25,6 +25,7 @@ from aerospace_prognostics.evaluation import (
 from aerospace_prognostics.experiments.cmapss_baseline import (
     CMAPSS_ENGINEERED_DEFAULT_WINDOWS,
     CMAPSS_HGB_PARAM_GRID,
+    CMAPSS_SENSOR_FILTER_CANDIDATES,
     CMAPSS_VALIDATION_SELECTED_FEATURES,
     CMAPSS_VALIDATION_SELECTED_HGB_PARAMS,
     CmapssValidationAggregateResult,
@@ -40,6 +41,7 @@ from aerospace_prognostics.experiments.cmapss_baseline import (
     run_cmapss_repeated_validation_feature_comparison,
     run_cmapss_validation_feature_comparison,
     run_cmapss_validation_selected_hgb_grid,
+    run_cmapss_validation_sensor_filter_comparison,
 )
 from aerospace_prognostics.workflows.phase1 import run_phase1_cmapss_workflow
 
@@ -259,6 +261,28 @@ def _build_parser() -> argparse.ArgumentParser:
     hgb_grid.add_argument("--output-json", type=Path)
     hgb_grid.add_argument("--output-csv", type=Path)
     hgb_grid.add_argument("--no-standardize", action="store_true")
+
+    sensor_filters = subparsers.add_parser(
+        "cmapss-validate-sensor-filters",
+        help="Validate full versus EDA-filtered sensor sets for the current policy",
+    )
+    sensor_filters.add_argument("--data-dir", type=Path, required=True)
+    sensor_filters.add_argument(
+        "--subsets",
+        nargs="+",
+        choices=CMAPSS_SUBSETS,
+        default=list(CMAPSS_SUBSETS),
+    )
+    sensor_filters.add_argument("--rul-cap", type=int, default=125)
+    sensor_filters.add_argument("--random-state", type=int, default=42)
+    sensor_filters.add_argument("--n-regimes", type=int, default=6)
+    sensor_filters.add_argument("--validation-fraction", type=float, default=0.2)
+    sensor_filters.add_argument("--validation-horizon", type=int, default=30)
+    sensor_filters.add_argument("--min-abs-rul-correlation", type=float, default=0.05)
+    sensor_filters.add_argument("--min-abs-standardized-drift", type=float, default=0.2)
+    sensor_filters.add_argument("--output-json", type=Path)
+    sensor_filters.add_argument("--output-csv", type=Path)
+    sensor_filters.add_argument("--no-standardize", action="store_true")
 
     eda = subparsers.add_parser("cmapss-eda", help="Build a C-MAPSS EDA summary report")
     eda.add_argument("--data-dir", type=Path, required=True)
@@ -634,6 +658,59 @@ def main(argv: list[str] | None = None) -> int:
         print(f"validation_fraction={args.validation_fraction}")
         print(f"validation_horizon={args.validation_horizon}")
         print(f"param_grid={','.join(str(params['label']) for params in CMAPSS_HGB_PARAM_GRID)}")
+        _print_results_table(results)
+        print(
+            "selected_by_nasa="
+            + ",".join(
+                f"{subset}:{_best_result_for_subset(results, subset).model_name}"
+                for subset in args.subsets
+            )
+        )
+        if args.output_json is not None:
+            write_results_json(results, args.output_json)
+        if args.output_csv is not None:
+            write_results_csv(results, args.output_csv)
+        return 0
+
+    if args.command == "cmapss-validate-sensor-filters":
+        results = run_cmapss_validation_sensor_filter_comparison(
+            args.data_dir,
+            subsets=tuple(args.subsets),
+            rul_cap=args.rul_cap,
+            random_state=args.random_state,
+            n_regimes=args.n_regimes,
+            validation_fraction=args.validation_fraction,
+            validation_horizon=args.validation_horizon,
+            min_abs_rul_correlation=args.min_abs_rul_correlation,
+            min_abs_standardized_drift=args.min_abs_standardized_drift,
+            standardize=not args.no_standardize,
+        )
+        print(
+            "rolling_windows="
+            + ",".join(
+                f"{subset}:{CMAPSS_ENGINEERED_DEFAULT_WINDOWS[subset]}"
+                for subset in args.subsets
+            )
+        )
+        print(
+            "feature_policy="
+            + ",".join(
+                f"{subset}:{CMAPSS_VALIDATION_SELECTED_FEATURES[subset]}"
+                for subset in args.subsets
+            )
+        )
+        print(
+            "hgb_policy="
+            + ",".join(
+                f"{subset}:{CMAPSS_VALIDATION_SELECTED_HGB_PARAMS[subset]}"
+                for subset in args.subsets
+            )
+        )
+        print(f"sensor_filter_candidates={','.join(CMAPSS_SENSOR_FILTER_CANDIDATES)}")
+        print(f"validation_fraction={args.validation_fraction}")
+        print(f"validation_horizon={args.validation_horizon}")
+        print(f"min_abs_rul_correlation={args.min_abs_rul_correlation}")
+        print(f"min_abs_standardized_drift={args.min_abs_standardized_drift}")
         _print_results_table(results)
         print(
             "selected_by_nasa="

@@ -339,6 +339,43 @@ def test_cmapss_validate_hgb_grid_command_writes_result_table(
     assert csv_path.exists()
 
 
+def test_cmapss_validate_sensor_filters_command_writes_result_table(
+    tmp_path,
+    capsys,
+) -> None:
+    write_all_tiny_cmapss_subsets(tmp_path)
+    csv_path = tmp_path / "nested" / "sensor_filters.csv"
+
+    exit_code = main(
+        [
+            "cmapss-validate-sensor-filters",
+            "--data-dir",
+            str(tmp_path),
+            "--subsets",
+            "FD001",
+            "--validation-horizon",
+            "1",
+            "--n-regimes",
+            "2",
+            "--output-csv",
+            str(csv_path),
+        ]
+    )
+
+    terminal_output = capsys.readouterr().out
+
+    assert exit_code == 0
+    assert "sensor_filter_candidates=all_sensors,eda_filtered" in terminal_output
+    assert "min_abs_standardized_drift=0.2" in terminal_output
+    assert "FD001,hist_gradient_boosting_regime_engineered_w10_r1_default,True" in terminal_output
+    assert (
+        "FD001,hist_gradient_boosting_regime_engineered_w10_r1_default_eda_filtered,True"
+        in terminal_output
+    )
+    assert "selected_by_nasa=FD001:" in terminal_output
+    assert csv_path.exists()
+
+
 def test_cmapss_eda_command_writes_json_report(tmp_path, capsys) -> None:
     write_tiny_cmapss_subset(tmp_path)
     output_path = tmp_path / "eda" / "fd001.json"

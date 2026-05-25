@@ -8,10 +8,15 @@ from pathlib import Path
 from statistics import mean
 from typing import TYPE_CHECKING
 
+from aerospace_prognostics.analysis.cmapss_eda import (
+    build_cmapss_sensor_summaries,
+    select_informative_cmapss_sensors,
+)
 from aerospace_prognostics.data.cmapss import CMAPSS_SUBSETS, load_cmapss_subset
 from aerospace_prognostics.evaluation import RegressionRunResult
 from aerospace_prognostics.features import (
     OperatingRegimeFeatureTransformer,
+    cmapss_feature_columns,
     cycle_feature_table,
     engineered_cycle_feature_table,
     engineered_last_cycle_feature_table,
@@ -66,6 +71,8 @@ CMAPSS_VALIDATION_SELECTED_HGB_PARAMS = {
     "FD003": "slow_regularized",
     "FD004": "default",
 }
+
+CMAPSS_SENSOR_FILTER_CANDIDATES = ("all_sensors", "eda_filtered")
 
 
 @dataclass(frozen=True)
@@ -822,6 +829,69 @@ def run_cmapss_validation_selected_hgb_grid(
     ]
 
 
+def run_cmapss_validation_sensor_filter_comparison(
+    data_dir: str | Path,
+    *,
+    subsets: tuple[str, ...] = CMAPSS_SUBSETS,
+    sensor_filter_candidates: tuple[str, ...] = CMAPSS_SENSOR_FILTER_CANDIDATES,
+    window_by_subset: dict[str, int] | None = None,
+    feature_policy_by_subset: dict[str, str] | None = None,
+    hgb_policy_by_subset: dict[str, str] | None = None,
+    rul_cap: int = 125,
+    random_state: int = 42,
+    n_regimes: int = 6,
+    validation_fraction: float = 0.2,
+    validation_horizon: int = 30,
+    min_abs_rul_correlation: float = 0.05,
+    min_abs_standardized_drift: float = 0.2,
+    standardize: bool = True,
+) -> list[RegressionRunResult]:
+    """Compare full and EDA-filtered sensors on temporal validation splits."""
+
+    windows = window_by_subset or CMAPSS_ENGINEERED_DEFAULT_WINDOWS
+    feature_policy = feature_policy_by_subset or CMAPSS_VALIDATION_SELECTED_FEATURES
+    hgb_policy = hgb_policy_by_subset or CMAPSS_VALIDATION_SELECTED_HGB_PARAMS
+    missing_windows = [subset for subset in subsets if subset not in windows]
+    if missing_windows:
+        raise ValueError(f"missing rolling-window defaults for subsets: {missing_windows}")
+    missing_feature_policy = [subset for subset in subsets if subset not in feature_policy]
+    if missing_feature_policy:
+        raise ValueError(f"missing feature-policy defaults for subsets: {missing_feature_policy}")
+    missing_hgb_policy = [subset for subset in subsets if subset not in hgb_policy]
+    if missing_hgb_policy:
+        raise ValueError(f"missing HGB-policy defaults for subsets: {missing_hgb_policy}")
+    unknown_filters = [
+        candidate
+        for candidate in sensor_filter_candidates
+        if candidate not in CMAPSS_SENSOR_FILTER_CANDIDATES
+    ]
+    if unknown_filters:
+        raise ValueError(f"unknown sensor-filter candidate(s): {unknown_filters}")
+
+    params_by_label = _hgb_params_by_label(CMAPSS_HGB_PARAM_GRID)
+    return [
+        _run_cmapss_validation_selected_hgb_candidate(
+            data_dir,
+            subset,
+            feature_candidate=feature_policy[subset],
+            rolling_window=windows[subset],
+            hgb_params=params_by_label[hgb_policy[subset]],
+            sensor_filter_candidate=sensor_filter_candidate,
+            rul_cap=rul_cap,
+            random_state=random_state,
+            n_regimes=n_regimes,
+            validation_fraction=validation_fraction,
+            validation_horizon=validation_horizon,
+            min_abs_rul_correlation=min_abs_rul_correlation,
+            min_abs_standardized_drift=min_abs_standardized_drift,
+            dataset_name="C-MAPSS-validation-sensor-filter",
+            standardize=standardize,
+        )
+        for subset in subsets
+        for sensor_filter_candidate in sensor_filter_candidates
+    ]
+
+
 def _run_cmapss_validation_selected_hgb_candidate(
     data_dir: str | Path,
     subset: str,
@@ -834,7 +904,11 @@ def _run_cmapss_validation_selected_hgb_candidate(
     n_regimes: int,
     validation_fraction: float,
     validation_horizon: int,
-    standardize: bool,
+    sensor_filter_candidate: str = "all_sensors",
+    min_abs_rul_correlation: float = 0.05,
+    min_abs_standardized_drift: float = 0.2,
+    dataset_name: str = "C-MAPSS-validation-hgb-grid",
+    standardize: bool = True,
 ) -> RegressionRunResult:
     bundle = load_cmapss_subset(data_dir, subset, rul_cap=rul_cap)
     split = make_cmapss_temporal_validation_split(
@@ -843,20 +917,29 @@ def _run_cmapss_validation_selected_hgb_candidate(
         validation_horizon=validation_horizon,
         random_state=random_state,
     )
+    feature_columns = _feature_columns_for_sensor_filter(
+        split.train,
+        sensor_filter_candidate,
+        min_abs_rul_correlation=min_abs_rul_correlation,
+        min_abs_standardized_drift=min_abs_standardized_drift,
+    )
 
     if feature_candidate == "engineered":
         train_features, train_target = engineered_cycle_feature_table(
             split.train,
+            feature_columns=feature_columns,
             rolling_window=rolling_window,
         )
         validation_features = engineered_last_cycle_feature_table(
             split.validation,
+            feature_columns=feature_columns,
             rolling_window=rolling_window,
         )
         model_prefix = f"hist_gradient_boosting_engineered_w{rolling_window}"
     elif feature_candidate == "regime_engineered":
         transformer = OperatingRegimeFeatureTransformer.fit(
             split.train,
+            feature_columns=feature_columns,
             n_regimes=n_regimes,
             random_state=random_state,
         )
@@ -891,9 +974,12 @@ def _run_cmapss_validation_selected_hgb_candidate(
     label = hgb_params.get("label", "candidate")
 
     return RegressionRunResult(
-        dataset="C-MAPSS-validation-hgb-grid",
+        dataset=dataset_name,
         subset=bundle.subset,
-        model_name=f"{model_prefix}_{label}",
+        model_name=_model_name_with_sensor_filter(
+            f"{model_prefix}_{label}",
+            sensor_filter_candidate,
+        ),
         rmse=rmse(split.validation_rul, predictions),
         nasa_score=nasa_rul_score(split.validation_rul, predictions),
         train_rows=len(split.train),
@@ -905,6 +991,39 @@ def _run_cmapss_validation_selected_hgb_candidate(
         random_state=random_state,
         standardize=standardize,
     )
+
+
+def _feature_columns_for_sensor_filter(
+    frame: pd.DataFrame,
+    sensor_filter_candidate: str,
+    *,
+    min_abs_rul_correlation: float,
+    min_abs_standardized_drift: float,
+) -> list[str] | None:
+    if sensor_filter_candidate == "all_sensors":
+        return None
+    if sensor_filter_candidate != "eda_filtered":
+        raise ValueError("sensor_filter_candidate must be 'all_sensors' or 'eda_filtered'")
+
+    sensor_summaries = build_cmapss_sensor_summaries(frame)
+    sensors = select_informative_cmapss_sensors(
+        sensor_summaries,
+        min_abs_rul_correlation=min_abs_rul_correlation,
+        min_abs_standardized_drift=min_abs_standardized_drift,
+    )
+    if not sensors:
+        sensors = [
+            summary.sensor for summary in sensor_summaries if not summary.is_near_constant
+        ]
+    if not sensors:
+        sensors = list(cmapss_feature_columns(include_settings=False))
+    return cmapss_feature_columns(include_settings=True)[:3] + sensors
+
+
+def _model_name_with_sensor_filter(model_name: str, sensor_filter_candidate: str) -> str:
+    if sensor_filter_candidate == "all_sensors":
+        return model_name
+    return f"{model_name}_{sensor_filter_candidate}"
 
 
 def _run_cmapss_official_hgb_policy_candidate(

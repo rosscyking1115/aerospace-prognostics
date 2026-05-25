@@ -300,6 +300,40 @@ Official test results:
 
 Compared with the validation-selected feature baseline, the HGB policy improves FD002 and FD003 while leaving FD001 and FD004 unchanged. Aggregate NASA score improves from 16597.477390 to 16416.108581. The FD003 gap versus the selected-window engineered baseline remains, but the compact parameter policy reduces it without using official test data for model selection.
 
+## EDA Sensor-Filter Validation Check
+
+The next check tested whether the EDA near-constant, drift, and RUL-correlation summaries could safely reduce the sensor set before sequence modelling. The filter was fitted on the training side of the temporal validation split only. It removes near-flat channels and keeps sensors with either absolute RUL correlation of at least 0.05 or standardized early-to-late drift of at least 0.2.
+
+Command:
+
+```powershell
+uv run aerospace-prognostics cmapss-validate-sensor-filters --data-dir data/raw/cmapss --output-json artifacts/results/cmapss_validation_sensor_filters.json --output-csv artifacts/results/cmapss_validation_sensor_filters.csv
+```
+
+Validation results:
+
+| Subset | Candidate | Validation RMSE | Validation NASA Score |
+|---|---|---:|---:|
+| FD001 | `hist_gradient_boosting_regime_engineered_w10_r6_default` | 7.523112 | 19.265706 |
+| FD001 | `hist_gradient_boosting_regime_engineered_w10_r6_default_eda_filtered` | 7.523112 | 19.265706 |
+| FD002 | `hist_gradient_boosting_engineered_w3_slow_regularized` | 16.966055 | 362.389803 |
+| FD002 | `hist_gradient_boosting_engineered_w3_slow_regularized_eda_filtered` | 32.257909 | 2764.565916 |
+| FD003 | `hist_gradient_boosting_regime_engineered_w5_r6_slow_regularized` | 5.983843 | 14.666385 |
+| FD003 | `hist_gradient_boosting_regime_engineered_w5_r6_slow_regularized_eda_filtered` | 5.983843 | 14.666385 |
+| FD004 | `hist_gradient_boosting_regime_engineered_w3_r6_default` | 13.574715 | 174.416271 |
+| FD004 | `hist_gradient_boosting_regime_engineered_w3_r6_default_eda_filtered` | 21.319421 | 1052.531875 |
+
+Selected by validation NASA score:
+
+| Subset | Sensor Policy |
+|---|---|
+| FD001 | `all_sensors` |
+| FD002 | `all_sensors` |
+| FD003 | `all_sensors` |
+| FD004 | `all_sensors` |
+
+This is a useful negative result. EDA filtering is neutral where it keeps the same effective signal, but it removes information the multi-regime FD002 and FD004 baselines need. The Phase 1 classical policy therefore keeps all sensors, while the EDA summaries remain useful for interpretation and for later model diagnostics rather than hard feature removal.
+
 ## Provenance Checksums
 
 | File | SHA-256 |
@@ -336,7 +370,6 @@ The next Phase 1 modelling step should improve the selected-window engineered ba
 - Per-subset validation for when regime-aware features should be enabled.
 - Regime-specific normalization or cluster-specific feature summaries for FD002 and FD004.
 - Stronger validation design for FD003, where repeated validation and official test scoring disagree.
-- Sensor filtering using the EDA near-constant and drift summaries.
 - Stronger sequence-ready feature exports for CNN/LSTM/Transformer experiments.
 
 Those changes should be reported as a third table beside the two checkpoints above so progress stays measurable.
