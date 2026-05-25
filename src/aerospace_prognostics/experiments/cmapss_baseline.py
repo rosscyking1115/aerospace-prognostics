@@ -153,3 +153,28 @@ def run_all_cmapss_engineered_hist_gradient_boosting(
         )
         for subset in subsets
     ]
+
+
+def run_cmapss_engineered_window_sweep(
+    data_dir: str | Path,
+    *,
+    subsets: tuple[str, ...] = CMAPSS_SUBSETS,
+    rolling_windows: tuple[int, ...] = (3, 5, 10),
+    rul_cap: int = 125,
+    random_state: int = 42,
+    standardize: bool = True,
+) -> list[RegressionRunResult]:
+    """Train the engineered baseline across rolling-window sizes."""
+
+    return [
+        result
+        for rolling_window in rolling_windows
+        for result in run_all_cmapss_engineered_hist_gradient_boosting(
+            data_dir,
+            subsets=subsets,
+            rul_cap=rul_cap,
+            random_state=random_state,
+            rolling_window=rolling_window,
+            standardize=standardize,
+        )
+    ]

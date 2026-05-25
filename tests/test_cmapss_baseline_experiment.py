@@ -4,6 +4,7 @@ from aerospace_prognostics.experiments.cmapss_baseline import (
     run_all_cmapss_engineered_hist_gradient_boosting,
     run_all_cmapss_hist_gradient_boosting,
     run_cmapss_engineered_hist_gradient_boosting,
+    run_cmapss_engineered_window_sweep,
     run_cmapss_hist_gradient_boosting,
 )
 from tests.cmapss_fixtures import write_all_tiny_cmapss_subsets, write_tiny_cmapss_subset
@@ -67,3 +68,21 @@ def test_run_all_cmapss_engineered_hist_gradient_boosting_returns_each_subset(tm
 
     assert [result.subset for result in results] == ["FD001", "FD002", "FD003", "FD004"]
     assert all("engineered_w2" in result.model_name for result in results)
+
+
+def test_run_cmapss_engineered_window_sweep_returns_window_subset_grid(tmp_path) -> None:
+    write_all_tiny_cmapss_subsets(tmp_path)
+
+    results = run_cmapss_engineered_window_sweep(
+        tmp_path,
+        rolling_windows=(2, 3),
+    )
+
+    assert len(results) == 8
+    assert [result.model_name for result in results[:4]] == [
+        "hist_gradient_boosting_engineered_w2",
+        "hist_gradient_boosting_engineered_w2",
+        "hist_gradient_boosting_engineered_w2",
+        "hist_gradient_boosting_engineered_w2",
+    ]
+    assert all(result.standardize for result in results)

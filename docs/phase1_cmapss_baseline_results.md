@@ -51,6 +51,40 @@ uv run aerospace-prognostics cmapss-engineered-baseline-all --data-dir data/raw/
 | FD003 | `hist_gradient_boosting_engineered_w5` | 14.248166 | -7.503590 | 347.862382 | -1917.506290 |
 | FD004 | `hist_gradient_boosting_engineered_w5` | 29.453081 | -0.619899 | 7465.390723 | -247.227243 |
 
+## Rolling-Window Sweep
+
+The engineered baseline was swept across rolling windows of 3, 5, and 10 cycles. The command was:
+
+```powershell
+uv run aerospace-prognostics cmapss-engineered-window-sweep --data-dir data/raw/cmapss --rolling-windows 3 5 10 --output-json artifacts/results/cmapss_engineered_window_sweep.json --output-csv artifacts/results/cmapss_engineered_window_sweep.csv
+```
+
+| Subset | Window | RMSE | NASA Score |
+|---|---:|---:|---:|
+| FD001 | 3 | 14.158640 | 308.857426 |
+| FD001 | 5 | 13.887256 | 296.420886 |
+| FD001 | 10 | 13.394005 | 269.370224 |
+| FD002 | 3 | 27.608489 | 8877.027954 |
+| FD002 | 5 | 28.018580 | 9709.164019 |
+| FD002 | 10 | 28.328163 | 9334.471466 |
+| FD003 | 3 | 14.123918 | 357.204866 |
+| FD003 | 5 | 14.248166 | 347.862382 |
+| FD003 | 10 | 14.706469 | 391.700453 |
+| FD004 | 3 | 29.367205 | 7131.745341 |
+| FD004 | 5 | 29.453081 | 7465.390723 |
+| FD004 | 10 | 29.653369 | 8912.270080 |
+
+Best by NASA score:
+
+| Subset | Best Window | RMSE | NASA Score |
+|---|---:|---:|---:|
+| FD001 | 10 | 13.394005 | 269.370224 |
+| FD002 | 3 | 27.608489 | 8877.027954 |
+| FD003 | 5 | 14.248166 | 347.862382 |
+| FD004 | 3 | 29.367205 | 7131.745341 |
+
+Shorter windows perform better on the multi-regime FD002 and FD004 subsets, while FD001 benefits from the longer 10-cycle summary. That suggests the next improvement should not force one feature horizon across all subsets.
+
 ## Provenance Checksums
 
 | File | SHA-256 |
@@ -86,7 +120,7 @@ The next Phase 1 modelling step should improve the engineered baseline with:
 
 - Regime-aware normalization or cluster-specific feature summaries for FD002 and FD004.
 - Hyperparameter search over gradient-boosting settings.
-- Window-size comparison for rolling features.
 - Sensor filtering using the EDA near-constant and drift summaries.
+- Per-subset rolling-window defaults rather than a single global feature horizon.
 
 Those changes should be reported as a third table beside the two checkpoints above so progress stays measurable.

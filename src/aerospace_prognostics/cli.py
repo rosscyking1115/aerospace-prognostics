@@ -24,6 +24,7 @@ from aerospace_prognostics.experiments.cmapss_baseline import (
     run_all_cmapss_engineered_hist_gradient_boosting,
     run_all_cmapss_hist_gradient_boosting,
     run_cmapss_engineered_hist_gradient_boosting,
+    run_cmapss_engineered_window_sweep,
     run_cmapss_hist_gradient_boosting,
 )
 from aerospace_prognostics.workflows.phase1 import run_phase1_cmapss_workflow
@@ -95,6 +96,24 @@ def _build_parser() -> argparse.ArgumentParser:
     engineered_all.add_argument("--output-json", type=Path)
     engineered_all.add_argument("--output-csv", type=Path)
     engineered_all.add_argument("--no-standardize", action="store_true")
+
+    engineered_sweep = subparsers.add_parser(
+        "cmapss-engineered-window-sweep",
+        help="Compare engineered C-MAPSS baselines across rolling-window sizes",
+    )
+    engineered_sweep.add_argument("--data-dir", type=Path, required=True)
+    engineered_sweep.add_argument(
+        "--subsets",
+        nargs="+",
+        choices=CMAPSS_SUBSETS,
+        default=list(CMAPSS_SUBSETS),
+    )
+    engineered_sweep.add_argument("--rolling-windows", nargs="+", type=int, default=[3, 5, 10])
+    engineered_sweep.add_argument("--rul-cap", type=int, default=125)
+    engineered_sweep.add_argument("--random-state", type=int, default=42)
+    engineered_sweep.add_argument("--output-json", type=Path)
+    engineered_sweep.add_argument("--output-csv", type=Path)
+    engineered_sweep.add_argument("--no-standardize", action="store_true")
 
     eda = subparsers.add_parser("cmapss-eda", help="Build a C-MAPSS EDA summary report")
     eda.add_argument("--data-dir", type=Path, required=True)
@@ -231,6 +250,22 @@ def main(argv: list[str] | None = None) -> int:
             rul_cap=args.rul_cap,
             random_state=args.random_state,
             rolling_window=args.rolling_window,
+            standardize=not args.no_standardize,
+        )
+        _print_results_table(results)
+        if args.output_json is not None:
+            write_results_json(results, args.output_json)
+        if args.output_csv is not None:
+            write_results_csv(results, args.output_csv)
+        return 0
+
+    if args.command == "cmapss-engineered-window-sweep":
+        results = run_cmapss_engineered_window_sweep(
+            args.data_dir,
+            subsets=tuple(args.subsets),
+            rolling_windows=tuple(args.rolling_windows),
+            rul_cap=args.rul_cap,
+            random_state=args.random_state,
             standardize=not args.no_standardize,
         )
         _print_results_table(results)
