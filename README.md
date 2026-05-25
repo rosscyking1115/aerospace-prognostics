@@ -12,7 +12,7 @@ The working plan is tracked in [Aerospace_Prognostics_Project_Plan.md](Aerospace
 - Train-fitted feature standardisation utilities to avoid test leakage.
 - Sliding-window helpers for later CNN/LSTM/Transformer sequence models.
 - Dataset checksum utilities for reproducible local data handling.
-- C-MAPSS EDA summaries for sensor drift, flat sensors, correlations, and operating settings.
+- C-MAPSS EDA summaries for sensor drift, flat sensors, correlations, and operating-regime clusters.
 - C-MAPSS manifest and verification commands for dataset provenance.
 - Phase 1 C-MAPSS workflow command for provenance, EDA, baseline results, and a markdown run summary.
 - `aerospace-prognostics cmapss-summary` CLI for sanity-checking local C-MAPSS files.

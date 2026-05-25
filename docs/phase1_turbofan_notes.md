@@ -19,7 +19,7 @@ The FD001-FD004 subsets are not interchangeable:
 
 The raw files expose 21 anonymized sensor columns plus 3 operating settings. The public documentation describes them as turbofan measurements such as temperatures, pressures, shaft speeds, fuel flow, and cooling flows around the fan, compressors, combustor, and turbines. The project code keeps the neutral `sensor_01` to `sensor_21` names because the text files themselves do not embed labels.
 
-The important modelling lesson is that not every sensor is useful in every subset. Some channels are nearly flat, some mostly track operating condition, and some show degradation drift. That is why the EDA workflow records flat-sensor flags, correlations, operating-setting summaries, and per-sensor drift indicators before fitting any model.
+The important modelling lesson is that not every sensor is useful in every subset. Some channels are nearly flat, some mostly track operating condition, and some show degradation drift. That is why the EDA workflow records flat-sensor flags, correlations, operating-regime clusters, and per-sensor drift indicators before fitting any model.
 
 ## RUL Target Convention
 
