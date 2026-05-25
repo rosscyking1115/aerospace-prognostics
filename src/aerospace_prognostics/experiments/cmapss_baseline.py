@@ -31,6 +31,13 @@ CMAPSS_ENGINEERED_DEFAULT_WINDOWS = {
     "FD004": 3,
 }
 
+CMAPSS_VALIDATION_SELECTED_FEATURES = {
+    "FD001": "regime_engineered",
+    "FD002": "engineered",
+    "FD003": "regime_engineered",
+    "FD004": "regime_engineered",
+}
+
 
 @dataclass(frozen=True)
 class CmapssTemporalValidationSplit:
@@ -401,6 +408,61 @@ def run_all_cmapss_regime_aware_engineered_default_windows(
         )
         for subset in subsets
     ]
+
+
+def run_all_cmapss_validation_selected_default_windows(
+    data_dir: str | Path,
+    *,
+    subsets: tuple[str, ...] = CMAPSS_SUBSETS,
+    window_by_subset: dict[str, int] | None = None,
+    feature_policy_by_subset: dict[str, str] | None = None,
+    rul_cap: int = 125,
+    random_state: int = 42,
+    n_regimes: int = 6,
+    standardize: bool = True,
+) -> list[RegressionRunResult]:
+    """Train official-test baselines using the repeated-validation feature policy."""
+
+    windows = window_by_subset or CMAPSS_ENGINEERED_DEFAULT_WINDOWS
+    feature_policy = feature_policy_by_subset or CMAPSS_VALIDATION_SELECTED_FEATURES
+    missing_windows = [subset for subset in subsets if subset not in windows]
+    if missing_windows:
+        raise ValueError(f"missing rolling-window defaults for subsets: {missing_windows}")
+    missing_policy = [subset for subset in subsets if subset not in feature_policy]
+    if missing_policy:
+        raise ValueError(f"missing feature-policy defaults for subsets: {missing_policy}")
+
+    results = []
+    for subset in subsets:
+        feature_candidate = feature_policy[subset]
+        if feature_candidate == "engineered":
+            results.append(
+                run_cmapss_engineered_hist_gradient_boosting(
+                    data_dir,
+                    subset,
+                    rul_cap=rul_cap,
+                    random_state=random_state,
+                    rolling_window=windows[subset],
+                    standardize=standardize,
+                )
+            )
+        elif feature_candidate == "regime_engineered":
+            results.append(
+                run_cmapss_regime_aware_engineered_hist_gradient_boosting(
+                    data_dir,
+                    subset,
+                    rul_cap=rul_cap,
+                    random_state=random_state,
+                    rolling_window=windows[subset],
+                    n_regimes=n_regimes,
+                    standardize=standardize,
+                )
+            )
+        else:
+            raise ValueError(
+                "feature policy values must be 'engineered' or 'regime_engineered'"
+            )
+    return results
 
 
 def run_cmapss_engineered_validation_hist_gradient_boosting(

@@ -194,6 +194,36 @@ Selected by mean validation NASA score:
 
 This is now the most defensible train-only model-selection signal in Phase 1. FD002 is the cautionary case: regime-aware features win more individual validation runs, but their mean NASA score is worse because the asymmetric penalty is sensitive to larger late-prediction errors. The validation-selected policy should therefore be per-subset rather than globally enabling regime-aware features.
 
+## Validation-Selected Official Test Baseline
+
+The repeated-validation policy was then evaluated once on the official C-MAPSS test RUL files. This keeps model selection train-only, then uses the official test target table only for the reported checkpoint.
+
+Command:
+
+```powershell
+uv run aerospace-prognostics cmapss-validation-selected-baseline-all --data-dir data/raw/cmapss --output-json artifacts/results/cmapss_validation_selected_baseline.json --output-csv artifacts/results/cmapss_validation_selected_baseline.csv
+```
+
+Policy:
+
+| Subset | Selected Feature Candidate |
+|---|---|
+| FD001 | `regime_engineered` |
+| FD002 | `engineered` |
+| FD003 | `regime_engineered` |
+| FD004 | `regime_engineered` |
+
+Official test results:
+
+| Subset | Model | RMSE | NASA Score |
+|---|---|---:|---:|
+| FD001 | `hist_gradient_boosting_regime_engineered_w10_r6` | 13.012889 | 253.465322 |
+| FD002 | `hist_gradient_boosting_engineered_w3` | 27.608489 | 8877.027954 |
+| FD003 | `hist_gradient_boosting_regime_engineered_w5_r6` | 14.512316 | 360.244233 |
+| FD004 | `hist_gradient_boosting_regime_engineered_w3_r6` | 29.215870 | 7106.739881 |
+
+Compared with the selected-window engineered checkpoint, the validation-selected policy improves FD001 and FD004, keeps FD002 unchanged, and worsens FD003. Aggregate NASA score still improves slightly, from 16626.005901 to 16597.477390, but the FD003 mismatch shows that the validation design is not yet a perfect proxy for the official test distribution. This is the current honest Phase 1 classical baseline policy, while the best observed test-only per-subset mix remains a diagnostic reference rather than a model-selection procedure.
+
 ## Provenance Checksums
 
 | File | SHA-256 |
@@ -229,7 +259,7 @@ The next Phase 1 modelling step should improve the selected-window engineered ba
 
 - Per-subset validation for when regime-aware features should be enabled.
 - Regime-specific normalization or cluster-specific feature summaries for FD002 and FD004.
-- Repeated temporal validation across multiple random seeds and truncation horizons.
+- Stronger validation design for FD003, where repeated validation and official test scoring disagree.
 - Hyperparameter search over gradient-boosting settings.
 - Sensor filtering using the EDA near-constant and drift summaries.
 - Stronger sequence-ready feature exports for CNN/LSTM/Transformer experiments.

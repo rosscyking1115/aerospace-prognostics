@@ -182,6 +182,34 @@ def test_cmapss_regime_engineered_best_baseline_all_command_writes_result_tables
     assert csv_path.exists()
 
 
+def test_cmapss_validation_selected_baseline_all_command_writes_result_tables(
+    tmp_path,
+    capsys,
+) -> None:
+    write_all_tiny_cmapss_subsets(tmp_path)
+    csv_path = tmp_path / "nested" / "validation_selected_results.csv"
+
+    exit_code = main(
+        [
+            "cmapss-validation-selected-baseline-all",
+            "--data-dir",
+            str(tmp_path),
+            "--n-regimes",
+            "2",
+            "--output-csv",
+            str(csv_path),
+        ]
+    )
+
+    terminal_output = capsys.readouterr().out
+
+    assert exit_code == 0
+    assert "feature_policy=FD001:regime_engineered,FD002:engineered" in terminal_output
+    assert "FD001,hist_gradient_boosting_regime_engineered_w10_r1,True" in terminal_output
+    assert "FD002,hist_gradient_boosting_engineered_w3,True" in terminal_output
+    assert csv_path.exists()
+
+
 def test_cmapss_validate_feature_candidates_command_writes_result_tables(
     tmp_path,
     capsys,
