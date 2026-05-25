@@ -25,7 +25,7 @@ This note records the first real-data Phase 1 checkpoint. The raw NASA C-MAPSS f
 | FD003 | 24,720 | 100 | 16,596 | 100 | 100 |
 | FD004 | 61,249 | 249 | 41,214 | 248 | 248 |
 
-## Baseline Metrics
+## Raw-Cycle Baseline Metrics
 
 | Subset | Operating Conditions | Fault Modes | RMSE | NASA Score |
 |---|---:|---:|---:|---:|
@@ -33,6 +33,23 @@ This note records the first real-data Phase 1 checkpoint. The raw NASA C-MAPSS f
 | FD002 | 6 | 1 | 29.395171 | 11542.260250 |
 | FD003 | 1 | 2 | 21.751756 | 2265.368672 |
 | FD004 | 6 | 2 | 30.072980 | 7712.617966 |
+
+## Engineered Baseline Metrics
+
+This second baseline adds observed cycle count, rolling means, rolling ranges, rolling slopes, and deltas from each unit's initial observed sensor values. It uses the same RUL cap, model family, seed, standardization approach, and evaluation metrics.
+
+Command:
+
+```powershell
+uv run aerospace-prognostics cmapss-engineered-baseline-all --data-dir data/raw/cmapss --output-json artifacts/results/cmapss_engineered_baseline.json --output-csv artifacts/results/cmapss_engineered_baseline.csv
+```
+
+| Subset | Model | RMSE | RMSE Change | NASA Score | NASA Score Change |
+|---|---|---:|---:|---:|---:|
+| FD001 | `hist_gradient_boosting_engineered_w5` | 13.887256 | -3.997654 | 296.420886 | -615.838378 |
+| FD002 | `hist_gradient_boosting_engineered_w5` | 28.018580 | -1.376591 | 9709.164019 | -1833.096231 |
+| FD003 | `hist_gradient_boosting_engineered_w5` | 14.248166 | -7.503590 | 347.862382 | -1917.506290 |
+| FD004 | `hist_gradient_boosting_engineered_w5` | 29.453081 | -0.619899 | 7465.390723 | -247.227243 |
 
 ## Provenance Checksums
 
@@ -59,15 +76,17 @@ FD002 and FD004 are harder because operating-regime effects and degradation effe
 
 FD003 has two fault modes under a single operating condition. Its score sits between FD001 and the multi-regime subsets, which matches the expected difficulty ordering.
 
-The current model is a deliberately conservative classical baseline. It is useful because it proves the end-to-end pipeline works on real NASA files: download, extraction, checksum manifest, EDA, feature table generation, train-fitted standardization, baseline training, and RMSE/NASA scoring.
+The raw-cycle model is a deliberately conservative classical baseline. It is useful because it proves the end-to-end pipeline works on real NASA files: download, extraction, checksum manifest, EDA, feature table generation, train-fitted standardization, baseline training, and RMSE/NASA scoring.
+
+The engineered baseline is a better Phase 1 checkpoint. The large gains on FD001 and FD003 suggest recent sensor dynamics and deltas from early observations capture useful degradation signal. FD002 and FD004 still remain difficult, which is consistent with their multiple operating regimes.
 
 ## Next Baseline Upgrade
 
-The next Phase 1 modelling step should compare this checkpoint against an engineered baseline with:
+The next Phase 1 modelling step should improve the engineered baseline with:
 
-- Last-cycle features per test unit.
-- Rolling mean and rolling slope features over recent cycles.
-- Early-vs-late sensor deltas for degradation drift.
 - Regime-aware normalization or cluster-specific feature summaries for FD002 and FD004.
+- Hyperparameter search over gradient-boosting settings.
+- Window-size comparison for rolling features.
+- Sensor filtering using the EDA near-constant and drift summaries.
 
-Those changes should be reported as a second table beside this baseline so progress is measurable.
+Those changes should be reported as a third table beside the two checkpoints above so progress stays measurable.

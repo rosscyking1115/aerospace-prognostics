@@ -21,7 +21,9 @@ from aerospace_prognostics.evaluation import (
     write_results_json,
 )
 from aerospace_prognostics.experiments.cmapss_baseline import (
+    run_all_cmapss_engineered_hist_gradient_boosting,
     run_all_cmapss_hist_gradient_boosting,
+    run_cmapss_engineered_hist_gradient_boosting,
     run_cmapss_hist_gradient_boosting,
 )
 from aerospace_prognostics.workflows.phase1 import run_phase1_cmapss_workflow
@@ -63,6 +65,36 @@ def _build_parser() -> argparse.ArgumentParser:
     baseline_all.add_argument("--output-json", type=Path)
     baseline_all.add_argument("--output-csv", type=Path)
     baseline_all.add_argument("--standardize", action="store_true")
+
+    engineered = subparsers.add_parser(
+        "cmapss-engineered-baseline",
+        help="Train a feature-engineered C-MAPSS gradient-boosting baseline",
+    )
+    engineered.add_argument("--data-dir", type=Path, required=True)
+    engineered.add_argument("--subset", choices=CMAPSS_SUBSETS, required=True)
+    engineered.add_argument("--rul-cap", type=int, default=125)
+    engineered.add_argument("--random-state", type=int, default=42)
+    engineered.add_argument("--rolling-window", type=int, default=5)
+    engineered.add_argument("--output-json", type=Path)
+    engineered.add_argument("--no-standardize", action="store_true")
+
+    engineered_all = subparsers.add_parser(
+        "cmapss-engineered-baseline-all",
+        help="Train the feature-engineered C-MAPSS baseline on multiple subsets",
+    )
+    engineered_all.add_argument("--data-dir", type=Path, required=True)
+    engineered_all.add_argument(
+        "--subsets",
+        nargs="+",
+        choices=CMAPSS_SUBSETS,
+        default=list(CMAPSS_SUBSETS),
+    )
+    engineered_all.add_argument("--rul-cap", type=int, default=125)
+    engineered_all.add_argument("--random-state", type=int, default=42)
+    engineered_all.add_argument("--rolling-window", type=int, default=5)
+    engineered_all.add_argument("--output-json", type=Path)
+    engineered_all.add_argument("--output-csv", type=Path)
+    engineered_all.add_argument("--no-standardize", action="store_true")
 
     eda = subparsers.add_parser("cmapss-eda", help="Build a C-MAPSS EDA summary report")
     eda.add_argument("--data-dir", type=Path, required=True)
@@ -165,6 +197,41 @@ def main(argv: list[str] | None = None) -> int:
             rul_cap=args.rul_cap,
             random_state=args.random_state,
             standardize=args.standardize,
+        )
+        _print_results_table(results)
+        if args.output_json is not None:
+            write_results_json(results, args.output_json)
+        if args.output_csv is not None:
+            write_results_csv(results, args.output_csv)
+        return 0
+
+    if args.command == "cmapss-engineered-baseline":
+        result = run_cmapss_engineered_hist_gradient_boosting(
+            args.data_dir,
+            args.subset,
+            rul_cap=args.rul_cap,
+            random_state=args.random_state,
+            rolling_window=args.rolling_window,
+            standardize=not args.no_standardize,
+        )
+        print(f"dataset={result.dataset}")
+        print(f"subset={result.subset}")
+        print(f"model={result.model_name}")
+        print(f"standardize={result.standardize}")
+        print(f"rmse={result.rmse:.6f}")
+        print(f"nasa_score={result.nasa_score:.6f}")
+        if args.output_json is not None:
+            result.write_json(args.output_json)
+        return 0
+
+    if args.command == "cmapss-engineered-baseline-all":
+        results = run_all_cmapss_engineered_hist_gradient_boosting(
+            args.data_dir,
+            subsets=tuple(args.subsets),
+            rul_cap=args.rul_cap,
+            random_state=args.random_state,
+            rolling_window=args.rolling_window,
+            standardize=not args.no_standardize,
         )
         _print_results_table(results)
         if args.output_json is not None:

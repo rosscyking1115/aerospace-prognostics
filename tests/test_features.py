@@ -6,6 +6,8 @@ import pytest
 from aerospace_prognostics.features import (
     cmapss_feature_columns,
     cycle_feature_table,
+    engineered_cycle_feature_table,
+    engineered_last_cycle_feature_table,
     last_cycle_feature_table,
 )
 
@@ -50,6 +52,35 @@ def test_last_cycle_feature_table_returns_one_row_per_unit() -> None:
     assert features["sensor_1"].tolist() == [11.0, 21.0]
 
 
+def test_engineered_feature_tables_add_rolling_and_delta_features() -> None:
+    frame = pd.DataFrame(
+        {
+            "unit_number": [1, 1, 1, 2, 2],
+            "time_in_cycles": [1, 2, 3, 1, 2],
+            "sensor_1": [10.0, 12.0, 15.0, 20.0, 23.0],
+            "rul_capped": [2, 1, 0, 1, 0],
+        }
+    )
+
+    features, target = engineered_cycle_feature_table(
+        frame,
+        feature_columns=["sensor_1"],
+        rolling_window=2,
+    )
+    last_features = engineered_last_cycle_feature_table(
+        frame,
+        feature_columns=["sensor_1"],
+        rolling_window=2,
+    )
+
+    assert target.tolist() == [2, 1, 0, 1, 0]
+    assert features["time_in_cycles"].tolist() == [1.0, 2.0, 3.0, 1.0, 2.0]
+    assert features["sensor_1_rolling_mean_2"].tolist() == [10.0, 11.0, 13.5, 20.0, 21.5]
+    assert features["sensor_1_delta_from_initial"].tolist() == [0.0, 2.0, 5.0, 0.0, 3.0]
+    assert last_features["sensor_1"].tolist() == [15.0, 23.0]
+    assert last_features["sensor_1_rolling_slope_2"].tolist() == [3.0, 3.0]
+
+
 def test_feature_tables_validate_missing_columns() -> None:
     with pytest.raises(ValueError, match="missing columns"):
         cycle_feature_table(pd.DataFrame({"sensor_1": [1]}), feature_columns=["sensor_1"])
@@ -57,3 +88,9 @@ def test_feature_tables_validate_missing_columns() -> None:
     with pytest.raises(ValueError, match="missing columns"):
         last_cycle_feature_table(pd.DataFrame({"sensor_1": [1]}), feature_columns=["sensor_1"])
 
+    with pytest.raises(ValueError, match="rolling_window"):
+        engineered_cycle_feature_table(
+            pd.DataFrame({"unit_number": [1], "time_in_cycles": [1], "sensor_1": [1]}),
+            feature_columns=["sensor_1"],
+            rolling_window=1,
+        )
