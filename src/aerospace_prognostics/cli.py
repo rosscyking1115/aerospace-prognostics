@@ -8,6 +8,11 @@ from pathlib import Path
 
 from aerospace_prognostics.analysis.cmapss_eda import build_cmapss_eda_report
 from aerospace_prognostics.data.cmapss import CMAPSS_SUBSETS, load_cmapss_subset
+from aerospace_prognostics.data.manifest import (
+    build_cmapss_manifest,
+    read_manifest,
+    verify_manifest,
+)
 from aerospace_prognostics.data.summary import summarise_cmapss_frame
 from aerospace_prognostics.evaluation import (
     RegressionRunResult,
@@ -62,6 +67,20 @@ def _build_parser() -> argparse.ArgumentParser:
     eda.add_argument("--subset", choices=CMAPSS_SUBSETS, required=True)
     eda.add_argument("--rul-cap", type=int, default=125)
     eda.add_argument("--output-json", type=Path)
+
+    manifest = subparsers.add_parser("cmapss-manifest", help="Write a C-MAPSS file manifest")
+    manifest.add_argument("--data-dir", type=Path, required=True)
+    manifest.add_argument(
+        "--subsets",
+        nargs="+",
+        choices=CMAPSS_SUBSETS,
+        default=list(CMAPSS_SUBSETS),
+    )
+    manifest.add_argument("--output-json", type=Path, required=True)
+
+    verify = subparsers.add_parser("cmapss-verify", help="Verify C-MAPSS files against a manifest")
+    verify.add_argument("--data-dir", type=Path, required=True)
+    verify.add_argument("--manifest", type=Path, required=True)
 
     return parser
 
@@ -137,6 +156,26 @@ def main(argv: list[str] | None = None) -> int:
         print(f"largest_abs_drift_sensor={largest_drift.sensor} drift={largest_drift.drift:.6f}")
         if args.output_json is not None:
             report.write_json(args.output_json)
+        return 0
+
+    if args.command == "cmapss-manifest":
+        manifest = build_cmapss_manifest(args.data_dir, subsets=tuple(args.subsets))
+        manifest.write_json(args.output_json)
+        print(f"dataset={manifest.dataset}")
+        print(f"files={len(manifest.entries)}")
+        print(f"manifest={args.output_json}")
+        return 0
+
+    if args.command == "cmapss-verify":
+        manifest = read_manifest(args.manifest)
+        problems = verify_manifest(manifest, root=args.data_dir)
+        if problems:
+            print("status=failed")
+            for problem in problems:
+                print(f"problem={problem}")
+            return 1
+        print("status=ok")
+        print(f"files={len(manifest.entries)}")
         return 0
 
     parser.error(f"unknown command: {args.command}")

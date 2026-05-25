@@ -99,3 +99,68 @@ def test_cmapss_eda_command_writes_json_report(tmp_path, capsys) -> None:
     assert "subset=FD001" in terminal_output
     assert "largest_abs_drift_sensor=sensor_1" in terminal_output
     assert report["train_rows"] == 6
+
+
+def test_cmapss_manifest_and_verify_commands(tmp_path, capsys) -> None:
+    write_all_tiny_cmapss_subsets(tmp_path)
+    manifest_path = tmp_path / "artifacts" / "manifest.json"
+
+    manifest_exit = main(
+        [
+            "cmapss-manifest",
+            "--data-dir",
+            str(tmp_path),
+            "--output-json",
+            str(manifest_path),
+        ]
+    )
+    manifest_output = capsys.readouterr().out
+
+    verify_exit = main(
+        [
+            "cmapss-verify",
+            "--data-dir",
+            str(tmp_path),
+            "--manifest",
+            str(manifest_path),
+        ]
+    )
+    verify_output = capsys.readouterr().out
+
+    assert manifest_exit == 0
+    assert "files=12" in manifest_output
+    assert verify_exit == 0
+    assert "status=ok" in verify_output
+
+
+def test_cmapss_verify_command_returns_failure_for_mismatch(tmp_path, capsys) -> None:
+    write_tiny_cmapss_subset(tmp_path)
+    manifest_path = tmp_path / "manifest.json"
+    main(
+        [
+            "cmapss-manifest",
+            "--data-dir",
+            str(tmp_path),
+            "--subsets",
+            "FD001",
+            "--output-json",
+            str(manifest_path),
+        ]
+    )
+    capsys.readouterr()
+    (tmp_path / "RUL_FD001.txt").write_text("999\n", encoding="utf-8")
+
+    exit_code = main(
+        [
+            "cmapss-verify",
+            "--data-dir",
+            str(tmp_path),
+            "--manifest",
+            str(manifest_path),
+        ]
+    )
+    output = capsys.readouterr().out
+
+    assert exit_code == 1
+    assert "status=failed" in output
+    assert "problem=RUL_FD001.txt has unexpected sha256" in output
