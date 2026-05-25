@@ -15,14 +15,14 @@ venv/
 !.env.example
 
 # Data and model artifacts
-data/
-datasets/
-artifacts/
-models/
-checkpoints/
-runs/
-mlruns/
-wandb/
+/data/
+/datasets/
+/artifacts/
+/models/
+/checkpoints/
+/runs/
+/mlruns/
+/wandb/
 *.parquet
 *.duckdb
 *.pt
@@ -37,4 +37,3 @@ wandb/
 Thumbs.db
 .vscode/
 .idea/
-
