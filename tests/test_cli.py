@@ -483,7 +483,39 @@ def test_phase1_cmapss_command_runs_full_workflow(tmp_path, capsys) -> None:
 
     assert exit_code == 0
     assert "eda_reports=4" in output
+    assert "hgb_policy_csv=" in output
+    assert "sensor_filter_csv=" in output
     assert (artifact_dir / "phase1_summary.md").exists()
+    assert (artifact_dir / "results" / "cmapss_hgb_policy_baseline.csv").exists()
+    assert (artifact_dir / "results" / "cmapss_validation_sensor_filters.csv").exists()
+
+
+def test_cmapss_export_sequences_command_writes_sequence_artifacts(tmp_path, capsys) -> None:
+    write_all_tiny_cmapss_subsets(tmp_path)
+    output_dir = tmp_path / "sequence_exports"
+
+    exit_code = main(
+        [
+            "cmapss-export-sequences",
+            "--data-dir",
+            str(tmp_path),
+            "--output-dir",
+            str(output_dir),
+            "--subsets",
+            "FD001",
+            "--window-size",
+            "2",
+            "--validation-horizon",
+            "1",
+        ]
+    )
+    output = capsys.readouterr().out
+
+    assert exit_code == 0
+    assert "window_size=2" in output
+    assert "FD001,train_windows=2,validation_windows=1,test_windows=2" in output
+    assert (output_dir / "fd001" / "train_sequences.npz").exists()
+    assert (output_dir / "fd001" / "metadata.json").exists()
 
 
 def test_cmapss_download_command_extracts_archive(tmp_path, capsys) -> None:

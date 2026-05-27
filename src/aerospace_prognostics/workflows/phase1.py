@@ -13,7 +13,11 @@ from aerospace_prognostics.evaluation import (
     write_results_csv,
     write_results_json,
 )
-from aerospace_prognostics.experiments.cmapss_baseline import run_all_cmapss_hist_gradient_boosting
+from aerospace_prognostics.experiments.cmapss_baseline import (
+    run_all_cmapss_hist_gradient_boosting,
+    run_all_cmapss_validation_selected_hgb_policy_default_windows,
+    run_cmapss_validation_sensor_filter_comparison,
+)
 
 
 @dataclass(frozen=True)
@@ -24,9 +28,15 @@ class Phase1WorkflowResult:
     manifest_path: Path
     baseline_json_path: Path
     baseline_csv_path: Path
+    hgb_policy_json_path: Path
+    hgb_policy_csv_path: Path
+    sensor_filter_json_path: Path
+    sensor_filter_csv_path: Path
     summary_markdown_path: Path
     eda_paths: tuple[Path, ...]
     baseline_results: tuple[RegressionRunResult, ...]
+    hgb_policy_results: tuple[RegressionRunResult, ...]
+    sensor_filter_results: tuple[RegressionRunResult, ...]
 
 
 def run_phase1_cmapss_workflow(
@@ -36,6 +46,7 @@ def run_phase1_cmapss_workflow(
     subsets: tuple[str, ...] = CMAPSS_SUBSETS,
     rul_cap: int = 125,
     random_state: int = 42,
+    n_regimes: int = 6,
     standardize: bool = True,
 ) -> Phase1WorkflowResult:
     """Run the Phase 1 C-MAPSS provenance, EDA, and baseline workflow."""
@@ -73,13 +84,43 @@ def run_phase1_cmapss_workflow(
     write_results_json(baseline_results, baseline_json_path)
     write_results_csv(baseline_results, baseline_csv_path)
 
+    hgb_policy_results = run_all_cmapss_validation_selected_hgb_policy_default_windows(
+        root,
+        subsets=subsets,
+        rul_cap=rul_cap,
+        random_state=random_state,
+        n_regimes=n_regimes,
+        standardize=standardize,
+    )
+    hgb_policy_json_path = artifacts / "results" / "cmapss_hgb_policy_baseline.json"
+    hgb_policy_csv_path = artifacts / "results" / "cmapss_hgb_policy_baseline.csv"
+    write_results_json(hgb_policy_results, hgb_policy_json_path)
+    write_results_csv(hgb_policy_results, hgb_policy_csv_path)
+
+    sensor_filter_results = run_cmapss_validation_sensor_filter_comparison(
+        root,
+        subsets=subsets,
+        rul_cap=rul_cap,
+        random_state=random_state,
+        n_regimes=n_regimes,
+        standardize=standardize,
+    )
+    sensor_filter_json_path = artifacts / "results" / "cmapss_validation_sensor_filters.json"
+    sensor_filter_csv_path = artifacts / "results" / "cmapss_validation_sensor_filters.csv"
+    write_results_json(sensor_filter_results, sensor_filter_json_path)
+    write_results_csv(sensor_filter_results, sensor_filter_csv_path)
+
     summary_markdown_path = artifacts / "phase1_summary.md"
     _write_phase1_summary(
         summary_markdown_path,
         manifest_path=manifest_path,
         baseline_csv_path=baseline_csv_path,
+        hgb_policy_csv_path=hgb_policy_csv_path,
+        sensor_filter_csv_path=sensor_filter_csv_path,
         eda_paths=tuple(eda_paths),
         baseline_results=tuple(baseline_results),
+        hgb_policy_results=tuple(hgb_policy_results),
+        sensor_filter_results=tuple(sensor_filter_results),
     )
 
     return Phase1WorkflowResult(
@@ -87,9 +128,15 @@ def run_phase1_cmapss_workflow(
         manifest_path=manifest_path,
         baseline_json_path=baseline_json_path,
         baseline_csv_path=baseline_csv_path,
+        hgb_policy_json_path=hgb_policy_json_path,
+        hgb_policy_csv_path=hgb_policy_csv_path,
+        sensor_filter_json_path=sensor_filter_json_path,
+        sensor_filter_csv_path=sensor_filter_csv_path,
         summary_markdown_path=summary_markdown_path,
         eda_paths=tuple(eda_paths),
         baseline_results=tuple(baseline_results),
+        hgb_policy_results=tuple(hgb_policy_results),
+        sensor_filter_results=tuple(sensor_filter_results),
     )
 
 
@@ -98,21 +145,57 @@ def _write_phase1_summary(
     *,
     manifest_path: Path,
     baseline_csv_path: Path,
+    hgb_policy_csv_path: Path,
+    sensor_filter_csv_path: Path,
     eda_paths: tuple[Path, ...],
     baseline_results: tuple[RegressionRunResult, ...],
+    hgb_policy_results: tuple[RegressionRunResult, ...],
+    sensor_filter_results: tuple[RegressionRunResult, ...],
 ) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     lines = [
         "# Phase 1 C-MAPSS Summary",
         "",
         f"- Manifest: `{manifest_path.as_posix()}`",
-        f"- Baseline table: `{baseline_csv_path.as_posix()}`",
+        f"- Raw baseline table: `{baseline_csv_path.as_posix()}`",
+        f"- Current HGB policy baseline table: `{hgb_policy_csv_path.as_posix()}`",
+        f"- Sensor-filter validation table: `{sensor_filter_csv_path.as_posix()}`",
         f"- EDA reports: {len(eda_paths)}",
+        "",
+        "## Current Phase 1 Baseline",
         "",
         "| Subset | Model | Standardized | RMSE | NASA Score |",
         "|---|---|---:|---:|---:|",
     ]
+    for result in hgb_policy_results:
+        lines.append(
+            f"| {result.subset} | {result.model_name} | {result.standardize} | "
+            f"{result.rmse:.6f} | {result.nasa_score:.6f} |"
+        )
+    lines.extend(
+        [
+            "",
+            "## Raw-Cycle Sanity Baseline",
+            "",
+            "| Subset | Model | Standardized | RMSE | NASA Score |",
+            "|---|---|---:|---:|---:|",
+        ]
+    )
     for result in baseline_results:
+        lines.append(
+            f"| {result.subset} | {result.model_name} | {result.standardize} | "
+            f"{result.rmse:.6f} | {result.nasa_score:.6f} |"
+        )
+    lines.extend(
+        [
+            "",
+            "## Sensor-Filter Validation",
+            "",
+            "| Subset | Model | Standardized | RMSE | NASA Score |",
+            "|---|---|---:|---:|---:|",
+        ]
+    )
+    for result in sensor_filter_results:
         lines.append(
             f"| {result.subset} | {result.model_name} | {result.standardize} | "
             f"{result.rmse:.6f} | {result.nasa_score:.6f} |"

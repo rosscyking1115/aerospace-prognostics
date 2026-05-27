@@ -43,6 +43,7 @@ from aerospace_prognostics.experiments.cmapss_baseline import (
     run_cmapss_validation_selected_hgb_grid,
     run_cmapss_validation_sensor_filter_comparison,
 )
+from aerospace_prognostics.sequence_exports import export_cmapss_sequence_splits
 from aerospace_prognostics.workflows.phase1 import run_phase1_cmapss_workflow
 
 
@@ -331,7 +332,28 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     phase1.add_argument("--rul-cap", type=int, default=125)
     phase1.add_argument("--random-state", type=int, default=42)
+    phase1.add_argument("--n-regimes", type=int, default=6)
     phase1.add_argument("--no-standardize", action="store_true")
+
+    sequence_export = subparsers.add_parser(
+        "cmapss-export-sequences",
+        help="Export C-MAPSS train/validation/test sequence tensors for Phase 2 models",
+    )
+    sequence_export.add_argument("--data-dir", type=Path, required=True)
+    sequence_export.add_argument("--output-dir", type=Path, required=True)
+    sequence_export.add_argument(
+        "--subsets",
+        nargs="+",
+        choices=CMAPSS_SUBSETS,
+        default=list(CMAPSS_SUBSETS),
+    )
+    sequence_export.add_argument("--window-size", type=int, default=30)
+    sequence_export.add_argument("--stride", type=int, default=1)
+    sequence_export.add_argument("--rul-cap", type=int, default=125)
+    sequence_export.add_argument("--random-state", type=int, default=42)
+    sequence_export.add_argument("--validation-fraction", type=float, default=0.2)
+    sequence_export.add_argument("--validation-horizon", type=int, default=30)
+    sequence_export.add_argument("--no-standardize", action="store_true")
 
     return parser
 
@@ -782,14 +804,51 @@ def main(argv: list[str] | None = None) -> int:
             subsets=tuple(args.subsets),
             rul_cap=args.rul_cap,
             random_state=args.random_state,
+            n_regimes=args.n_regimes,
             standardize=not args.no_standardize,
         )
         print(f"artifact_dir={result.artifact_dir}")
         print(f"manifest={result.manifest_path}")
         print(f"baseline_json={result.baseline_json_path}")
         print(f"baseline_csv={result.baseline_csv_path}")
+        print(f"hgb_policy_json={result.hgb_policy_json_path}")
+        print(f"hgb_policy_csv={result.hgb_policy_csv_path}")
+        print(f"sensor_filter_json={result.sensor_filter_json_path}")
+        print(f"sensor_filter_csv={result.sensor_filter_csv_path}")
         print(f"summary={result.summary_markdown_path}")
         print(f"eda_reports={len(result.eda_paths)}")
+        return 0
+
+    if args.command == "cmapss-export-sequences":
+        results = [
+            export_cmapss_sequence_splits(
+                args.data_dir,
+                args.output_dir,
+                subset,
+                window_size=args.window_size,
+                stride=args.stride,
+                rul_cap=args.rul_cap,
+                random_state=args.random_state,
+                validation_fraction=args.validation_fraction,
+                validation_horizon=args.validation_horizon,
+                standardize=not args.no_standardize,
+            )
+            for subset in args.subsets
+        ]
+        print(f"window_size={args.window_size}")
+        print(f"stride={args.stride}")
+        print(f"validation_fraction={args.validation_fraction}")
+        print(f"validation_horizon={args.validation_horizon}")
+        print(f"standardize={not args.no_standardize}")
+        for result in results:
+            print(
+                f"{result.subset},"
+                f"train_windows={result.train_windows},"
+                f"validation_windows={result.validation_windows},"
+                f"test_windows={result.test_windows},"
+                f"features={len(result.feature_columns)},"
+                f"metadata={result.metadata_path}"
+            )
         return 0
 
     parser.error(f"unknown command: {args.command}")

@@ -334,6 +334,37 @@ Selected by validation NASA score:
 
 This is a useful negative result. EDA filtering is neutral where it keeps the same effective signal, but it removes information the multi-regime FD002 and FD004 baselines need. The Phase 1 classical policy therefore keeps all sensors, while the EDA summaries remain useful for interpretation and for later model diagnostics rather than hard feature removal.
 
+## Reproducible Phase 1 Workflow
+
+The `phase1-cmapss` workflow now reproduces the full Phase 1 checkpoint in one command: manifest verification, per-subset EDA reports, the raw-cycle sanity baseline, the current validation-selected HGB policy baseline, the sensor-filter validation check, and a markdown summary.
+
+Command:
+
+```powershell
+uv run aerospace-prognostics phase1-cmapss --data-dir data/raw/cmapss --artifact-dir artifacts/phase1
+```
+
+The Phase 2 bridge is the sequence export command. It writes compressed NumPy bundles for train windows, train-only validation final windows, and official-test final windows, plus metadata recording the split and feature configuration.
+
+```powershell
+uv run aerospace-prognostics cmapss-export-sequences --data-dir data/raw/cmapss --output-dir artifacts/sequences/cmapss --window-size 30 --stride 1
+```
+
+Sequence export output:
+
+| Subset | Train Windows | Validation Windows | Test Windows | Features | Window Size |
+|---|---:|---:|---:|---:|---:|
+| FD001 | 14,022 | 20 | 100 | 24 | 30 |
+| FD002 | 37,427 | 52 | 259 | 24 | 30 |
+| FD003 | 17,618 | 20 | 100 | 24 | 30 |
+| FD004 | 43,114 | 50 | 248 | 24 | 30 |
+
+## Phase 1 Conclusion
+
+The final Phase 1 classical policy is the validation-selected feature policy plus validation-selected HGB parameter policy, using all sensors. It is not claimed as a leaderboard model; it is the honest baseline that Phase 2 sequence models must beat.
+
+Remaining known limitation: FD003 still shows a validation mismatch. The train-only validation policy prefers regime-aware features, while the selected-window engineered official-test checkpoint remains slightly stronger on FD003. This should be treated as a validation-design risk when comparing Phase 2 models.
+
 ## Provenance Checksums
 
 | File | SHA-256 |
@@ -365,11 +396,12 @@ The engineered baseline is a better Phase 1 checkpoint. The large gains on FD001
 
 ## Next Baseline Upgrade
 
-The next Phase 1 modelling step should improve the selected-window engineered baseline with:
+The next modelling step moves into Phase 2 sequence models:
 
-- Per-subset validation for when regime-aware features should be enabled.
-- Regime-specific normalization or cluster-specific feature summaries for FD002 and FD004.
-- Stronger validation design for FD003, where repeated validation and official test scoring disagree.
-- Stronger sequence-ready feature exports for CNN/LSTM/Transformer experiments.
+- 1D-CNN over exported C-MAPSS windows.
+- LSTM/BiLSTM and optional TCN baselines.
+- Transformer-style sequence model.
+- Consistent comparison against the Phase 1 validation-selected HGB policy baseline.
+- Continued attention to the FD003 validation mismatch.
 
 Those changes should be reported as a third table beside the two checkpoints above so progress stays measurable.
