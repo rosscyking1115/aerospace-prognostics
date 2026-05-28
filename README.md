@@ -27,6 +27,7 @@ The working plan is tracked in [Aerospace_Prognostics_Project_Plan.md](Aerospace
 - `aerospace-prognostics cmapss-validate-sensor-filters` CLI for checking EDA-informed sensor filtering before adopting it.
 - `aerospace-prognostics cmapss-export-sequences` CLI for Phase 2 train/validation/test sequence tensor exports.
 - `aerospace-prognostics cmapss-cnn-baseline` CLI for the first Phase 2 PyTorch 1D-CNN sequence baseline.
+- `aerospace-prognostics cmapss-package-hgb-policy`, `cmapss-predict-artifact`, and `serve-api` CLIs for the production-ML deployment track.
 - CI scaffold with linting, tests, and dependency audit.
 
 ## Phase 1 Artifacts
@@ -38,6 +39,10 @@ The working plan is tracked in [Aerospace_Prognostics_Project_Plan.md](Aerospace
 ## Phase 2 Artifacts
 
 - Sequence-model baseline notes: [docs/phase2_cmapss_deep_baselines.md](docs/phase2_cmapss_deep_baselines.md)
+
+## Deployment Artifacts
+
+- Production ML deployment notes: [docs/deployment.md](docs/deployment.md)
 
 ## Developer Quickstart
 
@@ -72,5 +77,7 @@ uv run aerospace-prognostics cmapss-validate-hgb-grid --data-dir data/raw/cmapss
 uv run aerospace-prognostics cmapss-validate-sensor-filters --data-dir data/raw/cmapss --output-json artifacts/results/cmapss_validation_sensor_filters.json --output-csv artifacts/results/cmapss_validation_sensor_filters.csv
 uv run aerospace-prognostics cmapss-export-sequences --data-dir data/raw/cmapss --output-dir artifacts/sequences/cmapss --window-size 30 --stride 1
 uv run aerospace-prognostics cmapss-cnn-baseline --sequence-dir artifacts/sequences/cmapss --subsets FD001 --epochs 50 --checkpoint-policy final --output-json artifacts/results/cmapss_cnn_fd001_final_baseline.json --output-csv artifacts/results/cmapss_cnn_fd001_final_baseline.csv --history-json artifacts/results/cmapss_cnn_fd001_final_history.json
+uv run aerospace-prognostics cmapss-package-hgb-policy --data-dir data/raw/cmapss --subset FD001 --output-path artifacts/models/cmapss_fd001_hgb_policy.joblib --metadata-json artifacts/models/cmapss_fd001_hgb_policy_metadata.json
+uv run aerospace-prognostics serve-api --model-artifact artifacts/models/cmapss_fd001_hgb_policy.joblib --host 127.0.0.1 --port 8000
 uv run aerospace-prognostics phase1-cmapss --data-dir data/raw/cmapss --artifact-dir artifacts/phase1
 ```

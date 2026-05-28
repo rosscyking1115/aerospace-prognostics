@@ -17,6 +17,11 @@ from aerospace_prognostics.data.manifest import (
     verify_manifest,
 )
 from aerospace_prognostics.data.summary import summarise_cmapss_frame
+from aerospace_prognostics.deployment.artifacts import (
+    load_cmapss_model_artifact,
+    save_cmapss_model_artifact,
+    train_cmapss_hgb_policy_artifact,
+)
 from aerospace_prognostics.evaluation import (
     RegressionRunResult,
     write_results_csv,
@@ -386,6 +391,35 @@ def _build_parser() -> argparse.ArgumentParser:
     cnn_baseline.add_argument("--output-json", type=Path)
     cnn_baseline.add_argument("--output-csv", type=Path)
     cnn_baseline.add_argument("--history-json", type=Path)
+
+    package_hgb = subparsers.add_parser(
+        "cmapss-package-hgb-policy",
+        help="Train and package the validation-selected HGB policy for deployment",
+    )
+    package_hgb.add_argument("--data-dir", type=Path, required=True)
+    package_hgb.add_argument("--subset", choices=CMAPSS_SUBSETS, required=True)
+    package_hgb.add_argument("--output-path", type=Path, required=True)
+    package_hgb.add_argument("--metadata-json", type=Path)
+    package_hgb.add_argument("--rul-cap", type=int, default=125)
+    package_hgb.add_argument("--random-state", type=int, default=42)
+    package_hgb.add_argument("--n-regimes", type=int, default=6)
+    package_hgb.add_argument("--no-standardize", action="store_true")
+
+    predict_artifact = subparsers.add_parser(
+        "cmapss-predict-artifact",
+        help="Run batch inference with a packaged C-MAPSS model artifact",
+    )
+    predict_artifact.add_argument("--model-artifact", type=Path, required=True)
+    predict_artifact.add_argument("--input-csv", type=Path, required=True)
+    predict_artifact.add_argument("--output-json", type=Path)
+
+    serve_api = subparsers.add_parser(
+        "serve-api",
+        help="Serve a packaged model artifact with FastAPI",
+    )
+    serve_api.add_argument("--model-artifact", type=Path, required=True)
+    serve_api.add_argument("--host", default="127.0.0.1")
+    serve_api.add_argument("--port", type=int, default=8000)
 
     return parser
 
@@ -919,6 +953,65 @@ def main(argv: list[str] | None = None) -> int:
             _write_cnn_history_json(runs, args.history_json)
         return 0
 
+    if args.command == "cmapss-package-hgb-policy":
+        packaged = train_cmapss_hgb_policy_artifact(
+            args.data_dir,
+            args.subset,
+            rul_cap=args.rul_cap,
+            random_state=args.random_state,
+            n_regimes=args.n_regimes,
+            standardize=not args.no_standardize,
+        )
+        artifact_path = save_cmapss_model_artifact(packaged.artifact, args.output_path)
+        print(f"artifact={artifact_path}")
+        print(f"subset={packaged.artifact.subset}")
+        print(f"model={packaged.artifact.model_name}")
+        print(f"feature_policy={packaged.artifact.feature_policy}")
+        print(f"hgb_policy={packaged.artifact.hgb_policy}")
+        print(f"rmse={packaged.result.rmse:.6f}")
+        print(f"nasa_score={packaged.result.nasa_score:.6f}")
+        if args.metadata_json is not None:
+            _write_json_payload(
+                {
+                    "artifact": packaged.artifact.metadata(),
+                    "result": packaged.result.to_dict(),
+                },
+                args.metadata_json,
+            )
+        return 0
+
+    if args.command == "cmapss-predict-artifact":
+        import pandas as pd
+
+        artifact = load_cmapss_model_artifact(args.model_artifact)
+        telemetry = pd.read_csv(args.input_csv)
+        predictions = artifact.predict_from_frame(telemetry)
+        payload = {
+            "dataset": artifact.dataset,
+            "subset": artifact.subset,
+            "model_name": artifact.model_name,
+            "rul_cap": artifact.rul_cap,
+            "predictions": [prediction.to_dict() for prediction in predictions],
+        }
+        print(f"model={artifact.model_name}")
+        print(f"predictions={len(predictions)}")
+        for prediction in predictions:
+            print(
+                f"unit_number={prediction.unit_number},"
+                f"predicted_rul={prediction.predicted_rul:.6f}"
+            )
+        if args.output_json is not None:
+            _write_json_payload(payload, args.output_json)
+        return 0
+
+    if args.command == "serve-api":
+        import uvicorn
+
+        from aerospace_prognostics.serving.api import create_app
+
+        uvicorn.run(create_app(args.model_artifact), host=args.host, port=args.port)
+        return 0
+
     parser.error(f"unknown command: {args.command}")
     return 2
 
@@ -996,6 +1089,11 @@ def _write_validation_aggregate_csv(
 def _write_cnn_history_json(results: list[CmapssCnnBaselineRun], path: Path) -> None:
     output_path = _prepare_output_path(path)
     payload = [result.to_dict() for result in results]
+    output_path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n")
+
+
+def _write_json_payload(payload: object, path: Path) -> None:
+    output_path = _prepare_output_path(path)
     output_path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n")
 
 

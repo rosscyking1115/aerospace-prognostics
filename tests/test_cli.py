@@ -4,6 +4,7 @@ import json
 import zipfile
 
 from aerospace_prognostics.cli import main
+from aerospace_prognostics.data.cmapss import read_cmapss_frame
 from tests.cmapss_fixtures import write_all_tiny_cmapss_subsets, write_tiny_cmapss_subset
 
 
@@ -568,6 +569,54 @@ def test_cmapss_cnn_baseline_command_writes_result_tables(tmp_path, capsys) -> N
     assert "selected_epochs=FD001:1" in output
     assert output_csv.exists()
     assert history_json.exists()
+
+
+def test_cmapss_package_and_predict_artifact_commands(tmp_path, capsys) -> None:
+    write_tiny_cmapss_subset(tmp_path)
+    artifact_path = tmp_path / "models" / "fd001.joblib"
+    metadata_json = tmp_path / "models" / "fd001_metadata.json"
+    prediction_json = tmp_path / "predictions" / "fd001.json"
+    input_csv = tmp_path / "test_input.csv"
+    read_cmapss_frame(tmp_path / "test_FD001.txt").to_csv(input_csv, index=False)
+
+    package_exit_code = main(
+        [
+            "cmapss-package-hgb-policy",
+            "--data-dir",
+            str(tmp_path),
+            "--subset",
+            "FD001",
+            "--output-path",
+            str(artifact_path),
+            "--metadata-json",
+            str(metadata_json),
+            "--n-regimes",
+            "1",
+        ]
+    )
+    package_output = capsys.readouterr().out
+
+    assert package_exit_code == 0
+    assert "model=hist_gradient_boosting_regime_engineered_w10_r1_default" in package_output
+    assert artifact_path.exists()
+    assert metadata_json.exists()
+
+    predict_exit_code = main(
+        [
+            "cmapss-predict-artifact",
+            "--model-artifact",
+            str(artifact_path),
+            "--input-csv",
+            str(input_csv),
+            "--output-json",
+            str(prediction_json),
+        ]
+    )
+    predict_output = capsys.readouterr().out
+
+    assert predict_exit_code == 0
+    assert "predictions=2" in predict_output
+    assert prediction_json.exists()
 
 
 def test_cmapss_download_command_extracts_archive(tmp_path, capsys) -> None:
