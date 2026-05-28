@@ -71,6 +71,6 @@ uv run aerospace-prognostics cmapss-validate-feature-candidates-repeated --data-
 uv run aerospace-prognostics cmapss-validate-hgb-grid --data-dir data/raw/cmapss --output-json artifacts/results/cmapss_validation_hgb_grid.json --output-csv artifacts/results/cmapss_validation_hgb_grid.csv
 uv run aerospace-prognostics cmapss-validate-sensor-filters --data-dir data/raw/cmapss --output-json artifacts/results/cmapss_validation_sensor_filters.json --output-csv artifacts/results/cmapss_validation_sensor_filters.csv
 uv run aerospace-prognostics cmapss-export-sequences --data-dir data/raw/cmapss --output-dir artifacts/sequences/cmapss --window-size 30 --stride 1
-uv run aerospace-prognostics cmapss-cnn-baseline --sequence-dir artifacts/sequences/cmapss --subsets FD001 --epochs 50 --output-json artifacts/results/cmapss_cnn_fd001_baseline.json --output-csv artifacts/results/cmapss_cnn_fd001_baseline.csv
+uv run aerospace-prognostics cmapss-cnn-baseline --sequence-dir artifacts/sequences/cmapss --subsets FD001 --epochs 50 --checkpoint-policy final --output-json artifacts/results/cmapss_cnn_fd001_final_baseline.json --output-csv artifacts/results/cmapss_cnn_fd001_final_baseline.csv --history-json artifacts/results/cmapss_cnn_fd001_final_history.json
 uv run aerospace-prognostics phase1-cmapss --data-dir data/raw/cmapss --artifact-dir artifacts/phase1
 ```

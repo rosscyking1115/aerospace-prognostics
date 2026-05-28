@@ -44,7 +44,8 @@ from aerospace_prognostics.experiments.cmapss_baseline import (
     run_cmapss_validation_sensor_filter_comparison,
 )
 from aerospace_prognostics.experiments.cmapss_deep_baseline import (
-    run_all_cmapss_cnn_baselines,
+    CmapssCnnBaselineRun,
+    run_all_cmapss_cnn_baseline_runs,
 )
 from aerospace_prognostics.sequence_exports import export_cmapss_sequence_splits
 from aerospace_prognostics.workflows.phase1 import run_phase1_cmapss_workflow
@@ -375,10 +376,16 @@ def _build_parser() -> argparse.ArgumentParser:
     cnn_baseline.add_argument("--hidden-channels", type=int, default=32)
     cnn_baseline.add_argument("--kernel-size", type=int, default=3)
     cnn_baseline.add_argument("--dropout", type=float, default=0.1)
+    cnn_baseline.add_argument(
+        "--checkpoint-policy",
+        choices=["validation_nasa", "final"],
+        default="validation_nasa",
+    )
     cnn_baseline.add_argument("--random-state", type=int, default=42)
     cnn_baseline.add_argument("--device", default="cpu")
     cnn_baseline.add_argument("--output-json", type=Path)
     cnn_baseline.add_argument("--output-csv", type=Path)
+    cnn_baseline.add_argument("--history-json", type=Path)
 
     return parser
 
@@ -877,7 +884,7 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     if args.command == "cmapss-cnn-baseline":
-        results = run_all_cmapss_cnn_baselines(
+        runs = run_all_cmapss_cnn_baseline_runs(
             args.sequence_dir,
             subsets=tuple(args.subsets),
             epochs=args.epochs,
@@ -886,21 +893,30 @@ def main(argv: list[str] | None = None) -> int:
             hidden_channels=args.hidden_channels,
             kernel_size=args.kernel_size,
             dropout=args.dropout,
+            checkpoint_policy=args.checkpoint_policy,
             random_state=args.random_state,
             device=args.device,
         )
+        results = [run.result for run in runs]
         print(f"epochs={args.epochs}")
         print(f"batch_size={args.batch_size}")
         print(f"learning_rate={args.learning_rate}")
         print(f"hidden_channels={args.hidden_channels}")
         print(f"kernel_size={args.kernel_size}")
         print(f"dropout={args.dropout}")
+        print(f"checkpoint_policy={args.checkpoint_policy}")
         print(f"device={args.device}")
+        print(
+            "selected_epochs="
+            + ",".join(f"{run.result.subset}:{run.selected_epoch}" for run in runs)
+        )
         _print_results_table(results)
         if args.output_json is not None:
             write_results_json(results, args.output_json)
         if args.output_csv is not None:
             write_results_csv(results, args.output_csv)
+        if args.history_json is not None:
+            _write_cnn_history_json(runs, args.history_json)
         return 0
 
     parser.error(f"unknown command: {args.command}")
@@ -975,6 +991,12 @@ def _write_validation_aggregate_csv(
         writer = csv.DictWriter(file, fieldnames=list(results[0].to_dict()))
         writer.writeheader()
         writer.writerows(result.to_dict() for result in results)
+
+
+def _write_cnn_history_json(results: list[CmapssCnnBaselineRun], path: Path) -> None:
+    output_path = _prepare_output_path(path)
+    payload = [result.to_dict() for result in results]
+    output_path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n")
 
 
 def _prepare_output_path(path: Path) -> Path:

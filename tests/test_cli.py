@@ -522,6 +522,7 @@ def test_cmapss_cnn_baseline_command_writes_result_tables(tmp_path, capsys) -> N
     write_all_tiny_cmapss_subsets(tmp_path)
     sequence_dir = tmp_path / "sequences"
     output_csv = tmp_path / "results" / "cnn.csv"
+    history_json = tmp_path / "results" / "cnn_history.json"
     main(
         [
             "cmapss-export-sequences",
@@ -554,14 +555,19 @@ def test_cmapss_cnn_baseline_command_writes_result_tables(tmp_path, capsys) -> N
             "4",
             "--output-csv",
             str(output_csv),
+            "--history-json",
+            str(history_json),
         ]
     )
     output = capsys.readouterr().out
 
     assert exit_code == 0
     assert "epochs=1" in output
+    assert "checkpoint_policy=validation_nasa" in output
     assert "FD001,cnn_1d_w2_e1_c4" in output
+    assert "selected_epochs=FD001:1" in output
     assert output_csv.exists()
+    assert history_json.exists()
 
 
 def test_cmapss_download_command_extracts_archive(tmp_path, capsys) -> None:
