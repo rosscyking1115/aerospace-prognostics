@@ -43,6 +43,9 @@ from aerospace_prognostics.experiments.cmapss_baseline import (
     run_cmapss_validation_selected_hgb_grid,
     run_cmapss_validation_sensor_filter_comparison,
 )
+from aerospace_prognostics.experiments.cmapss_deep_baseline import (
+    run_all_cmapss_cnn_baselines,
+)
 from aerospace_prognostics.sequence_exports import export_cmapss_sequence_splits
 from aerospace_prognostics.workflows.phase1 import run_phase1_cmapss_workflow
 
@@ -354,6 +357,28 @@ def _build_parser() -> argparse.ArgumentParser:
     sequence_export.add_argument("--validation-fraction", type=float, default=0.2)
     sequence_export.add_argument("--validation-horizon", type=int, default=30)
     sequence_export.add_argument("--no-standardize", action="store_true")
+
+    cnn_baseline = subparsers.add_parser(
+        "cmapss-cnn-baseline",
+        help="Train a 1D-CNN RUL baseline from exported C-MAPSS sequence tensors",
+    )
+    cnn_baseline.add_argument("--sequence-dir", type=Path, required=True)
+    cnn_baseline.add_argument(
+        "--subsets",
+        nargs="+",
+        choices=CMAPSS_SUBSETS,
+        default=list(CMAPSS_SUBSETS),
+    )
+    cnn_baseline.add_argument("--epochs", type=int, default=5)
+    cnn_baseline.add_argument("--batch-size", type=int, default=256)
+    cnn_baseline.add_argument("--learning-rate", type=float, default=1e-3)
+    cnn_baseline.add_argument("--hidden-channels", type=int, default=32)
+    cnn_baseline.add_argument("--kernel-size", type=int, default=3)
+    cnn_baseline.add_argument("--dropout", type=float, default=0.1)
+    cnn_baseline.add_argument("--random-state", type=int, default=42)
+    cnn_baseline.add_argument("--device", default="cpu")
+    cnn_baseline.add_argument("--output-json", type=Path)
+    cnn_baseline.add_argument("--output-csv", type=Path)
 
     return parser
 
@@ -849,6 +874,33 @@ def main(argv: list[str] | None = None) -> int:
                 f"features={len(result.feature_columns)},"
                 f"metadata={result.metadata_path}"
             )
+        return 0
+
+    if args.command == "cmapss-cnn-baseline":
+        results = run_all_cmapss_cnn_baselines(
+            args.sequence_dir,
+            subsets=tuple(args.subsets),
+            epochs=args.epochs,
+            batch_size=args.batch_size,
+            learning_rate=args.learning_rate,
+            hidden_channels=args.hidden_channels,
+            kernel_size=args.kernel_size,
+            dropout=args.dropout,
+            random_state=args.random_state,
+            device=args.device,
+        )
+        print(f"epochs={args.epochs}")
+        print(f"batch_size={args.batch_size}")
+        print(f"learning_rate={args.learning_rate}")
+        print(f"hidden_channels={args.hidden_channels}")
+        print(f"kernel_size={args.kernel_size}")
+        print(f"dropout={args.dropout}")
+        print(f"device={args.device}")
+        _print_results_table(results)
+        if args.output_json is not None:
+            write_results_json(results, args.output_json)
+        if args.output_csv is not None:
+            write_results_csv(results, args.output_csv)
         return 0
 
     parser.error(f"unknown command: {args.command}")

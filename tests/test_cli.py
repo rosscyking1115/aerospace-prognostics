@@ -518,6 +518,52 @@ def test_cmapss_export_sequences_command_writes_sequence_artifacts(tmp_path, cap
     assert (output_dir / "fd001" / "metadata.json").exists()
 
 
+def test_cmapss_cnn_baseline_command_writes_result_tables(tmp_path, capsys) -> None:
+    write_all_tiny_cmapss_subsets(tmp_path)
+    sequence_dir = tmp_path / "sequences"
+    output_csv = tmp_path / "results" / "cnn.csv"
+    main(
+        [
+            "cmapss-export-sequences",
+            "--data-dir",
+            str(tmp_path),
+            "--output-dir",
+            str(sequence_dir),
+            "--subsets",
+            "FD001",
+            "--window-size",
+            "2",
+            "--validation-horizon",
+            "1",
+        ]
+    )
+    capsys.readouterr()
+
+    exit_code = main(
+        [
+            "cmapss-cnn-baseline",
+            "--sequence-dir",
+            str(sequence_dir),
+            "--subsets",
+            "FD001",
+            "--epochs",
+            "1",
+            "--batch-size",
+            "2",
+            "--hidden-channels",
+            "4",
+            "--output-csv",
+            str(output_csv),
+        ]
+    )
+    output = capsys.readouterr().out
+
+    assert exit_code == 0
+    assert "epochs=1" in output
+    assert "FD001,cnn_1d_w2_e1_c4" in output
+    assert output_csv.exists()
+
+
 def test_cmapss_download_command_extracts_archive(tmp_path, capsys) -> None:
     source_zip = tmp_path / "source.zip"
     with zipfile.ZipFile(source_zip, "w") as archive:

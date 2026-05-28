@@ -26,6 +26,7 @@ The working plan is tracked in [Aerospace_Prognostics_Project_Plan.md](Aerospace
 - `aerospace-prognostics cmapss-validate-hgb-grid` CLI for compact HistGradientBoosting hyperparameter checks.
 - `aerospace-prognostics cmapss-validate-sensor-filters` CLI for checking EDA-informed sensor filtering before adopting it.
 - `aerospace-prognostics cmapss-export-sequences` CLI for Phase 2 train/validation/test sequence tensor exports.
+- `aerospace-prognostics cmapss-cnn-baseline` CLI for the first Phase 2 PyTorch 1D-CNN sequence baseline.
 - CI scaffold with linting, tests, and dependency audit.
 
 ## Phase 1 Artifacts
@@ -33,6 +34,10 @@ The working plan is tracked in [Aerospace_Prognostics_Project_Plan.md](Aerospace
 - Domain notes: [docs/phase1_turbofan_notes.md](docs/phase1_turbofan_notes.md)
 - Real C-MAPSS baseline results: [docs/phase1_cmapss_baseline_results.md](docs/phase1_cmapss_baseline_results.md)
 - EDA notebook scaffold: [notebooks/01_cmapss_phase1_eda.ipynb](notebooks/01_cmapss_phase1_eda.ipynb)
+
+## Phase 2 Artifacts
+
+- Sequence-model baseline notes: [docs/phase2_cmapss_deep_baselines.md](docs/phase2_cmapss_deep_baselines.md)
 
 ## Developer Quickstart
 
@@ -66,5 +71,6 @@ uv run aerospace-prognostics cmapss-validate-feature-candidates-repeated --data-
 uv run aerospace-prognostics cmapss-validate-hgb-grid --data-dir data/raw/cmapss --output-json artifacts/results/cmapss_validation_hgb_grid.json --output-csv artifacts/results/cmapss_validation_hgb_grid.csv
 uv run aerospace-prognostics cmapss-validate-sensor-filters --data-dir data/raw/cmapss --output-json artifacts/results/cmapss_validation_sensor_filters.json --output-csv artifacts/results/cmapss_validation_sensor_filters.csv
 uv run aerospace-prognostics cmapss-export-sequences --data-dir data/raw/cmapss --output-dir artifacts/sequences/cmapss --window-size 30 --stride 1
+uv run aerospace-prognostics cmapss-cnn-baseline --sequence-dir artifacts/sequences/cmapss --subsets FD001 --epochs 50 --output-json artifacts/results/cmapss_cnn_fd001_baseline.json --output-csv artifacts/results/cmapss_cnn_fd001_baseline.csv
 uv run aerospace-prognostics phase1-cmapss --data-dir data/raw/cmapss --artifact-dir artifacts/phase1
 ```
