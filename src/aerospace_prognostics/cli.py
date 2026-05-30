@@ -60,6 +60,12 @@ from aerospace_prognostics.experiments.cmapss_deep_baseline import (
     run_all_cmapss_transformer_baseline_runs,
     run_cmapss_deep_baseline_comparison,
 )
+from aerospace_prognostics.reports.cmapss_model_comparison import (
+    CmapssModelComparisonRow,
+    build_cmapss_model_comparison,
+    write_cmapss_model_comparison_csv,
+    write_cmapss_model_comparison_markdown,
+)
 from aerospace_prognostics.sequence_exports import export_cmapss_sequence_splits
 from aerospace_prognostics.workflows.phase1 import run_phase1_cmapss_workflow
 
@@ -524,6 +530,22 @@ def _build_parser() -> argparse.ArgumentParser:
     deep_compare.add_argument("--device", default="cpu")
     deep_compare.add_argument("--output-json", type=Path)
     deep_compare.add_argument("--output-csv", type=Path)
+
+    compare_rul_results = subparsers.add_parser(
+        "cmapss-compare-rul-results",
+        help="Compare Phase 2 RUL result tables against the Phase 1 HGB policy baseline",
+    )
+    compare_rul_results.add_argument("--baseline-csv", type=Path, required=True)
+    compare_rul_results.add_argument(
+        "--candidate-csv",
+        nargs="+",
+        type=Path,
+        required=True,
+    )
+    compare_rul_results.add_argument("--baseline-label", default="phase1_hgb_policy")
+    compare_rul_results.add_argument("--candidate-label", default="phase2_deep")
+    compare_rul_results.add_argument("--output-csv", type=Path)
+    compare_rul_results.add_argument("--output-markdown", type=Path)
 
     package_hgb = subparsers.add_parser(
         "cmapss-package-hgb-policy",
@@ -1252,6 +1274,30 @@ def main(argv: list[str] | None = None) -> int:
             write_results_csv(results, args.output_csv)
         return 0
 
+    if args.command == "cmapss-compare-rul-results":
+        rows = build_cmapss_model_comparison(
+            args.baseline_csv,
+            tuple(args.candidate_csv),
+            baseline_label=args.baseline_label,
+            candidate_label=args.candidate_label,
+        )
+        print(f"rows={len(rows)}")
+        print(f"subsets={','.join(_comparison_subsets(rows))}")
+        print(
+            "best_by_nasa="
+            + ",".join(
+                f"{subset}:{_best_comparison_row_for_subset(rows, subset).phase}:"
+                f"{_best_comparison_row_for_subset(rows, subset).model_name}"
+                for subset in _comparison_subsets(rows)
+            )
+        )
+        _print_comparison_table(rows)
+        if args.output_csv is not None:
+            write_cmapss_model_comparison_csv(rows, args.output_csv)
+        if args.output_markdown is not None:
+            write_cmapss_model_comparison_markdown(rows, args.output_markdown)
+        return 0
+
     if args.command == "cmapss-package-hgb-policy":
         packaged = train_cmapss_hgb_policy_artifact(
             args.data_dir,
@@ -1326,6 +1372,34 @@ def _print_results_table(results: Iterable[RegressionRunResult]) -> None:
             f"{result.rmse:.6f},"
             f"{result.nasa_score:.6f}"
         )
+
+
+def _print_comparison_table(rows: Iterable[CmapssModelComparisonRow]) -> None:
+    print(
+        "subset,rank_by_nasa,phase,model,rmse,nasa_score,"
+        "rmse_delta,nasa_score_delta,nasa_score_ratio"
+    )
+    for row in rows:
+        print(
+            f"{row.subset},{row.rank_by_nasa},{row.phase},{row.model_name},"
+            f"{row.rmse:.6f},{row.nasa_score:.6f},"
+            f"{row.rmse_delta:.6f},{row.nasa_score_delta:.6f},"
+            f"{row.nasa_score_ratio:.6f}"
+        )
+
+
+def _comparison_subsets(rows: Iterable[CmapssModelComparisonRow]) -> list[str]:
+    return sorted({row.subset for row in rows})
+
+
+def _best_comparison_row_for_subset(
+    rows: Iterable[CmapssModelComparisonRow],
+    subset: str,
+) -> CmapssModelComparisonRow:
+    subset_rows = [row for row in rows if row.subset == subset]
+    if not subset_rows:
+        raise ValueError(f"no comparison rows for subset {subset}")
+    return min(subset_rows, key=lambda row: (row.nasa_score, row.rmse))
 
 
 def _best_result_for_subset(

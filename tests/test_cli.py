@@ -5,6 +5,7 @@ import zipfile
 
 from aerospace_prognostics.cli import main
 from aerospace_prognostics.data.cmapss import read_cmapss_frame
+from aerospace_prognostics.evaluation import RegressionRunResult, write_results_csv
 from tests.cmapss_fixtures import write_all_tiny_cmapss_subsets, write_tiny_cmapss_subset
 
 
@@ -810,6 +811,50 @@ def test_cmapss_deep_baseline_compare_command_writes_result_tables(
     assert output_csv.exists()
 
 
+def test_cmapss_compare_rul_results_command_writes_report_tables(
+    tmp_path,
+    capsys,
+) -> None:
+    baseline_csv = tmp_path / "results" / "hgb.csv"
+    candidate_csv = tmp_path / "results" / "deep.csv"
+    output_csv = tmp_path / "reports" / "comparison.csv"
+    output_markdown = tmp_path / "reports" / "comparison.md"
+    write_results_csv(
+        [_cli_result("FD001", "hist_gradient_boosting_policy", 13.0, 250.0)],
+        baseline_csv,
+    )
+    write_results_csv(
+        [
+            _cli_result("FD001", "cnn", 22.0, 400.0),
+            _cli_result("FD001", "tcn", 12.5, 240.0),
+        ],
+        candidate_csv,
+    )
+
+    exit_code = main(
+        [
+            "cmapss-compare-rul-results",
+            "--baseline-csv",
+            str(baseline_csv),
+            "--candidate-csv",
+            str(candidate_csv),
+            "--output-csv",
+            str(output_csv),
+            "--output-markdown",
+            str(output_markdown),
+        ]
+    )
+    output = capsys.readouterr().out
+
+    assert exit_code == 0
+    assert "rows=3" in output
+    assert "subsets=FD001" in output
+    assert "best_by_nasa=FD001:phase2_deep:tcn" in output
+    assert "FD001,1,phase2_deep,tcn,12.500000,240.000000" in output
+    assert output_csv.exists()
+    assert output_markdown.exists()
+
+
 def test_cmapss_package_and_predict_artifact_commands(tmp_path, capsys) -> None:
     write_tiny_cmapss_subset(tmp_path)
     artifact_path = tmp_path / "models" / "fd001.joblib"
@@ -887,3 +932,26 @@ def test_cmapss_download_command_extracts_archive(tmp_path, capsys) -> None:
     assert exit_code == 0
     assert "files=12" in output
     assert (output_dir / "train_FD001.txt").exists()
+
+
+def _cli_result(
+    subset: str,
+    model_name: str,
+    rmse: float,
+    nasa_score: float,
+) -> RegressionRunResult:
+    return RegressionRunResult(
+        dataset="C-MAPSS",
+        subset=subset,
+        model_name=model_name,
+        rmse=rmse,
+        nasa_score=nasa_score,
+        train_rows=10,
+        train_units=2,
+        test_rows=4,
+        test_units=2,
+        test_rul_values=2,
+        rul_cap=125,
+        random_state=42,
+        standardize=True,
+    )
