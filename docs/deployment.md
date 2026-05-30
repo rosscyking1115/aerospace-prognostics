@@ -36,11 +36,11 @@ Current scope:
 - Tests for artifact round-trip and API prediction behavior.
 - Dockerfile scaffold for containerized serving.
 - CI Docker image build check.
+- CI container startup smoke test against `GET /health`.
 
 Next hardening steps:
 
 - Add structured request/response logging and latency metrics.
 - Add drift summaries for incoming telemetry and prediction distributions.
 - Add model promotion metadata and rollback docs.
-- Add containerized API smoke test to CI.
 - Add authentication/rate limiting before any public deployment.
