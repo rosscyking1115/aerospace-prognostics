@@ -898,6 +898,69 @@ def test_cmapss_compare_rul_results_command_writes_report_tables(
     assert output_markdown.exists()
 
 
+def test_telemetry_robust_zscore_baseline_command_writes_outputs(tmp_path, capsys) -> None:
+    train_csv = tmp_path / "train.csv"
+    test_csv = tmp_path / "test.csv"
+    output_json = tmp_path / "results" / "anomaly.json"
+    predictions_csv = tmp_path / "results" / "predictions.csv"
+    train_csv.write_text(
+        "\n".join(
+            [
+                "timestamp,bus_voltage,thermal_zone",
+                "0,0.0,10.0",
+                "1,0.1,10.1",
+                "2,-0.1,9.9",
+                "3,0.0,10.0",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    test_csv.write_text(
+        "\n".join(
+            [
+                "timestamp,bus_voltage,thermal_zone,label",
+                "0,0.0,10.0,0",
+                "1,8.0,10.0,1",
+                "2,0.0,25.0,1",
+                "3,0.1,10.1,0",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    exit_code = main(
+        [
+            "telemetry-robust-zscore-baseline",
+            "--train-csv",
+            str(train_csv),
+            "--test-csv",
+            str(test_csv),
+            "--label-column",
+            "label",
+            "--feature-columns",
+            "bus_voltage",
+            "thermal_zone",
+            "--output-json",
+            str(output_json),
+            "--predictions-csv",
+            str(predictions_csv),
+        ]
+    )
+    output = capsys.readouterr().out
+    result = json.loads(output_json.read_text(encoding="utf-8"))
+
+    assert exit_code == 0
+    assert "features=2" in output
+    assert "test_rows=4" in output
+    assert "f1=1.000000" in output
+    assert "point_adjusted_f1=1.000000" in output
+    assert result["metrics"]["true_positives"] == 2
+    assert result["predictions"] == [0, 1, 1, 0]
+    assert predictions_csv.exists()
+
+
 def test_cmapss_package_and_predict_artifact_commands(tmp_path, capsys) -> None:
     write_tiny_cmapss_subset(tmp_path)
     artifact_path = tmp_path / "models" / "fd001.joblib"

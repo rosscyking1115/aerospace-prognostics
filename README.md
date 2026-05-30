@@ -33,6 +33,7 @@ The working plan is tracked in [Aerospace_Prognostics_Project_Plan.md](Aerospace
 - `aerospace-prognostics cmapss-transformer-baseline` CLI for Phase 2 attention-based sequence baselines.
 - `aerospace-prognostics cmapss-deep-baseline-compare` CLI for compact Phase 2 architecture and learning-rate sweeps.
 - `aerospace-prognostics cmapss-compare-rul-results` CLI for Phase 1 vs Phase 2 ranked model-comparison reports.
+- `aerospace-prognostics telemetry-robust-zscore-baseline` CLI for the Phase 2 spacecraft anomaly-detection baseline plumbing.
 - `aerospace-prognostics cmapss-package-hgb-policy`, `cmapss-predict-artifact`, and `serve-api` CLIs for the production-ML deployment track.
 - FastAPI serving observability with request IDs, latency headers, JSON request logs, and `/metrics` counters.
 - Serving-time telemetry drift summaries and prediction distribution monitoring.
@@ -49,6 +50,7 @@ The working plan is tracked in [Aerospace_Prognostics_Project_Plan.md](Aerospace
 ## Phase 2 Artifacts
 
 - Sequence-model baseline notes: [docs/phase2_cmapss_deep_baselines.md](docs/phase2_cmapss_deep_baselines.md)
+- Spacecraft anomaly baseline notes: [docs/phase2_spacecraft_anomaly_baselines.md](docs/phase2_spacecraft_anomaly_baselines.md)
 
 ## Deployment Artifacts
 
@@ -92,6 +94,7 @@ uv run aerospace-prognostics cmapss-tcn-baseline --sequence-dir artifacts/sequen
 uv run aerospace-prognostics cmapss-transformer-baseline --sequence-dir artifacts/sequences/cmapss --subsets FD001 --epochs 50 --d-model 64 --num-heads 4 --num-layers 2 --dim-feedforward 128 --output-json artifacts/results/cmapss_transformer_fd001_baseline.json --output-csv artifacts/results/cmapss_transformer_fd001_baseline.csv --history-json artifacts/results/cmapss_transformer_fd001_history.json
 uv run aerospace-prognostics cmapss-deep-baseline-compare --sequence-dir artifacts/sequences/cmapss --subsets FD001 --models cnn bilstm tcn transformer --epochs 50 --hidden-sizes 32 64 --learning-rates 0.001 0.0003 --output-json artifacts/results/cmapss_deep_compare_fd001.json --output-csv artifacts/results/cmapss_deep_compare_fd001.csv
 uv run aerospace-prognostics cmapss-compare-rul-results --baseline-csv artifacts/results/cmapss_hgb_policy_baseline.csv --candidate-csv artifacts/results/cmapss_deep_compare_fd001.csv --output-csv artifacts/results/cmapss_phase2_model_comparison.csv --output-markdown artifacts/results/cmapss_phase2_model_comparison.md
+uv run aerospace-prognostics telemetry-robust-zscore-baseline --train-csv data/raw/smap_msl/train.csv --test-csv data/raw/smap_msl/test.csv --label-column label --threshold 3.5 --output-json artifacts/results/smap_msl_robust_zscore.json --predictions-csv artifacts/results/smap_msl_robust_zscore_predictions.csv
 uv run aerospace-prognostics cmapss-package-hgb-policy --data-dir data/raw/cmapss --subset FD001 --output-path artifacts/models/cmapss_fd001_hgb_policy.joblib --metadata-json artifacts/models/cmapss_fd001_hgb_policy_metadata.json
 uv run aerospace-prognostics serve-api --model-artifact artifacts/models/cmapss_fd001_hgb_policy.joblib --host 127.0.0.1 --port 8000
 uv run aerospace-prognostics phase1-cmapss --data-dir data/raw/cmapss --artifact-dir artifacts/phase1

@@ -9,6 +9,7 @@ from collections.abc import Iterable
 from pathlib import Path
 
 from aerospace_prognostics.analysis.cmapss_eda import build_cmapss_eda_report
+from aerospace_prognostics.anomaly.baselines import run_robust_zscore_baseline
 from aerospace_prognostics.data.cmapss import CMAPSS_SUBSETS, load_cmapss_subset
 from aerospace_prognostics.data.downloads import NASA_CMAPSS_URL, download_cmapss_dataset
 from aerospace_prognostics.data.manifest import (
@@ -590,6 +591,22 @@ def _build_parser() -> argparse.ArgumentParser:
     compare_rul_results.add_argument("--candidate-label", default="phase2_deep")
     compare_rul_results.add_argument("--output-csv", type=Path)
     compare_rul_results.add_argument("--output-markdown", type=Path)
+
+    anomaly_baseline = subparsers.add_parser(
+        "telemetry-robust-zscore-baseline",
+        help="Run a robust MAD/z-score anomaly baseline on labelled telemetry CSVs",
+    )
+    anomaly_baseline.add_argument("--train-csv", type=Path, required=True)
+    anomaly_baseline.add_argument("--test-csv", type=Path, required=True)
+    anomaly_baseline.add_argument("--label-column", required=True)
+    anomaly_baseline.add_argument(
+        "--feature-columns",
+        nargs="+",
+        help="Feature columns to score; defaults to all numeric columns except the label",
+    )
+    anomaly_baseline.add_argument("--threshold", type=float, default=3.5)
+    anomaly_baseline.add_argument("--output-json", type=Path)
+    anomaly_baseline.add_argument("--predictions-csv", type=Path)
 
     package_hgb = subparsers.add_parser(
         "cmapss-package-hgb-policy",
@@ -1383,6 +1400,44 @@ def main(argv: list[str] | None = None) -> int:
             write_cmapss_model_comparison_markdown(rows, args.output_markdown)
         return 0
 
+    if args.command == "telemetry-robust-zscore-baseline":
+        import pandas as pd
+
+        train_frame = pd.read_csv(args.train_csv)
+        test_frame = pd.read_csv(args.test_csv)
+        feature_columns = tuple(
+            args.feature_columns
+            if args.feature_columns is not None
+            else _infer_numeric_feature_columns(train_frame, args.label_column)
+        )
+        _require_columns(train_frame, feature_columns, frame_name="train CSV")
+        _require_columns(test_frame, (*feature_columns, args.label_column), frame_name="test CSV")
+        result = run_robust_zscore_baseline(
+            train_frame.loc[:, feature_columns].to_numpy(),
+            test_frame.loc[:, feature_columns].to_numpy(),
+            test_frame.loc[:, args.label_column].to_numpy(),
+            feature_names=feature_columns,
+            threshold=args.threshold,
+        )
+        print(f"features={len(feature_columns)}")
+        print(f"test_rows={len(test_frame)}")
+        print(f"threshold={args.threshold:g}")
+        print(f"precision={result.metrics.precision:.6f}")
+        print(f"recall={result.metrics.recall:.6f}")
+        print(f"f1={result.metrics.f1:.6f}")
+        print(f"point_adjusted_f1={result.point_adjusted_metrics.f1:.6f}")
+        print(f"false_alarm_rate={result.metrics.false_alarm_rate:.6f}")
+        if args.output_json is not None:
+            _write_json_payload(result.to_dict(), args.output_json)
+        if args.predictions_csv is not None:
+            _write_anomaly_predictions_csv(
+                labels=test_frame.loc[:, args.label_column].to_numpy(),
+                scores=result.scores,
+                predictions=result.predictions,
+                path=args.predictions_csv,
+            )
+        return 0
+
     if args.command == "cmapss-package-hgb-policy":
         packaged = train_cmapss_hgb_policy_artifact(
             args.data_dir,
@@ -1525,6 +1580,52 @@ def _best_aggregate_for_subset(
 
 def _format_cli_float(value: float) -> str:
     return f"{value:g}"
+
+
+def _infer_numeric_feature_columns(frame: object, label_column: str) -> tuple[str, ...]:
+    import pandas as pd
+
+    columns = tuple(
+        column
+        for column in frame.columns
+        if column != label_column and pd.api.types.is_numeric_dtype(frame[column])
+    )
+    if not columns:
+        raise ValueError("no numeric feature columns found")
+    return columns
+
+
+def _require_columns(frame: object, columns: Iterable[str], *, frame_name: str) -> None:
+    missing = [column for column in columns if column not in frame]
+    if missing:
+        raise ValueError(f"{frame_name} is missing columns: {', '.join(missing)}")
+
+
+def _write_anomaly_predictions_csv(
+    *,
+    labels: object,
+    scores: Iterable[float],
+    predictions: Iterable[int],
+    path: Path,
+) -> None:
+    output_path = _prepare_output_path(path)
+    with output_path.open("w", encoding="utf-8", newline="") as file:
+        writer = csv.DictWriter(
+            file,
+            fieldnames=["row_index", "label", "anomaly_score", "prediction"],
+        )
+        writer.writeheader()
+        for index, (label, score, prediction) in enumerate(
+            zip(labels, scores, predictions, strict=True)
+        ):
+            writer.writerow(
+                {
+                    "row_index": index,
+                    "label": int(label),
+                    "anomaly_score": f"{score:.12g}",
+                    "prediction": int(prediction),
+                }
+            )
 
 
 def _write_validation_aggregate_json(

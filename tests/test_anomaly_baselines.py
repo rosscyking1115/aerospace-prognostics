@@ -1,0 +1,60 @@
+from __future__ import annotations
+
+import numpy as np
+import pytest
+
+from aerospace_prognostics.anomaly.baselines import (
+    fit_robust_zscore_model,
+    robust_zscore_scores,
+    run_robust_zscore_baseline,
+)
+
+
+def test_robust_zscore_baseline_flags_large_deviations() -> None:
+    train_values = np.array(
+        [
+            [0.0, 10.0],
+            [0.1, 10.1],
+            [-0.1, 9.9],
+            [0.0, 10.0],
+        ]
+    )
+    test_values = np.array(
+        [
+            [0.0, 10.0],
+            [8.0, 10.0],
+            [0.0, 25.0],
+            [0.1, 10.1],
+        ]
+    )
+
+    result = run_robust_zscore_baseline(
+        train_values,
+        test_values,
+        labels=[0, 1, 1, 0],
+        feature_names=["bus_voltage", "thermal_zone"],
+        threshold=3.5,
+    )
+
+    assert result.model.feature_names == ("bus_voltage", "thermal_zone")
+    assert result.predictions == (0, 1, 1, 0)
+    assert result.metrics.f1 == 1.0
+    assert result.point_adjusted_metrics.f1 == 1.0
+    assert result.scores[1] > result.model.threshold
+    assert result.to_dict()["model"]["feature_names"] == ("bus_voltage", "thermal_zone")
+
+
+def test_robust_zscore_model_falls_back_for_constant_features() -> None:
+    model = fit_robust_zscore_model(
+        [[1.0, 5.0], [1.0, 5.0], [1.0, 5.0]],
+        feature_names=["constant_a", "constant_b"],
+    )
+
+    assert model.scales == (1.0, 1.0)
+    assert robust_zscore_scores(model, [[1.0, 7.0]]).tolist() == [2.0]
+
+
+def test_robust_zscore_model_rejects_feature_name_mismatch() -> None:
+    with pytest.raises(ValueError, match="feature_names length"):
+        fit_robust_zscore_model([[1.0, 2.0]], feature_names=["only_one"])
+
