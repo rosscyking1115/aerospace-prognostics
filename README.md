@@ -15,6 +15,7 @@ The working plan is tracked in [Aerospace_Prognostics_Project_Plan.md](Aerospace
 - C-MAPSS EDA summaries for sensor drift, flat sensors, correlations, and operating-regime clusters.
 - C-MAPSS manifest and verification commands for dataset provenance.
 - Phase 1 C-MAPSS workflow command for provenance, EDA, baseline results, and a markdown run summary.
+- Phase 2 C-MAPSS workflow command for sequence exports, deep-model sweeps, ranked reporting, and a markdown run summary.
 - `aerospace-prognostics cmapss-summary` CLI for sanity-checking local C-MAPSS files.
 - `aerospace-prognostics cmapss-baseline` CLI for a first-pass scikit-learn gradient-boosting RUL baseline.
 - `aerospace-prognostics cmapss-engineered-baseline-all` CLI for rolling/delta feature baselines.
@@ -94,4 +95,5 @@ uv run aerospace-prognostics cmapss-compare-rul-results --baseline-csv artifacts
 uv run aerospace-prognostics cmapss-package-hgb-policy --data-dir data/raw/cmapss --subset FD001 --output-path artifacts/models/cmapss_fd001_hgb_policy.joblib --metadata-json artifacts/models/cmapss_fd001_hgb_policy_metadata.json
 uv run aerospace-prognostics serve-api --model-artifact artifacts/models/cmapss_fd001_hgb_policy.joblib --host 127.0.0.1 --port 8000
 uv run aerospace-prognostics phase1-cmapss --data-dir data/raw/cmapss --artifact-dir artifacts/phase1
+uv run aerospace-prognostics phase2-cmapss --data-dir data/raw/cmapss --artifact-dir artifacts/phase2 --subsets FD001 --models cnn bilstm tcn transformer --epochs 50 --hidden-sizes 32 64 --learning-rates 0.001 0.0003
 ```

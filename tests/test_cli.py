@@ -492,6 +492,49 @@ def test_phase1_cmapss_command_runs_full_workflow(tmp_path, capsys) -> None:
     assert (artifact_dir / "results" / "cmapss_validation_sensor_filters.csv").exists()
 
 
+def test_phase2_cmapss_command_runs_sequence_model_workflow(tmp_path, capsys) -> None:
+    write_tiny_cmapss_subset(tmp_path)
+    artifact_dir = tmp_path / "phase2"
+
+    exit_code = main(
+        [
+            "phase2-cmapss",
+            "--data-dir",
+            str(tmp_path),
+            "--artifact-dir",
+            str(artifact_dir),
+            "--subsets",
+            "FD001",
+            "--window-size",
+            "2",
+            "--validation-horizon",
+            "1",
+            "--n-regimes",
+            "1",
+            "--models",
+            "cnn",
+            "tcn",
+            "--epochs",
+            "1",
+            "--batch-size",
+            "2",
+            "--hidden-sizes",
+            "4",
+            "--tcn-levels",
+            "1",
+        ]
+    )
+    output = capsys.readouterr().out
+
+    assert exit_code == 0
+    assert "sequence_exports=1" in output
+    assert "deep_results=2" in output
+    assert "comparison_rows=3" in output
+    assert (artifact_dir / "phase2_summary.md").exists()
+    assert (artifact_dir / "results" / "cmapss_deep_compare.csv").exists()
+    assert (artifact_dir / "results" / "cmapss_phase2_model_comparison.md").exists()
+
+
 def test_cmapss_export_sequences_command_writes_sequence_artifacts(tmp_path, capsys) -> None:
     write_all_tiny_cmapss_subsets(tmp_path)
     output_dir = tmp_path / "sequence_exports"

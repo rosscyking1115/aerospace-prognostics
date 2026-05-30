@@ -68,6 +68,7 @@ from aerospace_prognostics.reports.cmapss_model_comparison import (
 )
 from aerospace_prognostics.sequence_exports import export_cmapss_sequence_splits
 from aerospace_prognostics.workflows.phase1 import run_phase1_cmapss_workflow
+from aerospace_prognostics.workflows.phase2 import run_phase2_cmapss_workflow
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -357,6 +358,49 @@ def _build_parser() -> argparse.ArgumentParser:
     phase1.add_argument("--random-state", type=int, default=42)
     phase1.add_argument("--n-regimes", type=int, default=6)
     phase1.add_argument("--no-standardize", action="store_true")
+
+    phase2 = subparsers.add_parser(
+        "phase2-cmapss",
+        help="Run the Phase 2 C-MAPSS sequence-model comparison workflow",
+    )
+    phase2.add_argument("--data-dir", type=Path, required=True)
+    phase2.add_argument("--artifact-dir", type=Path, default=Path("artifacts/phase2"))
+    phase2.add_argument(
+        "--subsets",
+        nargs="+",
+        choices=CMAPSS_SUBSETS,
+        default=list(CMAPSS_SUBSETS),
+    )
+    phase2.add_argument("--window-size", type=int, default=30)
+    phase2.add_argument("--stride", type=int, default=1)
+    phase2.add_argument("--validation-fraction", type=float, default=0.2)
+    phase2.add_argument("--validation-horizon", type=int, default=30)
+    phase2.add_argument("--rul-cap", type=int, default=125)
+    phase2.add_argument("--random-state", type=int, default=42)
+    phase2.add_argument("--n-regimes", type=int, default=6)
+    phase2.add_argument("--no-standardize", action="store_true")
+    phase2.add_argument(
+        "--models",
+        nargs="+",
+        choices=CMAPSS_DEEP_COMPARISON_MODELS,
+        default=["cnn", "bilstm", "tcn", "transformer"],
+    )
+    phase2.add_argument("--epochs", type=int, default=5)
+    phase2.add_argument("--batch-size", type=int, default=256)
+    phase2.add_argument("--learning-rates", nargs="+", type=float, default=[1e-3])
+    phase2.add_argument("--hidden-sizes", nargs="+", type=int, default=[32])
+    phase2.add_argument("--num-layers", type=int, default=1)
+    phase2.add_argument("--tcn-levels", type=int, default=3)
+    phase2.add_argument("--transformer-heads", type=int, default=4)
+    phase2.add_argument("--transformer-dim-feedforward", type=int)
+    phase2.add_argument("--kernel-size", type=int, default=3)
+    phase2.add_argument("--dropout", type=float, default=0.1)
+    phase2.add_argument(
+        "--checkpoint-policy",
+        choices=["validation_nasa", "final"],
+        default="validation_nasa",
+    )
+    phase2.add_argument("--device", default="cpu")
 
     sequence_export = subparsers.add_parser(
         "cmapss-export-sequences",
@@ -1038,6 +1082,47 @@ def main(argv: list[str] | None = None) -> int:
         print(f"sensor_filter_csv={result.sensor_filter_csv_path}")
         print(f"summary={result.summary_markdown_path}")
         print(f"eda_reports={len(result.eda_paths)}")
+        return 0
+
+    if args.command == "phase2-cmapss":
+        result = run_phase2_cmapss_workflow(
+            args.data_dir,
+            args.artifact_dir,
+            subsets=tuple(args.subsets),
+            window_size=args.window_size,
+            stride=args.stride,
+            validation_fraction=args.validation_fraction,
+            validation_horizon=args.validation_horizon,
+            rul_cap=args.rul_cap,
+            random_state=args.random_state,
+            n_regimes=args.n_regimes,
+            standardize=not args.no_standardize,
+            models=tuple(args.models),
+            epochs=args.epochs,
+            batch_size=args.batch_size,
+            learning_rates=tuple(args.learning_rates),
+            hidden_sizes=tuple(args.hidden_sizes),
+            num_layers=args.num_layers,
+            tcn_levels=args.tcn_levels,
+            transformer_heads=args.transformer_heads,
+            transformer_dim_feedforward=args.transformer_dim_feedforward,
+            kernel_size=args.kernel_size,
+            dropout=args.dropout,
+            checkpoint_policy=args.checkpoint_policy,
+            device=args.device,
+        )
+        print(f"artifact_dir={result.artifact_dir}")
+        print(f"sequence_dir={result.sequence_dir}")
+        print(f"hgb_policy_json={result.hgb_policy_json_path}")
+        print(f"hgb_policy_csv={result.hgb_policy_csv_path}")
+        print(f"deep_compare_json={result.deep_compare_json_path}")
+        print(f"deep_compare_csv={result.deep_compare_csv_path}")
+        print(f"comparison_csv={result.comparison_csv_path}")
+        print(f"comparison_markdown={result.comparison_markdown_path}")
+        print(f"summary={result.summary_markdown_path}")
+        print(f"sequence_exports={len(result.sequence_exports)}")
+        print(f"deep_results={len(result.deep_compare_results)}")
+        print(f"comparison_rows={len(result.comparison_rows)}")
         return 0
 
     if args.command == "cmapss-export-sequences":
