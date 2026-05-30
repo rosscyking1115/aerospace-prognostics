@@ -16,7 +16,6 @@ RUN useradd --create-home --shell /usr/sbin/nologin appuser \
     && chown -R appuser:appuser /app /models
 
 ENV PATH="/app/.venv/bin:${PATH}"
-ENV AEROSPACE_PROGNOSTICS_MODEL_PATH=/models/cmapss_model.joblib
 
 USER appuser
 

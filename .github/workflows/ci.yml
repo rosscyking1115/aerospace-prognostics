@@ -50,4 +50,8 @@ jobs:
             sleep 1
           done
           echo "$response"
+          if [ -z "$response" ]; then
+            docker logs "$container_id"
+            exit 1
+          fi
           HEALTH_RESPONSE="$response" python -c "import json, os; payload = json.loads(os.environ['HEALTH_RESPONSE']); assert payload == {'status': 'missing_model', 'model_loaded': False}"

@@ -10,6 +10,19 @@ uv run aerospace-prognostics cmapss-predict-artifact --model-artifact artifacts/
 uv run aerospace-prognostics serve-api --model-artifact artifacts/models/cmapss_fd001_hgb_policy.joblib --host 127.0.0.1 --port 8000
 ```
 
+## Container Serving
+
+The serving image does not bundle a model artifact. A clean container starts and reports `missing_model` from `GET /health`, which lets CI validate the image without committing generated artifacts.
+
+Run the image with an explicit model mount and environment variable when serving predictions:
+
+```powershell
+docker run --rm -p 8000:8000 `
+  -v ${PWD}/artifacts/models:/models `
+  -e AEROSPACE_PROGNOSTICS_MODEL_PATH=/models/cmapss_fd001_hgb_policy.joblib `
+  aerospace-prognostics:ci
+```
+
 The API exposes:
 
 - `GET /health`
