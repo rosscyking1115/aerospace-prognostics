@@ -31,9 +31,11 @@ class CmapssSequenceExportResult:
     metadata_path: Path
     train_npz_path: Path
     validation_npz_path: Path
+    validation_selection_npz_path: Path
     test_npz_path: Path
     train_windows: int
     validation_windows: int
+    validation_selection_windows: int
     test_windows: int
     window_size: int
     stride: int
@@ -93,6 +95,13 @@ def export_cmapss_sequence_splits(
         ),
         split.validation_rul.to_numpy(dtype=np.float32),
     )
+    validation_selection_dataset = make_sequence_windows(
+        validation_frame,
+        window_size=window_size,
+        stride=stride,
+        feature_columns=list(columns),
+        target_column="rul_capped",
+    )
     test_dataset = _with_targets(
         make_last_sequence_windows(
             test_frame,
@@ -106,11 +115,13 @@ def export_cmapss_sequence_splits(
     subset_dir.mkdir(parents=True, exist_ok=True)
     train_npz_path = subset_dir / "train_sequences.npz"
     validation_npz_path = subset_dir / "validation_sequences.npz"
+    validation_selection_npz_path = subset_dir / "validation_selection_sequences.npz"
     test_npz_path = subset_dir / "test_sequences.npz"
     metadata_path = subset_dir / "metadata.json"
 
     _write_sequence_npz(train_dataset, train_npz_path)
     _write_sequence_npz(validation_dataset, validation_npz_path)
+    _write_sequence_npz(validation_selection_dataset, validation_selection_npz_path)
     _write_sequence_npz(test_dataset, test_npz_path)
 
     result = CmapssSequenceExportResult(
@@ -119,9 +130,11 @@ def export_cmapss_sequence_splits(
         metadata_path=metadata_path,
         train_npz_path=train_npz_path,
         validation_npz_path=validation_npz_path,
+        validation_selection_npz_path=validation_selection_npz_path,
         test_npz_path=test_npz_path,
         train_windows=len(train_dataset.windows),
         validation_windows=len(validation_dataset.windows),
+        validation_selection_windows=len(validation_selection_dataset.windows),
         test_windows=len(test_dataset.windows),
         window_size=window_size,
         stride=stride,
@@ -182,14 +195,15 @@ def _write_metadata(
         "metadata_path": result.metadata_path.as_posix(),
         "train_npz_path": result.train_npz_path.as_posix(),
         "validation_npz_path": result.validation_npz_path.as_posix(),
+        "validation_selection_npz_path": result.validation_selection_npz_path.as_posix(),
         "test_npz_path": result.test_npz_path.as_posix(),
         "rul_cap": rul_cap,
         "random_state": random_state,
         "validation_fraction": validation_fraction,
         "validation_horizon": validation_horizon,
         "target": (
-            "rul_capped for train windows; uncapped remaining cycles for "
-            "validation/test final windows"
+            "rul_capped for train and rolling validation-selection windows; "
+            "uncapped remaining cycles for validation/test final windows"
         ),
     }
     path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")

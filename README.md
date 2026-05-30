@@ -25,7 +25,7 @@ The working plan is tracked in [Aerospace_Prognostics_Project_Plan.md](Aerospace
 - `aerospace-prognostics cmapss-validate-feature-candidates-repeated` CLI for repeated validation across seeds and truncation horizons.
 - `aerospace-prognostics cmapss-validate-hgb-grid` CLI for compact HistGradientBoosting hyperparameter checks.
 - `aerospace-prognostics cmapss-validate-sensor-filters` CLI for checking EDA-informed sensor filtering before adopting it.
-- `aerospace-prognostics cmapss-export-sequences` CLI for Phase 2 train/validation/test sequence tensor exports.
+- `aerospace-prognostics cmapss-export-sequences` CLI for Phase 2 train, validation-selection, validation, and test sequence tensor exports.
 - `aerospace-prognostics cmapss-cnn-baseline` CLI for the first Phase 2 PyTorch 1D-CNN sequence baseline.
 - `aerospace-prognostics cmapss-package-hgb-policy`, `cmapss-predict-artifact`, and `serve-api` CLIs for the production-ML deployment track.
 - FastAPI serving observability with request IDs, latency headers, JSON request logs, and `/metrics` counters.

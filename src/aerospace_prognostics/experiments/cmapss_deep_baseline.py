@@ -139,7 +139,7 @@ def run_cmapss_cnn_baseline_run(
     _seed_everything(random_state)
     paths = _sequence_paths(sequence_dir, subset)
     train_payload = _load_sequence_npz(paths["train"])
-    validation_payload = _load_sequence_npz(paths["validation"])
+    validation_payload = _load_sequence_npz(_validation_selection_path(paths))
     test_payload = _load_sequence_npz(paths["test"])
     metadata = _load_metadata(paths["metadata"])
 
@@ -332,9 +332,17 @@ def _sequence_paths(sequence_dir: str | Path, subset: str) -> dict[str, Path]:
     return {
         "train": subset_dir / "train_sequences.npz",
         "validation": subset_dir / "validation_sequences.npz",
+        "validation_selection": subset_dir / "validation_selection_sequences.npz",
         "test": subset_dir / "test_sequences.npz",
         "metadata": subset_dir / "metadata.json",
     }
+
+
+def _validation_selection_path(paths: dict[str, Path]) -> Path:
+    path = paths["validation_selection"]
+    if path.exists():
+        return path
+    return paths["validation"]
 
 
 def _load_sequence_npz(path: Path) -> dict[str, np.ndarray]:

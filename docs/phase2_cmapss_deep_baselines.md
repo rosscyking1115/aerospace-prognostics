@@ -7,7 +7,7 @@ This note records the first Phase 2 sequence-model checkpoint. Phase 1 ended wit
 | Field | Value |
 |---|---|
 | Dataset | NASA C-MAPSS Turbofan Engine Degradation Simulation Data Set |
-| Input artifacts | `artifacts/sequences/cmapss/<subset>/{train,validation,test}_sequences.npz` |
+| Input artifacts | `artifacts/sequences/cmapss/<subset>/{train,validation,validation_selection,test}_sequences.npz` |
 | Sequence export command | `uv run aerospace-prognostics cmapss-export-sequences --data-dir data/raw/cmapss --output-dir artifacts/sequences/cmapss --window-size 30 --stride 1` |
 | First deep model | Compact PyTorch 1D-CNN |
 | Window size | 30 cycles |
@@ -19,6 +19,11 @@ This note records the first Phase 2 sequence-model checkpoint. Phase 1 ended wit
 | Checkpoint policies | `validation_nasa` or `final` |
 
 The first model is intentionally compact. It is a plumbing baseline for sequence training, validation tracking, checkpoint selection, CLI execution, result serialization, and repeatable tests, not the final deep-learning architecture.
+
+Sequence exports now separate two validation roles:
+
+- `validation_sequences.npz` keeps one final observed window per held-out validation unit, mirroring the official C-MAPSS test setup.
+- `validation_selection_sequences.npz` contains rolling windows from the same held-out validation units and is used for checkpoint selection. This gives early stopping more signal while preserving the final-window evaluation artifact for reporting.
 
 ## Command
 
@@ -42,15 +47,14 @@ uv run aerospace-prognostics cmapss-cnn-baseline --sequence-dir artifacts/sequen
 
 Both CNN results are worse than the Phase 1 HGB policy on FD001. That is useful, not alarming: it confirms the training and scoring path works while showing that this first architecture is underfit and poorly calibrated for the official test split.
 
-The validation-selected run is especially important. It chooses epoch 2 because the small train-only validation split looks strong there, but that checkpoint performs badly on the official test set. Phase 2 should therefore improve validation design before relying on early stopping as a model-selection signal.
+The validation-selected run is especially important. It chooses epoch 2 because the original train-only validation split used only one final window per held-out unit, so a tiny validation signal looked strong while the official test score collapsed. Phase 2 now exports rolling validation-selection windows to reduce that failure mode before relying on early stopping as a model-selection signal.
 
 ## Current Interpretation
 
-The Phase 2 pipeline is now real: exported sequence windows feed a torch model, the model trains from the CLI, validation and official-test predictions are scored with the project metrics, JSON/CSV outputs use the same result container as the classical baselines, and optional history JSON records per-epoch training loss plus validation metrics.
+The Phase 2 pipeline is now real: exported sequence windows feed a torch model, the model trains from the CLI, rolling validation-selection windows drive checkpoint choice, validation final-window artifacts remain available for reporting, official-test predictions are scored with the project metrics, JSON/CSV outputs use the same result container as the classical baselines, and optional history JSON records per-epoch training loss plus validation metrics.
 
 The next deep-learning work should focus on model quality rather than plumbing:
 
-- Improve the validation split before using early stopping as the default selection signal.
 - Run FD001 architecture checks with wider/deeper CNNs, residual or TCN-style blocks, and learning-rate sweeps.
 - Add LSTM/BiLSTM and TCN baselines against the same sequence exports.
 - Compare all Phase 2 runs against the Phase 1 HGB policy table, especially the known FD003 validation mismatch.

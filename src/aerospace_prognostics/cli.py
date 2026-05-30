@@ -911,6 +911,7 @@ def main(argv: list[str] | None = None) -> int:
                 f"{result.subset},"
                 f"train_windows={result.train_windows},"
                 f"validation_windows={result.validation_windows},"
+                f"validation_selection_windows={result.validation_selection_windows},"
                 f"test_windows={result.test_windows},"
                 f"features={len(result.feature_columns)},"
                 f"metadata={result.metadata_path}"

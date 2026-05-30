@@ -514,8 +514,12 @@ def test_cmapss_export_sequences_command_writes_sequence_artifacts(tmp_path, cap
 
     assert exit_code == 0
     assert "window_size=2" in output
-    assert "FD001,train_windows=2,validation_windows=1,test_windows=2" in output
+    assert (
+        "FD001,train_windows=2,validation_windows=1,"
+        "validation_selection_windows=1,test_windows=2"
+    ) in output
     assert (output_dir / "fd001" / "train_sequences.npz").exists()
+    assert (output_dir / "fd001" / "validation_selection_sequences.npz").exists()
     assert (output_dir / "fd001" / "metadata.json").exists()
 
 
