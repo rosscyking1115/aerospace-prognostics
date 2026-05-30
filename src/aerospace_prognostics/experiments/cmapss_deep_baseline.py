@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import random
 from collections.abc import Callable
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, replace
 from pathlib import Path
 from typing import Any
 
@@ -16,6 +16,8 @@ from torch.utils.data import DataLoader, TensorDataset
 
 from aerospace_prognostics.evaluation import RegressionRunResult
 from aerospace_prognostics.metrics import nasa_rul_score, rmse
+
+CMAPSS_DEEP_COMPARISON_MODELS = ("cnn", "lstm", "bilstm", "tcn")
 
 
 @dataclass(frozen=True)
@@ -807,6 +809,162 @@ def run_all_cmapss_tcn_baseline_runs(
         )
         for subset in subsets
     ]
+
+
+def run_cmapss_deep_baseline_comparison(
+    sequence_dir: str | Path,
+    *,
+    subsets: tuple[str, ...],
+    models: tuple[str, ...] = ("cnn", "bilstm", "tcn"),
+    epochs: int = 5,
+    batch_size: int = 256,
+    learning_rates: tuple[float, ...] = (1e-3,),
+    hidden_sizes: tuple[int, ...] = (32,),
+    num_layers: int = 1,
+    tcn_levels: int = 3,
+    kernel_size: int = 3,
+    dropout: float = 0.1,
+    checkpoint_policy: str = "validation_nasa",
+    random_state: int = 42,
+    device: str = "cpu",
+) -> list[RegressionRunResult]:
+    """Compare selected Phase 2 deep baselines across compact hyperparameter grids."""
+
+    _validate_deep_comparison_inputs(
+        models=models,
+        learning_rates=learning_rates,
+        hidden_sizes=hidden_sizes,
+    )
+    results: list[RegressionRunResult] = []
+    for model_name in models:
+        for learning_rate in learning_rates:
+            for hidden_size in hidden_sizes:
+                run_results = _run_deep_comparison_candidate(
+                    sequence_dir,
+                    subsets=subsets,
+                    model_name=model_name,
+                    epochs=epochs,
+                    batch_size=batch_size,
+                    learning_rate=learning_rate,
+                    hidden_size=hidden_size,
+                    num_layers=num_layers,
+                    tcn_levels=tcn_levels,
+                    kernel_size=kernel_size,
+                    dropout=dropout,
+                    checkpoint_policy=checkpoint_policy,
+                    random_state=random_state,
+                    device=device,
+                )
+                results.extend(
+                    _with_comparison_label(
+                        result,
+                        model_name=model_name,
+                        learning_rate=learning_rate,
+                        hidden_size=hidden_size,
+                    )
+                    for result in run_results
+                )
+    return results
+
+
+def _validate_deep_comparison_inputs(
+    *,
+    models: tuple[str, ...],
+    learning_rates: tuple[float, ...],
+    hidden_sizes: tuple[int, ...],
+) -> None:
+    if not models:
+        raise ValueError("models must contain at least one model")
+    unknown_models = sorted(set(models) - set(CMAPSS_DEEP_COMPARISON_MODELS))
+    if unknown_models:
+        raise ValueError(f"unknown deep comparison models: {', '.join(unknown_models)}")
+    if not learning_rates:
+        raise ValueError("learning_rates must contain at least one value")
+    if not hidden_sizes:
+        raise ValueError("hidden_sizes must contain at least one value")
+    if any(learning_rate <= 0 for learning_rate in learning_rates):
+        raise ValueError("learning_rates must all be positive")
+    if any(hidden_size < 1 for hidden_size in hidden_sizes):
+        raise ValueError("hidden_sizes must all be at least 1")
+
+
+def _run_deep_comparison_candidate(
+    sequence_dir: str | Path,
+    *,
+    subsets: tuple[str, ...],
+    model_name: str,
+    epochs: int,
+    batch_size: int,
+    learning_rate: float,
+    hidden_size: int,
+    num_layers: int,
+    tcn_levels: int,
+    kernel_size: int,
+    dropout: float,
+    checkpoint_policy: str,
+    random_state: int,
+    device: str,
+) -> list[RegressionRunResult]:
+    if model_name == "cnn":
+        return run_all_cmapss_cnn_baselines(
+            sequence_dir,
+            subsets=subsets,
+            epochs=epochs,
+            batch_size=batch_size,
+            learning_rate=learning_rate,
+            hidden_channels=hidden_size,
+            kernel_size=kernel_size,
+            dropout=dropout,
+            checkpoint_policy=checkpoint_policy,
+            random_state=random_state,
+            device=device,
+        )
+    if model_name in {"lstm", "bilstm"}:
+        return run_all_cmapss_lstm_baselines(
+            sequence_dir,
+            subsets=subsets,
+            epochs=epochs,
+            batch_size=batch_size,
+            learning_rate=learning_rate,
+            hidden_size=hidden_size,
+            num_layers=num_layers,
+            dropout=dropout,
+            bidirectional=model_name == "bilstm",
+            checkpoint_policy=checkpoint_policy,
+            random_state=random_state,
+            device=device,
+        )
+    return run_all_cmapss_tcn_baselines(
+        sequence_dir,
+        subsets=subsets,
+        epochs=epochs,
+        batch_size=batch_size,
+        learning_rate=learning_rate,
+        hidden_channels=hidden_size,
+        num_levels=tcn_levels,
+        kernel_size=kernel_size,
+        dropout=dropout,
+        checkpoint_policy=checkpoint_policy,
+        random_state=random_state,
+        device=device,
+    )
+
+
+def _with_comparison_label(
+    result: RegressionRunResult,
+    *,
+    model_name: str,
+    learning_rate: float,
+    hidden_size: int,
+) -> RegressionRunResult:
+    label = (
+        f"compare_{model_name}_h{hidden_size}_lr{_format_comparison_float(learning_rate)}"
+    )
+    return replace(result, model_name=f"{label}_{result.model_name}")
+
+
+def _format_comparison_float(value: float) -> str:
+    return f"{value:g}".replace("-", "m").replace(".", "p")
 
 
 def run_all_cmapss_cnn_baseline_runs(

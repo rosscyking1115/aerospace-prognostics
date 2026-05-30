@@ -11,6 +11,7 @@ from aerospace_prognostics.experiments.cmapss_deep_baseline import (
     run_all_cmapss_tcn_baselines,
     run_cmapss_cnn_baseline,
     run_cmapss_cnn_baseline_run,
+    run_cmapss_deep_baseline_comparison,
     run_cmapss_lstm_baseline,
     run_cmapss_lstm_baseline_run,
     run_cmapss_tcn_baseline,
@@ -365,3 +366,33 @@ def test_run_all_cmapss_tcn_baselines_returns_requested_subsets(tmp_path) -> Non
     )
 
     assert [result.subset for result in results] == ["FD001", "FD002"]
+
+
+def test_run_cmapss_deep_baseline_comparison_labels_candidates(tmp_path) -> None:
+    write_tiny_cmapss_subset(tmp_path)
+    sequence_dir = tmp_path / "sequences"
+    export_cmapss_sequence_splits(
+        tmp_path,
+        sequence_dir,
+        "FD001",
+        window_size=2,
+        validation_fraction=0.5,
+        validation_horizon=1,
+    )
+
+    results = run_cmapss_deep_baseline_comparison(
+        sequence_dir,
+        subsets=("FD001",),
+        models=("cnn", "tcn"),
+        epochs=1,
+        batch_size=2,
+        learning_rates=(1e-3,),
+        hidden_sizes=(4,),
+        tcn_levels=1,
+    )
+
+    assert len(results) == 2
+    assert {result.subset for result in results} == {"FD001"}
+    assert all(result.model_name.startswith("compare_") for result in results)
+    assert any("compare_cnn_h4_lr0p001" in result.model_name for result in results)
+    assert any("compare_tcn_h4_lr0p001" in result.model_name for result in results)

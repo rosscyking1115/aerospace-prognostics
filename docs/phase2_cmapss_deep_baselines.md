@@ -51,6 +51,12 @@ TCN baseline:
 uv run aerospace-prognostics cmapss-tcn-baseline --sequence-dir artifacts/sequences/cmapss --subsets FD001 --epochs 50 --batch-size 256 --hidden-channels 64 --num-levels 3 --kernel-size 3 --checkpoint-policy validation_nasa --output-json artifacts/results/cmapss_tcn_fd001_baseline.json --output-csv artifacts/results/cmapss_tcn_fd001_baseline.csv --history-json artifacts/results/cmapss_tcn_fd001_history.json
 ```
 
+Compact architecture and learning-rate comparison:
+
+```powershell
+uv run aerospace-prognostics cmapss-deep-baseline-compare --sequence-dir artifacts/sequences/cmapss --subsets FD001 --models cnn bilstm tcn --epochs 50 --batch-size 256 --hidden-sizes 32 64 --learning-rates 0.001 0.0003 --checkpoint-policy validation_nasa --output-json artifacts/results/cmapss_deep_compare_fd001.json --output-csv artifacts/results/cmapss_deep_compare_fd001.csv
+```
+
 ## FD001 First Result
 
 | Checkpoint | Model | Selected Epoch | Validation RMSE | Validation NASA Score | Official Test RMSE | Official Test NASA Score |
@@ -65,11 +71,11 @@ The validation-selected run is especially important. It chooses epoch 2 because 
 
 ## Current Interpretation
 
-The Phase 2 pipeline is now real: exported sequence windows feed torch models, CNN, LSTM/BiLSTM, and TCN baselines train from the CLI, rolling validation-selection windows drive checkpoint choice, validation final-window artifacts remain available for reporting, official-test predictions are scored with the project metrics, JSON/CSV outputs use the same result container as the classical baselines, and optional history JSON records per-epoch training loss plus validation metrics.
+The Phase 2 pipeline is now real: exported sequence windows feed torch models, CNN, LSTM/BiLSTM, and TCN baselines train from the CLI, rolling validation-selection windows drive checkpoint choice, validation final-window artifacts remain available for reporting, official-test predictions are scored with the project metrics, JSON/CSV outputs use the same result container as the classical baselines, optional history JSON records per-epoch training loss plus validation metrics, and the comparison command can produce a single architecture/learning-rate sweep table.
 
 The next deep-learning work should focus on model quality rather than plumbing:
 
 - Run FD001 architecture checks with wider/deeper CNNs, residual or TCN-style blocks, and learning-rate sweeps.
-- Add architecture and learning-rate sweeps across CNN, BiLSTM, and TCN baselines.
+- Run the compact comparison command on real FD001 first, then expand to FD002-FD004 after checking runtime.
 - Compare all Phase 2 runs against the Phase 1 HGB policy table, especially the known FD003 validation mismatch.
 - Keep all sensors for now; Phase 1 sensor-filter validation showed EDA filtering harms FD002 and FD004.

@@ -684,6 +684,63 @@ def test_cmapss_tcn_baseline_command_writes_result_tables(tmp_path, capsys) -> N
     assert history_json.exists()
 
 
+def test_cmapss_deep_baseline_compare_command_writes_result_tables(
+    tmp_path,
+    capsys,
+) -> None:
+    write_all_tiny_cmapss_subsets(tmp_path)
+    sequence_dir = tmp_path / "sequences"
+    output_csv = tmp_path / "results" / "deep_compare.csv"
+    main(
+        [
+            "cmapss-export-sequences",
+            "--data-dir",
+            str(tmp_path),
+            "--output-dir",
+            str(sequence_dir),
+            "--subsets",
+            "FD001",
+            "--window-size",
+            "2",
+            "--validation-horizon",
+            "1",
+        ]
+    )
+    capsys.readouterr()
+
+    exit_code = main(
+        [
+            "cmapss-deep-baseline-compare",
+            "--sequence-dir",
+            str(sequence_dir),
+            "--subsets",
+            "FD001",
+            "--models",
+            "cnn",
+            "tcn",
+            "--epochs",
+            "1",
+            "--batch-size",
+            "2",
+            "--hidden-sizes",
+            "4",
+            "--tcn-levels",
+            "1",
+            "--output-csv",
+            str(output_csv),
+        ]
+    )
+    output = capsys.readouterr().out
+
+    assert exit_code == 0
+    assert "models=cnn,tcn" in output
+    assert "hidden_sizes=4" in output
+    assert "compare_cnn_h4_lr0p001" in output
+    assert "compare_tcn_h4_lr0p001" in output
+    assert "selected_by_nasa=FD001:" in output
+    assert output_csv.exists()
+
+
 def test_cmapss_package_and_predict_artifact_commands(tmp_path, capsys) -> None:
     write_tiny_cmapss_subset(tmp_path)
     artifact_path = tmp_path / "models" / "fd001.joblib"
