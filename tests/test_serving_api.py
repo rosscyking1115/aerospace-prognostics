@@ -66,6 +66,52 @@ def test_serving_api_reports_validation_errors(tmp_path) -> None:
     assert "missing columns" in response.json()["detail"]
 
 
+def test_serving_api_enforces_optional_api_key(tmp_path) -> None:
+    write_tiny_cmapss_subset(tmp_path)
+    artifact = train_cmapss_hgb_policy_artifact(tmp_path, "FD001", n_regimes=1).artifact
+    artifact_path = save_cmapss_model_artifact(artifact, tmp_path / "fd001.joblib")
+    client = TestClient(create_app(artifact_path, api_key="test-secret"))
+
+    health = client.get("/health")
+    missing_key = client.get("/version")
+    bad_key = client.get("/metrics", headers={"x-api-key": "wrong"})
+    valid_key = client.get("/version", headers={"authorization": "Bearer test-secret"})
+
+    assert health.status_code == 200
+    assert missing_key.status_code == 401
+    assert missing_key.headers["www-authenticate"] == "ApiKey"
+    assert bad_key.status_code == 401
+    assert valid_key.status_code == 200
+    assert valid_key.json()["subset"] == "FD001"
+
+
+def test_serving_api_enforces_optional_rate_limit(tmp_path) -> None:
+    write_tiny_cmapss_subset(tmp_path)
+    artifact = train_cmapss_hgb_policy_artifact(tmp_path, "FD001", n_regimes=1).artifact
+    artifact_path = save_cmapss_model_artifact(artifact, tmp_path / "fd001.joblib")
+    client = TestClient(
+        create_app(artifact_path, api_key="test-secret", rate_limit_per_minute=1)
+    )
+    bundle = load_cmapss_subset(tmp_path, "FD001")
+    telemetry = json.loads(bundle.test.to_json(orient="records"))
+
+    first = client.post(
+        "/predict",
+        headers={"x-api-key": "test-secret"},
+        json={"telemetry": telemetry},
+    )
+    second = client.post(
+        "/predict",
+        headers={"x-api-key": "test-secret"},
+        json={"telemetry": telemetry},
+    )
+
+    assert first.status_code == 200
+    assert second.status_code == 429
+    assert second.headers["retry-after"] == "60"
+    assert second.json()["detail"] == "rate limit exceeded"
+
+
 def test_serving_api_logs_structured_request_records(tmp_path, caplog) -> None:
     write_tiny_cmapss_subset(tmp_path)
     artifact = train_cmapss_hgb_policy_artifact(tmp_path, "FD001", n_regimes=1).artifact

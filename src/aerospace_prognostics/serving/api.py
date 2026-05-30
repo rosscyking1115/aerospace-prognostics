@@ -8,7 +8,8 @@ import os
 import threading
 import time
 import uuid
-from collections import defaultdict
+from collections import defaultdict, deque
+from hmac import compare_digest
 from pathlib import Path
 from typing import Any
 
@@ -23,6 +24,8 @@ from aerospace_prognostics.deployment.artifacts import (
 )
 
 LOGGER = logging.getLogger("aerospace_prognostics.serving")
+API_KEY_ENV = "AEROSPACE_PROGNOSTICS_API_KEY"
+RATE_LIMIT_ENV = "AEROSPACE_PROGNOSTICS_RATE_LIMIT_PER_MINUTE"
 
 
 class PredictRequest(BaseModel):
@@ -90,7 +93,63 @@ class ServingMetrics:
             return "\n".join(lines) + "\n"
 
 
-def create_app(artifact_path: str | Path | None = None) -> FastAPI:
+class ServingSecurity:
+    """Optional API key and per-client rate limiting for deployment serving."""
+
+    def __init__(
+        self,
+        *,
+        api_key: str | None,
+        rate_limit_per_minute: int,
+        window_seconds: float = 60.0,
+    ) -> None:
+        self._api_key = api_key
+        self._rate_limit_per_minute = rate_limit_per_minute
+        self._window_seconds = window_seconds
+        self._lock = threading.Lock()
+        self._request_times: dict[str, deque[float]] = defaultdict(deque)
+
+    def enforce(self, request: Request) -> None:
+        api_key = self._require_api_key(request)
+        self._enforce_rate_limit(request, api_key)
+
+    def _require_api_key(self, request: Request) -> str | None:
+        if not self._api_key:
+            return None
+        supplied_key = _api_key_from_request(request)
+        if supplied_key is None or not compare_digest(supplied_key, self._api_key):
+            raise HTTPException(
+                status_code=401,
+                detail="invalid or missing API key",
+                headers={"WWW-Authenticate": "ApiKey"},
+            )
+        return supplied_key
+
+    def _enforce_rate_limit(self, request: Request, api_key: str | None) -> None:
+        if self._rate_limit_per_minute <= 0:
+            return
+        client_key = api_key or (request.client.host if request.client else "unknown")
+        now = time.monotonic()
+        cutoff = now - self._window_seconds
+        with self._lock:
+            request_times = self._request_times[client_key]
+            while request_times and request_times[0] <= cutoff:
+                request_times.popleft()
+            if len(request_times) >= self._rate_limit_per_minute:
+                raise HTTPException(
+                    status_code=429,
+                    detail="rate limit exceeded",
+                    headers={"Retry-After": str(int(self._window_seconds))},
+                )
+            request_times.append(now)
+
+
+def create_app(
+    artifact_path: str | Path | None = None,
+    *,
+    api_key: str | None = None,
+    rate_limit_per_minute: int | None = None,
+) -> FastAPI:
     """Create a FastAPI app, optionally loading a model artifact at startup."""
 
     app = FastAPI(
@@ -107,6 +166,10 @@ def create_app(artifact_path: str | Path | None = None) -> FastAPI:
     app.state.artifact = artifact
     app.state.artifact_path = str(configured_path) if configured_path is not None else None
     app.state.metrics = ServingMetrics()
+    app.state.security = ServingSecurity(
+        api_key=api_key if api_key is not None else os.getenv(API_KEY_ENV),
+        rate_limit_per_minute=_configured_rate_limit(rate_limit_per_minute),
+    )
 
     @app.middleware("http")
     async def observe_requests(request: Request, call_next: Any) -> Any:
@@ -137,14 +200,16 @@ def create_app(artifact_path: str | Path | None = None) -> FastAPI:
         return {"status": "ok" if loaded else "missing_model", "model_loaded": loaded}
 
     @app.get("/version")
-    def version() -> dict[str, Any]:
+    def version(request: Request) -> dict[str, Any]:
+        app.state.security.enforce(request)
         model = _require_artifact(app.state.artifact)
         return model.metadata()
 
     @app.post("/predict", response_model=PredictResponse)
-    def predict(request: PredictRequest) -> PredictResponse:
+    def predict(payload: PredictRequest, request: Request) -> PredictResponse:
+        app.state.security.enforce(request)
         model = _require_artifact(app.state.artifact)
-        frame = pd.DataFrame(request.telemetry)
+        frame = pd.DataFrame(payload.telemetry)
         try:
             predictions = model.predict_from_frame(frame)
         except ValueError as exc:
@@ -180,10 +245,36 @@ def create_app(artifact_path: str | Path | None = None) -> FastAPI:
         )
 
     @app.get("/metrics", response_class=PlainTextResponse)
-    def metrics() -> str:
+    def metrics(request: Request) -> str:
+        app.state.security.enforce(request)
         return app.state.metrics.prometheus_text()
 
     return app
+
+
+def _configured_rate_limit(rate_limit_per_minute: int | None) -> int:
+    if rate_limit_per_minute is not None:
+        rate_limit = rate_limit_per_minute
+    else:
+        value = os.getenv(RATE_LIMIT_ENV, "0")
+        try:
+            rate_limit = int(value)
+        except ValueError as exc:
+            raise ValueError(f"{RATE_LIMIT_ENV} must be an integer") from exc
+    if rate_limit < 0:
+        raise ValueError(f"{RATE_LIMIT_ENV} must be greater than or equal to 0")
+    return rate_limit
+
+
+def _api_key_from_request(request: Request) -> str | None:
+    header_key = request.headers.get("x-api-key")
+    if header_key:
+        return header_key
+    authorization = request.headers.get("authorization")
+    scheme, _, token = authorization.partition(" ") if authorization else ("", "", "")
+    if scheme.lower() == "bearer" and token:
+        return token
+    return None
 
 
 def _route_path(request: Request) -> str:
