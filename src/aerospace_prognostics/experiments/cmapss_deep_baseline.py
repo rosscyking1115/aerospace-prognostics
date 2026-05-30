@@ -17,7 +17,7 @@ from torch.utils.data import DataLoader, TensorDataset
 from aerospace_prognostics.evaluation import RegressionRunResult
 from aerospace_prognostics.metrics import nasa_rul_score, rmse
 
-CMAPSS_DEEP_COMPARISON_MODELS = ("cnn", "lstm", "bilstm", "tcn")
+CMAPSS_DEEP_COMPARISON_MODELS = ("cnn", "lstm", "bilstm", "tcn", "transformer")
 
 
 @dataclass(frozen=True)
@@ -74,6 +74,24 @@ class CmapssLstmBaselineRun:
 @dataclass(frozen=True)
 class CmapssTcnBaselineRun:
     """Full TCN baseline run with the selected official-test result."""
+
+    result: RegressionRunResult
+    selected_epoch: int
+    history: tuple[CmapssCnnTrainingEpoch, ...]
+
+    def to_dict(self) -> dict[str, Any]:
+        """Return a JSON-serialisable dictionary."""
+
+        return {
+            "result": self.result.to_dict(),
+            "selected_epoch": self.selected_epoch,
+            "history": [epoch.to_dict() for epoch in self.history],
+        }
+
+
+@dataclass(frozen=True)
+class CmapssTransformerBaselineRun:
+    """Full Transformer baseline run with the selected official-test result."""
 
     result: RegressionRunResult
     selected_epoch: int
@@ -258,6 +276,73 @@ class CmapssTemporalConvolutionalRegressor(nn.Module):
         return self.head(features[:, :, -1]).squeeze(-1)
 
 
+class CmapssTransformerRegressor(nn.Module):
+    """Compact Transformer encoder baseline over C-MAPSS sensor windows."""
+
+    def __init__(
+        self,
+        *,
+        feature_count: int,
+        sequence_length: int,
+        d_model: int = 32,
+        num_heads: int = 4,
+        num_layers: int = 2,
+        dim_feedforward: int = 64,
+        dropout: float = 0.1,
+    ) -> None:
+        super().__init__()
+        if d_model < 1:
+            raise ValueError("d_model must be at least 1")
+        if num_heads < 1:
+            raise ValueError("num_heads must be at least 1")
+        if d_model % num_heads != 0:
+            raise ValueError("d_model must be divisible by num_heads")
+        if num_layers < 1:
+            raise ValueError("num_layers must be at least 1")
+        if dim_feedforward < 1:
+            raise ValueError("dim_feedforward must be at least 1")
+        self.input_projection = nn.Linear(feature_count, d_model)
+        self.register_buffer(
+            "position_encoding",
+            _sinusoidal_position_encoding(sequence_length, d_model),
+            persistent=False,
+        )
+        encoder_layer = nn.TransformerEncoderLayer(
+            d_model=d_model,
+            nhead=num_heads,
+            dim_feedforward=dim_feedforward,
+            dropout=dropout,
+            batch_first=True,
+            activation="gelu",
+        )
+        self.encoder = nn.TransformerEncoder(encoder_layer, num_layers=num_layers)
+        self.head = nn.Sequential(
+            nn.LayerNorm(d_model),
+            nn.Dropout(dropout),
+            nn.Linear(d_model, 1),
+        )
+
+    def forward(self, windows: torch.Tensor) -> torch.Tensor:
+        """Predict RUL from `(batch, timesteps, features)` windows."""
+
+        sequence_length = windows.shape[1]
+        encoded = self.input_projection(windows)
+        encoded = encoded + self.position_encoding[:sequence_length].unsqueeze(0)
+        features = self.encoder(encoded)
+        return self.head(features[:, -1, :]).squeeze(-1)
+
+
+def _sinusoidal_position_encoding(sequence_length: int, d_model: int) -> torch.Tensor:
+    positions = torch.arange(sequence_length, dtype=torch.float32).unsqueeze(1)
+    dimensions = torch.arange(0, d_model, 2, dtype=torch.float32)
+    div_term = torch.exp(dimensions * (-np.log(10000.0) / d_model))
+    encoding = torch.zeros(sequence_length, d_model, dtype=torch.float32)
+    encoding[:, 0::2] = torch.sin(positions * div_term)
+    if d_model > 1:
+        encoding[:, 1::2] = torch.cos(positions * div_term[: encoding[:, 1::2].shape[1]])
+    return encoding
+
+
 def run_cmapss_cnn_baseline(
     sequence_dir: str | Path,
     subset: str,
@@ -314,7 +399,7 @@ def run_cmapss_cnn_baseline_run(
     if checkpoint_policy not in {"validation_nasa", "final"}:
         raise ValueError("checkpoint_policy must be 'validation_nasa' or 'final'")
 
-    def model_factory(feature_count: int) -> nn.Module:
+    def model_factory(feature_count: int, sequence_length: int) -> nn.Module:
         return CmapssOneDimensionalCnn(
             feature_count=feature_count,
             hidden_channels=hidden_channels,
@@ -398,7 +483,7 @@ def run_cmapss_lstm_baseline_run(
     if num_layers < 1:
         raise ValueError("num_layers must be at least 1")
 
-    def model_factory(feature_count: int) -> nn.Module:
+    def model_factory(feature_count: int, sequence_length: int) -> nn.Module:
         return CmapssLstmRegressor(
             feature_count=feature_count,
             hidden_size=hidden_size,
@@ -486,7 +571,7 @@ def run_cmapss_tcn_baseline_run(
     if kernel_size < 1:
         raise ValueError("kernel_size must be at least 1")
 
-    def model_factory(feature_count: int) -> nn.Module:
+    def model_factory(feature_count: int, sequence_length: int) -> nn.Module:
         return CmapssTemporalConvolutionalRegressor(
             feature_count=feature_count,
             hidden_channels=hidden_channels,
@@ -517,6 +602,103 @@ def run_cmapss_tcn_baseline_run(
     )
 
 
+def run_cmapss_transformer_baseline(
+    sequence_dir: str | Path,
+    subset: str,
+    *,
+    epochs: int = 5,
+    batch_size: int = 256,
+    learning_rate: float = 1e-3,
+    d_model: int = 32,
+    num_heads: int = 4,
+    num_layers: int = 2,
+    dim_feedforward: int = 64,
+    dropout: float = 0.1,
+    checkpoint_policy: str = "validation_nasa",
+    random_state: int = 42,
+    device: str = "cpu",
+) -> RegressionRunResult:
+    """Train and evaluate a compact Transformer baseline from exported C-MAPSS sequences."""
+
+    return run_cmapss_transformer_baseline_run(
+        sequence_dir,
+        subset,
+        epochs=epochs,
+        batch_size=batch_size,
+        learning_rate=learning_rate,
+        d_model=d_model,
+        num_heads=num_heads,
+        num_layers=num_layers,
+        dim_feedforward=dim_feedforward,
+        dropout=dropout,
+        checkpoint_policy=checkpoint_policy,
+        random_state=random_state,
+        device=device,
+    ).result
+
+
+def run_cmapss_transformer_baseline_run(
+    sequence_dir: str | Path,
+    subset: str,
+    *,
+    epochs: int = 5,
+    batch_size: int = 256,
+    learning_rate: float = 1e-3,
+    d_model: int = 32,
+    num_heads: int = 4,
+    num_layers: int = 2,
+    dim_feedforward: int = 64,
+    dropout: float = 0.1,
+    checkpoint_policy: str = "validation_nasa",
+    random_state: int = 42,
+    device: str = "cpu",
+) -> CmapssTransformerBaselineRun:
+    """Train a Transformer baseline and select the best epoch by validation NASA score."""
+
+    if d_model < 1:
+        raise ValueError("d_model must be at least 1")
+    if num_heads < 1:
+        raise ValueError("num_heads must be at least 1")
+    if d_model % num_heads != 0:
+        raise ValueError("d_model must be divisible by num_heads")
+    if num_layers < 1:
+        raise ValueError("num_layers must be at least 1")
+    if dim_feedforward < 1:
+        raise ValueError("dim_feedforward must be at least 1")
+
+    def model_factory(feature_count: int, sequence_length: int) -> nn.Module:
+        return CmapssTransformerRegressor(
+            feature_count=feature_count,
+            sequence_length=sequence_length,
+            d_model=d_model,
+            num_heads=num_heads,
+            num_layers=num_layers,
+            dim_feedforward=dim_feedforward,
+            dropout=dropout,
+        )
+
+    result, selected_epoch, history = _run_sequence_baseline_run(
+        sequence_dir,
+        subset,
+        epochs=epochs,
+        batch_size=batch_size,
+        learning_rate=learning_rate,
+        checkpoint_policy=checkpoint_policy,
+        random_state=random_state,
+        device=device,
+        model_factory=model_factory,
+        model_name_base_factory=lambda metadata: (
+            f"transformer_w{metadata['window_size']}_e{epochs}_d{d_model}"
+            f"_h{num_heads}_l{num_layers}_ff{dim_feedforward}"
+        ),
+    )
+    return CmapssTransformerBaselineRun(
+        result=result,
+        selected_epoch=selected_epoch,
+        history=history,
+    )
+
+
 def _run_sequence_baseline_run(
     sequence_dir: str | Path,
     subset: str,
@@ -527,7 +709,7 @@ def _run_sequence_baseline_run(
     checkpoint_policy: str,
     random_state: int,
     device: str,
-    model_factory: Callable[[int], nn.Module],
+    model_factory: Callable[[int, int], nn.Module],
     model_name_base_factory: Callable[[dict[str, Any]], str],
 ) -> tuple[RegressionRunResult, int, tuple[CmapssCnnTrainingEpoch, ...]]:
     if epochs < 1:
@@ -547,7 +729,10 @@ def _run_sequence_baseline_run(
     metadata = _load_metadata(paths["metadata"])
 
     torch_device = torch.device(device)
-    model = model_factory(int(train_payload["windows"].shape[-1])).to(torch_device)
+    model = model_factory(
+        int(train_payload["windows"].shape[-1]),
+        int(train_payload["windows"].shape[1]),
+    ).to(torch_device)
     optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
     loss_function = nn.MSELoss()
     loader = DataLoader(
@@ -775,6 +960,82 @@ def run_all_cmapss_tcn_baselines(
     ]
 
 
+def run_all_cmapss_transformer_baselines(
+    sequence_dir: str | Path,
+    *,
+    subsets: tuple[str, ...],
+    epochs: int = 5,
+    batch_size: int = 256,
+    learning_rate: float = 1e-3,
+    d_model: int = 32,
+    num_heads: int = 4,
+    num_layers: int = 2,
+    dim_feedforward: int = 64,
+    dropout: float = 0.1,
+    checkpoint_policy: str = "validation_nasa",
+    random_state: int = 42,
+    device: str = "cpu",
+) -> list[RegressionRunResult]:
+    """Train Transformer baselines for the requested C-MAPSS subsets."""
+
+    return [
+        run.result
+        for run in run_all_cmapss_transformer_baseline_runs(
+            sequence_dir,
+            subsets=subsets,
+            epochs=epochs,
+            batch_size=batch_size,
+            learning_rate=learning_rate,
+            d_model=d_model,
+            num_heads=num_heads,
+            num_layers=num_layers,
+            dim_feedforward=dim_feedforward,
+            dropout=dropout,
+            checkpoint_policy=checkpoint_policy,
+            random_state=random_state,
+            device=device,
+        )
+    ]
+
+
+def run_all_cmapss_transformer_baseline_runs(
+    sequence_dir: str | Path,
+    *,
+    subsets: tuple[str, ...],
+    epochs: int = 5,
+    batch_size: int = 256,
+    learning_rate: float = 1e-3,
+    d_model: int = 32,
+    num_heads: int = 4,
+    num_layers: int = 2,
+    dim_feedforward: int = 64,
+    dropout: float = 0.1,
+    checkpoint_policy: str = "validation_nasa",
+    random_state: int = 42,
+    device: str = "cpu",
+) -> list[CmapssTransformerBaselineRun]:
+    """Train full Transformer baseline runs for the requested C-MAPSS subsets."""
+
+    return [
+        run_cmapss_transformer_baseline_run(
+            sequence_dir,
+            subset,
+            epochs=epochs,
+            batch_size=batch_size,
+            learning_rate=learning_rate,
+            d_model=d_model,
+            num_heads=num_heads,
+            num_layers=num_layers,
+            dim_feedforward=dim_feedforward,
+            dropout=dropout,
+            checkpoint_policy=checkpoint_policy,
+            random_state=random_state,
+            device=device,
+        )
+        for subset in subsets
+    ]
+
+
 def run_all_cmapss_tcn_baseline_runs(
     sequence_dir: str | Path,
     *,
@@ -822,6 +1083,8 @@ def run_cmapss_deep_baseline_comparison(
     hidden_sizes: tuple[int, ...] = (32,),
     num_layers: int = 1,
     tcn_levels: int = 3,
+    transformer_heads: int = 4,
+    transformer_dim_feedforward: int | None = None,
     kernel_size: int = 3,
     dropout: float = 0.1,
     checkpoint_policy: str = "validation_nasa",
@@ -849,6 +1112,8 @@ def run_cmapss_deep_baseline_comparison(
                     hidden_size=hidden_size,
                     num_layers=num_layers,
                     tcn_levels=tcn_levels,
+                    transformer_heads=transformer_heads,
+                    transformer_dim_feedforward=transformer_dim_feedforward,
                     kernel_size=kernel_size,
                     dropout=dropout,
                     checkpoint_policy=checkpoint_policy,
@@ -899,6 +1164,8 @@ def _run_deep_comparison_candidate(
     hidden_size: int,
     num_layers: int,
     tcn_levels: int,
+    transformer_heads: int,
+    transformer_dim_feedforward: int | None,
     kernel_size: int,
     dropout: float,
     checkpoint_policy: str,
@@ -934,15 +1201,31 @@ def _run_deep_comparison_candidate(
             random_state=random_state,
             device=device,
         )
-    return run_all_cmapss_tcn_baselines(
+    if model_name == "tcn":
+        return run_all_cmapss_tcn_baselines(
+            sequence_dir,
+            subsets=subsets,
+            epochs=epochs,
+            batch_size=batch_size,
+            learning_rate=learning_rate,
+            hidden_channels=hidden_size,
+            num_levels=tcn_levels,
+            kernel_size=kernel_size,
+            dropout=dropout,
+            checkpoint_policy=checkpoint_policy,
+            random_state=random_state,
+            device=device,
+        )
+    return run_all_cmapss_transformer_baselines(
         sequence_dir,
         subsets=subsets,
         epochs=epochs,
         batch_size=batch_size,
         learning_rate=learning_rate,
-        hidden_channels=hidden_size,
-        num_levels=tcn_levels,
-        kernel_size=kernel_size,
+        d_model=hidden_size,
+        num_heads=transformer_heads,
+        num_layers=num_layers,
+        dim_feedforward=transformer_dim_feedforward or hidden_size * 2,
         dropout=dropout,
         checkpoint_policy=checkpoint_policy,
         random_state=random_state,

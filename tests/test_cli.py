@@ -684,6 +684,69 @@ def test_cmapss_tcn_baseline_command_writes_result_tables(tmp_path, capsys) -> N
     assert history_json.exists()
 
 
+def test_cmapss_transformer_baseline_command_writes_result_tables(
+    tmp_path,
+    capsys,
+) -> None:
+    write_all_tiny_cmapss_subsets(tmp_path)
+    sequence_dir = tmp_path / "sequences"
+    output_csv = tmp_path / "results" / "transformer.csv"
+    history_json = tmp_path / "results" / "transformer_history.json"
+    main(
+        [
+            "cmapss-export-sequences",
+            "--data-dir",
+            str(tmp_path),
+            "--output-dir",
+            str(sequence_dir),
+            "--subsets",
+            "FD001",
+            "--window-size",
+            "2",
+            "--validation-horizon",
+            "1",
+        ]
+    )
+    capsys.readouterr()
+
+    exit_code = main(
+        [
+            "cmapss-transformer-baseline",
+            "--sequence-dir",
+            str(sequence_dir),
+            "--subsets",
+            "FD001",
+            "--epochs",
+            "1",
+            "--batch-size",
+            "2",
+            "--d-model",
+            "4",
+            "--num-heads",
+            "2",
+            "--num-layers",
+            "1",
+            "--dim-feedforward",
+            "8",
+            "--output-csv",
+            str(output_csv),
+            "--history-json",
+            str(history_json),
+        ]
+    )
+    output = capsys.readouterr().out
+
+    assert exit_code == 0
+    assert "epochs=1" in output
+    assert "d_model=4" in output
+    assert "num_heads=2" in output
+    assert "checkpoint_policy=validation_nasa" in output
+    assert "FD001,transformer_w2_e1_d4_h2_l1_ff8" in output
+    assert "selected_epochs=FD001:1" in output
+    assert output_csv.exists()
+    assert history_json.exists()
+
+
 def test_cmapss_deep_baseline_compare_command_writes_result_tables(
     tmp_path,
     capsys,
@@ -718,6 +781,7 @@ def test_cmapss_deep_baseline_compare_command_writes_result_tables(
             "--models",
             "cnn",
             "tcn",
+            "transformer",
             "--epochs",
             "1",
             "--batch-size",
@@ -726,6 +790,10 @@ def test_cmapss_deep_baseline_compare_command_writes_result_tables(
             "4",
             "--tcn-levels",
             "1",
+            "--transformer-heads",
+            "2",
+            "--transformer-dim-feedforward",
+            "8",
             "--output-csv",
             str(output_csv),
         ]
@@ -733,10 +801,11 @@ def test_cmapss_deep_baseline_compare_command_writes_result_tables(
     output = capsys.readouterr().out
 
     assert exit_code == 0
-    assert "models=cnn,tcn" in output
+    assert "models=cnn,tcn,transformer" in output
     assert "hidden_sizes=4" in output
     assert "compare_cnn_h4_lr0p001" in output
     assert "compare_tcn_h4_lr0p001" in output
+    assert "compare_transformer_h4_lr0p001" in output
     assert "selected_by_nasa=FD001:" in output
     assert output_csv.exists()
 

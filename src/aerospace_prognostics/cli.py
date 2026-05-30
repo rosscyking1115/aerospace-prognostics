@@ -53,9 +53,11 @@ from aerospace_prognostics.experiments.cmapss_deep_baseline import (
     CmapssCnnBaselineRun,
     CmapssLstmBaselineRun,
     CmapssTcnBaselineRun,
+    CmapssTransformerBaselineRun,
     run_all_cmapss_cnn_baseline_runs,
     run_all_cmapss_lstm_baseline_runs,
     run_all_cmapss_tcn_baseline_runs,
+    run_all_cmapss_transformer_baseline_runs,
     run_cmapss_deep_baseline_comparison,
 )
 from aerospace_prognostics.sequence_exports import export_cmapss_sequence_splits
@@ -456,6 +458,36 @@ def _build_parser() -> argparse.ArgumentParser:
     tcn_baseline.add_argument("--output-csv", type=Path)
     tcn_baseline.add_argument("--history-json", type=Path)
 
+    transformer_baseline = subparsers.add_parser(
+        "cmapss-transformer-baseline",
+        help="Train a Transformer encoder RUL baseline from exported C-MAPSS sequence tensors",
+    )
+    transformer_baseline.add_argument("--sequence-dir", type=Path, required=True)
+    transformer_baseline.add_argument(
+        "--subsets",
+        nargs="+",
+        choices=CMAPSS_SUBSETS,
+        default=list(CMAPSS_SUBSETS),
+    )
+    transformer_baseline.add_argument("--epochs", type=int, default=5)
+    transformer_baseline.add_argument("--batch-size", type=int, default=256)
+    transformer_baseline.add_argument("--learning-rate", type=float, default=1e-3)
+    transformer_baseline.add_argument("--d-model", type=int, default=32)
+    transformer_baseline.add_argument("--num-heads", type=int, default=4)
+    transformer_baseline.add_argument("--num-layers", type=int, default=2)
+    transformer_baseline.add_argument("--dim-feedforward", type=int, default=64)
+    transformer_baseline.add_argument("--dropout", type=float, default=0.1)
+    transformer_baseline.add_argument(
+        "--checkpoint-policy",
+        choices=["validation_nasa", "final"],
+        default="validation_nasa",
+    )
+    transformer_baseline.add_argument("--random-state", type=int, default=42)
+    transformer_baseline.add_argument("--device", default="cpu")
+    transformer_baseline.add_argument("--output-json", type=Path)
+    transformer_baseline.add_argument("--output-csv", type=Path)
+    transformer_baseline.add_argument("--history-json", type=Path)
+
     deep_compare = subparsers.add_parser(
         "cmapss-deep-baseline-compare",
         help="Compare Phase 2 deep RUL baselines across compact hyperparameter grids",
@@ -479,6 +511,8 @@ def _build_parser() -> argparse.ArgumentParser:
     deep_compare.add_argument("--hidden-sizes", nargs="+", type=int, default=[32])
     deep_compare.add_argument("--num-layers", type=int, default=1)
     deep_compare.add_argument("--tcn-levels", type=int, default=3)
+    deep_compare.add_argument("--transformer-heads", type=int, default=4)
+    deep_compare.add_argument("--transformer-dim-feedforward", type=int)
     deep_compare.add_argument("--kernel-size", type=int, default=3)
     deep_compare.add_argument("--dropout", type=float, default=0.1)
     deep_compare.add_argument(
@@ -1129,6 +1163,46 @@ def main(argv: list[str] | None = None) -> int:
             _write_deep_history_json(runs, args.history_json)
         return 0
 
+    if args.command == "cmapss-transformer-baseline":
+        runs = run_all_cmapss_transformer_baseline_runs(
+            args.sequence_dir,
+            subsets=tuple(args.subsets),
+            epochs=args.epochs,
+            batch_size=args.batch_size,
+            learning_rate=args.learning_rate,
+            d_model=args.d_model,
+            num_heads=args.num_heads,
+            num_layers=args.num_layers,
+            dim_feedforward=args.dim_feedforward,
+            dropout=args.dropout,
+            checkpoint_policy=args.checkpoint_policy,
+            random_state=args.random_state,
+            device=args.device,
+        )
+        results = [run.result for run in runs]
+        print(f"epochs={args.epochs}")
+        print(f"batch_size={args.batch_size}")
+        print(f"learning_rate={args.learning_rate}")
+        print(f"d_model={args.d_model}")
+        print(f"num_heads={args.num_heads}")
+        print(f"num_layers={args.num_layers}")
+        print(f"dim_feedforward={args.dim_feedforward}")
+        print(f"dropout={args.dropout}")
+        print(f"checkpoint_policy={args.checkpoint_policy}")
+        print(f"device={args.device}")
+        print(
+            "selected_epochs="
+            + ",".join(f"{run.result.subset}:{run.selected_epoch}" for run in runs)
+        )
+        _print_results_table(results)
+        if args.output_json is not None:
+            write_results_json(results, args.output_json)
+        if args.output_csv is not None:
+            write_results_csv(results, args.output_csv)
+        if args.history_json is not None:
+            _write_deep_history_json(runs, args.history_json)
+        return 0
+
     if args.command == "cmapss-deep-baseline-compare":
         results = run_cmapss_deep_baseline_comparison(
             args.sequence_dir,
@@ -1140,6 +1214,8 @@ def main(argv: list[str] | None = None) -> int:
             hidden_sizes=tuple(args.hidden_sizes),
             num_layers=args.num_layers,
             tcn_levels=args.tcn_levels,
+            transformer_heads=args.transformer_heads,
+            transformer_dim_feedforward=args.transformer_dim_feedforward,
             kernel_size=args.kernel_size,
             dropout=args.dropout,
             checkpoint_policy=args.checkpoint_policy,
@@ -1156,6 +1232,8 @@ def main(argv: list[str] | None = None) -> int:
         print(f"hidden_sizes={','.join(str(value) for value in args.hidden_sizes)}")
         print(f"num_layers={args.num_layers}")
         print(f"tcn_levels={args.tcn_levels}")
+        print(f"transformer_heads={args.transformer_heads}")
+        print(f"transformer_dim_feedforward={args.transformer_dim_feedforward}")
         print(f"kernel_size={args.kernel_size}")
         print(f"dropout={args.dropout}")
         print(f"checkpoint_policy={args.checkpoint_policy}")
@@ -1315,7 +1393,8 @@ def _write_validation_aggregate_csv(
 def _write_deep_history_json(
     results: list[CmapssCnnBaselineRun]
     | list[CmapssLstmBaselineRun]
-    | list[CmapssTcnBaselineRun],
+    | list[CmapssTcnBaselineRun]
+    | list[CmapssTransformerBaselineRun],
     path: Path,
 ) -> None:
     output_path = _prepare_output_path(path)
