@@ -35,11 +35,12 @@ Current scope:
 - FastAPI inference surface with request validation and health/version endpoints.
 - Tests for artifact round-trip and API prediction behavior.
 - Dockerfile scaffold for containerized serving.
+- CI Docker image build check.
 
 Next hardening steps:
 
 - Add structured request/response logging and latency metrics.
 - Add drift summaries for incoming telemetry and prediction distributions.
 - Add model promotion metadata and rollback docs.
-- Add Docker image build and API smoke test to CI.
+- Add containerized API smoke test to CI.
 - Add authentication/rate limiting before any public deployment.

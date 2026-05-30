@@ -35,3 +35,5 @@ jobs:
       - name: Dependency audit
         run: uv run pip-audit
 
+      - name: Build serving image
+        run: docker build --tag aerospace-prognostics:ci .
