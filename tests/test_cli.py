@@ -629,6 +629,61 @@ def test_cmapss_lstm_baseline_command_writes_result_tables(tmp_path, capsys) -> 
     assert history_json.exists()
 
 
+def test_cmapss_tcn_baseline_command_writes_result_tables(tmp_path, capsys) -> None:
+    write_all_tiny_cmapss_subsets(tmp_path)
+    sequence_dir = tmp_path / "sequences"
+    output_csv = tmp_path / "results" / "tcn.csv"
+    history_json = tmp_path / "results" / "tcn_history.json"
+    main(
+        [
+            "cmapss-export-sequences",
+            "--data-dir",
+            str(tmp_path),
+            "--output-dir",
+            str(sequence_dir),
+            "--subsets",
+            "FD001",
+            "--window-size",
+            "2",
+            "--validation-horizon",
+            "1",
+        ]
+    )
+    capsys.readouterr()
+
+    exit_code = main(
+        [
+            "cmapss-tcn-baseline",
+            "--sequence-dir",
+            str(sequence_dir),
+            "--subsets",
+            "FD001",
+            "--epochs",
+            "1",
+            "--batch-size",
+            "2",
+            "--hidden-channels",
+            "4",
+            "--num-levels",
+            "1",
+            "--output-csv",
+            str(output_csv),
+            "--history-json",
+            str(history_json),
+        ]
+    )
+    output = capsys.readouterr().out
+
+    assert exit_code == 0
+    assert "epochs=1" in output
+    assert "num_levels=1" in output
+    assert "checkpoint_policy=validation_nasa" in output
+    assert "FD001,tcn_w2_e1_c4_l1_k3" in output
+    assert "selected_epochs=FD001:1" in output
+    assert output_csv.exists()
+    assert history_json.exists()
+
+
 def test_cmapss_package_and_predict_artifact_commands(tmp_path, capsys) -> None:
     write_tiny_cmapss_subset(tmp_path)
     artifact_path = tmp_path / "models" / "fd001.joblib"

@@ -69,6 +69,24 @@ class CmapssLstmBaselineRun:
         }
 
 
+@dataclass(frozen=True)
+class CmapssTcnBaselineRun:
+    """Full TCN baseline run with the selected official-test result."""
+
+    result: RegressionRunResult
+    selected_epoch: int
+    history: tuple[CmapssCnnTrainingEpoch, ...]
+
+    def to_dict(self) -> dict[str, Any]:
+        """Return a JSON-serialisable dictionary."""
+
+        return {
+            "result": self.result.to_dict(),
+            "selected_epoch": self.selected_epoch,
+            "history": [epoch.to_dict() for epoch in self.history],
+        }
+
+
 class CmapssOneDimensionalCnn(nn.Module):
     """Small 1D-CNN baseline over C-MAPSS sensor windows."""
 
@@ -134,6 +152,108 @@ class CmapssLstmRegressor(nn.Module):
 
         output, _ = self.recurrent(windows)
         return self.head(output[:, -1, :]).squeeze(-1)
+
+
+class _CausalChomp1d(nn.Module):
+    """Trim right-side padding from causal Conv1d outputs."""
+
+    def __init__(self, chomp_size: int) -> None:
+        super().__init__()
+        self.chomp_size = chomp_size
+
+    def forward(self, values: torch.Tensor) -> torch.Tensor:
+        if self.chomp_size == 0:
+            return values
+        return values[:, :, : -self.chomp_size]
+
+
+class _TcnResidualBlock(nn.Module):
+    """Two-layer dilated causal convolution block with a residual path."""
+
+    def __init__(
+        self,
+        *,
+        input_channels: int,
+        output_channels: int,
+        kernel_size: int,
+        dilation: int,
+        dropout: float,
+    ) -> None:
+        super().__init__()
+        padding = (kernel_size - 1) * dilation
+        self.network = nn.Sequential(
+            nn.Conv1d(
+                input_channels,
+                output_channels,
+                kernel_size,
+                padding=padding,
+                dilation=dilation,
+            ),
+            _CausalChomp1d(padding),
+            nn.ReLU(),
+            nn.Dropout(dropout),
+            nn.Conv1d(
+                output_channels,
+                output_channels,
+                kernel_size,
+                padding=padding,
+                dilation=dilation,
+            ),
+            _CausalChomp1d(padding),
+            nn.ReLU(),
+            nn.Dropout(dropout),
+        )
+        self.residual = (
+            nn.Identity()
+            if input_channels == output_channels
+            else nn.Conv1d(input_channels, output_channels, kernel_size=1)
+        )
+        self.activation = nn.ReLU()
+
+    def forward(self, values: torch.Tensor) -> torch.Tensor:
+        return self.activation(self.network(values) + self.residual(values))
+
+
+class CmapssTemporalConvolutionalRegressor(nn.Module):
+    """Compact TCN baseline over C-MAPSS sensor windows."""
+
+    def __init__(
+        self,
+        *,
+        feature_count: int,
+        hidden_channels: int = 32,
+        num_levels: int = 3,
+        kernel_size: int = 3,
+        dropout: float = 0.1,
+    ) -> None:
+        super().__init__()
+        if hidden_channels < 1:
+            raise ValueError("hidden_channels must be at least 1")
+        if num_levels < 1:
+            raise ValueError("num_levels must be at least 1")
+        if kernel_size < 1:
+            raise ValueError("kernel_size must be at least 1")
+        blocks: list[nn.Module] = []
+        input_channels = feature_count
+        for level in range(num_levels):
+            blocks.append(
+                _TcnResidualBlock(
+                    input_channels=input_channels,
+                    output_channels=hidden_channels,
+                    kernel_size=kernel_size,
+                    dilation=2**level,
+                    dropout=dropout,
+                )
+            )
+            input_channels = hidden_channels
+        self.network = nn.Sequential(*blocks)
+        self.head = nn.Linear(hidden_channels, 1)
+
+    def forward(self, windows: torch.Tensor) -> torch.Tensor:
+        """Predict RUL from `(batch, timesteps, features)` windows."""
+
+        features = self.network(windows.transpose(1, 2))
+        return self.head(features[:, :, -1]).squeeze(-1)
 
 
 def run_cmapss_cnn_baseline(
@@ -301,6 +421,94 @@ def run_cmapss_lstm_baseline_run(
         ),
     )
     return CmapssLstmBaselineRun(
+        result=result,
+        selected_epoch=selected_epoch,
+        history=history,
+    )
+
+
+def run_cmapss_tcn_baseline(
+    sequence_dir: str | Path,
+    subset: str,
+    *,
+    epochs: int = 5,
+    batch_size: int = 256,
+    learning_rate: float = 1e-3,
+    hidden_channels: int = 32,
+    num_levels: int = 3,
+    kernel_size: int = 3,
+    dropout: float = 0.1,
+    checkpoint_policy: str = "validation_nasa",
+    random_state: int = 42,
+    device: str = "cpu",
+) -> RegressionRunResult:
+    """Train and evaluate a compact TCN baseline from exported C-MAPSS sequences."""
+
+    return run_cmapss_tcn_baseline_run(
+        sequence_dir,
+        subset,
+        epochs=epochs,
+        batch_size=batch_size,
+        learning_rate=learning_rate,
+        hidden_channels=hidden_channels,
+        num_levels=num_levels,
+        kernel_size=kernel_size,
+        dropout=dropout,
+        checkpoint_policy=checkpoint_policy,
+        random_state=random_state,
+        device=device,
+    ).result
+
+
+def run_cmapss_tcn_baseline_run(
+    sequence_dir: str | Path,
+    subset: str,
+    *,
+    epochs: int = 5,
+    batch_size: int = 256,
+    learning_rate: float = 1e-3,
+    hidden_channels: int = 32,
+    num_levels: int = 3,
+    kernel_size: int = 3,
+    dropout: float = 0.1,
+    checkpoint_policy: str = "validation_nasa",
+    random_state: int = 42,
+    device: str = "cpu",
+) -> CmapssTcnBaselineRun:
+    """Train a compact TCN baseline and select the best epoch by validation NASA score."""
+
+    if hidden_channels < 1:
+        raise ValueError("hidden_channels must be at least 1")
+    if num_levels < 1:
+        raise ValueError("num_levels must be at least 1")
+    if kernel_size < 1:
+        raise ValueError("kernel_size must be at least 1")
+
+    def model_factory(feature_count: int) -> nn.Module:
+        return CmapssTemporalConvolutionalRegressor(
+            feature_count=feature_count,
+            hidden_channels=hidden_channels,
+            num_levels=num_levels,
+            kernel_size=kernel_size,
+            dropout=dropout,
+        )
+
+    result, selected_epoch, history = _run_sequence_baseline_run(
+        sequence_dir,
+        subset,
+        epochs=epochs,
+        batch_size=batch_size,
+        learning_rate=learning_rate,
+        checkpoint_policy=checkpoint_policy,
+        random_state=random_state,
+        device=device,
+        model_factory=model_factory,
+        model_name_base_factory=lambda metadata: (
+            f"tcn_w{metadata['window_size']}_e{epochs}_c{hidden_channels}"
+            f"_l{num_levels}_k{kernel_size}"
+        ),
+    )
+    return CmapssTcnBaselineRun(
         result=result,
         selected_epoch=selected_epoch,
         history=history,
@@ -521,6 +729,78 @@ def run_all_cmapss_lstm_baseline_runs(
             num_layers=num_layers,
             dropout=dropout,
             bidirectional=bidirectional,
+            checkpoint_policy=checkpoint_policy,
+            random_state=random_state,
+            device=device,
+        )
+        for subset in subsets
+    ]
+
+
+def run_all_cmapss_tcn_baselines(
+    sequence_dir: str | Path,
+    *,
+    subsets: tuple[str, ...],
+    epochs: int = 5,
+    batch_size: int = 256,
+    learning_rate: float = 1e-3,
+    hidden_channels: int = 32,
+    num_levels: int = 3,
+    kernel_size: int = 3,
+    dropout: float = 0.1,
+    checkpoint_policy: str = "validation_nasa",
+    random_state: int = 42,
+    device: str = "cpu",
+) -> list[RegressionRunResult]:
+    """Train TCN baselines for the requested C-MAPSS subsets."""
+
+    return [
+        run.result
+        for run in run_all_cmapss_tcn_baseline_runs(
+            sequence_dir,
+            subsets=subsets,
+            epochs=epochs,
+            batch_size=batch_size,
+            learning_rate=learning_rate,
+            hidden_channels=hidden_channels,
+            num_levels=num_levels,
+            kernel_size=kernel_size,
+            dropout=dropout,
+            checkpoint_policy=checkpoint_policy,
+            random_state=random_state,
+            device=device,
+        )
+    ]
+
+
+def run_all_cmapss_tcn_baseline_runs(
+    sequence_dir: str | Path,
+    *,
+    subsets: tuple[str, ...],
+    epochs: int = 5,
+    batch_size: int = 256,
+    learning_rate: float = 1e-3,
+    hidden_channels: int = 32,
+    num_levels: int = 3,
+    kernel_size: int = 3,
+    dropout: float = 0.1,
+    checkpoint_policy: str = "validation_nasa",
+    random_state: int = 42,
+    device: str = "cpu",
+) -> list[CmapssTcnBaselineRun]:
+    """Train full TCN baseline runs for the requested C-MAPSS subsets."""
+
+    return [
+        run_cmapss_tcn_baseline_run(
+            sequence_dir,
+            subset,
+            epochs=epochs,
+            batch_size=batch_size,
+            learning_rate=learning_rate,
+            hidden_channels=hidden_channels,
+            num_levels=num_levels,
+            kernel_size=kernel_size,
+            dropout=dropout,
             checkpoint_policy=checkpoint_policy,
             random_state=random_state,
             device=device,

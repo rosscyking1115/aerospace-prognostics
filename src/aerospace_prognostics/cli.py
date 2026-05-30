@@ -51,8 +51,10 @@ from aerospace_prognostics.experiments.cmapss_baseline import (
 from aerospace_prognostics.experiments.cmapss_deep_baseline import (
     CmapssCnnBaselineRun,
     CmapssLstmBaselineRun,
+    CmapssTcnBaselineRun,
     run_all_cmapss_cnn_baseline_runs,
     run_all_cmapss_lstm_baseline_runs,
+    run_all_cmapss_tcn_baseline_runs,
 )
 from aerospace_prognostics.sequence_exports import export_cmapss_sequence_splits
 from aerospace_prognostics.workflows.phase1 import run_phase1_cmapss_workflow
@@ -422,6 +424,35 @@ def _build_parser() -> argparse.ArgumentParser:
     lstm_baseline.add_argument("--output-json", type=Path)
     lstm_baseline.add_argument("--output-csv", type=Path)
     lstm_baseline.add_argument("--history-json", type=Path)
+
+    tcn_baseline = subparsers.add_parser(
+        "cmapss-tcn-baseline",
+        help="Train a TCN RUL baseline from exported C-MAPSS sequence tensors",
+    )
+    tcn_baseline.add_argument("--sequence-dir", type=Path, required=True)
+    tcn_baseline.add_argument(
+        "--subsets",
+        nargs="+",
+        choices=CMAPSS_SUBSETS,
+        default=list(CMAPSS_SUBSETS),
+    )
+    tcn_baseline.add_argument("--epochs", type=int, default=5)
+    tcn_baseline.add_argument("--batch-size", type=int, default=256)
+    tcn_baseline.add_argument("--learning-rate", type=float, default=1e-3)
+    tcn_baseline.add_argument("--hidden-channels", type=int, default=32)
+    tcn_baseline.add_argument("--num-levels", type=int, default=3)
+    tcn_baseline.add_argument("--kernel-size", type=int, default=3)
+    tcn_baseline.add_argument("--dropout", type=float, default=0.1)
+    tcn_baseline.add_argument(
+        "--checkpoint-policy",
+        choices=["validation_nasa", "final"],
+        default="validation_nasa",
+    )
+    tcn_baseline.add_argument("--random-state", type=int, default=42)
+    tcn_baseline.add_argument("--device", default="cpu")
+    tcn_baseline.add_argument("--output-json", type=Path)
+    tcn_baseline.add_argument("--output-csv", type=Path)
+    tcn_baseline.add_argument("--history-json", type=Path)
 
     package_hgb = subparsers.add_parser(
         "cmapss-package-hgb-policy",
@@ -1023,6 +1054,44 @@ def main(argv: list[str] | None = None) -> int:
             _write_deep_history_json(runs, args.history_json)
         return 0
 
+    if args.command == "cmapss-tcn-baseline":
+        runs = run_all_cmapss_tcn_baseline_runs(
+            args.sequence_dir,
+            subsets=tuple(args.subsets),
+            epochs=args.epochs,
+            batch_size=args.batch_size,
+            learning_rate=args.learning_rate,
+            hidden_channels=args.hidden_channels,
+            num_levels=args.num_levels,
+            kernel_size=args.kernel_size,
+            dropout=args.dropout,
+            checkpoint_policy=args.checkpoint_policy,
+            random_state=args.random_state,
+            device=args.device,
+        )
+        results = [run.result for run in runs]
+        print(f"epochs={args.epochs}")
+        print(f"batch_size={args.batch_size}")
+        print(f"learning_rate={args.learning_rate}")
+        print(f"hidden_channels={args.hidden_channels}")
+        print(f"num_levels={args.num_levels}")
+        print(f"kernel_size={args.kernel_size}")
+        print(f"dropout={args.dropout}")
+        print(f"checkpoint_policy={args.checkpoint_policy}")
+        print(f"device={args.device}")
+        print(
+            "selected_epochs="
+            + ",".join(f"{run.result.subset}:{run.selected_epoch}" for run in runs)
+        )
+        _print_results_table(results)
+        if args.output_json is not None:
+            write_results_json(results, args.output_json)
+        if args.output_csv is not None:
+            write_results_csv(results, args.output_csv)
+        if args.history_json is not None:
+            _write_deep_history_json(runs, args.history_json)
+        return 0
+
     if args.command == "cmapss-package-hgb-policy":
         packaged = train_cmapss_hgb_policy_artifact(
             args.data_dir,
@@ -1158,7 +1227,9 @@ def _write_validation_aggregate_csv(
 
 
 def _write_deep_history_json(
-    results: list[CmapssCnnBaselineRun] | list[CmapssLstmBaselineRun],
+    results: list[CmapssCnnBaselineRun]
+    | list[CmapssLstmBaselineRun]
+    | list[CmapssTcnBaselineRun],
     path: Path,
 ) -> None:
     output_path = _prepare_output_path(path)
