@@ -34,9 +34,11 @@ The API exposes:
 
 Every API request receives `x-request-id` and `x-process-time-ms` response headers. If the caller sends `x-request-id`, the service preserves it; otherwise it generates one. Requests are logged as one-line JSON records with method, route, status code, request ID, and latency. `GET /metrics` exposes lightweight Prometheus-style counters and latency summaries for local container smoke checks and basic deployment monitoring.
 
+Prediction responses include a `monitoring` block. It compares request telemetry means against train-fit artifact reference statistics with standardized mean-shift scores, lists columns above the drift threshold, and summarizes the request's prediction distribution. The same compact monitoring summary is emitted as structured JSON logs for downstream alerting.
+
 ## Production Readiness Notes
 
-The artifact contains the trained scikit-learn model, feature policy, rolling-window configuration, operating-regime transformer when needed, train-fitted standardizer, input schema, feature schema, and run metadata. This makes inference reproducible without refitting preprocessing at request time.
+The artifact contains the trained scikit-learn model, feature policy, rolling-window configuration, operating-regime transformer when needed, train-fitted standardizer, input schema, feature schema, train-fit telemetry reference statistics, and run metadata. This makes inference reproducible without refitting preprocessing at request time.
 
 Prediction outputs are bounded to `[0, rul_cap]` at inference time. The first real FD001 package smoke test used the validation-selected HGB policy artifact:
 
@@ -50,6 +52,7 @@ Current scope:
 - Batch inference from CSV.
 - FastAPI inference surface with request validation and health/version endpoints.
 - Structured JSON request logs, request IDs, latency headers, and scrapeable serving metrics.
+- Request telemetry drift summaries and prediction-distribution monitoring.
 - Tests for artifact round-trip and API prediction behavior.
 - Dockerfile scaffold for containerized serving.
 - CI Docker image build check.
@@ -57,6 +60,5 @@ Current scope:
 
 Next hardening steps:
 
-- Add drift summaries for incoming telemetry and prediction distributions.
 - Add model promotion metadata and rollback docs.
 - Add authentication/rate limiting before any public deployment.

@@ -41,6 +41,8 @@ def test_serving_api_health_version_and_predict(tmp_path) -> None:
     payload = response.json()
     assert payload["model_name"] == artifact.model_name
     assert [prediction["unit_number"] for prediction in payload["predictions"]] == [1, 2]
+    assert payload["monitoring"]["predictions"]["count"] == 2
+    assert "sensor_1" in payload["monitoring"]["telemetry"]["columns"]
     assert metrics.status_code == 200
     assert "aerospace_prognostics_requests_total 3" in metrics.text
     assert (
@@ -82,6 +84,33 @@ def test_serving_api_logs_structured_request_records(tmp_path, caplog) -> None:
         "path": "/health",
         "status_code": 200,
     }.items() <= payloads[-1].items()
+
+
+def test_serving_api_logs_prediction_monitoring_summary(tmp_path, caplog) -> None:
+    write_tiny_cmapss_subset(tmp_path)
+    artifact = train_cmapss_hgb_policy_artifact(tmp_path, "FD001", n_regimes=1).artifact
+    artifact_path = save_cmapss_model_artifact(artifact, tmp_path / "fd001.joblib")
+    bundle = load_cmapss_subset(tmp_path, "FD001")
+    telemetry = bundle.test.copy()
+    for column in [column for column in telemetry.columns if column.startswith("sensor_")]:
+        telemetry[column] = telemetry[column] + 100.0
+    client = TestClient(create_app(artifact_path))
+
+    with caplog.at_level(logging.INFO, logger="aerospace_prognostics.serving"):
+        response = client.post(
+            "/predict",
+            json={"telemetry": json.loads(telemetry.to_json(orient="records"))},
+        )
+
+    assert response.status_code == 200
+    monitoring = response.json()["monitoring"]
+    assert monitoring["telemetry"]["alert_column_count"] >= 21
+    payloads = [json.loads(record.message) for record in caplog.records]
+    prediction_logs = [
+        payload for payload in payloads if payload.get("event") == "prediction_monitoring"
+    ]
+    assert prediction_logs[-1]["prediction_count"] == 2
+    assert prediction_logs[-1]["telemetry_alert_column_count"] >= 21
 
 
 def test_serving_api_reports_missing_model_and_metrics() -> None:

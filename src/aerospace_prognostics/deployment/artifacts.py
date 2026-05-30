@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any
 
@@ -65,6 +65,7 @@ class CmapssHgbPolicyModelArtifact:
     model: Any
     standardizer: FeatureStandardizer | None = None
     regime_transformer: OperatingRegimeFeatureTransformer | None = None
+    reference_stats: dict[str, dict[str, float]] = field(default_factory=dict)
 
     def metadata(self) -> dict[str, Any]:
         """Return deployment metadata without binary model objects."""
@@ -82,6 +83,7 @@ class CmapssHgbPolicyModelArtifact:
             "standardize": self.standardize,
             "input_columns": list(self.input_columns),
             "feature_columns": list(self.feature_columns),
+            "reference_stats_columns": sorted(self._reference_stats),
         }
 
     def predict_from_frame(self, frame: pd.DataFrame) -> list[CmapssPrediction]:
@@ -104,6 +106,31 @@ class CmapssHgbPolicyModelArtifact:
             CmapssPrediction(unit_number=unit, predicted_rul=float(prediction))
             for unit, prediction in zip(unit_numbers, predictions, strict=True)
         ]
+
+    def monitoring_summary(
+        self,
+        frame: pd.DataFrame,
+        predictions: list[CmapssPrediction],
+        *,
+        drift_threshold: float = 3.0,
+    ) -> dict[str, Any]:
+        """Summarise request telemetry drift and prediction distribution."""
+
+        _validate_inference_frame(frame, self.input_columns)
+        telemetry_summary = _telemetry_drift_summary(
+            frame,
+            self._reference_stats,
+            drift_threshold=drift_threshold,
+        )
+        prediction_values = [prediction.predicted_rul for prediction in predictions]
+        return {
+            "telemetry": telemetry_summary,
+            "predictions": _numeric_distribution(prediction_values),
+        }
+
+    @property
+    def _reference_stats(self) -> dict[str, dict[str, float]]:
+        return getattr(self, "reference_stats", {})
 
     def _build_features(self, frame: pd.DataFrame) -> pd.DataFrame:
         if self.feature_policy == "engineered":
@@ -211,6 +238,7 @@ def train_cmapss_hgb_policy_artifact(
         model=model,
         standardizer=standardizer,
         regime_transformer=regime_transformer,
+        reference_stats=_reference_stats(bundle.train, tuple(CMAPSS_COLUMNS[1:])),
     )
     result = RegressionRunResult(
         dataset="C-MAPSS",
@@ -253,6 +281,8 @@ def load_cmapss_model_artifact(path: str | Path) -> CmapssHgbPolicyModelArtifact
             "unsupported artifact schema version "
             f"{artifact.schema_version!r}; expected {ARTIFACT_SCHEMA_VERSION!r}"
         )
+    if not hasattr(artifact, "reference_stats"):
+        object.__setattr__(artifact, "reference_stats", {})
     return artifact
 
 
@@ -266,6 +296,73 @@ def _validate_inference_frame(frame: pd.DataFrame, input_columns: tuple[str, ...
         raise ValueError("unit_number and time_in_cycles cannot contain null values")
     if (frame["time_in_cycles"] < 1).any():
         raise ValueError("time_in_cycles values must be positive")
+
+
+def _reference_stats(frame: pd.DataFrame, columns: tuple[str, ...]) -> dict[str, dict[str, float]]:
+    stats: dict[str, dict[str, float]] = {}
+    for column in columns:
+        values = pd.to_numeric(frame[column], errors="coerce")
+        stats[column] = {
+            "count": float(values.count()),
+            "mean": float(values.mean()),
+            "std": float(values.std(ddof=0)),
+            "min": float(values.min()),
+            "max": float(values.max()),
+        }
+    return stats
+
+
+def _telemetry_drift_summary(
+    frame: pd.DataFrame,
+    reference_stats: dict[str, dict[str, float]],
+    *,
+    drift_threshold: float,
+) -> dict[str, Any]:
+    columns: dict[str, dict[str, float | None]] = {}
+    alert_columns: list[str] = []
+    max_shift: float | None = None
+    for column, reference in sorted(reference_stats.items()):
+        values = pd.to_numeric(frame[column], errors="coerce")
+        request_mean = float(values.mean())
+        request_std = float(values.std(ddof=0))
+        reference_std = reference["std"]
+        standardized_shift = (
+            abs(request_mean - reference["mean"]) / reference_std if reference_std > 0 else None
+        )
+        if standardized_shift is not None:
+            max_shift = (
+                standardized_shift if max_shift is None else max(max_shift, standardized_shift)
+            )
+            if standardized_shift >= drift_threshold:
+                alert_columns.append(column)
+        columns[column] = {
+            "reference_mean": reference["mean"],
+            "reference_std": reference_std,
+            "request_mean": request_mean,
+            "request_std": request_std,
+            "standardized_abs_mean_shift": standardized_shift,
+        }
+    return {
+        "reference_columns": len(reference_stats),
+        "drift_threshold": drift_threshold,
+        "alert_column_count": len(alert_columns),
+        "alert_columns": alert_columns,
+        "max_standardized_abs_mean_shift": max_shift,
+        "columns": columns,
+    }
+
+
+def _numeric_distribution(values: list[float]) -> dict[str, float | int | None]:
+    if not values:
+        return {"count": 0, "mean": None, "std": None, "min": None, "max": None}
+    series = pd.Series(values, dtype=float)
+    return {
+        "count": int(series.count()),
+        "mean": float(series.mean()),
+        "std": float(series.std(ddof=0)),
+        "min": float(series.min()),
+        "max": float(series.max()),
+    }
 
 
 def _hgb_params_by_label() -> dict[str, dict[str, float | int | str]]:

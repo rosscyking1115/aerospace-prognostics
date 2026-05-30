@@ -23,11 +23,17 @@ def test_train_save_load_and_predict_cmapss_hgb_policy_artifact(tmp_path) -> Non
     loaded = load_cmapss_model_artifact(artifact_path)
     bundle = load_cmapss_subset(tmp_path, "FD001")
     predictions = loaded.predict_from_frame(bundle.test)
+    monitoring = loaded.monitoring_summary(bundle.test, predictions, drift_threshold=0.1)
 
     assert artifact_path.exists()
     assert loaded.schema_version == ARTIFACT_SCHEMA_VERSION
     assert loaded.subset == "FD001"
     assert loaded.feature_policy == "regime_engineered"
+    assert "sensor_1" in loaded.reference_stats
+    assert loaded.reference_stats["sensor_1"]["count"] == 6.0
+    assert monitoring["predictions"]["count"] == 2
+    assert monitoring["telemetry"]["alert_column_count"] >= 1
+    assert "sensor_1" in monitoring["telemetry"]["columns"]
     assert packaged.result.rmse >= 0
     assert [prediction.unit_number for prediction in predictions] == [1, 2]
     assert all(0 <= prediction.predicted_rul <= loaded.rul_cap for prediction in predictions)

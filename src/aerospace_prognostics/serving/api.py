@@ -39,6 +39,7 @@ class PredictResponse(BaseModel):
     model_name: str
     rul_cap: int
     predictions: list[dict[str, float | int]]
+    monitoring: dict[str, Any]
 
 
 class ServingMetrics:
@@ -148,12 +149,34 @@ def create_app(artifact_path: str | Path | None = None) -> FastAPI:
             predictions = model.predict_from_frame(frame)
         except ValueError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
+        monitoring = model.monitoring_summary(frame, predictions)
+        LOGGER.info(
+            json.dumps(
+                {
+                    "event": "prediction_monitoring",
+                    "dataset": model.dataset,
+                    "subset": model.subset,
+                    "model_name": model.model_name,
+                    "prediction_count": monitoring["predictions"]["count"],
+                    "prediction_mean": monitoring["predictions"]["mean"],
+                    "telemetry_alert_column_count": monitoring["telemetry"][
+                        "alert_column_count"
+                    ],
+                    "telemetry_alert_columns": monitoring["telemetry"]["alert_columns"],
+                    "telemetry_max_standardized_abs_mean_shift": monitoring["telemetry"][
+                        "max_standardized_abs_mean_shift"
+                    ],
+                },
+                sort_keys=True,
+            )
+        )
         return PredictResponse(
             dataset=model.dataset,
             subset=model.subset,
             model_name=model.model_name,
             rul_cap=model.rul_cap,
             predictions=[prediction.to_dict() for prediction in predictions],
+            monitoring=monitoring,
         )
 
     @app.get("/metrics", response_class=PlainTextResponse)
