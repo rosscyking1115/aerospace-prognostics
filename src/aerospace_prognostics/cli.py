@@ -9,7 +9,12 @@ from collections.abc import Iterable
 from pathlib import Path
 
 from aerospace_prognostics.analysis.cmapss_eda import build_cmapss_eda_report
-from aerospace_prognostics.anomaly.baselines import run_robust_zscore_baseline
+from aerospace_prognostics.anomaly.baselines import (
+    CLASSICAL_ANOMALY_BASELINE_METHODS,
+    ClassicalAnomalyBaselineResult,
+    run_classical_anomaly_baselines,
+    run_robust_zscore_baseline,
+)
 from aerospace_prognostics.data.cmapss import CMAPSS_SUBSETS, load_cmapss_subset
 from aerospace_prognostics.data.downloads import NASA_CMAPSS_URL, download_cmapss_dataset
 from aerospace_prognostics.data.manifest import (
@@ -607,6 +612,33 @@ def _build_parser() -> argparse.ArgumentParser:
     anomaly_baseline.add_argument("--threshold", type=float, default=3.5)
     anomaly_baseline.add_argument("--output-json", type=Path)
     anomaly_baseline.add_argument("--predictions-csv", type=Path)
+
+    anomaly_classical = subparsers.add_parser(
+        "telemetry-classical-anomaly-baselines",
+        help="Compare robust z-score, PCA reconstruction, and Isolation Forest baselines",
+    )
+    anomaly_classical.add_argument("--train-csv", type=Path, required=True)
+    anomaly_classical.add_argument("--test-csv", type=Path, required=True)
+    anomaly_classical.add_argument("--label-column", required=True)
+    anomaly_classical.add_argument(
+        "--feature-columns",
+        nargs="+",
+        help="Feature columns to score; defaults to all numeric columns except the label",
+    )
+    anomaly_classical.add_argument(
+        "--methods",
+        nargs="+",
+        choices=CLASSICAL_ANOMALY_BASELINE_METHODS,
+        default=list(CLASSICAL_ANOMALY_BASELINE_METHODS),
+    )
+    anomaly_classical.add_argument("--robust-threshold", type=float, default=3.5)
+    anomaly_classical.add_argument("--pca-components", type=int)
+    anomaly_classical.add_argument("--pca-threshold-quantile", type=float, default=0.99)
+    anomaly_classical.add_argument("--isolation-contamination", type=float, default=0.05)
+    anomaly_classical.add_argument("--random-state", type=int, default=42)
+    anomaly_classical.add_argument("--output-json", type=Path)
+    anomaly_classical.add_argument("--output-csv", type=Path)
+    anomaly_classical.add_argument("--predictions-csv", type=Path)
 
     package_hgb = subparsers.add_parser(
         "cmapss-package-hgb-policy",
@@ -1438,6 +1470,55 @@ def main(argv: list[str] | None = None) -> int:
             )
         return 0
 
+    if args.command == "telemetry-classical-anomaly-baselines":
+        import pandas as pd
+
+        train_frame = pd.read_csv(args.train_csv)
+        test_frame = pd.read_csv(args.test_csv)
+        feature_columns = tuple(
+            args.feature_columns
+            if args.feature_columns is not None
+            else _infer_numeric_feature_columns(train_frame, args.label_column)
+        )
+        _require_columns(train_frame, feature_columns, frame_name="train CSV")
+        _require_columns(test_frame, (*feature_columns, args.label_column), frame_name="test CSV")
+        labels = test_frame.loc[:, args.label_column].to_numpy()
+        results = run_classical_anomaly_baselines(
+            train_frame.loc[:, feature_columns].to_numpy(),
+            test_frame.loc[:, feature_columns].to_numpy(),
+            labels,
+            feature_names=feature_columns,
+            methods=tuple(args.methods),
+            robust_threshold=args.robust_threshold,
+            pca_components=args.pca_components,
+            pca_threshold_quantile=args.pca_threshold_quantile,
+            isolation_contamination=args.isolation_contamination,
+            random_state=args.random_state,
+        )
+        print(f"features={len(feature_columns)}")
+        print(f"test_rows={len(test_frame)}")
+        print("model,precision,recall,f1,point_adjusted_f1,false_alarm_rate")
+        for result in results:
+            print(
+                f"{result.model_name},"
+                f"{result.metrics.precision:.6f},"
+                f"{result.metrics.recall:.6f},"
+                f"{result.metrics.f1:.6f},"
+                f"{result.point_adjusted_metrics.f1:.6f},"
+                f"{result.metrics.false_alarm_rate:.6f}"
+            )
+        if args.output_json is not None:
+            _write_json_payload([result.to_dict() for result in results], args.output_json)
+        if args.output_csv is not None:
+            _write_classical_anomaly_summary_csv(results, args.output_csv)
+        if args.predictions_csv is not None:
+            _write_classical_anomaly_predictions_csv(
+                labels=labels,
+                results=results,
+                path=args.predictions_csv,
+            )
+        return 0
+
     if args.command == "cmapss-package-hgb-policy":
         packaged = train_cmapss_hgb_policy_artifact(
             args.data_dir,
@@ -1626,6 +1707,69 @@ def _write_anomaly_predictions_csv(
                     "prediction": int(prediction),
                 }
             )
+
+
+def _write_classical_anomaly_summary_csv(
+    results: Iterable[ClassicalAnomalyBaselineResult],
+    path: Path,
+) -> None:
+    output_path = _prepare_output_path(path)
+    with output_path.open("w", encoding="utf-8", newline="") as file:
+        fieldnames = [
+            "model_name",
+            "precision",
+            "recall",
+            "f1",
+            "point_adjusted_f1",
+            "false_alarm_rate",
+            "miss_rate",
+            "support",
+            "predicted_positives",
+        ]
+        writer = csv.DictWriter(file, fieldnames=fieldnames)
+        writer.writeheader()
+        for result in results:
+            writer.writerow(
+                {
+                    "model_name": result.model_name,
+                    "precision": f"{result.metrics.precision:.12g}",
+                    "recall": f"{result.metrics.recall:.12g}",
+                    "f1": f"{result.metrics.f1:.12g}",
+                    "point_adjusted_f1": f"{result.point_adjusted_metrics.f1:.12g}",
+                    "false_alarm_rate": f"{result.metrics.false_alarm_rate:.12g}",
+                    "miss_rate": f"{result.metrics.miss_rate:.12g}",
+                    "support": result.metrics.support,
+                    "predicted_positives": result.metrics.predicted_positives,
+                }
+            )
+
+
+def _write_classical_anomaly_predictions_csv(
+    *,
+    labels: object,
+    results: Iterable[ClassicalAnomalyBaselineResult],
+    path: Path,
+) -> None:
+    output_path = _prepare_output_path(path)
+    with output_path.open("w", encoding="utf-8", newline="") as file:
+        writer = csv.DictWriter(
+            file,
+            fieldnames=["model_name", "row_index", "label", "anomaly_score", "prediction"],
+        )
+        writer.writeheader()
+        for result in results:
+            for index, (label, score, prediction) in enumerate(
+                zip(labels, result.scores, result.predictions, strict=True)
+            ):
+                writer.writerow(
+                    {
+                        "model_name": result.model_name,
+                        "row_index": index,
+                        "label": int(label),
+                        "anomaly_score": f"{score:.12g}",
+                        "prediction": int(prediction),
+                    }
+                )
 
 
 def _write_validation_aggregate_json(

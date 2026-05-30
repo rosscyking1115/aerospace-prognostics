@@ -961,6 +961,86 @@ def test_telemetry_robust_zscore_baseline_command_writes_outputs(tmp_path, capsy
     assert predictions_csv.exists()
 
 
+def test_telemetry_classical_anomaly_baselines_command_writes_comparison_outputs(
+    tmp_path,
+    capsys,
+) -> None:
+    train_csv = tmp_path / "train.csv"
+    test_csv = tmp_path / "test.csv"
+    output_json = tmp_path / "results" / "classical.json"
+    output_csv = tmp_path / "results" / "classical.csv"
+    predictions_csv = tmp_path / "results" / "classical_predictions.csv"
+    train_csv.write_text(
+        "\n".join(
+            [
+                "timestamp,bus_voltage,thermal_zone",
+                "0,-0.2,-0.2",
+                "1,-0.1,-0.1",
+                "2,0.0,0.0",
+                "3,0.1,0.1",
+                "4,0.2,0.2",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    test_csv.write_text(
+        "\n".join(
+            [
+                "timestamp,bus_voltage,thermal_zone,label",
+                "0,0.0,0.0,0",
+                "1,8.0,-8.0,1",
+                "2,0.1,0.1,0",
+                "3,-7.0,7.0,1",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    exit_code = main(
+        [
+            "telemetry-classical-anomaly-baselines",
+            "--train-csv",
+            str(train_csv),
+            "--test-csv",
+            str(test_csv),
+            "--label-column",
+            "label",
+            "--feature-columns",
+            "bus_voltage",
+            "thermal_zone",
+            "--pca-components",
+            "1",
+            "--pca-threshold-quantile",
+            "0.95",
+            "--isolation-contamination",
+            "0.2",
+            "--output-json",
+            str(output_json),
+            "--output-csv",
+            str(output_csv),
+            "--predictions-csv",
+            str(predictions_csv),
+        ]
+    )
+    output = capsys.readouterr().out
+    result = json.loads(output_json.read_text(encoding="utf-8"))
+
+    assert exit_code == 0
+    assert "model,precision,recall,f1,point_adjusted_f1,false_alarm_rate" in output
+    assert "robust_zscore," in output
+    assert "pca_reconstruction," in output
+    assert "isolation_forest," in output
+    assert [row["model_name"] for row in result] == [
+        "robust_zscore",
+        "pca_reconstruction",
+        "isolation_forest",
+    ]
+    assert output_csv.exists()
+    assert predictions_csv.exists()
+
+
 def test_cmapss_package_and_predict_artifact_commands(tmp_path, capsys) -> None:
     write_tiny_cmapss_subset(tmp_path)
     artifact_path = tmp_path / "models" / "fd001.joblib"
