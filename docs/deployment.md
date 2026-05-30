@@ -27,9 +27,12 @@ The API exposes:
 
 - `GET /health`
 - `GET /version`
+- `GET /metrics`
 - `POST /predict`
 
 `POST /predict` accepts raw C-MAPSS telemetry rows with the canonical columns: `unit_number`, `time_in_cycles`, three operating settings, and 21 sensor values. The service groups rows by unit and returns one capped RUL prediction per unit using each unit's latest observed cycle.
+
+Every API request receives `x-request-id` and `x-process-time-ms` response headers. If the caller sends `x-request-id`, the service preserves it; otherwise it generates one. Requests are logged as one-line JSON records with method, route, status code, request ID, and latency. `GET /metrics` exposes lightweight Prometheus-style counters and latency summaries for local container smoke checks and basic deployment monitoring.
 
 ## Production Readiness Notes
 
@@ -46,6 +49,7 @@ Current scope:
 - Local model artifact packaging with `joblib`.
 - Batch inference from CSV.
 - FastAPI inference surface with request validation and health/version endpoints.
+- Structured JSON request logs, request IDs, latency headers, and scrapeable serving metrics.
 - Tests for artifact round-trip and API prediction behavior.
 - Dockerfile scaffold for containerized serving.
 - CI Docker image build check.
@@ -53,7 +57,6 @@ Current scope:
 
 Next hardening steps:
 
-- Add structured request/response logging and latency metrics.
 - Add drift summaries for incoming telemetry and prediction distributions.
 - Add model promotion metadata and rollback docs.
 - Add authentication/rate limiting before any public deployment.

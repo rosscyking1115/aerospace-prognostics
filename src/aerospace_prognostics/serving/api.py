@@ -2,18 +2,27 @@
 
 from __future__ import annotations
 
+import json
+import logging
 import os
+import threading
+import time
+import uuid
+from collections import defaultdict
 from pathlib import Path
 from typing import Any
 
 import pandas as pd
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.responses import PlainTextResponse
 from pydantic import BaseModel, Field
 
 from aerospace_prognostics.deployment.artifacts import (
     CmapssHgbPolicyModelArtifact,
     load_cmapss_model_artifact,
 )
+
+LOGGER = logging.getLogger("aerospace_prognostics.serving")
 
 
 class PredictRequest(BaseModel):
@@ -32,6 +41,54 @@ class PredictResponse(BaseModel):
     predictions: list[dict[str, float | int]]
 
 
+class ServingMetrics:
+    """In-memory request counters for lightweight container smoke and local serving."""
+
+    def __init__(self) -> None:
+        self._lock = threading.Lock()
+        self._request_count = 0
+        self._latency_seconds_sum = 0.0
+        self._latency_seconds_max = 0.0
+        self._status_counts: dict[tuple[str, str, int], int] = defaultdict(int)
+
+    def record(self, method: str, path: str, status_code: int, latency_seconds: float) -> None:
+        with self._lock:
+            self._request_count += 1
+            self._latency_seconds_sum += latency_seconds
+            self._latency_seconds_max = max(self._latency_seconds_max, latency_seconds)
+            self._status_counts[(method, path, status_code)] += 1
+
+    def prometheus_text(self) -> str:
+        with self._lock:
+            lines = [
+                "# HELP aerospace_prognostics_requests_total Total HTTP requests served.",
+                "# TYPE aerospace_prognostics_requests_total counter",
+                f"aerospace_prognostics_requests_total {self._request_count}",
+                "# HELP aerospace_prognostics_request_latency_seconds_sum "
+                "Cumulative HTTP request latency.",
+                "# TYPE aerospace_prognostics_request_latency_seconds_sum counter",
+                (
+                    "aerospace_prognostics_request_latency_seconds_sum "
+                    f"{self._latency_seconds_sum:.9f}"
+                ),
+                "# HELP aerospace_prognostics_request_latency_seconds_max "
+                "Maximum observed HTTP request latency.",
+                "# TYPE aerospace_prognostics_request_latency_seconds_max gauge",
+                (
+                    "aerospace_prognostics_request_latency_seconds_max "
+                    f"{self._latency_seconds_max:.9f}"
+                ),
+                "# HELP aerospace_prognostics_http_responses_total HTTP responses by route.",
+                "# TYPE aerospace_prognostics_http_responses_total counter",
+            ]
+            for (method, path, status_code), count in sorted(self._status_counts.items()):
+                lines.append(
+                    "aerospace_prognostics_http_responses_total"
+                    f'{{method="{method}",path="{path}",status_code="{status_code}"}} {count}'
+                )
+            return "\n".join(lines) + "\n"
+
+
 def create_app(artifact_path: str | Path | None = None) -> FastAPI:
     """Create a FastAPI app, optionally loading a model artifact at startup."""
 
@@ -48,6 +105,30 @@ def create_app(artifact_path: str | Path | None = None) -> FastAPI:
     )
     app.state.artifact = artifact
     app.state.artifact_path = str(configured_path) if configured_path is not None else None
+    app.state.metrics = ServingMetrics()
+
+    @app.middleware("http")
+    async def observe_requests(request: Request, call_next: Any) -> Any:
+        request_id = request.headers.get("x-request-id") or uuid.uuid4().hex
+        started = time.perf_counter()
+        status_code = 500
+        try:
+            response = await call_next(request)
+            status_code = response.status_code
+        except Exception:
+            latency_seconds = time.perf_counter() - started
+            route_path = _route_path(request)
+            app.state.metrics.record(request.method, route_path, status_code, latency_seconds)
+            _log_request(request, request_id, status_code, latency_seconds, route_path)
+            raise
+
+        latency_seconds = time.perf_counter() - started
+        route_path = _route_path(request)
+        app.state.metrics.record(request.method, route_path, status_code, latency_seconds)
+        response.headers["x-request-id"] = request_id
+        response.headers["x-process-time-ms"] = f"{latency_seconds * 1000:.3f}"
+        _log_request(request, request_id, status_code, latency_seconds, route_path)
+        return response
 
     @app.get("/health")
     def health() -> dict[str, bool | str]:
@@ -75,7 +156,39 @@ def create_app(artifact_path: str | Path | None = None) -> FastAPI:
             predictions=[prediction.to_dict() for prediction in predictions],
         )
 
+    @app.get("/metrics", response_class=PlainTextResponse)
+    def metrics() -> str:
+        return app.state.metrics.prometheus_text()
+
     return app
+
+
+def _route_path(request: Request) -> str:
+    route = request.scope.get("route")
+    path = getattr(route, "path", None)
+    return str(path or request.url.path)
+
+
+def _log_request(
+    request: Request,
+    request_id: str,
+    status_code: int,
+    latency_seconds: float,
+    route_path: str,
+) -> None:
+    LOGGER.info(
+        json.dumps(
+            {
+                "event": "http_request",
+                "request_id": request_id,
+                "method": request.method,
+                "path": route_path,
+                "status_code": status_code,
+                "latency_ms": round(latency_seconds * 1000, 3),
+            },
+            sort_keys=True,
+        )
+    )
 
 
 def _require_artifact(
