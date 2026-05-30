@@ -9,7 +9,7 @@ This note records the first Phase 2 sequence-model checkpoint. Phase 1 ended wit
 | Dataset | NASA C-MAPSS Turbofan Engine Degradation Simulation Data Set |
 | Input artifacts | `artifacts/sequences/cmapss/<subset>/{train,validation,validation_selection,test}_sequences.npz` |
 | Sequence export command | `uv run aerospace-prognostics cmapss-export-sequences --data-dir data/raw/cmapss --output-dir artifacts/sequences/cmapss --window-size 30 --stride 1` |
-| First deep model | Compact PyTorch 1D-CNN |
+| Deep model baselines | Compact PyTorch 1D-CNN; LSTM/BiLSTM |
 | Window size | 30 cycles |
 | Features | 24 standardized operating-setting and sensor channels |
 | Optimizer | Adam |
@@ -27,6 +27,8 @@ Sequence exports now separate two validation roles:
 
 ## Command
 
+CNN baseline:
+
 ```powershell
 uv run aerospace-prognostics cmapss-cnn-baseline --sequence-dir artifacts/sequences/cmapss --subsets FD001 --epochs 50 --batch-size 256 --hidden-channels 32 --learning-rate 0.001 --checkpoint-policy final --output-json artifacts/results/cmapss_cnn_fd001_final_baseline.json --output-csv artifacts/results/cmapss_cnn_fd001_final_baseline.csv --history-json artifacts/results/cmapss_cnn_fd001_final_history.json
 ```
@@ -35,6 +37,12 @@ Validation-selected checkpoint run:
 
 ```powershell
 uv run aerospace-prognostics cmapss-cnn-baseline --sequence-dir artifacts/sequences/cmapss --subsets FD001 --epochs 50 --batch-size 256 --hidden-channels 32 --learning-rate 0.001 --checkpoint-policy validation_nasa --output-json artifacts/results/cmapss_cnn_fd001_baseline.json --output-csv artifacts/results/cmapss_cnn_fd001_baseline.csv --history-json artifacts/results/cmapss_cnn_fd001_history.json
+```
+
+LSTM/BiLSTM baseline:
+
+```powershell
+uv run aerospace-prognostics cmapss-lstm-baseline --sequence-dir artifacts/sequences/cmapss --subsets FD001 --epochs 50 --batch-size 256 --hidden-size 64 --num-layers 1 --bidirectional --checkpoint-policy validation_nasa --output-json artifacts/results/cmapss_bilstm_fd001_baseline.json --output-csv artifacts/results/cmapss_bilstm_fd001_baseline.csv --history-json artifacts/results/cmapss_bilstm_fd001_history.json
 ```
 
 ## FD001 First Result
@@ -51,11 +59,11 @@ The validation-selected run is especially important. It chooses epoch 2 because 
 
 ## Current Interpretation
 
-The Phase 2 pipeline is now real: exported sequence windows feed a torch model, the model trains from the CLI, rolling validation-selection windows drive checkpoint choice, validation final-window artifacts remain available for reporting, official-test predictions are scored with the project metrics, JSON/CSV outputs use the same result container as the classical baselines, and optional history JSON records per-epoch training loss plus validation metrics.
+The Phase 2 pipeline is now real: exported sequence windows feed torch models, CNN and LSTM/BiLSTM baselines train from the CLI, rolling validation-selection windows drive checkpoint choice, validation final-window artifacts remain available for reporting, official-test predictions are scored with the project metrics, JSON/CSV outputs use the same result container as the classical baselines, and optional history JSON records per-epoch training loss plus validation metrics.
 
 The next deep-learning work should focus on model quality rather than plumbing:
 
 - Run FD001 architecture checks with wider/deeper CNNs, residual or TCN-style blocks, and learning-rate sweeps.
-- Add LSTM/BiLSTM and TCN baselines against the same sequence exports.
+- Add TCN baselines against the same sequence exports.
 - Compare all Phase 2 runs against the Phase 1 HGB policy table, especially the known FD003 validation mismatch.
 - Keep all sensors for now; Phase 1 sensor-filter validation showed EDA filtering harms FD002 and FD004.

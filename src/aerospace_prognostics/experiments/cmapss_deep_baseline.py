@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import random
+from collections.abc import Callable
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
@@ -50,6 +51,24 @@ class CmapssCnnBaselineRun:
         }
 
 
+@dataclass(frozen=True)
+class CmapssLstmBaselineRun:
+    """Full LSTM/BiLSTM baseline run with the selected official-test result."""
+
+    result: RegressionRunResult
+    selected_epoch: int
+    history: tuple[CmapssCnnTrainingEpoch, ...]
+
+    def to_dict(self) -> dict[str, Any]:
+        """Return a JSON-serialisable dictionary."""
+
+        return {
+            "result": self.result.to_dict(),
+            "selected_epoch": self.selected_epoch,
+            "history": [epoch.to_dict() for epoch in self.history],
+        }
+
+
 class CmapssOneDimensionalCnn(nn.Module):
     """Small 1D-CNN baseline over C-MAPSS sensor windows."""
 
@@ -78,6 +97,43 @@ class CmapssOneDimensionalCnn(nn.Module):
         """Predict RUL from `(batch, timesteps, features)` windows."""
 
         return self.network(windows.transpose(1, 2)).squeeze(-1)
+
+
+class CmapssLstmRegressor(nn.Module):
+    """LSTM/BiLSTM baseline over C-MAPSS sensor windows."""
+
+    def __init__(
+        self,
+        *,
+        feature_count: int,
+        hidden_size: int = 32,
+        num_layers: int = 1,
+        dropout: float = 0.1,
+        bidirectional: bool = False,
+    ) -> None:
+        super().__init__()
+        if num_layers < 1:
+            raise ValueError("num_layers must be at least 1")
+        recurrent_dropout = dropout if num_layers > 1 else 0.0
+        self.recurrent = nn.LSTM(
+            input_size=feature_count,
+            hidden_size=hidden_size,
+            num_layers=num_layers,
+            batch_first=True,
+            dropout=recurrent_dropout,
+            bidirectional=bidirectional,
+        )
+        directions = 2 if bidirectional else 1
+        self.head = nn.Sequential(
+            nn.Dropout(dropout),
+            nn.Linear(hidden_size * directions, 1),
+        )
+
+    def forward(self, windows: torch.Tensor) -> torch.Tensor:
+        """Predict RUL from `(batch, timesteps, features)` windows."""
+
+        output, _ = self.recurrent(windows)
+        return self.head(output[:, -1, :]).squeeze(-1)
 
 
 def run_cmapss_cnn_baseline(
@@ -136,6 +192,143 @@ def run_cmapss_cnn_baseline_run(
     if checkpoint_policy not in {"validation_nasa", "final"}:
         raise ValueError("checkpoint_policy must be 'validation_nasa' or 'final'")
 
+    def model_factory(feature_count: int) -> nn.Module:
+        return CmapssOneDimensionalCnn(
+            feature_count=feature_count,
+            hidden_channels=hidden_channels,
+            kernel_size=kernel_size,
+            dropout=dropout,
+        )
+
+    result, selected_epoch, history = _run_sequence_baseline_run(
+        sequence_dir,
+        subset,
+        epochs=epochs,
+        batch_size=batch_size,
+        learning_rate=learning_rate,
+        checkpoint_policy=checkpoint_policy,
+        random_state=random_state,
+        device=device,
+        model_factory=model_factory,
+        model_name_base_factory=lambda metadata: (
+            f"cnn_1d_w{metadata['window_size']}_e{epochs}_c{hidden_channels}"
+        ),
+    )
+    return CmapssCnnBaselineRun(
+        result=result,
+        selected_epoch=selected_epoch,
+        history=history,
+    )
+
+
+def run_cmapss_lstm_baseline(
+    sequence_dir: str | Path,
+    subset: str,
+    *,
+    epochs: int = 5,
+    batch_size: int = 256,
+    learning_rate: float = 1e-3,
+    hidden_size: int = 32,
+    num_layers: int = 1,
+    dropout: float = 0.1,
+    bidirectional: bool = False,
+    checkpoint_policy: str = "validation_nasa",
+    random_state: int = 42,
+    device: str = "cpu",
+) -> RegressionRunResult:
+    """Train and evaluate an LSTM/BiLSTM baseline from exported C-MAPSS sequences."""
+
+    return run_cmapss_lstm_baseline_run(
+        sequence_dir,
+        subset,
+        epochs=epochs,
+        batch_size=batch_size,
+        learning_rate=learning_rate,
+        hidden_size=hidden_size,
+        num_layers=num_layers,
+        dropout=dropout,
+        bidirectional=bidirectional,
+        checkpoint_policy=checkpoint_policy,
+        random_state=random_state,
+        device=device,
+    ).result
+
+
+def run_cmapss_lstm_baseline_run(
+    sequence_dir: str | Path,
+    subset: str,
+    *,
+    epochs: int = 5,
+    batch_size: int = 256,
+    learning_rate: float = 1e-3,
+    hidden_size: int = 32,
+    num_layers: int = 1,
+    dropout: float = 0.1,
+    bidirectional: bool = False,
+    checkpoint_policy: str = "validation_nasa",
+    random_state: int = 42,
+    device: str = "cpu",
+) -> CmapssLstmBaselineRun:
+    """Train an LSTM/BiLSTM baseline and select the best epoch by validation NASA score."""
+
+    if hidden_size < 1:
+        raise ValueError("hidden_size must be at least 1")
+    if num_layers < 1:
+        raise ValueError("num_layers must be at least 1")
+
+    def model_factory(feature_count: int) -> nn.Module:
+        return CmapssLstmRegressor(
+            feature_count=feature_count,
+            hidden_size=hidden_size,
+            num_layers=num_layers,
+            dropout=dropout,
+            bidirectional=bidirectional,
+        )
+
+    model_kind = "bilstm" if bidirectional else "lstm"
+    result, selected_epoch, history = _run_sequence_baseline_run(
+        sequence_dir,
+        subset,
+        epochs=epochs,
+        batch_size=batch_size,
+        learning_rate=learning_rate,
+        checkpoint_policy=checkpoint_policy,
+        random_state=random_state,
+        device=device,
+        model_factory=model_factory,
+        model_name_base_factory=lambda metadata: (
+            f"{model_kind}_w{metadata['window_size']}_e{epochs}_h{hidden_size}_l{num_layers}"
+        ),
+    )
+    return CmapssLstmBaselineRun(
+        result=result,
+        selected_epoch=selected_epoch,
+        history=history,
+    )
+
+
+def _run_sequence_baseline_run(
+    sequence_dir: str | Path,
+    subset: str,
+    *,
+    epochs: int,
+    batch_size: int,
+    learning_rate: float,
+    checkpoint_policy: str,
+    random_state: int,
+    device: str,
+    model_factory: Callable[[int], nn.Module],
+    model_name_base_factory: Callable[[dict[str, Any]], str],
+) -> tuple[RegressionRunResult, int, tuple[CmapssCnnTrainingEpoch, ...]]:
+    if epochs < 1:
+        raise ValueError("epochs must be at least 1")
+    if batch_size < 1:
+        raise ValueError("batch_size must be at least 1")
+    if learning_rate <= 0:
+        raise ValueError("learning_rate must be positive")
+    if checkpoint_policy not in {"validation_nasa", "final"}:
+        raise ValueError("checkpoint_policy must be 'validation_nasa' or 'final'")
+
     _seed_everything(random_state)
     paths = _sequence_paths(sequence_dir, subset)
     train_payload = _load_sequence_npz(paths["train"])
@@ -144,12 +337,7 @@ def run_cmapss_cnn_baseline_run(
     metadata = _load_metadata(paths["metadata"])
 
     torch_device = torch.device(device)
-    model = CmapssOneDimensionalCnn(
-        feature_count=train_payload["windows"].shape[-1],
-        hidden_channels=hidden_channels,
-        kernel_size=kernel_size,
-        dropout=dropout,
-    ).to(torch_device)
+    model = model_factory(int(train_payload["windows"].shape[-1])).to(torch_device)
     optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
     loss_function = nn.MSELoss()
     loader = DataLoader(
@@ -212,10 +400,7 @@ def run_cmapss_cnn_baseline_run(
     model.load_state_dict(selected_state)
     model.to(torch_device)
     test_predictions = _predict(model, test_payload["windows"], torch_device)
-    model_name = (
-        f"cnn_1d_w{metadata['window_size']}_e{epochs}_c{hidden_channels}"
-        f"_{selected_label}"
-    )
+    model_name = f"{model_name_base_factory(metadata)}_{selected_label}"
 
     result = RegressionRunResult(
         dataset="C-MAPSS-sequence",
@@ -235,11 +420,7 @@ def run_cmapss_cnn_baseline_run(
         random_state=random_state,
         standardize=bool(metadata["standardize"]),
     )
-    return CmapssCnnBaselineRun(
-        result=result,
-        selected_epoch=selected_epoch.epoch,
-        history=tuple(history),
-    )
+    return result, selected_epoch.epoch, tuple(history)
 
 
 def run_all_cmapss_cnn_baselines(
@@ -273,6 +454,78 @@ def run_all_cmapss_cnn_baselines(
             random_state=random_state,
             device=device,
         )
+    ]
+
+
+def run_all_cmapss_lstm_baselines(
+    sequence_dir: str | Path,
+    *,
+    subsets: tuple[str, ...],
+    epochs: int = 5,
+    batch_size: int = 256,
+    learning_rate: float = 1e-3,
+    hidden_size: int = 32,
+    num_layers: int = 1,
+    dropout: float = 0.1,
+    bidirectional: bool = False,
+    checkpoint_policy: str = "validation_nasa",
+    random_state: int = 42,
+    device: str = "cpu",
+) -> list[RegressionRunResult]:
+    """Train LSTM/BiLSTM baselines for the requested C-MAPSS subsets."""
+
+    return [
+        run.result
+        for run in run_all_cmapss_lstm_baseline_runs(
+            sequence_dir,
+            subsets=subsets,
+            epochs=epochs,
+            batch_size=batch_size,
+            learning_rate=learning_rate,
+            hidden_size=hidden_size,
+            num_layers=num_layers,
+            dropout=dropout,
+            bidirectional=bidirectional,
+            checkpoint_policy=checkpoint_policy,
+            random_state=random_state,
+            device=device,
+        )
+    ]
+
+
+def run_all_cmapss_lstm_baseline_runs(
+    sequence_dir: str | Path,
+    *,
+    subsets: tuple[str, ...],
+    epochs: int = 5,
+    batch_size: int = 256,
+    learning_rate: float = 1e-3,
+    hidden_size: int = 32,
+    num_layers: int = 1,
+    dropout: float = 0.1,
+    bidirectional: bool = False,
+    checkpoint_policy: str = "validation_nasa",
+    random_state: int = 42,
+    device: str = "cpu",
+) -> list[CmapssLstmBaselineRun]:
+    """Train full LSTM/BiLSTM baseline runs for the requested C-MAPSS subsets."""
+
+    return [
+        run_cmapss_lstm_baseline_run(
+            sequence_dir,
+            subset,
+            epochs=epochs,
+            batch_size=batch_size,
+            learning_rate=learning_rate,
+            hidden_size=hidden_size,
+            num_layers=num_layers,
+            dropout=dropout,
+            bidirectional=bidirectional,
+            checkpoint_policy=checkpoint_policy,
+            random_state=random_state,
+            device=device,
+        )
+        for subset in subsets
     ]
 
 
