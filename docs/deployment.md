@@ -36,9 +36,33 @@ Every API request receives `x-request-id` and `x-process-time-ms` response heade
 
 Prediction responses include a `monitoring` block. It compares request telemetry means against train-fit artifact reference statistics with standardized mean-shift scores, lists columns above the drift threshold, and summarizes the request's prediction distribution. The same compact monitoring summary is emitted as structured JSON logs for downstream alerting.
 
+## Promotion And Rollback
+
+Every packaged artifact includes a `promotion` metadata block with:
+
+- Stable `artifact_id` derived from model identity, selected policy, dataset shape, and official-test metrics.
+- `stage=candidate` until a human or release process marks it as promoted outside the binary artifact.
+- Official-test RMSE and NASA score, train/test row and unit counts, feature policy, HGB policy, RUL cap, and random seed.
+- Rollback instructions stating that rollback is a pointer/env change to the previous promoted artifact, not a retraining event.
+
+Promotion procedure:
+
+1. Build a candidate artifact and metadata JSON with `cmapss-package-hgb-policy`.
+2. Confirm the metadata JSON matches the intended subset, model policy, metrics, and `artifact_id`.
+3. Run local or CI smoke checks against the serving container with the candidate mounted through `AEROSPACE_PROGNOSTICS_MODEL_PATH`.
+4. Promote by updating the deployment artifact pointer, secret, mounted path, or model registry entry to the candidate artifact.
+5. Keep the previously promoted artifact available until the new model has passed telemetry drift, prediction-distribution, latency, and error-rate checks.
+
+Rollback procedure:
+
+1. Restore the previous promoted artifact pointer or container environment value.
+2. Restart or redeploy the serving process.
+3. Confirm `GET /version` reports the prior artifact metadata and `GET /health` returns `ok`.
+4. Preserve request logs and monitoring summaries from the failed candidate for post-incident review.
+
 ## Production Readiness Notes
 
-The artifact contains the trained scikit-learn model, feature policy, rolling-window configuration, operating-regime transformer when needed, train-fitted standardizer, input schema, feature schema, train-fit telemetry reference statistics, and run metadata. This makes inference reproducible without refitting preprocessing at request time.
+The artifact contains the trained scikit-learn model, feature policy, rolling-window configuration, operating-regime transformer when needed, train-fitted standardizer, input schema, feature schema, train-fit telemetry reference statistics, promotion metadata, and run metadata. This makes inference reproducible without refitting preprocessing at request time.
 
 Prediction outputs are bounded to `[0, rul_cap]` at inference time. The first real FD001 package smoke test used the validation-selected HGB policy artifact:
 
@@ -53,6 +77,7 @@ Current scope:
 - FastAPI inference surface with request validation and health/version endpoints.
 - Structured JSON request logs, request IDs, latency headers, and scrapeable serving metrics.
 - Request telemetry drift summaries and prediction-distribution monitoring.
+- Promotion metadata with stable artifact IDs and rollback runbook.
 - Tests for artifact round-trip and API prediction behavior.
 - Dockerfile scaffold for containerized serving.
 - CI Docker image build check.
@@ -60,5 +85,4 @@ Current scope:
 
 Next hardening steps:
 
-- Add model promotion metadata and rollback docs.
 - Add authentication/rate limiting before any public deployment.

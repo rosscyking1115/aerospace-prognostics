@@ -598,8 +598,12 @@ def test_cmapss_package_and_predict_artifact_commands(tmp_path, capsys) -> None:
 
     assert package_exit_code == 0
     assert "model=hist_gradient_boosting_regime_engineered_w10_r1_default" in package_output
+    assert "artifact_id=fd001-" in package_output
     assert artifact_path.exists()
     assert metadata_json.exists()
+    metadata = json.loads(metadata_json.read_text(encoding="utf-8"))
+    assert metadata["artifact"]["promotion"]["stage"] == "candidate"
+    assert metadata["artifact"]["promotion"]["rollback"]["requires_retraining"] is False
 
     predict_exit_code = main(
         [

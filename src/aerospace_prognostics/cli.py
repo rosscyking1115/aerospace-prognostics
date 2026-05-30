@@ -968,6 +968,7 @@ def main(argv: list[str] | None = None) -> int:
         print(f"model={packaged.artifact.model_name}")
         print(f"feature_policy={packaged.artifact.feature_policy}")
         print(f"hgb_policy={packaged.artifact.hgb_policy}")
+        print(f"artifact_id={packaged.artifact.promotion_metadata['artifact_id']}")
         print(f"rmse={packaged.result.rmse:.6f}")
         print(f"nasa_score={packaged.result.nasa_score:.6f}")
         if args.metadata_json is not None:

@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import hashlib
+import json
 from dataclasses import asdict, dataclass, field
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -30,7 +33,8 @@ from aerospace_prognostics.metrics import nasa_rul_score, rmse
 from aerospace_prognostics.models.baselines import hist_gradient_boosting_rul
 from aerospace_prognostics.preprocessing import FeatureStandardizer
 
-ARTIFACT_SCHEMA_VERSION = "1.0"
+ARTIFACT_SCHEMA_VERSION = "1.1"
+SUPPORTED_ARTIFACT_SCHEMA_VERSIONS = {"1.0", ARTIFACT_SCHEMA_VERSION}
 
 
 @dataclass(frozen=True)
@@ -66,6 +70,7 @@ class CmapssHgbPolicyModelArtifact:
     standardizer: FeatureStandardizer | None = None
     regime_transformer: OperatingRegimeFeatureTransformer | None = None
     reference_stats: dict[str, dict[str, float]] = field(default_factory=dict)
+    promotion_metadata: dict[str, Any] = field(default_factory=dict)
 
     def metadata(self) -> dict[str, Any]:
         """Return deployment metadata without binary model objects."""
@@ -84,6 +89,7 @@ class CmapssHgbPolicyModelArtifact:
             "input_columns": list(self.input_columns),
             "feature_columns": list(self.feature_columns),
             "reference_stats_columns": sorted(self._reference_stats),
+            "promotion": self._promotion_metadata,
         }
 
     def predict_from_frame(self, frame: pd.DataFrame) -> list[CmapssPrediction]:
@@ -131,6 +137,10 @@ class CmapssHgbPolicyModelArtifact:
     @property
     def _reference_stats(self) -> dict[str, dict[str, float]]:
         return getattr(self, "reference_stats", {})
+
+    @property
+    def _promotion_metadata(self) -> dict[str, Any]:
+        return getattr(self, "promotion_metadata", {})
 
     def _build_features(self, frame: pd.DataFrame) -> pd.DataFrame:
         if self.feature_policy == "engineered":
@@ -222,6 +232,34 @@ def train_cmapss_hgb_policy_artifact(
     predictions = np.clip(model.predict(test_features), 0.0, float(rul_cap))
     model_name = f"{model_prefix}_{hgb_policy}"
 
+    result = RegressionRunResult(
+        dataset="C-MAPSS",
+        subset=bundle.subset,
+        model_name=model_name,
+        rmse=rmse(bundle.test_rul, predictions),
+        nasa_score=nasa_rul_score(bundle.test_rul, predictions),
+        train_rows=len(bundle.train),
+        train_units=bundle.train["unit_number"].nunique(),
+        test_rows=len(bundle.test),
+        test_units=bundle.test["unit_number"].nunique(),
+        test_rul_values=len(bundle.test_rul),
+        rul_cap=rul_cap,
+        random_state=random_state,
+        standardize=standardize,
+    )
+    promotion_metadata = _promotion_metadata(
+        dataset="C-MAPSS",
+        subset=bundle.subset,
+        model_name=model_name,
+        feature_policy=feature_policy,
+        hgb_policy=hgb_policy,
+        rolling_window=rolling_window,
+        rul_cap=rul_cap,
+        random_state=random_state,
+        standardize=standardize,
+        result=result,
+    )
+
     artifact = CmapssHgbPolicyModelArtifact(
         schema_version=ARTIFACT_SCHEMA_VERSION,
         dataset="C-MAPSS",
@@ -239,21 +277,7 @@ def train_cmapss_hgb_policy_artifact(
         standardizer=standardizer,
         regime_transformer=regime_transformer,
         reference_stats=_reference_stats(bundle.train, tuple(CMAPSS_COLUMNS[1:])),
-    )
-    result = RegressionRunResult(
-        dataset="C-MAPSS",
-        subset=bundle.subset,
-        model_name=model_name,
-        rmse=rmse(bundle.test_rul, predictions),
-        nasa_score=nasa_rul_score(bundle.test_rul, predictions),
-        train_rows=len(bundle.train),
-        train_units=bundle.train["unit_number"].nunique(),
-        test_rows=len(bundle.test),
-        test_units=bundle.test["unit_number"].nunique(),
-        test_rul_values=len(bundle.test_rul),
-        rul_cap=rul_cap,
-        random_state=random_state,
-        standardize=standardize,
+        promotion_metadata=promotion_metadata,
     )
     return PackagedCmapssModel(artifact=artifact, result=result)
 
@@ -276,13 +300,16 @@ def load_cmapss_model_artifact(path: str | Path) -> CmapssHgbPolicyModelArtifact
     artifact = joblib.load(Path(path))
     if not isinstance(artifact, CmapssHgbPolicyModelArtifact):
         raise TypeError("artifact is not a CmapssHgbPolicyModelArtifact")
-    if artifact.schema_version != ARTIFACT_SCHEMA_VERSION:
+    if artifact.schema_version not in SUPPORTED_ARTIFACT_SCHEMA_VERSIONS:
         raise ValueError(
             "unsupported artifact schema version "
-            f"{artifact.schema_version!r}; expected {ARTIFACT_SCHEMA_VERSION!r}"
+            f"{artifact.schema_version!r}; expected one of "
+            f"{sorted(SUPPORTED_ARTIFACT_SCHEMA_VERSIONS)!r}"
         )
     if not hasattr(artifact, "reference_stats"):
         object.__setattr__(artifact, "reference_stats", {})
+    if not hasattr(artifact, "promotion_metadata"):
+        object.__setattr__(artifact, "promotion_metadata", {})
     return artifact
 
 
@@ -362,6 +389,54 @@ def _numeric_distribution(values: list[float]) -> dict[str, float | int | None]:
         "std": float(series.std(ddof=0)),
         "min": float(series.min()),
         "max": float(series.max()),
+    }
+
+
+def _promotion_metadata(
+    *,
+    dataset: str,
+    subset: str,
+    model_name: str,
+    feature_policy: str,
+    hgb_policy: str,
+    rolling_window: int,
+    rul_cap: int,
+    random_state: int,
+    standardize: bool,
+    result: RegressionRunResult,
+) -> dict[str, Any]:
+    created_at_utc = datetime.now(UTC).isoformat(timespec="seconds")
+    identity = {
+        "schema_version": ARTIFACT_SCHEMA_VERSION,
+        "dataset": dataset,
+        "subset": subset,
+        "model_name": model_name,
+        "feature_policy": feature_policy,
+        "hgb_policy": hgb_policy,
+        "rolling_window": rolling_window,
+        "rul_cap": rul_cap,
+        "random_state": random_state,
+        "standardize": standardize,
+        "official_test_rmse": round(result.rmse, 12),
+        "official_test_nasa_score": round(result.nasa_score, 12),
+        "train_rows": result.train_rows,
+        "train_units": result.train_units,
+        "test_rows": result.test_rows,
+        "test_units": result.test_units,
+        "test_rul_values": result.test_rul_values,
+    }
+    digest = hashlib.sha256(json.dumps(identity, sort_keys=True).encode("utf-8")).hexdigest()
+    return {
+        "artifact_id": f"{subset.lower()}-{digest[:12]}",
+        "stage": "candidate",
+        "created_at_utc": created_at_utc,
+        "selection_source": "validation-selected HGB policy",
+        "promotion_gate": "official-test metrics reviewed and serving smoke checks green",
+        "rollback": {
+            "strategy": "restore the previous promoted artifact path or container environment",
+            "requires_retraining": False,
+        },
+        "identity": identity,
     }
 
 

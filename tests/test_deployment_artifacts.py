@@ -31,6 +31,13 @@ def test_train_save_load_and_predict_cmapss_hgb_policy_artifact(tmp_path) -> Non
     assert loaded.feature_policy == "regime_engineered"
     assert "sensor_1" in loaded.reference_stats
     assert loaded.reference_stats["sensor_1"]["count"] == 6.0
+    assert loaded.promotion_metadata["artifact_id"].startswith("fd001-")
+    assert loaded.promotion_metadata["stage"] == "candidate"
+    assert loaded.promotion_metadata["identity"]["official_test_rmse"] == round(
+        packaged.result.rmse,
+        12,
+    )
+    assert loaded.metadata()["promotion"]["rollback"]["requires_retraining"] is False
     assert monitoring["predictions"]["count"] == 2
     assert monitoring["telemetry"]["alert_column_count"] >= 1
     assert "sensor_1" in monitoring["telemetry"]["columns"]
