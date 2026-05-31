@@ -125,7 +125,7 @@ That run produced 30 classical runs, 10 robust-threshold LSTM runs, 10 dynamic-t
 | P-10 | MSL | lstm_dynamic | `lstm_forecast_dynamic_threshold` | 0.182578 | 0.182578 | 0.196515 |
 | S-1 | SMAP | classical | `robust_zscore` | 0.222222 | 0.311978 | 0.287084 |
 
-The mixed sample reinforces the need for multiple baseline families. MSL channel M-2 is best served by Isolation Forest, while E-1 and C-1 favor dynamic LSTM thresholding. There is no single method that looks uniformly reliable yet.
+The mixed sample reinforces the need for multiple baseline families. MSL channel M-2 is best served by Isolation Forest, while E-1 and C-1 favor dynamic LSTM thresholding. There is no single method that looks uniformly reliable yet. The regenerated workflow summary now records aggregate winner counts and average metrics by source/model: dynamic-threshold LSTM wins 4 of 10 channels, robust-threshold LSTM wins 4 of 10, and classical methods win 2 of 10. Across all rows in this sample, robust z-score has the highest mean point-wise F1 among the classical methods, while Isolation Forest has the lowest mean false-alarm rate.
 
 If `--feature-columns` is omitted, the command uses all numeric columns from the train CSV except the label column. For SMAP/MSL channel exports, pass `feature_0 feature_1 ...` explicitly when you want to exclude the numeric `timestep` column.
 

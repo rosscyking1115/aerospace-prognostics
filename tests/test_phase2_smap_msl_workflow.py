@@ -44,6 +44,9 @@ def test_run_phase2_smap_msl_workflow_writes_expected_artifacts(tmp_path) -> Non
     assert {row["channel_id"] for row in classical_payload} == {"P-1", "M-1"}
     assert "# Phase 2 SMAP/MSL Summary" in summary
     assert "## Best Model By Point-Wise F1" in summary
+    assert "## Winner Counts" in summary
+    assert "## Average Metrics By Source And Model" in summary
+    assert "| classical | robust_zscore |" in summary
 
 
 def _write_phase2_smap_msl_fixture(root) -> None:

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -194,14 +195,85 @@ def _write_phase2_smap_msl_summary(
         "| Channel | Spacecraft | Source | Model | F1 | Point-Adjusted F1 | False Alarm Rate |",
         "|---|---|---|---|---:|---:|---:|",
     ]
-    for channel_id in sorted({row.channel_id for row in comparison_rows}):
-        best = min(
-            (row for row in comparison_rows if row.channel_id == channel_id),
-            key=lambda row: row.rank_by_f1,
-        )
+    best_rows = _best_smap_msl_rows_by_channel(comparison_rows)
+    for best in best_rows:
         lines.append(
             f"| {best.channel_id} | {best.spacecraft} | {best.source} | "
             f"{best.model_name} | {best.f1:.6f} | {best.point_adjusted_f1:.6f} | "
             f"{best.false_alarm_rate:.6f} |"
         )
+    _append_smap_msl_aggregate_table(
+        lines,
+        rows=best_rows,
+        heading="Winner Counts",
+        count_header="Channels Won",
+    )
+    _append_smap_msl_aggregate_table(
+        lines,
+        rows=comparison_rows,
+        heading="Average Metrics By Source And Model",
+        count_header="Rows",
+    )
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
+def _best_smap_msl_rows_by_channel(
+    comparison_rows: tuple[AnomalyModelComparisonRow, ...],
+) -> tuple[AnomalyModelComparisonRow, ...]:
+    best_rows: list[AnomalyModelComparisonRow] = []
+    for channel_id in sorted({row.channel_id for row in comparison_rows}):
+        best_rows.append(
+            min(
+                (row for row in comparison_rows if row.channel_id == channel_id),
+                key=lambda row: row.rank_by_f1,
+            )
+        )
+    return tuple(best_rows)
+
+
+def _append_smap_msl_aggregate_table(
+    lines: list[str],
+    *,
+    rows: tuple[AnomalyModelComparisonRow, ...],
+    heading: str,
+    count_header: str,
+) -> None:
+    lines.extend(
+        [
+            "",
+            f"## {heading}",
+            "",
+            (
+                f"| Source | Model | {count_header} | Mean F1 | "
+                "Mean Point-Adjusted F1 | Mean False Alarm Rate |"
+            ),
+            "|---|---|---:|---:|---:|---:|",
+        ]
+    )
+    for source, model_name, group in _group_smap_msl_rows_by_model(rows):
+        mean_f1 = _mean_smap_msl_metric(row.f1 for row in group)
+        mean_point_adjusted_f1 = _mean_smap_msl_metric(row.point_adjusted_f1 for row in group)
+        mean_false_alarm_rate = _mean_smap_msl_metric(row.false_alarm_rate for row in group)
+        lines.append(
+            f"| {source} | {model_name} | {len(group)} | {mean_f1:.6f} | "
+            f"{mean_point_adjusted_f1:.6f} | {mean_false_alarm_rate:.6f} |"
+        )
+
+
+def _group_smap_msl_rows_by_model(
+    rows: tuple[AnomalyModelComparisonRow, ...],
+) -> tuple[tuple[str, str, tuple[AnomalyModelComparisonRow, ...]], ...]:
+    grouped: dict[tuple[str, str], list[AnomalyModelComparisonRow]] = {}
+    for row in rows:
+        grouped.setdefault((row.source, row.model_name), []).append(row)
+    return tuple(
+        (source, model_name, tuple(grouped[(source, model_name)]))
+        for source, model_name in sorted(grouped)
+    )
+
+
+def _mean_smap_msl_metric(values: Iterable[float]) -> float:
+    sequence = tuple(values)
+    if not sequence:
+        raise ValueError("cannot average an empty metric sequence")
+    return sum(sequence) / len(sequence)
