@@ -94,6 +94,23 @@ def test_run_smap_msl_lstm_forecast_baseline_scores_selected_channel(tmp_path) -
     assert len(runs[0].history) == 1
 
 
+def test_run_smap_msl_lstm_forecast_baseline_supports_dynamic_thresholding(tmp_path) -> None:
+    _write_multi_channel_smap_msl(tmp_path)
+
+    runs = run_smap_msl_lstm_forecast_baseline(
+        tmp_path,
+        channels=("P-1",),
+        window_size=2,
+        hidden_size=4,
+        epochs=1,
+        batch_size=2,
+        threshold_method="dynamic",
+    )
+
+    assert runs[0].model_name == "lstm_forecast_dynamic_threshold"
+    assert runs[0].model_config["threshold_method"] == "dynamic"
+
+
 def test_write_smap_msl_lstm_forecast_baseline_outputs(tmp_path) -> None:
     _write_multi_channel_smap_msl(tmp_path)
     runs = run_smap_msl_lstm_forecast_baseline(

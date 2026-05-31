@@ -15,6 +15,10 @@ from aerospace_prognostics.anomaly.baselines import (
     run_classical_anomaly_baselines,
     run_robust_zscore_baseline,
 )
+from aerospace_prognostics.anomaly.forecasting import (
+    LSTM_FORECAST_THRESHOLD_METHODS,
+    DynamicThresholdConfig,
+)
 from aerospace_prognostics.data.cmapss import CMAPSS_SUBSETS, load_cmapss_subset
 from aerospace_prognostics.data.downloads import (
     NASA_CMAPSS_URL,
@@ -728,6 +732,19 @@ def _build_parser() -> argparse.ArgumentParser:
     smap_msl_lstm.add_argument("--batch-size", type=int, default=64)
     smap_msl_lstm.add_argument("--learning-rate", type=float, default=1e-3)
     smap_msl_lstm.add_argument("--threshold-sigma", type=float, default=3.0)
+    smap_msl_lstm.add_argument(
+        "--threshold-method",
+        choices=LSTM_FORECAST_THRESHOLD_METHODS,
+        default="robust",
+    )
+    smap_msl_lstm.add_argument("--dynamic-batch-size", type=int, default=70)
+    smap_msl_lstm.add_argument("--dynamic-window-batches", type=int, default=30)
+    smap_msl_lstm.add_argument("--dynamic-smoothing-fraction", type=float, default=0.05)
+    smap_msl_lstm.add_argument("--dynamic-z-start", type=float, default=2.5)
+    smap_msl_lstm.add_argument("--dynamic-z-stop", type=float, default=12.0)
+    smap_msl_lstm.add_argument("--dynamic-z-step", type=float, default=0.5)
+    smap_msl_lstm.add_argument("--dynamic-error-buffer", type=int, default=100)
+    smap_msl_lstm.add_argument("--dynamic-prune-p", type=float, default=0.13)
     smap_msl_lstm.add_argument("--random-state", type=int, default=42)
     smap_msl_lstm.add_argument("--device", default="cpu")
     smap_msl_lstm.add_argument("--output-json", type=Path)
@@ -1703,6 +1720,17 @@ def main(argv: list[str] | None = None) -> int:
             batch_size=args.batch_size,
             learning_rate=args.learning_rate,
             threshold_sigma=args.threshold_sigma,
+            threshold_method=args.threshold_method,
+            dynamic_threshold_config=DynamicThresholdConfig(
+                batch_size=args.dynamic_batch_size,
+                window_batches=args.dynamic_window_batches,
+                smoothing_fraction=args.dynamic_smoothing_fraction,
+                z_start=args.dynamic_z_start,
+                z_stop=args.dynamic_z_stop,
+                z_step=args.dynamic_z_step,
+                error_buffer=args.dynamic_error_buffer,
+                p=args.dynamic_prune_p,
+            ),
             random_state=args.random_state,
             device=args.device,
         )

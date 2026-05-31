@@ -1163,6 +1163,43 @@ def test_smap_msl_lstm_forecast_baseline_command_writes_outputs(tmp_path, capsys
     assert output_csv.exists()
 
 
+def test_smap_msl_lstm_forecast_baseline_command_supports_dynamic_threshold(
+    tmp_path,
+    capsys,
+) -> None:
+    _write_cli_smap_msl_channel(tmp_path)
+
+    exit_code = main(
+        [
+            "smap-msl-lstm-forecast-baseline",
+            "--data-dir",
+            str(tmp_path),
+            "--channels",
+            "P-1",
+            "--window-size",
+            "2",
+            "--hidden-size",
+            "4",
+            "--epochs",
+            "1",
+            "--batch-size",
+            "2",
+            "--threshold-method",
+            "dynamic",
+            "--dynamic-batch-size",
+            "2",
+            "--dynamic-window-batches",
+            "1",
+            "--dynamic-error-buffer",
+            "0",
+        ]
+    )
+    output = capsys.readouterr().out
+
+    assert exit_code == 0
+    assert "P-1,SMAP,lstm_forecast_dynamic_threshold" in output
+
+
 def test_cmapss_package_and_predict_artifact_commands(tmp_path, capsys) -> None:
     write_tiny_cmapss_subset(tmp_path)
     artifact_path = tmp_path / "models" / "fd001.joblib"

@@ -12,6 +12,7 @@ from aerospace_prognostics.anomaly.baselines import (
     run_classical_anomaly_baselines,
 )
 from aerospace_prognostics.anomaly.forecasting import (
+    DynamicThresholdConfig,
     LstmForecastTrainingEpoch,
     run_lstm_forecast_anomaly_baseline,
 )
@@ -147,6 +148,8 @@ def run_smap_msl_lstm_forecast_baseline(
     batch_size: int = 64,
     learning_rate: float = 1e-3,
     threshold_sigma: float = 3.0,
+    threshold_method: str = "robust",
+    dynamic_threshold_config: DynamicThresholdConfig | None = None,
     random_state: int = 42,
     device: str = "cpu",
 ) -> tuple[SmapMslLstmForecastBaselineRun, ...]:
@@ -169,6 +172,8 @@ def run_smap_msl_lstm_forecast_baseline(
             batch_size=batch_size,
             learning_rate=learning_rate,
             threshold_sigma=threshold_sigma,
+            threshold_method=threshold_method,
+            dynamic_threshold_config=dynamic_threshold_config,
             random_state=random_state,
             device=device,
         )

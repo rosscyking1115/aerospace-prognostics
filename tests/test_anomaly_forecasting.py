@@ -5,6 +5,7 @@ import pytest
 import torch
 
 from aerospace_prognostics.anomaly.forecasting import (
+    DynamicThresholdConfig,
     TelemetryLstmForecaster,
     run_lstm_forecast_anomaly_baseline,
 )
@@ -46,6 +47,39 @@ def test_run_lstm_forecast_anomaly_baseline_tracks_history_and_scores() -> None:
     assert result.scores[1] == 0.0
     assert result.metrics.support == 2
     assert result.model_config["threshold"] > 0
+
+
+def test_run_lstm_forecast_anomaly_baseline_supports_dynamic_thresholding() -> None:
+    train = np.array(
+        [[0.0, 0.0], [0.1, 0.1], [0.2, 0.2], [0.3, 0.3], [0.4, 0.4], [0.5, 0.5]]
+    )
+    test = np.array(
+        [[0.0, 0.0], [0.1, 0.1], [4.0, -4.0], [4.5, -4.5], [0.2, 0.2], [0.3, 0.3]]
+    )
+    labels = np.array([0, 0, 1, 1, 0, 0])
+
+    result = run_lstm_forecast_anomaly_baseline(
+        train,
+        test,
+        labels,
+        feature_names=("feature_0", "feature_1"),
+        window_size=2,
+        hidden_size=4,
+        epochs=1,
+        batch_size=2,
+        threshold_method="dynamic",
+        dynamic_threshold_config=DynamicThresholdConfig(
+            batch_size=2,
+            window_batches=1,
+            error_buffer=0,
+            smoothing_fraction=0.1,
+        ),
+    )
+
+    assert result.model_name == "lstm_forecast_dynamic_threshold"
+    assert result.model_config["threshold_method"] == "dynamic"
+    assert result.model_config["dynamic_threshold_config"]["batch_size"] == 2
+    assert len(result.predictions) == len(test)
 
 
 def test_run_lstm_forecast_anomaly_baseline_rejects_short_series() -> None:
