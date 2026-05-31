@@ -12,7 +12,7 @@ uv run aerospace-prognostics serve-api --model-artifact artifacts/models/cmapss_
 
 ## Container Serving
 
-The serving image does not bundle a model artifact. A clean container starts and reports `missing_model` from `GET /health`, which lets CI validate the image without committing generated artifacts. `GET /ready` returns HTTP 503 until a model artifact is loaded, so orchestrators can distinguish a live container from one that is ready for prediction traffic.
+The serving image does not bundle a model artifact. A clean container starts and reports `missing_model` from `GET /health`, which lets CI validate the image without committing generated artifacts. `GET /ready` returns HTTP 503 until a model artifact is loaded, so orchestrators can distinguish a live container from one that is ready for prediction traffic. When ready, the endpoint returns a minimal artifact identity with schema version, dataset, subset, model name, artifact ID, and stage; full metadata remains behind authenticated `GET /version`.
 
 Run the image with an explicit model mount and environment variable when serving predictions:
 
@@ -68,7 +68,7 @@ Rollback procedure:
 
 1. Restore the previous promoted artifact pointer or container environment value.
 2. Restart or redeploy the serving process.
-3. Confirm `GET /version` reports the prior artifact metadata, `GET /health` returns `ok`, and `GET /ready` returns `ready`.
+3. Confirm `GET /version` reports the prior artifact metadata, `GET /health` returns `ok`, and `GET /ready` returns `ready` with the prior artifact ID.
 4. Preserve request logs and monitoring summaries from the failed candidate for post-incident review.
 
 ## Production Readiness Notes
@@ -86,6 +86,7 @@ Current scope:
 - Local model artifact packaging with `joblib`.
 - Batch inference from CSV.
 - FastAPI inference surface with request validation, liveness, readiness, and version endpoints.
+- Public readiness identity for loaded artifacts without exposing full version metadata.
 - Structured JSON request logs, request IDs, latency headers, and scrapeable serving metrics.
 - Request telemetry drift summaries and prediction-distribution monitoring.
 - Promotion metadata with stable artifact IDs and rollback runbook.

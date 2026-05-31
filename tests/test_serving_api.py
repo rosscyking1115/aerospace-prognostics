@@ -35,7 +35,17 @@ def test_serving_api_health_version_and_predict(tmp_path) -> None:
     assert health.status_code == 200
     assert health.json()["status"] == "ok"
     assert ready.status_code == 200
-    assert ready.json() == {"status": "ready", "model_loaded": True}
+    ready_payload = ready.json()
+    assert ready_payload["status"] == "ready"
+    assert ready_payload["model_loaded"] is True
+    assert ready_payload["model"] == {
+        "schema_version": artifact.schema_version,
+        "dataset": "C-MAPSS",
+        "subset": "FD001",
+        "model_name": artifact.model_name,
+        "artifact_id": artifact.promotion_metadata["artifact_id"],
+        "stage": "candidate",
+    }
     assert version.status_code == 200
     assert version.json()["subset"] == "FD001"
     assert response.status_code == 200
@@ -84,6 +94,7 @@ def test_serving_api_enforces_optional_api_key(tmp_path) -> None:
     assert health.status_code == 200
     assert ready.status_code == 200
     assert ready.json()["status"] == "ready"
+    assert ready.json()["model"]["artifact_id"] == artifact.promotion_metadata["artifact_id"]
     assert missing_key.status_code == 401
     assert missing_key.headers["www-authenticate"] == "ApiKey"
     assert bad_key.status_code == 401

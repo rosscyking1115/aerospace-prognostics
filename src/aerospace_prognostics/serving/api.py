@@ -201,9 +201,8 @@ def create_app(
 
     @app.get("/ready", response_model=None)
     def ready() -> dict[str, bool | str] | JSONResponse:
-        loaded = app.state.artifact is not None
-        payload = {"status": "ready" if loaded else "missing_model", "model_loaded": loaded}
-        if not loaded:
+        payload = _readiness_payload(app.state.artifact)
+        if app.state.artifact is None:
             return JSONResponse(status_code=503, content=payload)
         return payload
 
@@ -283,6 +282,26 @@ def _api_key_from_request(request: Request) -> str | None:
     if scheme.lower() == "bearer" and token:
         return token
     return None
+
+
+def _readiness_payload(
+    artifact: CmapssHgbPolicyModelArtifact | None,
+) -> dict[str, Any]:
+    loaded = artifact is not None
+    payload: dict[str, Any] = {
+        "status": "ready" if loaded else "missing_model",
+        "model_loaded": loaded,
+    }
+    if artifact is not None:
+        payload["model"] = {
+            "schema_version": artifact.schema_version,
+            "dataset": artifact.dataset,
+            "subset": artifact.subset,
+            "model_name": artifact.model_name,
+            "artifact_id": artifact.promotion_metadata.get("artifact_id"),
+            "stage": artifact.promotion_metadata.get("stage"),
+        }
+    return payload
 
 
 def _route_path(request: Request) -> str:
