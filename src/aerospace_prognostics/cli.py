@@ -71,6 +71,12 @@ from aerospace_prognostics.experiments.cmapss_deep_baseline import (
     run_all_cmapss_transformer_baseline_runs,
     run_cmapss_deep_baseline_comparison,
 )
+from aerospace_prognostics.experiments.smap_msl_anomaly import (
+    SmapMslClassicalBaselineRun,
+    run_smap_msl_classical_baselines,
+    write_smap_msl_classical_baselines_csv,
+    write_smap_msl_classical_baselines_json,
+)
 from aerospace_prognostics.reports.cmapss_model_comparison import (
     CmapssModelComparisonRow,
     build_cmapss_model_comparison,
@@ -660,6 +666,27 @@ def _build_parser() -> argparse.ArgumentParser:
     smap_msl_export.add_argument("--channel-id", required=True)
     smap_msl_export.add_argument("--output-dir", type=Path, required=True)
     smap_msl_export.add_argument("--metadata-json", type=Path)
+
+    smap_msl_classical = subparsers.add_parser(
+        "smap-msl-classical-baselines",
+        help="Run classical anomaly baselines across raw Telemanom SMAP/MSL channels",
+    )
+    smap_msl_classical.add_argument("--data-dir", type=Path, required=True)
+    smap_msl_classical.add_argument("--channels", nargs="+")
+    smap_msl_classical.add_argument("--max-channels", type=int)
+    smap_msl_classical.add_argument(
+        "--methods",
+        nargs="+",
+        choices=CLASSICAL_ANOMALY_BASELINE_METHODS,
+        default=list(CLASSICAL_ANOMALY_BASELINE_METHODS),
+    )
+    smap_msl_classical.add_argument("--robust-threshold", type=float, default=3.5)
+    smap_msl_classical.add_argument("--pca-components", type=int)
+    smap_msl_classical.add_argument("--pca-threshold-quantile", type=float, default=0.99)
+    smap_msl_classical.add_argument("--isolation-contamination", type=float, default=0.05)
+    smap_msl_classical.add_argument("--random-state", type=int, default=42)
+    smap_msl_classical.add_argument("--output-json", type=Path)
+    smap_msl_classical.add_argument("--output-csv", type=Path)
 
     package_hgb = subparsers.add_parser(
         "cmapss-package-hgb-policy",
@@ -1580,6 +1607,27 @@ def main(argv: list[str] | None = None) -> int:
             _write_json_payload(export.to_dict(), args.metadata_json)
         return 0
 
+    if args.command == "smap-msl-classical-baselines":
+        runs = run_smap_msl_classical_baselines(
+            args.data_dir,
+            channels=tuple(args.channels) if args.channels is not None else None,
+            max_channels=args.max_channels,
+            methods=tuple(args.methods),
+            robust_threshold=args.robust_threshold,
+            pca_components=args.pca_components,
+            pca_threshold_quantile=args.pca_threshold_quantile,
+            isolation_contamination=args.isolation_contamination,
+            random_state=args.random_state,
+        )
+        print(f"channels={len(_smap_msl_result_channels(runs))}")
+        print(f"runs={len(runs)}")
+        _print_smap_msl_classical_table(runs)
+        if args.output_json is not None:
+            write_smap_msl_classical_baselines_json(runs, args.output_json)
+        if args.output_csv is not None:
+            write_smap_msl_classical_baselines_csv(runs, args.output_csv)
+        return 0
+
     if args.command == "cmapss-package-hgb-policy":
         packaged = train_cmapss_hgb_policy_artifact(
             args.data_dir,
@@ -1668,6 +1716,25 @@ def _print_comparison_table(rows: Iterable[CmapssModelComparisonRow]) -> None:
             f"{row.rmse_delta:.6f},{row.nasa_score_delta:.6f},"
             f"{row.nasa_score_ratio:.6f}"
         )
+
+
+def _print_smap_msl_classical_table(runs: Iterable[SmapMslClassicalBaselineRun]) -> None:
+    print("channel_id,spacecraft,model,precision,recall,f1,point_adjusted_f1,false_alarm_rate")
+    for run in runs:
+        print(
+            f"{run.channel_id},"
+            f"{run.spacecraft},"
+            f"{run.model_name},"
+            f"{run.metrics.precision:.6f},"
+            f"{run.metrics.recall:.6f},"
+            f"{run.metrics.f1:.6f},"
+            f"{run.point_adjusted_metrics.f1:.6f},"
+            f"{run.metrics.false_alarm_rate:.6f}"
+        )
+
+
+def _smap_msl_result_channels(runs: Iterable[SmapMslClassicalBaselineRun]) -> tuple[str, ...]:
+    return tuple(dict.fromkeys(run.channel_id for run in runs))
 
 
 def _comparison_subsets(rows: Iterable[CmapssModelComparisonRow]) -> list[str]:

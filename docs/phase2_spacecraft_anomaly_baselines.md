@@ -43,6 +43,12 @@ Classical comparison:
 uv run aerospace-prognostics telemetry-classical-anomaly-baselines --train-csv artifacts/smap_msl_channels/P-1/train.csv --test-csv artifacts/smap_msl_channels/P-1/test.csv --label-column label --feature-columns feature_0 feature_1 --output-json artifacts/results/smap_msl_p1_classical_baselines.json --output-csv artifacts/results/smap_msl_p1_classical_baselines.csv --predictions-csv artifacts/results/smap_msl_p1_classical_predictions.csv
 ```
 
+Direct multi-channel SMAP/MSL comparison:
+
+```powershell
+uv run aerospace-prognostics smap-msl-classical-baselines --data-dir data/raw/smap_msl --max-channels 5 --output-json artifacts/results/smap_msl_classical_baselines_sample.json --output-csv artifacts/results/smap_msl_classical_baselines_sample.csv
+```
+
 If `--feature-columns` is omitted, the command uses all numeric columns from the train CSV except the label column. For SMAP/MSL channel exports, pass `feature_0 feature_1 ...` explicitly when you want to exclude the numeric `timestep` column.
 
 ## Metric Note
@@ -53,8 +59,8 @@ Point-adjustment is included because it is common in time-series anomaly papers,
 
 ## Current Status
 
-This is not yet a reproduced SMAP/MSL Telemanom LSTM baseline. It is the Track B plumbing layer: raw SMAP/MSL loading, robust statistics, PCA reconstruction, Isolation Forest, metric handling, artifact formats, and CLI execution. The next Track B steps are:
+This is not yet a reproduced SMAP/MSL Telemanom LSTM baseline. It is the Track B plumbing layer: raw SMAP/MSL loading, direct multi-channel classical runs, robust statistics, PCA reconstruction, Isolation Forest, metric handling, artifact formats, and CLI execution. The next Track B steps are:
 
-- run the classical comparison on real SMAP/MSL channels and record an initial table
+- run the direct multi-channel comparison on real SMAP/MSL channels and record an initial table
 - reproduce the forecasting-plus-dynamic-threshold LSTM baseline on the prepared SMAP/MSL split
 - move serious benchmark claims to ESA-ADB with its official evaluation tools
