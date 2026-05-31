@@ -1154,6 +1154,38 @@ def test_smap_msl_classical_baselines_command_writes_outputs(tmp_path, capsys) -
     assert output_csv.exists()
 
 
+def test_smap_msl_robust_threshold_sweep_command_writes_outputs(tmp_path, capsys) -> None:
+    _write_cli_smap_msl_channel(tmp_path)
+    output_csv = tmp_path / "results" / "robust_sweep.csv"
+    aggregate_csv = tmp_path / "results" / "robust_sweep_aggregate.csv"
+
+    exit_code = main(
+        [
+            "smap-msl-robust-threshold-sweep",
+            "--data-dir",
+            str(tmp_path),
+            "--channels",
+            "P-1",
+            "--thresholds",
+            "2.0",
+            "4.0",
+            "--output-csv",
+            str(output_csv),
+            "--aggregate-csv",
+            str(aggregate_csv),
+        ]
+    )
+    output = capsys.readouterr().out
+
+    assert exit_code == 0
+    assert "channels=1" in output
+    assert "thresholds=2,4" in output
+    assert "runs=2" in output
+    assert "threshold,channels,wins_by_f1" in output
+    assert output_csv.exists()
+    assert aggregate_csv.exists()
+
+
 def test_smap_msl_lstm_forecast_baseline_command_writes_outputs(tmp_path, capsys) -> None:
     _write_cli_smap_msl_channel(tmp_path)
     output_json = tmp_path / "results" / "smap_lstm.json"

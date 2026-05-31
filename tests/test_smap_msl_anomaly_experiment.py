@@ -6,12 +6,16 @@ import numpy as np
 import pytest
 
 from aerospace_prognostics.experiments.smap_msl_anomaly import (
+    aggregate_smap_msl_robust_threshold_sweep,
     run_smap_msl_classical_baselines,
     run_smap_msl_lstm_forecast_baseline,
+    run_smap_msl_robust_threshold_sweep,
     write_smap_msl_classical_baselines_csv,
     write_smap_msl_classical_baselines_json,
     write_smap_msl_lstm_forecast_baseline_csv,
     write_smap_msl_lstm_forecast_baseline_json,
+    write_smap_msl_robust_threshold_sweep_aggregate_csv,
+    write_smap_msl_robust_threshold_sweep_csv,
 )
 
 
@@ -82,6 +86,40 @@ def test_write_smap_msl_classical_baseline_outputs(tmp_path) -> None:
     assert payload[0]["model_name"] == "robust_zscore"
     assert "channel_id,spacecraft,model_name" in csv_text
     assert "P-1,SMAP,robust_zscore" in csv_text
+
+
+def test_run_smap_msl_robust_threshold_sweep_aggregates_thresholds(tmp_path) -> None:
+    _write_multi_channel_smap_msl(tmp_path)
+
+    runs = run_smap_msl_robust_threshold_sweep(
+        tmp_path,
+        channels=("P-1", "C-1"),
+        thresholds=(2.0, 4.0),
+    )
+    aggregates = aggregate_smap_msl_robust_threshold_sweep(runs)
+
+    assert len(runs) == 4
+    assert [aggregate.threshold for aggregate in aggregates] == [2.0, 4.0]
+    assert all(aggregate.channels == 2 for aggregate in aggregates)
+    assert sum(aggregate.wins_by_f1 for aggregate in aggregates) == 2
+
+
+def test_write_smap_msl_robust_threshold_sweep_outputs(tmp_path) -> None:
+    _write_multi_channel_smap_msl(tmp_path)
+    runs = run_smap_msl_robust_threshold_sweep(
+        tmp_path,
+        channels=("P-1",),
+        thresholds=(2.0, 4.0),
+    )
+    aggregates = aggregate_smap_msl_robust_threshold_sweep(runs)
+    output_csv = tmp_path / "results" / "robust_sweep.csv"
+    aggregate_csv = tmp_path / "results" / "robust_sweep_aggregate.csv"
+
+    write_smap_msl_robust_threshold_sweep_csv(runs, output_csv)
+    write_smap_msl_robust_threshold_sweep_aggregate_csv(aggregates, aggregate_csv)
+
+    assert "channel_id,spacecraft,threshold" in output_csv.read_text(encoding="utf-8")
+    assert "threshold,channels,wins_by_f1" in aggregate_csv.read_text(encoding="utf-8")
 
 
 def test_run_smap_msl_lstm_forecast_baseline_scores_selected_channel(tmp_path) -> None:

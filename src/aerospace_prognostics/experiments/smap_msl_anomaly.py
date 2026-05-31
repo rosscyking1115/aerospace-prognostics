@@ -4,12 +4,14 @@ from __future__ import annotations
 
 import csv
 import json
+from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
 
 from aerospace_prognostics.anomaly.baselines import (
     CLASSICAL_ANOMALY_BASELINE_METHODS,
     run_classical_anomaly_baselines,
+    run_robust_zscore_baseline,
 )
 from aerospace_prognostics.anomaly.forecasting import (
     DynamicThresholdConfig,
@@ -86,6 +88,64 @@ class SmapMslLstmForecastBaselineRun:
         }
 
 
+@dataclass(frozen=True)
+class SmapMslRobustThresholdSweepRun:
+    """One robust z-score threshold result on one SMAP/MSL channel."""
+
+    channel_id: str
+    spacecraft: str
+    threshold: float
+    train_rows: int
+    test_rows: int
+    feature_count: int
+    anomaly_sequences: int
+    anomaly_points: int
+    metrics: AnomalyDetectionMetrics
+    point_adjusted_metrics: AnomalyDetectionMetrics
+
+    def to_dict(self) -> dict[str, object]:
+        return {
+            "channel_id": self.channel_id,
+            "spacecraft": self.spacecraft,
+            "threshold": self.threshold,
+            "train_rows": self.train_rows,
+            "test_rows": self.test_rows,
+            "feature_count": self.feature_count,
+            "anomaly_sequences": self.anomaly_sequences,
+            "anomaly_points": self.anomaly_points,
+            "metrics": self.metrics.to_dict(),
+            "point_adjusted_metrics": self.point_adjusted_metrics.to_dict(),
+        }
+
+
+@dataclass(frozen=True)
+class SmapMslRobustThresholdSweepAggregate:
+    """Aggregate robust z-score threshold metrics across selected SMAP/MSL channels."""
+
+    threshold: float
+    channels: int
+    wins_by_f1: int
+    mean_precision: float
+    mean_recall: float
+    mean_f1: float
+    mean_point_adjusted_f1: float
+    mean_false_alarm_rate: float
+    mean_miss_rate: float
+
+    def to_dict(self) -> dict[str, object]:
+        return {
+            "threshold": self.threshold,
+            "channels": self.channels,
+            "wins_by_f1": self.wins_by_f1,
+            "mean_precision": self.mean_precision,
+            "mean_recall": self.mean_recall,
+            "mean_f1": self.mean_f1,
+            "mean_point_adjusted_f1": self.mean_point_adjusted_f1,
+            "mean_false_alarm_rate": self.mean_false_alarm_rate,
+            "mean_miss_rate": self.mean_miss_rate,
+        }
+
+
 def run_smap_msl_classical_baselines(
     data_dir: Path,
     *,
@@ -133,6 +193,79 @@ def run_smap_msl_classical_baselines(
                 )
             )
     return tuple(runs)
+
+
+def run_smap_msl_robust_threshold_sweep(
+    data_dir: Path,
+    *,
+    thresholds: tuple[float, ...],
+    channels: tuple[str, ...] | None = None,
+    max_channels: int | None = None,
+) -> tuple[SmapMslRobustThresholdSweepRun, ...]:
+    """Sweep robust z-score thresholds across raw SMAP/MSL channel arrays."""
+
+    if not thresholds:
+        raise ValueError("thresholds must contain at least one value")
+    if any(threshold <= 0 for threshold in thresholds):
+        raise ValueError("thresholds must be positive")
+    channel_ids = _selected_channel_ids(data_dir, channels=channels, max_channels=max_channels)
+    runs: list[SmapMslRobustThresholdSweepRun] = []
+    for channel_id in channel_ids:
+        channel = load_smap_msl_channel(data_dir, channel_id)
+        for threshold in thresholds:
+            result = run_robust_zscore_baseline(
+                channel.train_values,
+                channel.test_values,
+                channel.test_labels,
+                feature_names=channel.feature_names,
+                threshold=threshold,
+            )
+            runs.append(
+                SmapMslRobustThresholdSweepRun(
+                    channel_id=channel.metadata.channel_id,
+                    spacecraft=channel.metadata.spacecraft,
+                    threshold=float(threshold),
+                    train_rows=len(channel.train_values),
+                    test_rows=len(channel.test_values),
+                    feature_count=len(channel.feature_names),
+                    anomaly_sequences=len(channel.metadata.anomaly_sequences),
+                    anomaly_points=int(channel.test_labels.sum()),
+                    metrics=result.metrics,
+                    point_adjusted_metrics=result.point_adjusted_metrics,
+                )
+            )
+    return tuple(runs)
+
+
+def aggregate_smap_msl_robust_threshold_sweep(
+    runs: tuple[SmapMslRobustThresholdSweepRun, ...],
+) -> tuple[SmapMslRobustThresholdSweepAggregate, ...]:
+    """Aggregate robust threshold sweep results by threshold."""
+
+    if not runs:
+        raise ValueError("runs must contain at least one item")
+    winners = _robust_threshold_wins_by_channel(runs)
+    aggregates: list[SmapMslRobustThresholdSweepAggregate] = []
+    for threshold in sorted({run.threshold for run in runs}):
+        threshold_runs = tuple(run for run in runs if run.threshold == threshold)
+        aggregates.append(
+            SmapMslRobustThresholdSweepAggregate(
+                threshold=threshold,
+                channels=len(threshold_runs),
+                wins_by_f1=winners.get(threshold, 0),
+                mean_precision=_mean(run.metrics.precision for run in threshold_runs),
+                mean_recall=_mean(run.metrics.recall for run in threshold_runs),
+                mean_f1=_mean(run.metrics.f1 for run in threshold_runs),
+                mean_point_adjusted_f1=_mean(
+                    run.point_adjusted_metrics.f1 for run in threshold_runs
+                ),
+                mean_false_alarm_rate=_mean(
+                    run.metrics.false_alarm_rate for run in threshold_runs
+                ),
+                mean_miss_rate=_mean(run.metrics.miss_rate for run in threshold_runs),
+            )
+        )
+    return tuple(aggregates)
 
 
 def run_smap_msl_lstm_forecast_baseline(
@@ -269,6 +402,94 @@ def write_smap_msl_classical_baselines_csv(
             )
 
 
+def write_smap_msl_robust_threshold_sweep_json(
+    runs: tuple[SmapMslRobustThresholdSweepRun, ...],
+    path: Path,
+) -> None:
+    """Write SMAP/MSL robust threshold sweep runs as JSON."""
+
+    output_path = _prepare_output_path(path)
+    payload = [run.to_dict() for run in runs]
+    output_path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n")
+
+
+def write_smap_msl_robust_threshold_sweep_csv(
+    runs: tuple[SmapMslRobustThresholdSweepRun, ...],
+    path: Path,
+) -> None:
+    """Write SMAP/MSL robust threshold sweep runs as a compact metrics table."""
+
+    output_path = _prepare_output_path(path)
+    fieldnames = [
+        "channel_id",
+        "spacecraft",
+        "threshold",
+        "train_rows",
+        "test_rows",
+        "feature_count",
+        "anomaly_sequences",
+        "anomaly_points",
+        "precision",
+        "recall",
+        "f1",
+        "point_adjusted_f1",
+        "false_alarm_rate",
+        "miss_rate",
+        "support",
+        "predicted_positives",
+    ]
+    with output_path.open("w", encoding="utf-8", newline="") as file:
+        writer = csv.DictWriter(file, fieldnames=fieldnames)
+        writer.writeheader()
+        for run in runs:
+            writer.writerow(
+                {
+                    "channel_id": run.channel_id,
+                    "spacecraft": run.spacecraft,
+                    "threshold": f"{run.threshold:.12g}",
+                    "train_rows": run.train_rows,
+                    "test_rows": run.test_rows,
+                    "feature_count": run.feature_count,
+                    "anomaly_sequences": run.anomaly_sequences,
+                    "anomaly_points": run.anomaly_points,
+                    "precision": f"{run.metrics.precision:.12g}",
+                    "recall": f"{run.metrics.recall:.12g}",
+                    "f1": f"{run.metrics.f1:.12g}",
+                    "point_adjusted_f1": f"{run.point_adjusted_metrics.f1:.12g}",
+                    "false_alarm_rate": f"{run.metrics.false_alarm_rate:.12g}",
+                    "miss_rate": f"{run.metrics.miss_rate:.12g}",
+                    "support": run.metrics.support,
+                    "predicted_positives": run.metrics.predicted_positives,
+                }
+            )
+
+
+def write_smap_msl_robust_threshold_sweep_aggregate_json(
+    aggregates: tuple[SmapMslRobustThresholdSweepAggregate, ...],
+    path: Path,
+) -> None:
+    """Write SMAP/MSL robust threshold sweep aggregate metrics as JSON."""
+
+    output_path = _prepare_output_path(path)
+    payload = [aggregate.to_dict() for aggregate in aggregates]
+    output_path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n")
+
+
+def write_smap_msl_robust_threshold_sweep_aggregate_csv(
+    aggregates: tuple[SmapMslRobustThresholdSweepAggregate, ...],
+    path: Path,
+) -> None:
+    """Write SMAP/MSL robust threshold sweep aggregate metrics as CSV."""
+
+    if not aggregates:
+        raise ValueError("aggregates must contain at least one item")
+    output_path = _prepare_output_path(path)
+    with output_path.open("w", encoding="utf-8", newline="") as file:
+        writer = csv.DictWriter(file, fieldnames=list(aggregates[0].to_dict()))
+        writer.writeheader()
+        writer.writerows(aggregate.to_dict() for aggregate in aggregates)
+
+
 def write_smap_msl_lstm_forecast_baseline_csv(
     runs: tuple[SmapMslLstmForecastBaselineRun, ...],
     path: Path,
@@ -350,6 +571,33 @@ def _selected_channel_ids(
     if not selected:
         raise ValueError("no SMAP/MSL channels selected")
     return selected
+
+
+def _robust_threshold_wins_by_channel(
+    runs: tuple[SmapMslRobustThresholdSweepRun, ...],
+) -> dict[float, int]:
+    winners: dict[float, int] = {}
+    for channel_id in sorted({run.channel_id for run in runs}):
+        channel_runs = [run for run in runs if run.channel_id == channel_id]
+        best = min(
+            channel_runs,
+            key=lambda run: (
+                -run.metrics.f1,
+                -run.point_adjusted_metrics.f1,
+                run.metrics.false_alarm_rate,
+                run.metrics.miss_rate,
+                run.threshold,
+            ),
+        )
+        winners[best.threshold] = winners.get(best.threshold, 0) + 1
+    return winners
+
+
+def _mean(values: Iterable[float]) -> float:
+    sequence = tuple(values)
+    if not sequence:
+        raise ValueError("cannot average an empty sequence")
+    return sum(sequence) / len(sequence)
 
 
 def _prepare_output_path(path: Path) -> Path:

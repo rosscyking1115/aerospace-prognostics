@@ -88,12 +88,20 @@ from aerospace_prognostics.experiments.cmapss_deep_baseline import (
 from aerospace_prognostics.experiments.smap_msl_anomaly import (
     SmapMslClassicalBaselineRun,
     SmapMslLstmForecastBaselineRun,
+    SmapMslRobustThresholdSweepAggregate,
+    SmapMslRobustThresholdSweepRun,
+    aggregate_smap_msl_robust_threshold_sweep,
     run_smap_msl_classical_baselines,
     run_smap_msl_lstm_forecast_baseline,
+    run_smap_msl_robust_threshold_sweep,
     write_smap_msl_classical_baselines_csv,
     write_smap_msl_classical_baselines_json,
     write_smap_msl_lstm_forecast_baseline_csv,
     write_smap_msl_lstm_forecast_baseline_json,
+    write_smap_msl_robust_threshold_sweep_aggregate_csv,
+    write_smap_msl_robust_threshold_sweep_aggregate_json,
+    write_smap_msl_robust_threshold_sweep_csv,
+    write_smap_msl_robust_threshold_sweep_json,
 )
 from aerospace_prognostics.reports.anomaly_model_comparison import (
     AnomalyModelComparisonRow,
@@ -784,6 +792,24 @@ def _build_parser() -> argparse.ArgumentParser:
     smap_msl_classical.add_argument("--random-state", type=int, default=42)
     smap_msl_classical.add_argument("--output-json", type=Path)
     smap_msl_classical.add_argument("--output-csv", type=Path)
+
+    smap_msl_robust_sweep = subparsers.add_parser(
+        "smap-msl-robust-threshold-sweep",
+        help="Sweep robust z-score thresholds across raw Telemanom SMAP/MSL channels",
+    )
+    smap_msl_robust_sweep.add_argument("--data-dir", type=Path, required=True)
+    smap_msl_robust_sweep.add_argument("--channels", nargs="+")
+    smap_msl_robust_sweep.add_argument("--max-channels", type=int)
+    smap_msl_robust_sweep.add_argument(
+        "--thresholds",
+        nargs="+",
+        type=float,
+        default=[3.5, 5.0, 7.0, 10.0],
+    )
+    smap_msl_robust_sweep.add_argument("--output-json", type=Path)
+    smap_msl_robust_sweep.add_argument("--output-csv", type=Path)
+    smap_msl_robust_sweep.add_argument("--aggregate-json", type=Path)
+    smap_msl_robust_sweep.add_argument("--aggregate-csv", type=Path)
 
     smap_msl_lstm = subparsers.add_parser(
         "smap-msl-lstm-forecast-baseline",
@@ -1856,6 +1882,34 @@ def main(argv: list[str] | None = None) -> int:
             write_smap_msl_classical_baselines_csv(runs, args.output_csv)
         return 0
 
+    if args.command == "smap-msl-robust-threshold-sweep":
+        runs = run_smap_msl_robust_threshold_sweep(
+            args.data_dir,
+            thresholds=tuple(args.thresholds),
+            channels=tuple(args.channels) if args.channels is not None else None,
+            max_channels=args.max_channels,
+        )
+        aggregates = aggregate_smap_msl_robust_threshold_sweep(runs)
+        print(f"channels={len(_smap_msl_robust_sweep_channels(runs))}")
+        print(f"thresholds={','.join(_format_cli_float(value) for value in args.thresholds)}")
+        print(f"runs={len(runs)}")
+        _print_smap_msl_robust_threshold_aggregate_table(aggregates)
+        if args.output_json is not None:
+            write_smap_msl_robust_threshold_sweep_json(runs, args.output_json)
+        if args.output_csv is not None:
+            write_smap_msl_robust_threshold_sweep_csv(runs, args.output_csv)
+        if args.aggregate_json is not None:
+            write_smap_msl_robust_threshold_sweep_aggregate_json(
+                aggregates,
+                args.aggregate_json,
+            )
+        if args.aggregate_csv is not None:
+            write_smap_msl_robust_threshold_sweep_aggregate_csv(
+                aggregates,
+                args.aggregate_csv,
+            )
+        return 0
+
     if args.command == "smap-msl-lstm-forecast-baseline":
         runs = run_smap_msl_lstm_forecast_baseline(
             args.data_dir,
@@ -2032,6 +2086,27 @@ def _print_smap_msl_forecast_table(runs: Iterable[SmapMslLstmForecastBaselineRun
         )
 
 
+def _print_smap_msl_robust_threshold_aggregate_table(
+    aggregates: Iterable[SmapMslRobustThresholdSweepAggregate],
+) -> None:
+    print(
+        "threshold,channels,wins_by_f1,mean_precision,mean_recall,mean_f1,"
+        "mean_point_adjusted_f1,mean_false_alarm_rate,mean_miss_rate"
+    )
+    for aggregate in aggregates:
+        print(
+            f"{aggregate.threshold:g},"
+            f"{aggregate.channels},"
+            f"{aggregate.wins_by_f1},"
+            f"{aggregate.mean_precision:.6f},"
+            f"{aggregate.mean_recall:.6f},"
+            f"{aggregate.mean_f1:.6f},"
+            f"{aggregate.mean_point_adjusted_f1:.6f},"
+            f"{aggregate.mean_false_alarm_rate:.6f},"
+            f"{aggregate.mean_miss_rate:.6f}"
+        )
+
+
 def _print_anomaly_comparison_table(rows: Iterable[AnomalyModelComparisonRow]) -> None:
     print(
         "channel_id,spacecraft,rank_by_f1,source,model,"
@@ -2073,6 +2148,12 @@ def _anomaly_comparison_channels(rows: Iterable[AnomalyModelComparisonRow]) -> t
 
 def _smap_msl_result_channels(
     runs: Iterable[SmapMslClassicalBaselineRun | SmapMslLstmForecastBaselineRun],
+) -> tuple[str, ...]:
+    return tuple(dict.fromkeys(run.channel_id for run in runs))
+
+
+def _smap_msl_robust_sweep_channels(
+    runs: Iterable[SmapMslRobustThresholdSweepRun],
 ) -> tuple[str, ...]:
     return tuple(dict.fromkeys(run.channel_id for run in runs))
 
