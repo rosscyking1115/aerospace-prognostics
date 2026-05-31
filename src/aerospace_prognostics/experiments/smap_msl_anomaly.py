@@ -361,6 +361,49 @@ def select_smap_msl_robust_threshold_operating_points(
     return tuple(operating_points)
 
 
+def select_smap_msl_robust_threshold_policy_runs(
+    runs: tuple[SmapMslRobustThresholdSweepRun, ...],
+    operating_points: tuple[SmapMslRobustThresholdOperatingPoint, ...],
+) -> tuple[SmapMslRobustThresholdSweepRun, ...]:
+    """Select the per-channel runs implied by robust threshold operating points."""
+
+    if not runs:
+        raise ValueError("runs must contain at least one item")
+    if not operating_points:
+        raise ValueError("operating_points must contain at least one item")
+    scopes = {operating_point.scope for operating_point in operating_points}
+    if len(scopes) != 1:
+        raise ValueError("operating_points must use one scope")
+    scope = next(iter(scopes))
+    if scope not in {"global", "spacecraft"}:
+        raise ValueError("operating point scope must be 'global' or 'spacecraft'")
+    if len({operating_point.group for operating_point in operating_points}) != len(
+        operating_points
+    ):
+        raise ValueError("operating point groups must be unique")
+
+    operating_point_by_group = {
+        operating_point.group: operating_point for operating_point in operating_points
+    }
+    selected_runs_by_channel: dict[str, SmapMslRobustThresholdSweepRun] = {}
+    for run in runs:
+        group = "all" if scope == "global" else run.spacecraft
+        operating_point = operating_point_by_group.get(group)
+        if operating_point is None:
+            raise ValueError(f"missing operating point for group: {group}")
+        if run.threshold == operating_point.selected_threshold:
+            selected_runs_by_channel.setdefault(run.channel_id, run)
+    expected_channels = {run.channel_id for run in runs}
+    selected_channels = set(selected_runs_by_channel)
+    if selected_channels != expected_channels:
+        missing = ", ".join(sorted(expected_channels - selected_channels))
+        raise ValueError(f"policy selection is missing channels: {missing}")
+    return tuple(
+        selected_runs_by_channel[channel_id]
+        for channel_id in dict.fromkeys(run.channel_id for run in runs)
+    )
+
+
 def run_smap_msl_lstm_forecast_baseline(
     data_dir: Path,
     *,
@@ -609,6 +652,41 @@ def write_smap_msl_robust_threshold_operating_points_csv(
         writer.writerows(operating_point.to_dict() for operating_point in operating_points)
 
 
+def write_smap_msl_robust_threshold_policy_json(
+    runs: tuple[SmapMslRobustThresholdSweepRun, ...],
+    operating_points: tuple[SmapMslRobustThresholdOperatingPoint, ...],
+    path: Path,
+) -> None:
+    """Write selected robust threshold policy runs as comparison-ready JSON rows."""
+
+    output_path = _prepare_output_path(path)
+    payload = [
+        _robust_threshold_policy_row(run, _operating_point_for_run(run, operating_points))
+        for run in runs
+    ]
+    output_path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n")
+
+
+def write_smap_msl_robust_threshold_policy_csv(
+    runs: tuple[SmapMslRobustThresholdSweepRun, ...],
+    operating_points: tuple[SmapMslRobustThresholdOperatingPoint, ...],
+    path: Path,
+) -> None:
+    """Write selected robust threshold policy runs as a comparison-ready CSV table."""
+
+    if not runs:
+        raise ValueError("runs must contain at least one item")
+    output_path = _prepare_output_path(path)
+    rows = [
+        _robust_threshold_policy_row(run, _operating_point_for_run(run, operating_points))
+        for run in runs
+    ]
+    with output_path.open("w", encoding="utf-8", newline="") as file:
+        writer = csv.DictWriter(file, fieldnames=list(rows[0]))
+        writer.writeheader()
+        writer.writerows(rows)
+
+
 def write_smap_msl_lstm_forecast_baseline_csv(
     runs: tuple[SmapMslLstmForecastBaselineRun, ...],
     path: Path,
@@ -734,6 +812,47 @@ def _operating_point_infeasible_sort_key(
         aggregate.mean_miss_rate,
         aggregate.threshold,
     )
+
+
+def _operating_point_for_run(
+    run: SmapMslRobustThresholdSweepRun,
+    operating_points: tuple[SmapMslRobustThresholdOperatingPoint, ...],
+) -> SmapMslRobustThresholdOperatingPoint:
+    for operating_point in operating_points:
+        if operating_point.scope == "global" and operating_point.group == "all":
+            return operating_point
+        if operating_point.scope == "spacecraft" and operating_point.group == run.spacecraft:
+            return operating_point
+    raise ValueError(f"missing operating point for channel: {run.channel_id}")
+
+
+def _robust_threshold_policy_row(
+    run: SmapMslRobustThresholdSweepRun,
+    operating_point: SmapMslRobustThresholdOperatingPoint,
+) -> dict[str, object]:
+    return {
+        "channel_id": run.channel_id,
+        "spacecraft": run.spacecraft,
+        "model_name": f"robust_zscore_{operating_point.scope}_threshold_policy",
+        "threshold_policy_scope": operating_point.scope,
+        "threshold_policy_group": operating_point.group,
+        "false_alarm_budget": f"{operating_point.false_alarm_budget:.12g}",
+        "feasible": operating_point.feasible,
+        "selected_threshold": f"{operating_point.selected_threshold:.12g}",
+        "train_rows": run.train_rows,
+        "test_rows": run.test_rows,
+        "feature_count": run.feature_count,
+        "anomaly_sequences": run.anomaly_sequences,
+        "anomaly_points": run.anomaly_points,
+        "precision": f"{run.metrics.precision:.12g}",
+        "recall": f"{run.metrics.recall:.12g}",
+        "f1": f"{run.metrics.f1:.12g}",
+        "point_adjusted_f1": f"{run.point_adjusted_metrics.f1:.12g}",
+        "false_alarm_rate": f"{run.metrics.false_alarm_rate:.12g}",
+        "miss_rate": f"{run.metrics.miss_rate:.12g}",
+        "support": run.metrics.support,
+        "predicted_positives": run.metrics.predicted_positives,
+    }
 
 
 def _mean(values: Iterable[float]) -> float:

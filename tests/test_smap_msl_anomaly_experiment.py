@@ -11,11 +11,13 @@ from aerospace_prognostics.experiments.smap_msl_anomaly import (
     run_smap_msl_lstm_forecast_baseline,
     run_smap_msl_robust_threshold_sweep,
     select_smap_msl_robust_threshold_operating_points,
+    select_smap_msl_robust_threshold_policy_runs,
     write_smap_msl_classical_baselines_csv,
     write_smap_msl_classical_baselines_json,
     write_smap_msl_lstm_forecast_baseline_csv,
     write_smap_msl_lstm_forecast_baseline_json,
     write_smap_msl_robust_threshold_operating_points_csv,
+    write_smap_msl_robust_threshold_policy_csv,
     write_smap_msl_robust_threshold_sweep_aggregate_csv,
     write_smap_msl_robust_threshold_sweep_csv,
 )
@@ -165,6 +167,51 @@ def test_write_smap_msl_robust_threshold_operating_points_csv(tmp_path) -> None:
         "scope,group,false_alarm_budget,selected_threshold,feasible"
         in output_csv.read_text(encoding="utf-8")
     )
+
+
+def test_select_smap_msl_robust_threshold_policy_runs(tmp_path) -> None:
+    _write_multi_channel_smap_msl(tmp_path)
+    runs = run_smap_msl_robust_threshold_sweep(
+        tmp_path,
+        channels=("P-1", "C-1"),
+        thresholds=(2.0, 4.0),
+    )
+    operating_points = select_smap_msl_robust_threshold_operating_points(
+        runs,
+        false_alarm_budget=1.0,
+        group_by="spacecraft",
+    )
+
+    policy_runs = select_smap_msl_robust_threshold_policy_runs(runs, operating_points)
+
+    assert len(policy_runs) == 2
+    assert {run.channel_id for run in policy_runs} == {"P-1", "C-1"}
+    assert {
+        run.threshold
+        for run in policy_runs
+    } <= {point.selected_threshold for point in operating_points}
+
+
+def test_write_smap_msl_robust_threshold_policy_csv(tmp_path) -> None:
+    _write_multi_channel_smap_msl(tmp_path)
+    runs = run_smap_msl_robust_threshold_sweep(
+        tmp_path,
+        channels=("P-1",),
+        thresholds=(2.0, 4.0),
+    )
+    operating_points = select_smap_msl_robust_threshold_operating_points(
+        runs,
+        false_alarm_budget=1.0,
+        group_by="global",
+    )
+    policy_runs = select_smap_msl_robust_threshold_policy_runs(runs, operating_points)
+    output_csv = tmp_path / "results" / "policy.csv"
+
+    write_smap_msl_robust_threshold_policy_csv(policy_runs, operating_points, output_csv)
+
+    csv_text = output_csv.read_text(encoding="utf-8")
+    assert "channel_id,spacecraft,model_name" in csv_text
+    assert "robust_zscore_global_threshold_policy" in csv_text
 
 
 def test_run_smap_msl_lstm_forecast_baseline_scores_selected_channel(tmp_path) -> None:

@@ -96,12 +96,15 @@ from aerospace_prognostics.experiments.smap_msl_anomaly import (
     run_smap_msl_lstm_forecast_baseline,
     run_smap_msl_robust_threshold_sweep,
     select_smap_msl_robust_threshold_operating_points,
+    select_smap_msl_robust_threshold_policy_runs,
     write_smap_msl_classical_baselines_csv,
     write_smap_msl_classical_baselines_json,
     write_smap_msl_lstm_forecast_baseline_csv,
     write_smap_msl_lstm_forecast_baseline_json,
     write_smap_msl_robust_threshold_operating_points_csv,
     write_smap_msl_robust_threshold_operating_points_json,
+    write_smap_msl_robust_threshold_policy_csv,
+    write_smap_msl_robust_threshold_policy_json,
     write_smap_msl_robust_threshold_sweep_aggregate_csv,
     write_smap_msl_robust_threshold_sweep_aggregate_json,
     write_smap_msl_robust_threshold_sweep_csv,
@@ -822,6 +825,8 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     smap_msl_robust_sweep.add_argument("--operating-point-json", type=Path)
     smap_msl_robust_sweep.add_argument("--operating-point-csv", type=Path)
+    smap_msl_robust_sweep.add_argument("--policy-json", type=Path)
+    smap_msl_robust_sweep.add_argument("--policy-csv", type=Path)
 
     smap_msl_lstm = subparsers.add_parser(
         "smap-msl-lstm-forecast-baseline",
@@ -1907,12 +1912,15 @@ def main(argv: list[str] | None = None) -> int:
         print(f"runs={len(runs)}")
         _print_smap_msl_robust_threshold_aggregate_table(aggregates)
         operating_point_outputs_requested = (
-            args.operating_point_json is not None or args.operating_point_csv is not None
+            args.operating_point_json is not None
+            or args.operating_point_csv is not None
+            or args.policy_json is not None
+            or args.policy_csv is not None
         )
         if args.false_alarm_budget is not None or operating_point_outputs_requested:
             if args.false_alarm_budget is None:
                 raise ValueError(
-                    "--false-alarm-budget is required when writing operating-point outputs"
+                    "--false-alarm-budget is required when writing threshold-policy outputs"
                 )
             operating_points = select_smap_msl_robust_threshold_operating_points(
                 runs,
@@ -1922,6 +1930,11 @@ def main(argv: list[str] | None = None) -> int:
             print(f"false_alarm_budget={_format_cli_float(args.false_alarm_budget)}")
             print(f"selection_group={args.selection_group}")
             _print_smap_msl_robust_threshold_operating_point_table(operating_points)
+            policy_runs = select_smap_msl_robust_threshold_policy_runs(
+                runs,
+                operating_points,
+            )
+            print(f"policy_runs={len(policy_runs)}")
             if args.operating_point_json is not None:
                 write_smap_msl_robust_threshold_operating_points_json(
                     operating_points,
@@ -1931,6 +1944,18 @@ def main(argv: list[str] | None = None) -> int:
                 write_smap_msl_robust_threshold_operating_points_csv(
                     operating_points,
                     args.operating_point_csv,
+                )
+            if args.policy_json is not None:
+                write_smap_msl_robust_threshold_policy_json(
+                    policy_runs,
+                    operating_points,
+                    args.policy_json,
+                )
+            if args.policy_csv is not None:
+                write_smap_msl_robust_threshold_policy_csv(
+                    policy_runs,
+                    operating_points,
+                    args.policy_csv,
                 )
         if args.output_json is not None:
             write_smap_msl_robust_threshold_sweep_json(runs, args.output_json)
