@@ -3,6 +3,8 @@ from __future__ import annotations
 import json
 import zipfile
 
+import numpy as np
+
 from aerospace_prognostics.cli import main
 from aerospace_prognostics.data.cmapss import read_cmapss_frame
 from aerospace_prognostics.evaluation import RegressionRunResult, write_results_csv
@@ -1041,6 +1043,48 @@ def test_telemetry_classical_anomaly_baselines_command_writes_comparison_outputs
     assert predictions_csv.exists()
 
 
+def test_smap_msl_summary_command_prints_dataset_counts(tmp_path, capsys) -> None:
+    _write_cli_smap_msl_channel(tmp_path)
+
+    exit_code = main(["smap-msl-summary", "--data-dir", str(tmp_path)])
+    output = capsys.readouterr().out
+
+    assert exit_code == 0
+    assert "channels=1" in output
+    assert "anomaly_sequences=1" in output
+    assert "spacecraft=SMAP:1" in output
+
+
+def test_smap_msl_export_channel_csv_command_writes_baseline_inputs(tmp_path, capsys) -> None:
+    _write_cli_smap_msl_channel(tmp_path)
+    output_dir = tmp_path / "exports"
+    metadata_json = tmp_path / "exports" / "p1.json"
+
+    exit_code = main(
+        [
+            "smap-msl-export-channel-csv",
+            "--data-dir",
+            str(tmp_path),
+            "--channel-id",
+            "P-1",
+            "--output-dir",
+            str(output_dir),
+            "--metadata-json",
+            str(metadata_json),
+        ]
+    )
+    output = capsys.readouterr().out
+    metadata = json.loads(metadata_json.read_text(encoding="utf-8"))
+
+    assert exit_code == 0
+    assert "channel_id=P-1" in output
+    assert "train_rows=4" in output
+    assert "test_rows=5" in output
+    assert (output_dir / "P-1" / "train.csv").exists()
+    assert (output_dir / "P-1" / "test.csv").exists()
+    assert metadata["feature_names"] == ["feature_0", "feature_1"]
+
+
 def test_cmapss_package_and_predict_artifact_commands(tmp_path, capsys) -> None:
     write_tiny_cmapss_subset(tmp_path)
     artifact_path = tmp_path / "models" / "fd001.joblib"
@@ -1140,4 +1184,24 @@ def _cli_result(
         rul_cap=125,
         random_state=42,
         standardize=True,
+    )
+
+
+def _write_cli_smap_msl_channel(root) -> None:
+    (root / "data" / "train").mkdir(parents=True)
+    (root / "data" / "test").mkdir(parents=True)
+    (root / "labeled_anomalies.csv").write_text(
+        "\n".join(
+            [
+                "chan_id,spacecraft,anomaly_sequences,class,num_values",
+                '"P-1",SMAP,"[[1, 2]]","[contextual]",5',
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    np.save(root / "data" / "train" / "P-1.npy", np.array([[0, 0], [1, 1], [2, 2], [3, 3]]))
+    np.save(
+        root / "data" / "test" / "P-1.npy",
+        np.array([[0, 0], [6, -6], [7, -7], [1, 1], [10, -10]]),
     )

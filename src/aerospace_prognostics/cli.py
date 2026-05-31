@@ -22,6 +22,11 @@ from aerospace_prognostics.data.manifest import (
     read_manifest,
     verify_manifest,
 )
+from aerospace_prognostics.data.smap_msl import (
+    export_smap_msl_channel_csv,
+    load_smap_msl_channel,
+    read_smap_msl_labels,
+)
 from aerospace_prognostics.data.summary import summarise_cmapss_frame
 from aerospace_prognostics.deployment.artifacts import (
     load_cmapss_model_artifact,
@@ -639,6 +644,22 @@ def _build_parser() -> argparse.ArgumentParser:
     anomaly_classical.add_argument("--output-json", type=Path)
     anomaly_classical.add_argument("--output-csv", type=Path)
     anomaly_classical.add_argument("--predictions-csv", type=Path)
+
+    smap_msl_summary = subparsers.add_parser(
+        "smap-msl-summary",
+        help="Summarise local Telemanom SMAP/MSL labels and optional channel arrays",
+    )
+    smap_msl_summary.add_argument("--data-dir", type=Path, required=True)
+    smap_msl_summary.add_argument("--channel-id")
+
+    smap_msl_export = subparsers.add_parser(
+        "smap-msl-export-channel-csv",
+        help="Export one Telemanom SMAP/MSL channel to train/test CSVs",
+    )
+    smap_msl_export.add_argument("--data-dir", type=Path, required=True)
+    smap_msl_export.add_argument("--channel-id", required=True)
+    smap_msl_export.add_argument("--output-dir", type=Path, required=True)
+    smap_msl_export.add_argument("--metadata-json", type=Path)
 
     package_hgb = subparsers.add_parser(
         "cmapss-package-hgb-policy",
@@ -1517,6 +1538,46 @@ def main(argv: list[str] | None = None) -> int:
                 results=results,
                 path=args.predictions_csv,
             )
+        return 0
+
+    if args.command == "smap-msl-summary":
+        if args.channel_id is None:
+            labels = read_smap_msl_labels(args.data_dir)
+            spacecraft_counts: dict[str, int] = {}
+            for metadata in labels:
+                spacecraft_counts[metadata.spacecraft] = (
+                    spacecraft_counts.get(metadata.spacecraft, 0) + 1
+                )
+            print(f"channels={len(labels)}")
+            print(f"anomaly_sequences={sum(len(item.anomaly_sequences) for item in labels)}")
+            print(
+                "spacecraft="
+                + ",".join(
+                    f"{spacecraft}:{count}"
+                    for spacecraft, count in sorted(spacecraft_counts.items())
+                )
+            )
+            return 0
+
+        channel = load_smap_msl_channel(args.data_dir, args.channel_id)
+        print(f"channel_id={channel.metadata.channel_id}")
+        print(f"spacecraft={channel.metadata.spacecraft}")
+        print(f"train_shape={channel.train_values.shape[0]}x{channel.train_values.shape[1]}")
+        print(f"test_shape={channel.test_values.shape[0]}x{channel.test_values.shape[1]}")
+        print(f"anomaly_sequences={len(channel.metadata.anomaly_sequences)}")
+        print(f"labelled_anomaly_points={int(channel.test_labels.sum())}")
+        return 0
+
+    if args.command == "smap-msl-export-channel-csv":
+        export = export_smap_msl_channel_csv(args.data_dir, args.channel_id, args.output_dir)
+        print(f"channel_id={export.channel_id}")
+        print(f"train_csv={export.train_csv}")
+        print(f"test_csv={export.test_csv}")
+        print(f"train_rows={export.train_rows}")
+        print(f"test_rows={export.test_rows}")
+        print(f"features={len(export.feature_names)}")
+        if args.metadata_json is not None:
+            _write_json_payload(export.to_dict(), args.metadata_json)
         return 0
 
     if args.command == "cmapss-package-hgb-policy":
