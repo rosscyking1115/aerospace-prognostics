@@ -68,6 +68,8 @@ def test_run_phase2_smap_msl_workflow_writes_expected_artifacts(tmp_path) -> Non
     assert "numpy" in run_manifest["runtime"]["dependencies"]
     assert "git_commit" in run_manifest["source_control"]
     assert "git_dirty" in run_manifest["source_control"]
+    assert len(run_manifest["artifact_integrity"]) == 17
+    assert "sha256" in run_manifest["artifact_integrity"]["classical_csv"]
     assert run_manifest["artifacts"]["robust_threshold_policy_csv"].endswith(
         "smap_msl_robust_threshold_policy.csv"
     )
@@ -82,6 +84,15 @@ def test_run_phase2_smap_msl_workflow_writes_expected_artifacts(tmp_path) -> Non
     verification = verify_phase2_smap_msl_run_manifest(result.run_manifest_path)
     assert verification.ok
     assert len(verification.checked_artifacts) == 18
+
+    with result.classical_csv_path.open("a", encoding="utf-8") as file:
+        file.write("tampered\n")
+    tampered_verification = verify_phase2_smap_msl_run_manifest(result.run_manifest_path)
+    assert not tampered_verification.ok
+    assert any(
+        "artifact classical_csv has unexpected sha256" in problem
+        for problem in tampered_verification.problems
+    )
 
     result.comparison_csv_path.unlink()
     failed_verification = verify_phase2_smap_msl_run_manifest(result.run_manifest_path)

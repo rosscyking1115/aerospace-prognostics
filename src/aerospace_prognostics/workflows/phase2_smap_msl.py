@@ -14,6 +14,7 @@ from pathlib import Path
 
 from aerospace_prognostics.anomaly.baselines import CLASSICAL_ANOMALY_BASELINE_METHODS
 from aerospace_prognostics.anomaly.forecasting import DynamicThresholdConfig
+from aerospace_prognostics.data.integrity import file_sha256
 from aerospace_prognostics.experiments.smap_msl_anomaly import (
     SmapMslClassicalBaselineRun,
     SmapMslLstmForecastBaselineRun,
@@ -281,6 +282,45 @@ def run_phase2_smap_msl_workflow(
 
     summary_markdown_path = artifacts / "phase2_smap_msl_summary.md"
     run_manifest_path = artifacts / "phase2_smap_msl_run_manifest.json"
+    artifact_paths = {
+        "classical_json": _path_as_posix(classical_json_path),
+        "classical_csv": _path_as_posix(classical_csv_path),
+        "lstm_robust_json": _path_as_posix(lstm_robust_json_path),
+        "lstm_robust_csv": _path_as_posix(lstm_robust_csv_path),
+        "lstm_dynamic_json": _path_as_posix(lstm_dynamic_json_path),
+        "lstm_dynamic_csv": _path_as_posix(lstm_dynamic_csv_path),
+        "robust_threshold_sweep_json": _path_as_posix(robust_threshold_sweep_json_path),
+        "robust_threshold_sweep_csv": _path_as_posix(robust_threshold_sweep_csv_path),
+        "robust_threshold_sweep_aggregate_json": _path_as_posix(
+            robust_threshold_sweep_aggregate_json_path
+        ),
+        "robust_threshold_sweep_aggregate_csv": _path_as_posix(
+            robust_threshold_sweep_aggregate_csv_path
+        ),
+        "robust_threshold_operating_point_json": _path_as_posix(
+            robust_threshold_operating_point_json_path
+        ),
+        "robust_threshold_operating_point_csv": _path_as_posix(
+            robust_threshold_operating_point_csv_path
+        ),
+        "robust_threshold_policy_json": _path_as_posix(robust_threshold_policy_json_path),
+        "robust_threshold_policy_csv": _path_as_posix(robust_threshold_policy_csv_path),
+        "comparison_csv": _path_as_posix(comparison_csv_path),
+        "comparison_markdown": _path_as_posix(comparison_markdown_path),
+        "summary_markdown": _path_as_posix(summary_markdown_path),
+        "run_manifest": _path_as_posix(run_manifest_path),
+    }
+    _write_phase2_smap_msl_summary(
+        summary_markdown_path,
+        classical_csv_path=classical_csv_path,
+        lstm_robust_csv_path=lstm_robust_csv_path,
+        lstm_dynamic_csv_path=lstm_dynamic_csv_path,
+        robust_threshold_policy_csv_path=robust_threshold_policy_csv_path,
+        robust_threshold_operating_point_csv_path=robust_threshold_operating_point_csv_path,
+        comparison_markdown_path=comparison_markdown_path,
+        run_manifest_path=run_manifest_path,
+        comparison_rows=tuple(comparison_rows),
+    )
     _write_phase2_smap_msl_run_manifest(
         run_manifest_path,
         {
@@ -316,38 +356,8 @@ def run_phase2_smap_msl_workflow(
                 "random_state": random_state,
                 "device": device,
             },
-            "artifacts": {
-                "classical_json": _path_as_posix(classical_json_path),
-                "classical_csv": _path_as_posix(classical_csv_path),
-                "lstm_robust_json": _path_as_posix(lstm_robust_json_path),
-                "lstm_robust_csv": _path_as_posix(lstm_robust_csv_path),
-                "lstm_dynamic_json": _path_as_posix(lstm_dynamic_json_path),
-                "lstm_dynamic_csv": _path_as_posix(lstm_dynamic_csv_path),
-                "robust_threshold_sweep_json": _path_as_posix(
-                    robust_threshold_sweep_json_path
-                ),
-                "robust_threshold_sweep_csv": _path_as_posix(robust_threshold_sweep_csv_path),
-                "robust_threshold_sweep_aggregate_json": _path_as_posix(
-                    robust_threshold_sweep_aggregate_json_path
-                ),
-                "robust_threshold_sweep_aggregate_csv": _path_as_posix(
-                    robust_threshold_sweep_aggregate_csv_path
-                ),
-                "robust_threshold_operating_point_json": _path_as_posix(
-                    robust_threshold_operating_point_json_path
-                ),
-                "robust_threshold_operating_point_csv": _path_as_posix(
-                    robust_threshold_operating_point_csv_path
-                ),
-                "robust_threshold_policy_json": _path_as_posix(
-                    robust_threshold_policy_json_path
-                ),
-                "robust_threshold_policy_csv": _path_as_posix(robust_threshold_policy_csv_path),
-                "comparison_csv": _path_as_posix(comparison_csv_path),
-                "comparison_markdown": _path_as_posix(comparison_markdown_path),
-                "summary_markdown": _path_as_posix(summary_markdown_path),
-                "run_manifest": _path_as_posix(run_manifest_path),
-            },
+            "artifacts": artifact_paths,
+            "artifact_integrity": _artifact_integrity_payload(artifact_paths),
             "counts": {
                 "channels": len({row.channel_id for row in comparison_rows}),
                 "classical_runs": len(classical_runs),
@@ -359,17 +369,6 @@ def run_phase2_smap_msl_workflow(
                 "comparison_rows": len(comparison_rows),
             },
         },
-    )
-    _write_phase2_smap_msl_summary(
-        summary_markdown_path,
-        classical_csv_path=classical_csv_path,
-        lstm_robust_csv_path=lstm_robust_csv_path,
-        lstm_dynamic_csv_path=lstm_dynamic_csv_path,
-        robust_threshold_policy_csv_path=robust_threshold_policy_csv_path,
-        robust_threshold_operating_point_csv_path=robust_threshold_operating_point_csv_path,
-        comparison_markdown_path=comparison_markdown_path,
-        run_manifest_path=run_manifest_path,
-        comparison_rows=tuple(comparison_rows),
     )
 
     return Phase2SmapMslWorkflowResult(
@@ -419,13 +418,29 @@ def verify_phase2_smap_msl_run_manifest(
 
     if payload.get("workflow") != "phase2_smap_msl":
         problems.append("workflow must be phase2_smap_msl")
-    for section in ("selection", "runtime", "source_control", "parameters", "artifacts", "counts"):
+    for section in (
+        "selection",
+        "runtime",
+        "source_control",
+        "parameters",
+        "artifacts",
+        "artifact_integrity",
+        "counts",
+    ):
         if not isinstance(payload.get(section), dict):
             problems.append(f"{section} section is missing or invalid")
 
     artifacts = payload.get("artifacts")
     if isinstance(artifacts, dict):
         checked_artifacts.extend(_verify_manifest_artifacts(artifacts, artifact_root, problems))
+    artifact_integrity = payload.get("artifact_integrity")
+    if isinstance(artifacts, dict) and isinstance(artifact_integrity, dict):
+        _verify_manifest_artifact_integrity(
+            artifacts,
+            artifact_integrity,
+            artifact_root,
+            problems,
+        )
     counts = payload.get("counts")
     if isinstance(artifacts, dict) and isinstance(counts, dict):
         _verify_manifest_csv_counts(artifacts, counts, artifact_root, problems)
@@ -572,6 +587,36 @@ def _verify_manifest_csv_counts(
             )
 
 
+def _verify_manifest_artifact_integrity(
+    artifacts: dict[object, object],
+    artifact_integrity: dict[object, object],
+    root: Path,
+    problems: list[str],
+) -> None:
+    for key, value in sorted(artifacts.items()):
+        if key == "run_manifest" or value is None:
+            continue
+        if not isinstance(key, str) or not isinstance(value, str):
+            continue
+        expected = artifact_integrity.get(key)
+        if not isinstance(expected, dict):
+            problems.append(f"artifact_integrity missing for {key}")
+            continue
+        artifact_path = _resolve_manifest_path(value, root)
+        if not artifact_path.exists():
+            continue
+        expected_sha256 = expected.get("sha256")
+        expected_size_bytes = expected.get("size_bytes")
+        if not isinstance(expected_sha256, str):
+            problems.append(f"artifact_integrity {key} sha256 is missing or invalid")
+        elif file_sha256(artifact_path) != expected_sha256:
+            problems.append(f"artifact {key} has unexpected sha256")
+        if not isinstance(expected_size_bytes, int):
+            problems.append(f"artifact_integrity {key} size_bytes is missing or invalid")
+        elif artifact_path.stat().st_size != expected_size_bytes:
+            problems.append(f"artifact {key} has unexpected size")
+
+
 def _csv_data_row_count(path: Path) -> int:
     with path.open("r", encoding="utf-8", newline="") as file:
         reader = csv.reader(file)
@@ -589,6 +634,21 @@ def _resolve_manifest_path(path: str, root: Path) -> Path:
 def _write_phase2_smap_msl_run_manifest(path: Path, payload: dict[str, object]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+
+
+def _artifact_integrity_payload(artifacts: dict[str, str | None]) -> dict[str, dict[str, object]]:
+    payload: dict[str, dict[str, object]] = {}
+    for key, value in sorted(artifacts.items()):
+        if key == "run_manifest" or value is None:
+            continue
+        path = Path(value)
+        if not path.exists():
+            continue
+        payload[key] = {
+            "sha256": file_sha256(path),
+            "size_bytes": path.stat().st_size,
+        }
+    return payload
 
 
 def _runtime_environment_payload() -> dict[str, object]:
