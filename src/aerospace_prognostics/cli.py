@@ -128,6 +128,7 @@ from aerospace_prognostics.workflows.phase2 import run_phase2_cmapss_workflow
 from aerospace_prognostics.workflows.phase2_smap_msl import (
     run_phase2_smap_msl_workflow,
     verify_phase2_smap_msl_run_manifest,
+    write_phase2_smap_msl_manifest_audit_markdown,
 )
 
 
@@ -536,6 +537,7 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     phase2_smap_msl_verify.add_argument("--manifest", type=Path, required=True)
     phase2_smap_msl_verify.add_argument("--root", type=Path, default=Path("."))
+    phase2_smap_msl_verify.add_argument("--output-markdown", type=Path)
 
     sequence_export = subparsers.add_parser(
         "cmapss-export-sequences",
@@ -1511,6 +1513,12 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.command == "phase2-smap-msl-verify-manifest":
         result = verify_phase2_smap_msl_run_manifest(args.manifest, root=args.root)
+        if args.output_markdown is not None:
+            audit_path = write_phase2_smap_msl_manifest_audit_markdown(
+                result,
+                args.output_markdown,
+            )
+            print(f"audit_markdown={audit_path}")
         print(f"status={'ok' if result.ok else 'failed'}")
         print(f"manifest={result.manifest_path}")
         print(f"artifacts_checked={len(result.checked_artifacts)}")

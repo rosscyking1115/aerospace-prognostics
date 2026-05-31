@@ -7,6 +7,7 @@ import numpy as np
 from aerospace_prognostics.workflows.phase2_smap_msl import (
     run_phase2_smap_msl_workflow,
     verify_phase2_smap_msl_run_manifest,
+    write_phase2_smap_msl_manifest_audit_markdown,
 )
 
 
@@ -84,6 +85,20 @@ def test_run_phase2_smap_msl_workflow_writes_expected_artifacts(tmp_path) -> Non
     verification = verify_phase2_smap_msl_run_manifest(result.run_manifest_path)
     assert verification.ok
     assert len(verification.checked_artifacts) == 18
+    assert verification.manifest_payload is not None
+
+    audit_path = write_phase2_smap_msl_manifest_audit_markdown(
+        verification,
+        artifact_dir / "phase2_smap_msl_manifest_audit.md",
+    )
+    audit_markdown = audit_path.read_text(encoding="utf-8")
+    assert "# Phase 2 SMAP/MSL Manifest Audit" in audit_markdown
+    assert "- Status: ok" in audit_markdown
+    assert "- Artifacts checked: 18" in audit_markdown
+    assert "## Artifacts" in audit_markdown
+    assert "| classical_csv | yes |" in audit_markdown
+    assert "## Problems" in audit_markdown
+    assert "- None" in audit_markdown
 
     with result.classical_csv_path.open("a", encoding="utf-8") as file:
         file.write("tampered\n")

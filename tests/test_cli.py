@@ -1339,13 +1339,21 @@ def test_phase2_smap_msl_command_runs_anomaly_workflow(tmp_path, capsys) -> None
             "phase2-smap-msl-verify-manifest",
             "--manifest",
             str(artifact_dir / "phase2_smap_msl_run_manifest.json"),
+            "--output-markdown",
+            str(artifact_dir / "phase2_smap_msl_manifest_audit.md"),
         ]
     )
     verify_output = capsys.readouterr().out
 
     assert verify_exit_code == 0
+    assert "audit_markdown=" in verify_output
     assert "status=ok" in verify_output
     assert "artifacts_checked=18" in verify_output
+    audit_markdown = (artifact_dir / "phase2_smap_msl_manifest_audit.md").read_text(
+        encoding="utf-8"
+    )
+    assert "# Phase 2 SMAP/MSL Manifest Audit" in audit_markdown
+    assert "- Status: ok" in audit_markdown
 
 
 def test_smap_msl_compare_anomaly_results_command_writes_report_tables(

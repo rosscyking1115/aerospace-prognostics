@@ -7,7 +7,7 @@ import json
 import platform
 import subprocess
 import sys
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from importlib import metadata as importlib_metadata
 from pathlib import Path
@@ -86,6 +86,8 @@ class Phase2SmapMslRunManifestVerification:
     manifest_path: Path
     checked_artifacts: tuple[Path, ...]
     problems: tuple[str, ...]
+    artifact_root: Path = Path(".")
+    manifest_payload: dict[str, object] | None = None
 
     @property
     def ok(self) -> bool:
@@ -414,7 +416,12 @@ def verify_phase2_smap_msl_run_manifest(
     checked_artifacts: list[Path] = []
     payload = _read_run_manifest_payload(path, problems)
     if payload is None:
-        return Phase2SmapMslRunManifestVerification(path, (), tuple(problems))
+        return Phase2SmapMslRunManifestVerification(
+            manifest_path=path,
+            checked_artifacts=(),
+            problems=tuple(problems),
+            artifact_root=artifact_root,
+        )
 
     if payload.get("workflow") != "phase2_smap_msl":
         problems.append("workflow must be phase2_smap_msl")
@@ -449,7 +456,118 @@ def verify_phase2_smap_msl_run_manifest(
         manifest_path=path,
         checked_artifacts=tuple(checked_artifacts),
         problems=tuple(problems),
+        artifact_root=artifact_root,
+        manifest_payload=payload,
     )
+
+
+def write_phase2_smap_msl_manifest_audit_markdown(
+    verification: Phase2SmapMslRunManifestVerification,
+    output_path: str | Path,
+) -> Path:
+    """Write a human-readable audit report for a SMAP/MSL Phase 2 run manifest."""
+
+    path = Path(output_path)
+    payload = verification.manifest_payload or {}
+    selection = _manifest_section(payload, "selection")
+    runtime = _manifest_section(payload, "runtime")
+    source_control = _manifest_section(payload, "source_control")
+    counts = _manifest_section(payload, "counts")
+    artifacts = _manifest_section(payload, "artifacts")
+    artifact_integrity = _manifest_section(payload, "artifact_integrity")
+    dependencies = _manifest_section(runtime, "dependencies")
+
+    lines = [
+        "# Phase 2 SMAP/MSL Manifest Audit",
+        "",
+        f"- Status: {'ok' if verification.ok else 'failed'}",
+        f"- Manifest: `{verification.manifest_path.as_posix()}`",
+        f"- Workflow: {_markdown_inline(payload.get('workflow'))}",
+        f"- Data directory: `{_markdown_inline(payload.get('data_dir'))}`",
+        f"- Artifact directory: `{_markdown_inline(payload.get('artifact_dir'))}`",
+        f"- Artifacts checked: {len(verification.checked_artifacts)}",
+        "",
+        "## Selection",
+        "",
+        f"- Requested channels: {_markdown_inline(selection.get('requested_channels'))}",
+        f"- Selected channels: {_markdown_inline(selection.get('channels'))}",
+        f"- Max channels: {_markdown_inline(selection.get('max_channels'))}",
+        "",
+        "## Runtime",
+        "",
+        f"- Python: {_markdown_inline(runtime.get('python_version'))}",
+        f"- Platform: {_markdown_inline(runtime.get('platform'))}",
+        f"- Project version: {_markdown_inline(runtime.get('project_version'))}",
+        f"- Git branch: {_markdown_inline(source_control.get('git_branch'))}",
+        f"- Git commit: {_markdown_inline(source_control.get('git_commit'))}",
+        f"- Git dirty: {_markdown_inline(source_control.get('git_dirty'))}",
+        "",
+        "## Dependencies",
+        "",
+        "| Package | Version |",
+        "| --- | --- |",
+    ]
+    for name, version in sorted(dependencies.items()):
+        lines.append(f"| {_markdown_cell(name)} | {_markdown_cell(version)} |")
+
+    lines.extend(
+        [
+            "",
+            "## Counts",
+            "",
+            "| Metric | Count |",
+            "| --- | ---: |",
+        ]
+    )
+    for key, value in sorted(counts.items()):
+        lines.append(f"| {_markdown_cell(key)} | {_markdown_cell(value)} |")
+
+    lines.extend(
+        [
+            "",
+            "## Artifacts",
+            "",
+            "| Key | Exists | Size Bytes | SHA-256 | Path |",
+            "| --- | --- | ---: | --- | --- |",
+        ]
+    )
+    for key, value in sorted(artifacts.items()):
+        if value is None:
+            continue
+        exists = "unknown"
+        if isinstance(value, str):
+            artifact_path = _resolve_manifest_path(value, verification.artifact_root)
+            exists = "yes" if artifact_path.exists() else "no"
+        integrity = artifact_integrity.get(key)
+        size_bytes = ""
+        sha256 = ""
+        if isinstance(integrity, dict):
+            size_bytes = _markdown_inline(integrity.get("size_bytes"), default="")
+            sha256_value = integrity.get("sha256")
+            sha256 = sha256_value[:12] if isinstance(sha256_value, str) else ""
+        lines.append(
+            "| "
+            + " | ".join(
+                (
+                    _markdown_cell(key),
+                    _markdown_cell(exists),
+                    _markdown_cell(size_bytes),
+                    _markdown_cell(sha256),
+                    _markdown_cell(value),
+                )
+            )
+            + " |"
+        )
+
+    lines.extend(["", "## Problems", ""])
+    if verification.problems:
+        lines.extend(f"- {problem}" for problem in verification.problems)
+    else:
+        lines.append("- None")
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    return path
 
 
 def _write_phase2_smap_msl_summary(
@@ -622,6 +740,23 @@ def _csv_data_row_count(path: Path) -> int:
         reader = csv.reader(file)
         next(reader, None)
         return sum(1 for _ in reader)
+
+
+def _manifest_section(payload: Mapping[object, object], key: str) -> dict[object, object]:
+    section = payload.get(key)
+    return section if isinstance(section, dict) else {}
+
+
+def _markdown_inline(value: object, *, default: str = "unknown") -> str:
+    if value is None:
+        return default
+    if isinstance(value, (list, tuple)):
+        return ", ".join(str(item) for item in value)
+    return str(value)
+
+
+def _markdown_cell(value: object) -> str:
+    return _markdown_inline(value, default="").replace("|", "\\|")
 
 
 def _resolve_manifest_path(path: str, root: Path) -> Path:

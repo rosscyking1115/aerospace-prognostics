@@ -88,10 +88,10 @@ One-command Track B bundle:
 
 ```powershell
 uv run aerospace-prognostics phase2-smap-msl --data-dir data/raw/smap_msl --artifact-dir artifacts/phase2_smap_msl --max-channels 5 --window-size 30 --epochs 10 --robust-policy-false-alarm-budget 0.15
-uv run aerospace-prognostics phase2-smap-msl-verify-manifest --manifest artifacts/phase2_smap_msl/phase2_smap_msl_run_manifest.json
+uv run aerospace-prognostics phase2-smap-msl-verify-manifest --manifest artifacts/phase2_smap_msl/phase2_smap_msl_run_manifest.json --output-markdown artifacts/phase2_smap_msl/phase2_smap_msl_manifest_audit.md
 ```
 
-This writes classical, LSTM robust-threshold, LSTM dynamic-threshold, optional robust-threshold policy, ranked comparison, `phase2_smap_msl_summary.md`, and `phase2_smap_msl_run_manifest.json` artifacts under the requested artifact directory. The run manifest records the selected channels, model and threshold parameters, artifact paths, row counts, SHA-256/size checksums, Python/platform versions, core dependency versions, and Git commit state for reproducibility. The verify command checks that the manifest is structurally valid, referenced artifacts exist, artifact checksums still match, and CSV row counts match the recorded counts. When `--robust-policy-false-alarm-budget` is supplied, the workflow also writes threshold sweep, operating-point, and comparison-ready policy artifacts, then includes the policy rows in the ranked comparison.
+This writes classical, LSTM robust-threshold, LSTM dynamic-threshold, optional robust-threshold policy, ranked comparison, `phase2_smap_msl_summary.md`, and `phase2_smap_msl_run_manifest.json` artifacts under the requested artifact directory. The run manifest records the selected channels, model and threshold parameters, artifact paths, row counts, SHA-256/size checksums, Python/platform versions, core dependency versions, and Git commit state for reproducibility. The verify command checks that the manifest is structurally valid, referenced artifacts exist, artifact checksums still match, and CSV row counts match the recorded counts. With `--output-markdown`, it also writes a compact audit report with status, provenance, counts, artifact existence, and checksum prefixes. When `--robust-policy-false-alarm-budget` is supplied, the workflow also writes threshold sweep, operating-point, and comparison-ready policy artifacts, then includes the policy rows in the ranked comparison.
 
 ## First Real SMAP/MSL Sample Run
 
