@@ -95,6 +95,15 @@ uv run aerospace-prognostics phase2-cmapss-verify-manifest --manifest artifacts/
 
 This run trained all four Phase 2 model families for 20 epochs on real FD001 sequence tensors, produced four deep results and five comparison rows, and verified the run manifest with `status=ok` across 13 checked artifacts. The Phase 1 HGB policy remains the best row, but the Transformer checkpoint is now close enough to be a useful deep-learning baseline rather than only a plumbing test.
 
+Focused Transformer/TCN follow-up:
+
+```powershell
+uv run aerospace-prognostics phase2-cmapss --data-dir data/raw/cmapss --artifact-dir artifacts/phase2_fd001_transformer_tcn_40e --subsets FD001 --models transformer tcn --epochs 40 --batch-size 256 --hidden-sizes 32 64 --learning-rates 0.001 0.0003 --tcn-levels 3 --validation-horizon 30 --checkpoint-policy validation_nasa
+uv run aerospace-prognostics phase2-cmapss-verify-manifest --manifest artifacts/phase2_fd001_transformer_tcn_40e/phase2_run_manifest.json --output-markdown artifacts/phase2_fd001_transformer_tcn_40e/phase2_manifest_audit.md
+```
+
+This sweep produced eight deep results and verified the run manifest with `status=ok` across 13 checked artifacts. The best deep row improved from NASA score 352.015482 in the 20-epoch run to 299.978246, narrowing the gap to the Phase 1 HGB policy but not beating it yet.
+
 ## FD001 First Result
 
 | Checkpoint | Model | Selected Epoch | Validation RMSE | Validation NASA Score | Official Test RMSE | Official Test NASA Score |
@@ -105,6 +114,9 @@ This run trained all four Phase 2 model families for 20 epochs on real FD001 seq
 | Phase 2 workflow smoke baseline | `compare_tcn_h16_lr0p001_tcn_w30_e3_c16_l1_k3_best_e3` | 3 | 53.316125 | 1403204.206645 | 46.968692 | 19115.956643 |
 | Phase 2 workflow smoke baseline | `compare_cnn_h16_lr0p001_cnn_1d_w30_e3_c16_best_e3` | 3 | 53.269599 | 1570720.650364 | 46.877603 | 21879.546393 |
 | Phase 2 benchmark-shaped baseline | `compare_transformer_h32_lr0p001_transformer_w30_e20_d32_h4_l1_ff64_best_e20` | 20 | 19.251686 | 15309.424315 | 16.173196 | 352.015482 |
+| Phase 2 focused sweep | `compare_transformer_h32_lr0p001_transformer_w30_e40_d32_h4_l1_ff64_best_e39` | 39 | 15.026410 | 11200.658784 | 14.339589 | 299.978246 |
+| Phase 2 focused sweep | `compare_transformer_h64_lr0p001_transformer_w30_e40_d64_h4_l1_ff128_best_e22` | 22 | 15.341944 | 11914.289576 | 14.759614 | 328.647072 |
+| Phase 2 focused sweep | `compare_tcn_h64_lr0p0003_tcn_w30_e40_c64_l3_k3_best_e34` | 34 | 21.604288 | 26895.387798 | 17.417167 | 439.757150 |
 | Phase 2 benchmark-shaped baseline | `compare_tcn_h32_lr0p001_tcn_w30_e20_c32_l2_k3_best_e13` | 13 | 23.086388 | 34936.741283 | 19.065325 | 807.884690 |
 | Phase 2 benchmark-shaped baseline | `compare_cnn_h32_lr0p001_cnn_1d_w30_e20_c32_best_e13` | 13 | 26.932023 | 55135.426955 | 25.045474 | 3858.156520 |
 | Phase 2 benchmark-shaped baseline | `compare_bilstm_h32_lr0p001_bilstm_w30_e20_h32_l1_best_e20` | 20 | 45.309112 | 168914.199343 | 37.189642 | 4237.429679 |
@@ -113,7 +125,7 @@ Both CNN results are worse than the Phase 1 HGB policy on FD001. That is useful,
 
 The validation-selected run is especially important. It chooses epoch 2 because the original train-only validation split used only one final window per held-out unit, so a tiny validation signal looked strong while the official test score collapsed. Phase 2 now exports rolling validation-selection windows to reduce that failure mode before relying on early stopping as a model-selection signal.
 
-The 20-epoch benchmark shows the next Track A modelling problem clearly: deep sequence models are working end to end, but the classical HGB policy is still stronger on FD001. The immediate follow-up should be targeted rather than broad: improve the Transformer and TCN candidates with longer training, smaller learning-rate sweeps, residual or regularized temporal blocks, and validation diagnostics before expanding the full grid to FD002-FD004.
+The 20-epoch benchmark and 40-epoch focused sweep show the next Track A modelling problem clearly: deep sequence models are working end to end, but the classical HGB policy is still stronger on FD001. The Transformer is the strongest deep family so far, especially with hidden size 32 and learning rate 0.001. The lower 0.0003 learning rate undertrained badly at hidden size 32, while hidden size 64 improved but still trailed the smaller 0.001 run. The immediate follow-up should be targeted rather than broad: continue Transformer training and validation diagnostics around this operating point before expanding the full grid to FD002-FD004.
 
 ## Current Interpretation
 
@@ -121,7 +133,7 @@ The Phase 2 pipeline is now real: exported sequence windows feed torch models, C
 
 The next deep-learning work should focus on model quality rather than plumbing:
 
-- Continue FD001 beyond the 20-epoch benchmark with focused Transformer and TCN sweeps before expanding to FD002-FD004.
+- Continue FD001 beyond the 40-epoch Transformer/TCN sweep with focused Transformer diagnostics before expanding to FD002-FD004.
 - Use the workflow parameters for wider/deeper CNNs, residual or TCN-style blocks, attention heads, regularization, and learning-rate sweeps.
 - Use the ranked report command for every Phase 2 run bundle, especially when checking the known FD003 validation mismatch.
 - Keep all sensors for now; Phase 1 sensor-filter validation showed EDA filtering harms FD002 and FD004.
