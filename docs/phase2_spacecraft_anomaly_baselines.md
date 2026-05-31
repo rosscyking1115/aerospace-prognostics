@@ -90,7 +90,7 @@ One-command Track B bundle:
 uv run aerospace-prognostics phase2-smap-msl --data-dir data/raw/smap_msl --artifact-dir artifacts/phase2_smap_msl --max-channels 5 --window-size 30 --epochs 10 --robust-policy-false-alarm-budget 0.15
 ```
 
-This writes classical, LSTM robust-threshold, LSTM dynamic-threshold, optional robust-threshold policy, ranked comparison, `phase2_smap_msl_summary.md`, and `phase2_smap_msl_run_manifest.json` artifacts under the requested artifact directory. The run manifest records the selected channels, model and threshold parameters, artifact paths, and row counts for reproducibility. When `--robust-policy-false-alarm-budget` is supplied, the workflow also writes threshold sweep, operating-point, and comparison-ready policy artifacts, then includes the policy rows in the ranked comparison.
+This writes classical, LSTM robust-threshold, LSTM dynamic-threshold, optional robust-threshold policy, ranked comparison, `phase2_smap_msl_summary.md`, and `phase2_smap_msl_run_manifest.json` artifacts under the requested artifact directory. The run manifest records the selected channels, model and threshold parameters, artifact paths, row counts, Python/platform versions, core dependency versions, and Git commit state for reproducibility. When `--robust-policy-false-alarm-budget` is supplied, the workflow also writes threshold sweep, operating-point, and comparison-ready policy artifacts, then includes the policy rows in the ranked comparison.
 
 ## First Real SMAP/MSL Sample Run
 

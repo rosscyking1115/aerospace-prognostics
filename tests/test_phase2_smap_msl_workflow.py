@@ -61,6 +61,10 @@ def test_run_phase2_smap_msl_workflow_writes_expected_artifacts(tmp_path) -> Non
     assert run_manifest["parameters"]["robust_policy_false_alarm_budget"] == 1.0
     assert run_manifest["counts"]["robust_threshold_policy_runs"] == 2
     assert run_manifest["counts"]["comparison_rows"] == 10
+    assert run_manifest["runtime"]["python_version"]
+    assert "numpy" in run_manifest["runtime"]["dependencies"]
+    assert "git_commit" in run_manifest["source_control"]
+    assert "git_dirty" in run_manifest["source_control"]
     assert run_manifest["artifacts"]["robust_threshold_policy_csv"].endswith(
         "smap_msl_robust_threshold_policy.csv"
     )

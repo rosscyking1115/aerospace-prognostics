@@ -3,8 +3,12 @@
 from __future__ import annotations
 
 import json
+import platform
+import subprocess
+import sys
 from collections.abc import Iterable
 from dataclasses import dataclass
+from importlib import metadata as importlib_metadata
 from pathlib import Path
 
 from aerospace_prognostics.anomaly.baselines import CLASSICAL_ANOMALY_BASELINE_METHODS
@@ -273,6 +277,8 @@ def run_phase2_smap_msl_workflow(
                 "channels": list(channels) if channels is not None else None,
                 "max_channels": max_channels,
             },
+            "runtime": _runtime_environment_payload(),
+            "source_control": _source_control_payload(),
             "parameters": {
                 "classical_methods": list(classical_methods),
                 "robust_threshold": robust_threshold,
@@ -454,6 +460,65 @@ def _write_phase2_smap_msl_summary(
 def _write_phase2_smap_msl_run_manifest(path: Path, payload: dict[str, object]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+
+
+def _runtime_environment_payload() -> dict[str, object]:
+    return {
+        "python_version": sys.version.split()[0],
+        "platform": platform.platform(),
+        "project_version": _package_version("aerospace-prognostics"),
+        "dependencies": {
+            name: _package_version(name)
+            for name in (
+                "numpy",
+                "pandas",
+                "scikit-learn",
+                "scipy",
+                "torch",
+            )
+        },
+    }
+
+
+def _source_control_payload() -> dict[str, object]:
+    return {
+        "git_commit": _git_output("rev-parse", "HEAD"),
+        "git_branch": _git_output("rev-parse", "--abbrev-ref", "HEAD"),
+        "git_dirty": _git_dirty(),
+    }
+
+
+def _package_version(package_name: str) -> str | None:
+    try:
+        return importlib_metadata.version(package_name)
+    except importlib_metadata.PackageNotFoundError:
+        return None
+
+
+def _git_dirty() -> bool | None:
+    status = _git_output("status", "--porcelain")
+    if status is None:
+        return None
+    return bool(status)
+
+
+def _git_output(*args: str) -> str | None:
+    try:
+        result = subprocess.run(
+            ("git", *args),
+            cwd=_repository_root(),
+            check=True,
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+    except (OSError, subprocess.CalledProcessError, subprocess.TimeoutExpired):
+        return None
+    return result.stdout.strip()
+
+
+def _repository_root() -> Path:
+    return Path(__file__).resolve().parents[3]
 
 
 def _path_as_posix(path: Path | None) -> str | None:
