@@ -1158,6 +1158,7 @@ def test_smap_msl_robust_threshold_sweep_command_writes_outputs(tmp_path, capsys
     _write_cli_smap_msl_channel(tmp_path)
     output_csv = tmp_path / "results" / "robust_sweep.csv"
     aggregate_csv = tmp_path / "results" / "robust_sweep_aggregate.csv"
+    operating_point_csv = tmp_path / "results" / "robust_operating_points.csv"
 
     exit_code = main(
         [
@@ -1173,6 +1174,12 @@ def test_smap_msl_robust_threshold_sweep_command_writes_outputs(tmp_path, capsys
             str(output_csv),
             "--aggregate-csv",
             str(aggregate_csv),
+            "--false-alarm-budget",
+            "1.0",
+            "--selection-group",
+            "global",
+            "--operating-point-csv",
+            str(operating_point_csv),
         ]
     )
     output = capsys.readouterr().out
@@ -1182,8 +1189,11 @@ def test_smap_msl_robust_threshold_sweep_command_writes_outputs(tmp_path, capsys
     assert "thresholds=2,4" in output
     assert "runs=2" in output
     assert "threshold,channels,wins_by_f1" in output
+    assert "false_alarm_budget=1" in output
+    assert "scope,group,false_alarm_budget,selected_threshold" in output
     assert output_csv.exists()
     assert aggregate_csv.exists()
+    assert operating_point_csv.exists()
 
 
 def test_smap_msl_lstm_forecast_baseline_command_writes_outputs(tmp_path, capsys) -> None:

@@ -146,6 +146,40 @@ class SmapMslRobustThresholdSweepAggregate:
         }
 
 
+@dataclass(frozen=True)
+class SmapMslRobustThresholdOperatingPoint:
+    """Selected robust threshold for a spacecraft family or global channel group."""
+
+    scope: str
+    group: str
+    false_alarm_budget: float
+    selected_threshold: float
+    feasible: bool
+    channels: int
+    mean_precision: float
+    mean_recall: float
+    mean_f1: float
+    mean_point_adjusted_f1: float
+    mean_false_alarm_rate: float
+    mean_miss_rate: float
+
+    def to_dict(self) -> dict[str, object]:
+        return {
+            "scope": self.scope,
+            "group": self.group,
+            "false_alarm_budget": self.false_alarm_budget,
+            "selected_threshold": self.selected_threshold,
+            "feasible": self.feasible,
+            "channels": self.channels,
+            "mean_precision": self.mean_precision,
+            "mean_recall": self.mean_recall,
+            "mean_f1": self.mean_f1,
+            "mean_point_adjusted_f1": self.mean_point_adjusted_f1,
+            "mean_false_alarm_rate": self.mean_false_alarm_rate,
+            "mean_miss_rate": self.mean_miss_rate,
+        }
+
+
 def run_smap_msl_classical_baselines(
     data_dir: Path,
     *,
@@ -266,6 +300,65 @@ def aggregate_smap_msl_robust_threshold_sweep(
             )
         )
     return tuple(aggregates)
+
+
+def select_smap_msl_robust_threshold_operating_points(
+    runs: tuple[SmapMslRobustThresholdSweepRun, ...],
+    *,
+    false_alarm_budget: float,
+    group_by: str = "spacecraft",
+) -> tuple[SmapMslRobustThresholdOperatingPoint, ...]:
+    """Select robust threshold operating points under a false-alarm budget."""
+
+    if not runs:
+        raise ValueError("runs must contain at least one item")
+    if false_alarm_budget < 0 or false_alarm_budget > 1:
+        raise ValueError("false_alarm_budget must be between 0 and 1")
+    if group_by not in {"global", "spacecraft"}:
+        raise ValueError("group_by must be 'global' or 'spacecraft'")
+
+    grouped_runs: dict[str, tuple[SmapMslRobustThresholdSweepRun, ...]]
+    if group_by == "global":
+        grouped_runs = {"all": runs}
+    else:
+        grouped_runs = {
+            spacecraft: tuple(run for run in runs if run.spacecraft == spacecraft)
+            for spacecraft in sorted({run.spacecraft for run in runs})
+        }
+
+    operating_points: list[SmapMslRobustThresholdOperatingPoint] = []
+    for group, group_runs in grouped_runs.items():
+        aggregates = aggregate_smap_msl_robust_threshold_sweep(group_runs)
+        feasible = tuple(
+            aggregate
+            for aggregate in aggregates
+            if aggregate.mean_false_alarm_rate <= false_alarm_budget
+        )
+        selected = min(
+            feasible or aggregates,
+            key=(
+                _operating_point_feasible_sort_key
+                if feasible
+                else _operating_point_infeasible_sort_key
+            ),
+        )
+        operating_points.append(
+            SmapMslRobustThresholdOperatingPoint(
+                scope=group_by,
+                group=group,
+                false_alarm_budget=false_alarm_budget,
+                selected_threshold=selected.threshold,
+                feasible=bool(feasible),
+                channels=selected.channels,
+                mean_precision=selected.mean_precision,
+                mean_recall=selected.mean_recall,
+                mean_f1=selected.mean_f1,
+                mean_point_adjusted_f1=selected.mean_point_adjusted_f1,
+                mean_false_alarm_rate=selected.mean_false_alarm_rate,
+                mean_miss_rate=selected.mean_miss_rate,
+            )
+        )
+    return tuple(operating_points)
 
 
 def run_smap_msl_lstm_forecast_baseline(
@@ -490,6 +583,32 @@ def write_smap_msl_robust_threshold_sweep_aggregate_csv(
         writer.writerows(aggregate.to_dict() for aggregate in aggregates)
 
 
+def write_smap_msl_robust_threshold_operating_points_json(
+    operating_points: tuple[SmapMslRobustThresholdOperatingPoint, ...],
+    path: Path,
+) -> None:
+    """Write selected SMAP/MSL robust threshold operating points as JSON."""
+
+    output_path = _prepare_output_path(path)
+    payload = [operating_point.to_dict() for operating_point in operating_points]
+    output_path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n")
+
+
+def write_smap_msl_robust_threshold_operating_points_csv(
+    operating_points: tuple[SmapMslRobustThresholdOperatingPoint, ...],
+    path: Path,
+) -> None:
+    """Write selected SMAP/MSL robust threshold operating points as CSV."""
+
+    if not operating_points:
+        raise ValueError("operating_points must contain at least one item")
+    output_path = _prepare_output_path(path)
+    with output_path.open("w", encoding="utf-8", newline="") as file:
+        writer = csv.DictWriter(file, fieldnames=list(operating_points[0].to_dict()))
+        writer.writeheader()
+        writer.writerows(operating_point.to_dict() for operating_point in operating_points)
+
+
 def write_smap_msl_lstm_forecast_baseline_csv(
     runs: tuple[SmapMslLstmForecastBaselineRun, ...],
     path: Path,
@@ -591,6 +710,30 @@ def _robust_threshold_wins_by_channel(
         )
         winners[best.threshold] = winners.get(best.threshold, 0) + 1
     return winners
+
+
+def _operating_point_feasible_sort_key(
+    aggregate: SmapMslRobustThresholdSweepAggregate,
+) -> tuple[float, float, float, float, float]:
+    return (
+        -aggregate.mean_f1,
+        aggregate.mean_false_alarm_rate,
+        -aggregate.mean_point_adjusted_f1,
+        aggregate.mean_miss_rate,
+        aggregate.threshold,
+    )
+
+
+def _operating_point_infeasible_sort_key(
+    aggregate: SmapMslRobustThresholdSweepAggregate,
+) -> tuple[float, float, float, float, float]:
+    return (
+        aggregate.mean_false_alarm_rate,
+        -aggregate.mean_f1,
+        -aggregate.mean_point_adjusted_f1,
+        aggregate.mean_miss_rate,
+        aggregate.threshold,
+    )
 
 
 def _mean(values: Iterable[float]) -> float:

@@ -10,10 +10,12 @@ from aerospace_prognostics.experiments.smap_msl_anomaly import (
     run_smap_msl_classical_baselines,
     run_smap_msl_lstm_forecast_baseline,
     run_smap_msl_robust_threshold_sweep,
+    select_smap_msl_robust_threshold_operating_points,
     write_smap_msl_classical_baselines_csv,
     write_smap_msl_classical_baselines_json,
     write_smap_msl_lstm_forecast_baseline_csv,
     write_smap_msl_lstm_forecast_baseline_json,
+    write_smap_msl_robust_threshold_operating_points_csv,
     write_smap_msl_robust_threshold_sweep_aggregate_csv,
     write_smap_msl_robust_threshold_sweep_csv,
 )
@@ -120,6 +122,49 @@ def test_write_smap_msl_robust_threshold_sweep_outputs(tmp_path) -> None:
 
     assert "channel_id,spacecraft,threshold" in output_csv.read_text(encoding="utf-8")
     assert "threshold,channels,wins_by_f1" in aggregate_csv.read_text(encoding="utf-8")
+
+
+def test_select_smap_msl_robust_threshold_operating_points_by_spacecraft(tmp_path) -> None:
+    _write_multi_channel_smap_msl(tmp_path)
+    runs = run_smap_msl_robust_threshold_sweep(
+        tmp_path,
+        channels=("P-1", "C-1"),
+        thresholds=(2.0, 4.0),
+    )
+
+    operating_points = select_smap_msl_robust_threshold_operating_points(
+        runs,
+        false_alarm_budget=1.0,
+        group_by="spacecraft",
+    )
+
+    assert [point.group for point in operating_points] == ["MSL", "SMAP"]
+    assert all(point.scope == "spacecraft" for point in operating_points)
+    assert all(point.feasible for point in operating_points)
+    assert all(point.channels == 1 for point in operating_points)
+    assert {point.selected_threshold for point in operating_points} <= {2.0, 4.0}
+
+
+def test_write_smap_msl_robust_threshold_operating_points_csv(tmp_path) -> None:
+    _write_multi_channel_smap_msl(tmp_path)
+    runs = run_smap_msl_robust_threshold_sweep(
+        tmp_path,
+        channels=("P-1",),
+        thresholds=(2.0, 4.0),
+    )
+    operating_points = select_smap_msl_robust_threshold_operating_points(
+        runs,
+        false_alarm_budget=1.0,
+        group_by="global",
+    )
+    output_csv = tmp_path / "results" / "operating_points.csv"
+
+    write_smap_msl_robust_threshold_operating_points_csv(operating_points, output_csv)
+
+    assert (
+        "scope,group,false_alarm_budget,selected_threshold,feasible"
+        in output_csv.read_text(encoding="utf-8")
+    )
 
 
 def test_run_smap_msl_lstm_forecast_baseline_scores_selected_channel(tmp_path) -> None:

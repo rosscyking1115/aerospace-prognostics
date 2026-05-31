@@ -88,16 +88,20 @@ from aerospace_prognostics.experiments.cmapss_deep_baseline import (
 from aerospace_prognostics.experiments.smap_msl_anomaly import (
     SmapMslClassicalBaselineRun,
     SmapMslLstmForecastBaselineRun,
+    SmapMslRobustThresholdOperatingPoint,
     SmapMslRobustThresholdSweepAggregate,
     SmapMslRobustThresholdSweepRun,
     aggregate_smap_msl_robust_threshold_sweep,
     run_smap_msl_classical_baselines,
     run_smap_msl_lstm_forecast_baseline,
     run_smap_msl_robust_threshold_sweep,
+    select_smap_msl_robust_threshold_operating_points,
     write_smap_msl_classical_baselines_csv,
     write_smap_msl_classical_baselines_json,
     write_smap_msl_lstm_forecast_baseline_csv,
     write_smap_msl_lstm_forecast_baseline_json,
+    write_smap_msl_robust_threshold_operating_points_csv,
+    write_smap_msl_robust_threshold_operating_points_json,
     write_smap_msl_robust_threshold_sweep_aggregate_csv,
     write_smap_msl_robust_threshold_sweep_aggregate_json,
     write_smap_msl_robust_threshold_sweep_csv,
@@ -810,6 +814,14 @@ def _build_parser() -> argparse.ArgumentParser:
     smap_msl_robust_sweep.add_argument("--output-csv", type=Path)
     smap_msl_robust_sweep.add_argument("--aggregate-json", type=Path)
     smap_msl_robust_sweep.add_argument("--aggregate-csv", type=Path)
+    smap_msl_robust_sweep.add_argument("--false-alarm-budget", type=float)
+    smap_msl_robust_sweep.add_argument(
+        "--selection-group",
+        choices=["spacecraft", "global"],
+        default="spacecraft",
+    )
+    smap_msl_robust_sweep.add_argument("--operating-point-json", type=Path)
+    smap_msl_robust_sweep.add_argument("--operating-point-csv", type=Path)
 
     smap_msl_lstm = subparsers.add_parser(
         "smap-msl-lstm-forecast-baseline",
@@ -1894,6 +1906,32 @@ def main(argv: list[str] | None = None) -> int:
         print(f"thresholds={','.join(_format_cli_float(value) for value in args.thresholds)}")
         print(f"runs={len(runs)}")
         _print_smap_msl_robust_threshold_aggregate_table(aggregates)
+        operating_point_outputs_requested = (
+            args.operating_point_json is not None or args.operating_point_csv is not None
+        )
+        if args.false_alarm_budget is not None or operating_point_outputs_requested:
+            if args.false_alarm_budget is None:
+                raise ValueError(
+                    "--false-alarm-budget is required when writing operating-point outputs"
+                )
+            operating_points = select_smap_msl_robust_threshold_operating_points(
+                runs,
+                false_alarm_budget=args.false_alarm_budget,
+                group_by=args.selection_group,
+            )
+            print(f"false_alarm_budget={_format_cli_float(args.false_alarm_budget)}")
+            print(f"selection_group={args.selection_group}")
+            _print_smap_msl_robust_threshold_operating_point_table(operating_points)
+            if args.operating_point_json is not None:
+                write_smap_msl_robust_threshold_operating_points_json(
+                    operating_points,
+                    args.operating_point_json,
+                )
+            if args.operating_point_csv is not None:
+                write_smap_msl_robust_threshold_operating_points_csv(
+                    operating_points,
+                    args.operating_point_csv,
+                )
         if args.output_json is not None:
             write_smap_msl_robust_threshold_sweep_json(runs, args.output_json)
         if args.output_csv is not None:
@@ -2104,6 +2142,31 @@ def _print_smap_msl_robust_threshold_aggregate_table(
             f"{aggregate.mean_point_adjusted_f1:.6f},"
             f"{aggregate.mean_false_alarm_rate:.6f},"
             f"{aggregate.mean_miss_rate:.6f}"
+        )
+
+
+def _print_smap_msl_robust_threshold_operating_point_table(
+    operating_points: Iterable[SmapMslRobustThresholdOperatingPoint],
+) -> None:
+    print(
+        "scope,group,false_alarm_budget,selected_threshold,feasible,channels,"
+        "mean_precision,mean_recall,mean_f1,mean_point_adjusted_f1,"
+        "mean_false_alarm_rate,mean_miss_rate"
+    )
+    for operating_point in operating_points:
+        print(
+            f"{operating_point.scope},"
+            f"{operating_point.group},"
+            f"{operating_point.false_alarm_budget:g},"
+            f"{operating_point.selected_threshold:g},"
+            f"{operating_point.feasible},"
+            f"{operating_point.channels},"
+            f"{operating_point.mean_precision:.6f},"
+            f"{operating_point.mean_recall:.6f},"
+            f"{operating_point.mean_f1:.6f},"
+            f"{operating_point.mean_point_adjusted_f1:.6f},"
+            f"{operating_point.mean_false_alarm_rate:.6f},"
+            f"{operating_point.mean_miss_rate:.6f}"
         )
 
 
