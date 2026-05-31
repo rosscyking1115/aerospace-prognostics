@@ -82,6 +82,28 @@ uv run aerospace-prognostics phase2-smap-msl --data-dir data/raw/smap_msl --arti
 
 This writes classical, LSTM robust-threshold, LSTM dynamic-threshold, ranked comparison, and `phase2_smap_msl_summary.md` artifacts under the requested artifact directory.
 
+## First Real SMAP/MSL Sample Run
+
+The Kaggle SMAP/MSL archive imported successfully through `smap-msl-download` and produced 164 `.npy` arrays, covering 82 channels. The raw summary command reported 105 anomaly sequences across 55 SMAP and 27 MSL channels.
+
+The first bounded workflow run used the first five channels, 10 LSTM epochs, 30-step forecast windows, three classical baselines, robust-threshold LSTM forecasts, and dynamic-threshold LSTM forecasts:
+
+```powershell
+uv run aerospace-prognostics phase2-smap-msl --data-dir data/raw/smap_msl --artifact-dir artifacts/phase2_smap_msl --max-channels 5 --window-size 30 --epochs 10 --batch-size 64
+```
+
+It generated 15 classical runs, 5 robust-threshold LSTM runs, 5 dynamic-threshold LSTM runs, and 25 ranked comparison rows.
+
+| Channel | Spacecraft | Best Source | Best Model | Point-wise F1 | Point-adjusted F1 | False Alarm Rate |
+|---|---|---|---|---:|---:|---:|
+| E-1 | SMAP | lstm_dynamic | `lstm_forecast_dynamic_threshold` | 0.685279 | 0.958794 | 0.001249 |
+| E-2 | SMAP | lstm_robust | `lstm_forecast_robust_threshold` | 0.274818 | 0.624944 | 0.235212 |
+| E-3 | SMAP | lstm_robust | `lstm_forecast_robust_threshold` | 0.103143 | 0.811261 | 0.293483 |
+| P-1 | SMAP | lstm_robust | `lstm_forecast_robust_threshold` | 0.115776 | 0.404525 | 0.285143 |
+| S-1 | SMAP | classical | `robust_zscore` | 0.222222 | 0.311978 | 0.287084 |
+
+The result is a useful warning sign, not a finished benchmark. E-1 shows the dynamic threshold can produce a strong, low-false-alarm detector on some channels, but several other winners have high false-alarm rates. The point-adjusted scores are often much larger than point-wise F1, including for detectors with very low point-wise recall, so point-wise precision/recall and false-alarm rate remain the primary readout.
+
 If `--feature-columns` is omitted, the command uses all numeric columns from the train CSV except the label column. For SMAP/MSL channel exports, pass `feature_0 feature_1 ...` explicitly when you want to exclude the numeric `timestep` column.
 
 ## Metric Note
@@ -94,6 +116,6 @@ Point-adjustment is included because it is common in time-series anomaly papers,
 
 This is not yet a reproduced SMAP/MSL Telemanom LSTM baseline. It is the Track B baseline layer: raw SMAP/MSL loading, direct multi-channel classical runs, LSTM forecasting with robust and dynamic thresholding, robust statistics, PCA reconstruction, Isolation Forest, metric handling, artifact formats, model comparison reporting, workflow orchestration, and CLI execution. The next Track B steps are:
 
-- run the direct multi-channel classical and LSTM-forecast comparisons on real SMAP/MSL channels and commit the comparison table into the technical notes
+- scale the direct multi-channel classical and LSTM-forecast comparison beyond the first five SMAP/MSL channels
 - compare the compact dynamic threshold against Telemanom's original predictions/threshold outputs on downloaded SMAP/MSL data
 - move serious benchmark claims to ESA-ADB with its official evaluation tools
