@@ -10,6 +10,9 @@ from aerospace_prognostics.data.smap_msl import (
     export_smap_msl_channel_csv,
     load_smap_msl_channel,
     read_smap_msl_labels,
+    select_smap_msl_channels,
+    write_smap_msl_channel_selection_csv,
+    write_smap_msl_channel_selection_json,
 )
 
 
@@ -57,6 +60,30 @@ def test_build_smap_msl_label_vector_rejects_out_of_range_interval() -> None:
         build_smap_msl_label_vector(3, ((1, 3),), channel_id="P-1")
 
 
+def test_select_smap_msl_channels_balances_spacecraft(tmp_path) -> None:
+    _write_smap_msl_selection_fixture(tmp_path)
+
+    selections = select_smap_msl_channels(tmp_path, count=3)
+
+    assert [selection.channel_id for selection in selections] == ["M-1", "P-1", "M-2"]
+    assert [selection.rank for selection in selections] == [1, 2, 3]
+    assert selections[0].anomaly_points == 3
+
+
+def test_write_smap_msl_channel_selection_outputs(tmp_path) -> None:
+    _write_smap_msl_selection_fixture(tmp_path)
+    selections = select_smap_msl_channels(tmp_path, count=2, strategy="label_order")
+    json_path = tmp_path / "selection" / "channels.json"
+    csv_path = tmp_path / "selection" / "channels.csv"
+
+    write_smap_msl_channel_selection_json(selections, json_path)
+    write_smap_msl_channel_selection_csv(selections, csv_path)
+
+    payload = json.loads(json_path.read_text(encoding="utf-8"))
+    assert [row["channel_id"] for row in payload] == ["P-1", "P-2"]
+    assert "rank,channel_id,spacecraft" in csv_path.read_text(encoding="utf-8")
+
+
 def _write_tiny_smap_msl_channel(root) -> None:
     (root / "data" / "train").mkdir(parents=True)
     (root / "data" / "test").mkdir(parents=True)
@@ -74,6 +101,23 @@ def _write_tiny_smap_msl_channel(root) -> None:
     np.save(
         root / "data" / "test" / "P-1.npy",
         np.array([[0, 0], [6, -6], [7, -7], [1, 1], [10, -10]]),
+    )
+
+
+def _write_smap_msl_selection_fixture(root) -> None:
+    root.mkdir(parents=True, exist_ok=True)
+    root.joinpath("labeled_anomalies.csv").write_text(
+        "\n".join(
+            [
+                "chan_id,spacecraft,anomaly_sequences,class,num_values",
+                '"P-1",SMAP,"[[1, 2]]","[contextual]",5',
+                '"P-2",SMAP,"[[1, 1]]","[point]",5',
+                '"M-1",MSL,"[[3, 5]]","[contextual]",8',
+                '"M-2",MSL,"[[0, 0], [2, 2]]","[point, point]",6',
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
     )
 
 

@@ -33,9 +33,13 @@ from aerospace_prognostics.data.manifest import (
     verify_manifest,
 )
 from aerospace_prognostics.data.smap_msl import (
+    SmapMslChannelSelection,
     export_smap_msl_channel_csv,
     load_smap_msl_channel,
     read_smap_msl_labels,
+    select_smap_msl_channels,
+    write_smap_msl_channel_selection_csv,
+    write_smap_msl_channel_selection_json,
 )
 from aerospace_prognostics.data.summary import summarise_cmapss_frame
 from aerospace_prognostics.deployment.artifacts import (
@@ -734,6 +738,22 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     smap_msl_summary.add_argument("--data-dir", type=Path, required=True)
     smap_msl_summary.add_argument("--channel-id")
+
+    smap_msl_select = subparsers.add_parser(
+        "smap-msl-select-channels",
+        help="Select deterministic SMAP/MSL channels for bounded benchmark sweeps",
+    )
+    smap_msl_select.add_argument("--data-dir", type=Path, required=True)
+    smap_msl_select.add_argument("--count", type=int, default=20)
+    smap_msl_select.add_argument(
+        "--strategy",
+        choices=["balanced", "label_order"],
+        default="balanced",
+    )
+    smap_msl_select.add_argument("--spacecraft", nargs="+")
+    smap_msl_select.add_argument("--min-anomaly-sequences", type=int, default=1)
+    smap_msl_select.add_argument("--output-json", type=Path)
+    smap_msl_select.add_argument("--output-csv", type=Path)
 
     smap_msl_export = subparsers.add_parser(
         "smap-msl-export-channel-csv",
@@ -1786,6 +1806,23 @@ def main(argv: list[str] | None = None) -> int:
         print(f"labelled_anomaly_points={int(channel.test_labels.sum())}")
         return 0
 
+    if args.command == "smap-msl-select-channels":
+        selections = select_smap_msl_channels(
+            args.data_dir,
+            count=args.count,
+            strategy=args.strategy,
+            spacecraft=tuple(args.spacecraft) if args.spacecraft is not None else None,
+            min_anomaly_sequences=args.min_anomaly_sequences,
+        )
+        print(f"selected_channels={len(selections)}")
+        print("channels=" + " ".join(selection.channel_id for selection in selections))
+        _print_smap_msl_channel_selection_table(selections)
+        if args.output_json is not None:
+            write_smap_msl_channel_selection_json(selections, args.output_json)
+        if args.output_csv is not None:
+            write_smap_msl_channel_selection_csv(selections, args.output_csv)
+        return 0
+
     if args.command == "smap-msl-export-channel-csv":
         export = export_smap_msl_channel_csv(args.data_dir, args.channel_id, args.output_dir)
         print(f"channel_id={export.channel_id}")
@@ -2012,6 +2049,21 @@ def _print_anomaly_comparison_table(rows: Iterable[AnomalyModelComparisonRow]) -
             f"{row.precision:.6f},"
             f"{row.recall:.6f},"
             f"{row.false_alarm_rate:.6f}"
+        )
+
+
+def _print_smap_msl_channel_selection_table(
+    selections: Iterable[SmapMslChannelSelection],
+) -> None:
+    print("rank,channel_id,spacecraft,anomaly_sequences,anomaly_points,num_values")
+    for selection in selections:
+        print(
+            f"{selection.rank},"
+            f"{selection.channel_id},"
+            f"{selection.spacecraft},"
+            f"{selection.anomaly_sequences},"
+            f"{selection.anomaly_points},"
+            f"{selection.num_values if selection.num_values is not None else ''}"
         )
 
 

@@ -1057,6 +1057,35 @@ def test_smap_msl_summary_command_prints_dataset_counts(tmp_path, capsys) -> Non
     assert "spacecraft=SMAP:1" in output
 
 
+def test_smap_msl_select_channels_command_writes_benchmark_list(tmp_path, capsys) -> None:
+    _write_cli_smap_msl_selection_fixture(tmp_path)
+    output_json = tmp_path / "selection" / "channels.json"
+    output_csv = tmp_path / "selection" / "channels.csv"
+
+    exit_code = main(
+        [
+            "smap-msl-select-channels",
+            "--data-dir",
+            str(tmp_path),
+            "--count",
+            "3",
+            "--output-json",
+            str(output_json),
+            "--output-csv",
+            str(output_csv),
+        ]
+    )
+    output = capsys.readouterr().out
+    payload = json.loads(output_json.read_text(encoding="utf-8"))
+
+    assert exit_code == 0
+    assert "selected_channels=3" in output
+    assert "channels=M-1 P-1 M-2" in output
+    assert "rank,channel_id,spacecraft,anomaly_sequences" in output
+    assert [row["channel_id"] for row in payload] == ["M-1", "P-1", "M-2"]
+    assert output_csv.exists()
+
+
 def test_smap_msl_export_channel_csv_command_writes_baseline_inputs(tmp_path, capsys) -> None:
     _write_cli_smap_msl_channel(tmp_path)
     output_dir = tmp_path / "exports"
@@ -1484,6 +1513,23 @@ def _write_cli_smap_msl_channel(root) -> None:
     np.save(
         root / "data" / "test" / "P-1.npy",
         np.array([[0, 0], [6, -6], [7, -7], [1, 1], [10, -10]]),
+    )
+
+
+def _write_cli_smap_msl_selection_fixture(root) -> None:
+    root.mkdir(parents=True, exist_ok=True)
+    root.joinpath("labeled_anomalies.csv").write_text(
+        "\n".join(
+            [
+                "chan_id,spacecraft,anomaly_sequences,class,num_values",
+                '"P-1",SMAP,"[[1, 2]]","[contextual]",5',
+                '"P-2",SMAP,"[[1, 1]]","[point]",5',
+                '"M-1",MSL,"[[3, 5]]","[contextual]",8',
+                '"M-2",MSL,"[[0, 0], [2, 2]]","[point, point]",6',
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
     )
 
 

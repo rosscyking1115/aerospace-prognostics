@@ -39,6 +39,14 @@ uv run aerospace-prognostics smap-msl-export-channel-csv --data-dir data/raw/sma
 
 The loader supports the Telemanom/Kaggle layout with `labeled_anomalies.csv` at the dataset root and arrays under either `train/` and `test/` or `data/train/` and `data/test/`. Each channel array is expected to have shape `(n_timesteps, n_inputs)`. Test labels are generated from inclusive anomaly intervals in `anomaly_sequences`.
 
+Deterministic channel selection for broader benchmark sweeps:
+
+```powershell
+uv run aerospace-prognostics smap-msl-select-channels --data-dir data/raw/smap_msl --count 20 --strategy balanced --output-json artifacts/phase2_smap_msl_channel_selection/balanced_20_channels.json --output-csv artifacts/phase2_smap_msl_channel_selection/balanced_20_channels.csv
+```
+
+The default `balanced` strategy round-robins through spacecraft groups in label order, which avoids treating the first label rows as a representative benchmark by accident. Use `label_order` when the exact Telemanom label order is the intended sample.
+
 Single robust baseline:
 
 ```powershell
@@ -127,6 +135,15 @@ That run produced 30 classical runs, 10 robust-threshold LSTM runs, 10 dynamic-t
 
 The mixed sample reinforces the need for multiple baseline families. MSL channel M-2 is best served by Isolation Forest, while E-1 and C-1 favor dynamic LSTM thresholding. There is no single method that looks uniformly reliable yet. The regenerated workflow summary now records aggregate winner counts and average metrics by source/model: dynamic-threshold LSTM wins 4 of 10 channels, robust-threshold LSTM wins 4 of 10, and classical methods win 2 of 10. Across all rows in this sample, robust z-score has the highest mean point-wise F1 among the classical methods, while Isolation Forest has the lowest mean false-alarm rate.
 
+The next bounded sweep used the deterministic balanced 20-channel selection:
+
+```powershell
+uv run aerospace-prognostics smap-msl-select-channels --data-dir data/raw/smap_msl --count 20 --strategy balanced --output-json artifacts/phase2_smap_msl_channel_selection/balanced_20_channels.json --output-csv artifacts/phase2_smap_msl_channel_selection/balanced_20_channels.csv
+uv run aerospace-prognostics phase2-smap-msl --data-dir data/raw/smap_msl --artifact-dir artifacts/phase2_smap_msl_balanced_20 --channels M-6 P-1 M-1 S-1 M-2 E-1 S-2 E-2 P-10 E-3 T-4 E-4 T-5 E-5 F-7 E-6 M-3 E-7 M-4 E-8 --window-size 30 --epochs 10 --batch-size 64
+```
+
+That run produced 60 classical runs, 20 robust-threshold LSTM runs, 20 dynamic-threshold LSTM runs, and 100 ranked comparison rows. Winner counts were dynamic-threshold LSTM 8 of 20, robust-threshold LSTM 7 of 20, Isolation Forest 2 of 20, and robust z-score 3 of 20. The highest individual point-wise F1s came from M-6 dynamic LSTM (0.863962), E-7 dynamic LSTM (0.801712), and M-2 Isolation Forest (0.746284). The broad sample still shows several high false-alarm winners, so the conservative readout remains point-wise F1 plus false-alarm rate, not point-adjusted F1 alone.
+
 If `--feature-columns` is omitted, the command uses all numeric columns from the train CSV except the label column. For SMAP/MSL channel exports, pass `feature_0 feature_1 ...` explicitly when you want to exclude the numeric `timestep` column.
 
 ## Metric Note
@@ -139,6 +156,6 @@ Point-adjustment is included because it is common in time-series anomaly papers,
 
 This is not yet a reproduced SMAP/MSL Telemanom LSTM baseline. It is the Track B baseline layer: raw SMAP/MSL loading, direct multi-channel classical runs, LSTM forecasting with robust and dynamic thresholding, robust statistics, PCA reconstruction, Isolation Forest, metric handling, artifact formats, model comparison reporting, workflow orchestration, and CLI execution. The next Track B steps are:
 
-- scale the direct multi-channel classical and LSTM-forecast comparison beyond the mixed ten-channel sample
+- scale the balanced SMAP/MSL benchmark beyond the current 20-channel sweep or tune thresholds per spacecraft family
 - compare the compact dynamic threshold against Telemanom's original predictions/threshold outputs on downloaded SMAP/MSL data
 - move serious benchmark claims to ESA-ADB with its official evaluation tools

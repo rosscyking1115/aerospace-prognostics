@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import ast
 import csv
+import json
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
@@ -56,6 +57,21 @@ class SmapMslChannelCsvExport:
         payload["train_csv"] = str(self.train_csv)
         payload["test_csv"] = str(self.test_csv)
         return payload
+
+
+@dataclass(frozen=True)
+class SmapMslChannelSelection:
+    """One selected SMAP/MSL channel for a bounded benchmark sweep."""
+
+    rank: int
+    channel_id: str
+    spacecraft: str
+    anomaly_sequences: int
+    anomaly_points: int
+    num_values: int | None
+
+    def to_dict(self) -> dict[str, object]:
+        return asdict(self)
 
 
 def read_smap_msl_labels(data_dir: Path) -> tuple[SmapMslChannelMetadata, ...]:
@@ -151,6 +167,80 @@ def export_smap_msl_channel_csv(
     )
 
 
+def select_smap_msl_channels(
+    data_dir: Path,
+    *,
+    count: int,
+    strategy: str = "balanced",
+    spacecraft: tuple[str, ...] | None = None,
+    min_anomaly_sequences: int = 1,
+) -> tuple[SmapMslChannelSelection, ...]:
+    """Select a deterministic SMAP/MSL channel subset for broader benchmark sweeps."""
+
+    if count <= 0:
+        raise ValueError("count must be positive")
+    if min_anomaly_sequences < 0:
+        raise ValueError("min_anomaly_sequences must be non-negative")
+    labels = read_smap_msl_labels(data_dir)
+    allowed_spacecraft = {item.upper() for item in spacecraft} if spacecraft is not None else None
+    candidates = tuple(
+        metadata
+        for metadata in labels
+        if (allowed_spacecraft is None or metadata.spacecraft.upper() in allowed_spacecraft)
+        and len(metadata.anomaly_sequences) >= min_anomaly_sequences
+    )
+    if not candidates:
+        raise ValueError("no SMAP/MSL channels match the selection filters")
+
+    if strategy == "label_order":
+        selected_metadata = candidates[:count]
+    elif strategy == "balanced":
+        selected_metadata = _balanced_smap_msl_metadata(candidates, count=count)
+    else:
+        raise ValueError(f"unknown SMAP/MSL channel selection strategy: {strategy}")
+
+    return tuple(
+        SmapMslChannelSelection(
+            rank=rank,
+            channel_id=metadata.channel_id,
+            spacecraft=metadata.spacecraft,
+            anomaly_sequences=len(metadata.anomaly_sequences),
+            anomaly_points=_smap_msl_interval_points(metadata.anomaly_sequences),
+            num_values=metadata.num_values,
+        )
+        for rank, metadata in enumerate(selected_metadata, start=1)
+    )
+
+
+def write_smap_msl_channel_selection_json(
+    selections: tuple[SmapMslChannelSelection, ...],
+    path: Path,
+) -> None:
+    """Write selected SMAP/MSL channel metadata as JSON."""
+
+    output_path = _prepare_output_path(path)
+    output_path.write_text(
+        json.dumps([selection.to_dict() for selection in selections], indent=2, sort_keys=True)
+        + "\n",
+        encoding="utf-8",
+    )
+
+
+def write_smap_msl_channel_selection_csv(
+    selections: tuple[SmapMslChannelSelection, ...],
+    path: Path,
+) -> None:
+    """Write selected SMAP/MSL channel metadata as CSV."""
+
+    if not selections:
+        raise ValueError("selections must contain at least one item")
+    output_path = _prepare_output_path(path)
+    with output_path.open("w", encoding="utf-8", newline="") as file:
+        writer = csv.DictWriter(file, fieldnames=list(selections[0].to_dict()))
+        writer.writeheader()
+        writer.writerows(selection.to_dict() for selection in selections)
+
+
 def _metadata_from_row(row: dict[str, str]) -> SmapMslChannelMetadata:
     normalized = {_normalize_column_name(key): value for key, value in row.items()}
     channel_id = normalized.get("chan_id") or normalized.get("channel_id")
@@ -202,6 +292,41 @@ def _parse_optional_int(value: str | None) -> int | None:
     if value is None or not value.strip():
         return None
     return int(value)
+
+
+def _balanced_smap_msl_metadata(
+    metadata: tuple[SmapMslChannelMetadata, ...],
+    *,
+    count: int,
+) -> tuple[SmapMslChannelMetadata, ...]:
+    grouped: dict[str, list[SmapMslChannelMetadata]] = {}
+    for item in metadata:
+        grouped.setdefault(item.spacecraft, []).append(item)
+
+    selected: list[SmapMslChannelMetadata] = []
+    index = 0
+    while len(selected) < count:
+        added = False
+        for spacecraft in sorted(grouped):
+            group = grouped[spacecraft]
+            if index < len(group):
+                selected.append(group[index])
+                added = True
+                if len(selected) == count:
+                    return tuple(selected)
+        if not added:
+            break
+        index += 1
+    return tuple(selected)
+
+
+def _smap_msl_interval_points(intervals: tuple[tuple[int, int], ...]) -> int:
+    return sum(end - start + 1 for start, end in intervals)
+
+
+def _prepare_output_path(path: Path) -> Path:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    return path
 
 
 def _smap_msl_split_path(data_dir: Path, split: str, channel_id: str) -> Path:
