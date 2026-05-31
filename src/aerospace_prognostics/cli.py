@@ -46,6 +46,7 @@ from aerospace_prognostics.deployment.artifacts import (
     load_cmapss_model_artifact,
     save_cmapss_model_artifact,
     train_cmapss_hgb_policy_artifact,
+    validate_cmapss_model_artifact,
 )
 from aerospace_prognostics.evaluation import (
     RegressionRunResult,
@@ -926,6 +927,15 @@ def _build_parser() -> argparse.ArgumentParser:
     predict_artifact.add_argument("--model-artifact", type=Path, required=True)
     predict_artifact.add_argument("--input-csv", type=Path, required=True)
     predict_artifact.add_argument("--output-json", type=Path)
+
+    validate_artifact = subparsers.add_parser(
+        "cmapss-validate-artifact",
+        help="Validate a packaged C-MAPSS model artifact before promotion",
+    )
+    validate_artifact.add_argument("--model-artifact", type=Path, required=True)
+    validate_artifact.add_argument("--metadata-json", type=Path)
+    validate_artifact.add_argument("--input-csv", type=Path)
+    validate_artifact.add_argument("--output-json", type=Path)
 
     serve_api = subparsers.add_parser(
         "serve-api",
@@ -2152,6 +2162,24 @@ def main(argv: list[str] | None = None) -> int:
         if args.output_json is not None:
             _write_json_payload(payload, args.output_json)
         return 0
+
+    if args.command == "cmapss-validate-artifact":
+        validation = validate_cmapss_model_artifact(
+            args.model_artifact,
+            metadata_json=args.metadata_json,
+            input_csv=args.input_csv,
+        )
+        print(f"status={validation.status}")
+        artifact_id = validation.artifact_identity.get("artifact_id")
+        if artifact_id:
+            print(f"artifact_id={artifact_id}")
+        if validation.prediction_count is not None:
+            print(f"prediction_count={validation.prediction_count}")
+        for problem in validation.problems:
+            print(f"problem={problem}")
+        if args.output_json is not None:
+            _write_json_payload(validation.to_dict(), args.output_json)
+        return 0 if validation.status == "ok" else 1
 
     if args.command == "serve-api":
         import uvicorn

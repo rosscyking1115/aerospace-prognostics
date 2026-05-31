@@ -1,11 +1,14 @@
 from __future__ import annotations
 
+import json
+
 from aerospace_prognostics.data.cmapss import load_cmapss_subset
 from aerospace_prognostics.deployment.artifacts import (
     ARTIFACT_SCHEMA_VERSION,
     load_cmapss_model_artifact,
     save_cmapss_model_artifact,
     train_cmapss_hgb_policy_artifact,
+    validate_cmapss_model_artifact,
 )
 from tests.cmapss_fixtures import write_tiny_cmapss_subset
 
@@ -58,3 +61,61 @@ def test_cmapss_hgb_policy_artifact_rejects_missing_columns(tmp_path) -> None:
         assert "missing columns" in str(exc)
     else:
         raise AssertionError("expected missing-column validation error")
+
+
+def test_validate_cmapss_model_artifact_checks_metadata_and_prediction_smoke(
+    tmp_path,
+) -> None:
+    write_tiny_cmapss_subset(tmp_path)
+    packaged = train_cmapss_hgb_policy_artifact(tmp_path, "FD001", n_regimes=1)
+    artifact_path = save_cmapss_model_artifact(
+        packaged.artifact,
+        tmp_path / "models" / "fd001.joblib",
+    )
+    metadata_json = tmp_path / "models" / "fd001_metadata.json"
+    input_csv = tmp_path / "fd001_input.csv"
+    metadata_json.write_text(
+        json.dumps(
+            {
+                "artifact": packaged.artifact.metadata(),
+                "result": packaged.result.to_dict(),
+            },
+            indent=2,
+            sort_keys=True,
+        ),
+        encoding="utf-8",
+    )
+    load_cmapss_subset(tmp_path, "FD001").test.to_csv(input_csv, index=False)
+
+    validation = validate_cmapss_model_artifact(
+        artifact_path,
+        metadata_json=metadata_json,
+        input_csv=input_csv,
+    )
+
+    assert validation.status == "ok"
+    assert validation.problems == []
+    assert all(validation.checks.values())
+    assert validation.artifact_identity["artifact_id"] == packaged.artifact.promotion_metadata[
+        "artifact_id"
+    ]
+    assert validation.prediction_count == 2
+
+
+def test_validate_cmapss_model_artifact_reports_metadata_mismatch(tmp_path) -> None:
+    write_tiny_cmapss_subset(tmp_path)
+    packaged = train_cmapss_hgb_policy_artifact(tmp_path, "FD001", n_regimes=1)
+    artifact_path = save_cmapss_model_artifact(
+        packaged.artifact,
+        tmp_path / "models" / "fd001.joblib",
+    )
+    metadata = {"artifact": json.loads(json.dumps(packaged.artifact.metadata()))}
+    metadata["artifact"]["promotion"]["artifact_id"] = "wrong-artifact"
+    metadata_json = tmp_path / "models" / "fd001_metadata.json"
+    metadata_json.write_text(json.dumps(metadata), encoding="utf-8")
+
+    validation = validate_cmapss_model_artifact(artifact_path, metadata_json=metadata_json)
+
+    assert validation.status == "failed"
+    assert validation.checks["metadata_json_matches"] is False
+    assert "metadata artifact_id mismatch" in validation.problems[0]

@@ -1474,6 +1474,31 @@ def test_cmapss_package_and_predict_artifact_commands(tmp_path, capsys) -> None:
     assert "predictions=2" in predict_output
     assert prediction_json.exists()
 
+    validation_json = tmp_path / "models" / "fd001_validation.json"
+    validate_exit_code = main(
+        [
+            "cmapss-validate-artifact",
+            "--model-artifact",
+            str(artifact_path),
+            "--metadata-json",
+            str(metadata_json),
+            "--input-csv",
+            str(input_csv),
+            "--output-json",
+            str(validation_json),
+        ]
+    )
+    validate_output = capsys.readouterr().out
+
+    assert validate_exit_code == 0
+    assert "status=ok" in validate_output
+    assert "artifact_id=fd001-" in validate_output
+    assert "prediction_count=2" in validate_output
+    validation = json.loads(validation_json.read_text(encoding="utf-8"))
+    assert validation["status"] == "ok"
+    assert validation["checks"]["metadata_json_matches"] is True
+    assert validation["checks"]["prediction_smoke"] is True
+
 
 def test_cmapss_download_command_extracts_archive(tmp_path, capsys) -> None:
     source_zip = tmp_path / "source.zip"

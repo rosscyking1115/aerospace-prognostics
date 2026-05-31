@@ -38,6 +38,34 @@ SUPPORTED_ARTIFACT_SCHEMA_VERSIONS = {"1.0", ARTIFACT_SCHEMA_VERSION}
 
 
 @dataclass(frozen=True)
+class CmapssArtifactValidation:
+    """Deployment validation report for a packaged C-MAPSS artifact."""
+
+    artifact_path: str
+    metadata_json_path: str | None
+    input_csv_path: str | None
+    status: str
+    checks: dict[str, bool]
+    problems: list[str]
+    artifact_identity: dict[str, Any] = field(default_factory=dict)
+    prediction_count: int | None = None
+
+    def to_dict(self) -> dict[str, Any]:
+        """Return a JSON-serialisable validation report."""
+
+        return {
+            "artifact_path": self.artifact_path,
+            "metadata_json_path": self.metadata_json_path,
+            "input_csv_path": self.input_csv_path,
+            "status": self.status,
+            "checks": self.checks,
+            "problems": self.problems,
+            "artifact_identity": self.artifact_identity,
+            "prediction_count": self.prediction_count,
+        }
+
+
+@dataclass(frozen=True)
 class CmapssPrediction:
     """One deployed C-MAPSS RUL prediction."""
 
@@ -313,6 +341,91 @@ def load_cmapss_model_artifact(path: str | Path) -> CmapssHgbPolicyModelArtifact
     return artifact
 
 
+def validate_cmapss_model_artifact(
+    artifact_path: str | Path,
+    *,
+    metadata_json: str | Path | None = None,
+    input_csv: str | Path | None = None,
+) -> CmapssArtifactValidation:
+    """Validate that a packaged artifact is loadable and promotion-ready."""
+
+    artifact_file = Path(artifact_path)
+    metadata_file = Path(metadata_json) if metadata_json is not None else None
+    input_file = Path(input_csv) if input_csv is not None else None
+    checks = {
+        "artifact_exists": artifact_file.exists(),
+        "artifact_loads": False,
+        "schema_version_supported": False,
+        "promotion_metadata_present": False,
+    }
+    problems: list[str] = []
+    artifact: CmapssHgbPolicyModelArtifact | None = None
+    prediction_count: int | None = None
+
+    if not checks["artifact_exists"]:
+        problems.append(f"artifact does not exist: {artifact_file}")
+    else:
+        try:
+            artifact = load_cmapss_model_artifact(artifact_file)
+        except (OSError, TypeError, ValueError) as exc:
+            problems.append(f"artifact failed to load: {exc}")
+        else:
+            checks["artifact_loads"] = True
+            checks["schema_version_supported"] = True
+            checks["promotion_metadata_present"] = _has_required_promotion_metadata(artifact)
+            if not checks["promotion_metadata_present"]:
+                problems.append("artifact is missing required promotion metadata")
+
+    artifact_identity = _artifact_identity(artifact) if artifact is not None else {}
+
+    if metadata_file is not None:
+        checks["metadata_json_matches"] = False
+        if artifact is None:
+            problems.append("metadata JSON cannot be checked because artifact did not load")
+        elif not metadata_file.exists():
+            problems.append(f"metadata JSON does not exist: {metadata_file}")
+        else:
+            try:
+                metadata_payload = json.loads(metadata_file.read_text(encoding="utf-8"))
+            except json.JSONDecodeError as exc:
+                problems.append(f"metadata JSON is not valid JSON: {exc}")
+            else:
+                metadata_problems = _metadata_json_mismatches(artifact, metadata_payload)
+                if metadata_problems:
+                    problems.extend(metadata_problems)
+                else:
+                    checks["metadata_json_matches"] = True
+
+    if input_file is not None:
+        checks["prediction_smoke"] = False
+        if artifact is None:
+            problems.append("prediction smoke cannot run because artifact did not load")
+        elif not input_file.exists():
+            problems.append(f"input CSV does not exist: {input_file}")
+        else:
+            try:
+                telemetry = pd.read_csv(input_file)
+                predictions = artifact.predict_from_frame(telemetry)
+            except (OSError, ValueError) as exc:
+                problems.append(f"prediction smoke failed: {exc}")
+            else:
+                prediction_count = len(predictions)
+                checks["prediction_smoke"] = prediction_count > 0
+                if prediction_count == 0:
+                    problems.append("prediction smoke produced no predictions")
+
+    return CmapssArtifactValidation(
+        artifact_path=str(artifact_file),
+        metadata_json_path=str(metadata_file) if metadata_file is not None else None,
+        input_csv_path=str(input_file) if input_file is not None else None,
+        status="ok" if not problems and all(checks.values()) else "failed",
+        checks=checks,
+        problems=problems,
+        artifact_identity=artifact_identity,
+        prediction_count=prediction_count,
+    )
+
+
 def _validate_inference_frame(frame: pd.DataFrame, input_columns: tuple[str, ...]) -> None:
     if frame.empty:
         raise ValueError("telemetry frame must contain at least one row")
@@ -390,6 +503,62 @@ def _numeric_distribution(values: list[float]) -> dict[str, float | int | None]:
         "min": float(series.min()),
         "max": float(series.max()),
     }
+
+
+def _has_required_promotion_metadata(artifact: CmapssHgbPolicyModelArtifact) -> bool:
+    promotion = artifact.promotion_metadata
+    return all(
+        [
+            bool(promotion.get("artifact_id")),
+            bool(promotion.get("stage")),
+            isinstance(promotion.get("identity"), dict),
+            isinstance(promotion.get("rollback"), dict),
+        ]
+    )
+
+
+def _artifact_identity(artifact: CmapssHgbPolicyModelArtifact | None) -> dict[str, Any]:
+    if artifact is None:
+        return {}
+    return {
+        "schema_version": artifact.schema_version,
+        "dataset": artifact.dataset,
+        "subset": artifact.subset,
+        "model_name": artifact.model_name,
+        "artifact_id": artifact.promotion_metadata.get("artifact_id"),
+        "stage": artifact.promotion_metadata.get("stage"),
+    }
+
+
+def _metadata_json_mismatches(
+    artifact: CmapssHgbPolicyModelArtifact,
+    metadata_payload: Any,
+) -> list[str]:
+    if not isinstance(metadata_payload, dict):
+        return ["metadata JSON root must be an object"]
+    artifact_metadata = metadata_payload.get("artifact")
+    if not isinstance(artifact_metadata, dict):
+        return ["metadata JSON must contain an artifact object"]
+
+    problems: list[str] = []
+    expected = artifact.metadata()
+    for key in ["schema_version", "dataset", "subset", "model_name"]:
+        if artifact_metadata.get(key) != expected[key]:
+            problems.append(
+                f"metadata {key} mismatch: expected {expected[key]!r}, "
+                f"got {artifact_metadata.get(key)!r}"
+            )
+
+    metadata_promotion = artifact_metadata.get("promotion")
+    if not isinstance(metadata_promotion, dict):
+        problems.append("metadata promotion block must be an object")
+    elif metadata_promotion.get("artifact_id") != artifact.promotion_metadata.get("artifact_id"):
+        problems.append(
+            "metadata artifact_id mismatch: expected "
+            f"{artifact.promotion_metadata.get('artifact_id')!r}, "
+            f"got {metadata_promotion.get('artifact_id')!r}"
+        )
+    return problems
 
 
 def _promotion_metadata(

@@ -42,7 +42,7 @@ The working plan is tracked in [Aerospace_Prognostics_Project_Plan.md](Aerospace
 - `aerospace-prognostics phase2-smap-msl` CLI for a one-command Track B anomaly baseline bundle.
 - `aerospace-prognostics phase2-smap-msl-verify-manifest` CLI for checking the Phase 2 SMAP/MSL artifact bundle against its run manifest and writing an optional markdown audit report.
 - `aerospace-prognostics phase2-cmapss` run manifests with artifact checksums, runtime provenance, Git state, and verifier/audit reports for Track A experiment bundles.
-- `aerospace-prognostics cmapss-package-hgb-policy`, `cmapss-predict-artifact`, and `serve-api` CLIs for the production-ML deployment track.
+- `aerospace-prognostics cmapss-package-hgb-policy`, `cmapss-predict-artifact`, `cmapss-validate-artifact`, and `serve-api` CLIs for the production-ML deployment track.
 - FastAPI serving observability with `/health` liveness, `/ready` readiness plus artifact identity, request IDs, latency headers, JSON request logs, and `/metrics` counters.
 - Serving-time telemetry drift summaries and prediction distribution monitoring.
 - Candidate artifact promotion metadata with stable IDs and rollback guidance.
@@ -114,6 +114,7 @@ uv run aerospace-prognostics smap-msl-compare-anomaly-results --result-csv artif
 uv run aerospace-prognostics phase2-smap-msl --data-dir data/raw/smap_msl --artifact-dir artifacts/phase2_smap_msl --max-channels 5 --window-size 30 --epochs 10
 uv run aerospace-prognostics phase2-smap-msl-verify-manifest --manifest artifacts/phase2_smap_msl/phase2_smap_msl_run_manifest.json --output-markdown artifacts/phase2_smap_msl/phase2_smap_msl_manifest_audit.md
 uv run aerospace-prognostics cmapss-package-hgb-policy --data-dir data/raw/cmapss --subset FD001 --output-path artifacts/models/cmapss_fd001_hgb_policy.joblib --metadata-json artifacts/models/cmapss_fd001_hgb_policy_metadata.json
+uv run aerospace-prognostics cmapss-validate-artifact --model-artifact artifacts/models/cmapss_fd001_hgb_policy.joblib --metadata-json artifacts/models/cmapss_fd001_hgb_policy_metadata.json --input-csv artifacts/examples/fd001_telemetry.csv --output-json artifacts/models/cmapss_fd001_hgb_policy_validation.json
 uv run aerospace-prognostics serve-api --model-artifact artifacts/models/cmapss_fd001_hgb_policy.joblib --host 127.0.0.1 --port 8000
 uv run aerospace-prognostics phase1-cmapss --data-dir data/raw/cmapss --artifact-dir artifacts/phase1
 uv run aerospace-prognostics phase2-cmapss --data-dir data/raw/cmapss --artifact-dir artifacts/phase2 --subsets FD001 --models cnn bilstm tcn transformer --epochs 50 --hidden-sizes 32 64 --learning-rates 0.001 0.0003
