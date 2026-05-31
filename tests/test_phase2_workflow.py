@@ -2,7 +2,11 @@ from __future__ import annotations
 
 import json
 
-from aerospace_prognostics.workflows.phase2 import run_phase2_cmapss_workflow
+from aerospace_prognostics.workflows.phase2 import (
+    run_phase2_cmapss_workflow,
+    verify_phase2_cmapss_run_manifest,
+    write_phase2_cmapss_manifest_audit_markdown,
+)
 from tests.cmapss_fixtures import write_tiny_cmapss_subset
 
 
@@ -58,3 +62,33 @@ def test_run_phase2_cmapss_workflow_writes_expected_artifacts(tmp_path) -> None:
     assert "# Phase 2 C-MAPSS Summary" in summary
     assert "## Best Model By NASA Score" in summary
     assert "Run manifest" in summary
+
+    verification = verify_phase2_cmapss_run_manifest(result.run_manifest_path)
+    assert verification.ok
+    assert len(verification.checked_artifacts) == 13
+    assert verification.manifest_payload is not None
+
+    audit_path = write_phase2_cmapss_manifest_audit_markdown(
+        verification,
+        artifact_dir / "phase2_manifest_audit.md",
+    )
+    audit_markdown = audit_path.read_text(encoding="utf-8")
+    assert "# Phase 2 C-MAPSS Manifest Audit" in audit_markdown
+    assert "- Status: ok" in audit_markdown
+    assert "- Artifacts checked: 13" in audit_markdown
+    assert "| deep_compare_csv | yes |" in audit_markdown
+    assert "- None" in audit_markdown
+
+    with result.deep_compare_csv_path.open("a", encoding="utf-8") as file:
+        file.write("tampered\n")
+    tampered_verification = verify_phase2_cmapss_run_manifest(result.run_manifest_path)
+    assert not tampered_verification.ok
+    assert any(
+        "artifact deep_compare_csv has unexpected sha256" in problem
+        for problem in tampered_verification.problems
+    )
+
+    result.comparison_csv_path.unlink()
+    failed_verification = verify_phase2_cmapss_run_manifest(result.run_manifest_path)
+    assert not failed_verification.ok
+    assert any("comparison_csv is missing" in problem for problem in failed_verification.problems)

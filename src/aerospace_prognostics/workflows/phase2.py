@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+import csv
 import json
 import platform
 import subprocess
 import sys
+from collections.abc import Mapping
 from dataclasses import dataclass
 from importlib import metadata as importlib_metadata
 from pathlib import Path
@@ -54,6 +56,21 @@ class Phase2WorkflowResult:
     hgb_policy_results: tuple[RegressionRunResult, ...]
     deep_compare_results: tuple[RegressionRunResult, ...]
     comparison_rows: tuple[CmapssModelComparisonRow, ...]
+
+
+@dataclass(frozen=True)
+class Phase2RunManifestVerification:
+    """Verification result for a C-MAPSS Phase 2 run manifest."""
+
+    manifest_path: Path
+    checked_artifacts: tuple[Path, ...]
+    problems: tuple[str, ...]
+    artifact_root: Path = Path(".")
+    manifest_payload: dict[str, object] | None = None
+
+    @property
+    def ok(self) -> bool:
+        return not self.problems
 
 
 def run_phase2_cmapss_workflow(
@@ -240,6 +257,173 @@ def run_phase2_cmapss_workflow(
     )
 
 
+def verify_phase2_cmapss_run_manifest(
+    manifest_path: str | Path,
+    *,
+    root: str | Path = ".",
+) -> Phase2RunManifestVerification:
+    """Verify that a C-MAPSS Phase 2 manifest points to a complete artifact bundle."""
+
+    path = Path(manifest_path)
+    artifact_root = Path(root)
+    problems: list[str] = []
+    checked_artifacts: list[Path] = []
+    payload = _read_run_manifest_payload(path, problems)
+    if payload is None:
+        return Phase2RunManifestVerification(
+            manifest_path=path,
+            checked_artifacts=(),
+            problems=tuple(problems),
+            artifact_root=artifact_root,
+        )
+
+    if payload.get("workflow") != "phase2_cmapss":
+        problems.append("workflow must be phase2_cmapss")
+    for section in (
+        "runtime",
+        "source_control",
+        "parameters",
+        "artifacts",
+        "artifact_integrity",
+        "counts",
+    ):
+        if not isinstance(payload.get(section), dict):
+            problems.append(f"{section} section is missing or invalid")
+
+    artifacts = payload.get("artifacts")
+    if isinstance(artifacts, dict):
+        checked_artifacts.extend(_verify_manifest_artifacts(artifacts, artifact_root, problems))
+    artifact_integrity = payload.get("artifact_integrity")
+    if isinstance(artifacts, dict) and isinstance(artifact_integrity, dict):
+        _verify_manifest_artifact_integrity(
+            artifacts,
+            artifact_integrity,
+            artifact_root,
+            problems,
+        )
+    counts = payload.get("counts")
+    if isinstance(artifacts, dict) and isinstance(counts, dict):
+        _verify_manifest_csv_counts(artifacts, counts, artifact_root, problems)
+
+    return Phase2RunManifestVerification(
+        manifest_path=path,
+        checked_artifacts=tuple(checked_artifacts),
+        problems=tuple(problems),
+        artifact_root=artifact_root,
+        manifest_payload=payload,
+    )
+
+
+def write_phase2_cmapss_manifest_audit_markdown(
+    verification: Phase2RunManifestVerification,
+    output_path: str | Path,
+) -> Path:
+    """Write a human-readable audit report for a C-MAPSS Phase 2 run manifest."""
+
+    path = Path(output_path)
+    payload = verification.manifest_payload or {}
+    runtime = _manifest_section(payload, "runtime")
+    source_control = _manifest_section(payload, "source_control")
+    parameters = _manifest_section(payload, "parameters")
+    counts = _manifest_section(payload, "counts")
+    artifacts = _manifest_section(payload, "artifacts")
+    artifact_integrity = _manifest_section(payload, "artifact_integrity")
+    dependencies = _manifest_section(runtime, "dependencies")
+
+    lines = [
+        "# Phase 2 C-MAPSS Manifest Audit",
+        "",
+        f"- Status: {'ok' if verification.ok else 'failed'}",
+        f"- Manifest: `{verification.manifest_path.as_posix()}`",
+        f"- Workflow: {_markdown_inline(payload.get('workflow'))}",
+        f"- Data directory: `{_markdown_inline(payload.get('data_dir'))}`",
+        f"- Artifact directory: `{_markdown_inline(payload.get('artifact_dir'))}`",
+        f"- Artifacts checked: {len(verification.checked_artifacts)}",
+        "",
+        "## Parameters",
+        "",
+        f"- Subsets: {_markdown_inline(parameters.get('subsets'))}",
+        f"- Models: {_markdown_inline(parameters.get('models'))}",
+        f"- Epochs: {_markdown_inline(parameters.get('epochs'))}",
+        f"- Checkpoint policy: {_markdown_inline(parameters.get('checkpoint_policy'))}",
+        "",
+        "## Runtime",
+        "",
+        f"- Python: {_markdown_inline(runtime.get('python_version'))}",
+        f"- Platform: {_markdown_inline(runtime.get('platform'))}",
+        f"- Project version: {_markdown_inline(runtime.get('project_version'))}",
+        f"- Git branch: {_markdown_inline(source_control.get('git_branch'))}",
+        f"- Git commit: {_markdown_inline(source_control.get('git_commit'))}",
+        f"- Git dirty: {_markdown_inline(source_control.get('git_dirty'))}",
+        "",
+        "## Dependencies",
+        "",
+        "| Package | Version |",
+        "| --- | --- |",
+    ]
+    for name, version in sorted(dependencies.items()):
+        lines.append(f"| {_markdown_cell(name)} | {_markdown_cell(version)} |")
+
+    lines.extend(
+        [
+            "",
+            "## Counts",
+            "",
+            "| Metric | Count |",
+            "| --- | ---: |",
+        ]
+    )
+    for key, value in sorted(counts.items()):
+        lines.append(f"| {_markdown_cell(key)} | {_markdown_cell(value)} |")
+
+    lines.extend(
+        [
+            "",
+            "## Artifacts",
+            "",
+            "| Key | Exists | Size Bytes | SHA-256 | Path |",
+            "| --- | --- | ---: | --- | --- |",
+        ]
+    )
+    for key, value in sorted(artifacts.items()):
+        if value is None:
+            continue
+        exists = "unknown"
+        if isinstance(value, str):
+            artifact_path = _resolve_manifest_path(value, verification.artifact_root)
+            exists = "yes" if artifact_path.exists() else "no"
+        integrity = artifact_integrity.get(key)
+        size_bytes = ""
+        sha256 = ""
+        if isinstance(integrity, dict):
+            size_bytes = _markdown_inline(integrity.get("size_bytes"), default="")
+            sha256_value = integrity.get("sha256")
+            sha256 = sha256_value[:12] if isinstance(sha256_value, str) else ""
+        lines.append(
+            "| "
+            + " | ".join(
+                (
+                    _markdown_cell(key),
+                    _markdown_cell(exists),
+                    _markdown_cell(size_bytes),
+                    _markdown_cell(sha256),
+                    _markdown_cell(value),
+                )
+            )
+            + " |"
+        )
+
+    lines.extend(["", "## Problems", ""])
+    if verification.problems:
+        lines.extend(f"- {problem}" for problem in verification.problems)
+    else:
+        lines.append("- None")
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    return path
+
+
 def _write_phase2_summary(
     path: Path,
     *,
@@ -319,6 +503,105 @@ def _write_phase2_run_manifest(path: Path, payload: dict[str, object]) -> None:
     path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 
 
+def _read_run_manifest_payload(path: Path, problems: list[str]) -> dict[str, object] | None:
+    if not path.exists():
+        problems.append(f"manifest is missing: {path}")
+        return None
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        problems.append(f"manifest is not valid JSON: {exc}")
+        return None
+    if not isinstance(payload, dict):
+        problems.append("manifest root must be an object")
+        return None
+    return payload
+
+
+def _verify_manifest_artifacts(
+    artifacts: dict[object, object],
+    root: Path,
+    problems: list[str],
+) -> tuple[Path, ...]:
+    checked_paths: list[Path] = []
+    for key, value in sorted(artifacts.items()):
+        if value is None:
+            continue
+        if not isinstance(value, str):
+            problems.append(f"artifact {key} must be a string path or null")
+            continue
+        artifact_path = _resolve_manifest_path(value, root)
+        checked_paths.append(artifact_path)
+        if not artifact_path.exists():
+            problems.append(f"artifact {key} is missing: {artifact_path}")
+    return tuple(checked_paths)
+
+
+def _verify_manifest_artifact_integrity(
+    artifacts: dict[object, object],
+    artifact_integrity: dict[object, object],
+    root: Path,
+    problems: list[str],
+) -> None:
+    for key, value in sorted(artifacts.items()):
+        if key == "run_manifest" or value is None:
+            continue
+        if not isinstance(key, str) or not isinstance(value, str):
+            continue
+        expected = artifact_integrity.get(key)
+        if not isinstance(expected, dict):
+            problems.append(f"artifact_integrity missing for {key}")
+            continue
+        artifact_path = _resolve_manifest_path(value, root)
+        if not artifact_path.exists():
+            continue
+        expected_sha256 = expected.get("sha256")
+        expected_size_bytes = expected.get("size_bytes")
+        if not isinstance(expected_sha256, str):
+            problems.append(f"artifact_integrity {key} sha256 is missing or invalid")
+        elif file_sha256(artifact_path) != expected_sha256:
+            problems.append(f"artifact {key} has unexpected sha256")
+        if not isinstance(expected_size_bytes, int):
+            problems.append(f"artifact_integrity {key} size_bytes is missing or invalid")
+        elif artifact_path.stat().st_size != expected_size_bytes:
+            problems.append(f"artifact {key} has unexpected size")
+
+
+def _verify_manifest_csv_counts(
+    artifacts: dict[object, object],
+    counts: dict[object, object],
+    root: Path,
+    problems: list[str],
+) -> None:
+    count_checks = {
+        "hgb_policy_csv": "hgb_policy_results",
+        "deep_compare_csv": "deep_compare_results",
+        "comparison_csv": "comparison_rows",
+    }
+    for artifact_key, count_key in count_checks.items():
+        path_value = artifacts.get(artifact_key)
+        expected_count = counts.get(count_key)
+        if path_value is None or expected_count is None:
+            continue
+        if not isinstance(path_value, str) or not isinstance(expected_count, int):
+            continue
+        artifact_path = _resolve_manifest_path(path_value, root)
+        if not artifact_path.exists():
+            continue
+        row_count = _csv_data_row_count(artifact_path)
+        if row_count != expected_count:
+            problems.append(
+                f"{artifact_key} has {row_count} rows; expected {expected_count} from {count_key}"
+            )
+
+
+def _csv_data_row_count(path: Path) -> int:
+    with path.open("r", encoding="utf-8", newline="") as file:
+        reader = csv.reader(file)
+        next(reader, None)
+        return sum(1 for _ in reader)
+
+
 def _artifact_integrity_payload(artifacts: dict[str, str | None]) -> dict[str, dict[str, object]]:
     payload: dict[str, dict[str, object]] = {}
     for key, value in sorted(artifacts.items()):
@@ -381,6 +664,30 @@ def _git_output(*args: str) -> str | None:
     except (OSError, subprocess.CalledProcessError, subprocess.TimeoutExpired):
         return None
     return result.stdout.strip() or None
+
+
+def _manifest_section(payload: Mapping[object, object], key: str) -> dict[object, object]:
+    section = payload.get(key)
+    return section if isinstance(section, dict) else {}
+
+
+def _markdown_inline(value: object, *, default: str = "unknown") -> str:
+    if value is None:
+        return default
+    if isinstance(value, (list, tuple)):
+        return ", ".join(str(item) for item in value)
+    return str(value)
+
+
+def _markdown_cell(value: object) -> str:
+    return _markdown_inline(value, default="").replace("|", "\\|")
+
+
+def _resolve_manifest_path(path: str, root: Path) -> Path:
+    artifact_path = Path(path)
+    if artifact_path.is_absolute():
+        return artifact_path
+    return root / artifact_path
 
 
 def _repository_root() -> Path:

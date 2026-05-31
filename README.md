@@ -41,7 +41,7 @@ The working plan is tracked in [Aerospace_Prognostics_Project_Plan.md](Aerospace
 - `aerospace-prognostics smap-msl-compare-anomaly-results` CLI for ranked Track B anomaly comparison reports.
 - `aerospace-prognostics phase2-smap-msl` CLI for a one-command Track B anomaly baseline bundle.
 - `aerospace-prognostics phase2-smap-msl-verify-manifest` CLI for checking the Phase 2 SMAP/MSL artifact bundle against its run manifest and writing an optional markdown audit report.
-- `aerospace-prognostics phase2-cmapss` run manifests with artifact checksums, runtime provenance, and Git state for Track A experiment bundles.
+- `aerospace-prognostics phase2-cmapss` run manifests with artifact checksums, runtime provenance, Git state, and verifier/audit reports for Track A experiment bundles.
 - `aerospace-prognostics cmapss-package-hgb-policy`, `cmapss-predict-artifact`, and `serve-api` CLIs for the production-ML deployment track.
 - FastAPI serving observability with request IDs, latency headers, JSON request logs, and `/metrics` counters.
 - Serving-time telemetry drift summaries and prediction distribution monitoring.
@@ -117,6 +117,7 @@ uv run aerospace-prognostics cmapss-package-hgb-policy --data-dir data/raw/cmaps
 uv run aerospace-prognostics serve-api --model-artifact artifacts/models/cmapss_fd001_hgb_policy.joblib --host 127.0.0.1 --port 8000
 uv run aerospace-prognostics phase1-cmapss --data-dir data/raw/cmapss --artifact-dir artifacts/phase1
 uv run aerospace-prognostics phase2-cmapss --data-dir data/raw/cmapss --artifact-dir artifacts/phase2 --subsets FD001 --models cnn bilstm tcn transformer --epochs 50 --hidden-sizes 32 64 --learning-rates 0.001 0.0003
+uv run aerospace-prognostics phase2-cmapss-verify-manifest --manifest artifacts/phase2/phase2_run_manifest.json --output-markdown artifacts/phase2/phase2_manifest_audit.md
 ```
 
 Telemanom's current README points users to the Kaggle-hosted SMAP/MSL archive. If the legacy public S3 archive is unavailable, download `patrickfleith/nasa-anomaly-detection-dataset-smap-msl` to `data/raw/downloads/smap_msl_telemanom.zip`, then rerun `smap-msl-download`; the command will import that local archive without downloading it again.

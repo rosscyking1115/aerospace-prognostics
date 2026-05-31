@@ -73,9 +73,10 @@ Reproducible Phase 2 workflow:
 
 ```powershell
 uv run aerospace-prognostics phase2-cmapss --data-dir data/raw/cmapss --artifact-dir artifacts/phase2 --subsets FD001 --models cnn bilstm tcn transformer --epochs 50 --hidden-sizes 32 64 --learning-rates 0.001 0.0003
+uv run aerospace-prognostics phase2-cmapss-verify-manifest --manifest artifacts/phase2/phase2_run_manifest.json --output-markdown artifacts/phase2/phase2_manifest_audit.md
 ```
 
-The workflow writes `phase2_summary.md` and `phase2_run_manifest.json` under the artifact directory. The manifest records run parameters, artifact paths, SHA-256/size checksums for the model outputs and sequence bundles, Python/platform/dependency versions, and Git commit state so a Phase 2 C-MAPSS run can be audited or reproduced from one bundle.
+The workflow writes `phase2_summary.md` and `phase2_run_manifest.json` under the artifact directory. The manifest records run parameters, artifact paths, SHA-256/size checksums for the model outputs and sequence bundles, Python/platform/dependency versions, and Git commit state so a Phase 2 C-MAPSS run can be audited or reproduced from one bundle. The verify command checks manifest structure, referenced artifact existence, artifact checksums, and CSV row counts; with `--output-markdown`, it also writes a compact audit report.
 
 Real FD001 workflow smoke run:
 

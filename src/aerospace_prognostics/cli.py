@@ -124,7 +124,11 @@ from aerospace_prognostics.reports.cmapss_model_comparison import (
 )
 from aerospace_prognostics.sequence_exports import export_cmapss_sequence_splits
 from aerospace_prognostics.workflows.phase1 import run_phase1_cmapss_workflow
-from aerospace_prognostics.workflows.phase2 import run_phase2_cmapss_workflow
+from aerospace_prognostics.workflows.phase2 import (
+    run_phase2_cmapss_workflow,
+    verify_phase2_cmapss_run_manifest,
+    write_phase2_cmapss_manifest_audit_markdown,
+)
 from aerospace_prognostics.workflows.phase2_smap_msl import (
     run_phase2_smap_msl_workflow,
     verify_phase2_smap_msl_run_manifest,
@@ -477,6 +481,14 @@ def _build_parser() -> argparse.ArgumentParser:
         default="validation_nasa",
     )
     phase2.add_argument("--device", default="cpu")
+
+    phase2_verify = subparsers.add_parser(
+        "phase2-cmapss-verify-manifest",
+        help="Verify a Phase 2 C-MAPSS run manifest and referenced artifacts",
+    )
+    phase2_verify.add_argument("--manifest", type=Path, required=True)
+    phase2_verify.add_argument("--root", type=Path, default=Path("."))
+    phase2_verify.add_argument("--output-markdown", type=Path)
 
     phase2_smap_msl = subparsers.add_parser(
         "phase2-smap-msl",
@@ -1451,6 +1463,21 @@ def main(argv: list[str] | None = None) -> int:
         print(f"deep_results={len(result.deep_compare_results)}")
         print(f"comparison_rows={len(result.comparison_rows)}")
         return 0
+
+    if args.command == "phase2-cmapss-verify-manifest":
+        result = verify_phase2_cmapss_run_manifest(args.manifest, root=args.root)
+        if args.output_markdown is not None:
+            audit_path = write_phase2_cmapss_manifest_audit_markdown(
+                result,
+                args.output_markdown,
+            )
+            print(f"audit_markdown={audit_path}")
+        print(f"status={'ok' if result.ok else 'failed'}")
+        print(f"manifest={result.manifest_path}")
+        print(f"artifacts_checked={len(result.checked_artifacts)}")
+        for problem in result.problems:
+            print(f"problem={problem}")
+        return 0 if result.ok else 1
 
     if args.command == "phase2-smap-msl":
         result = run_phase2_smap_msl_workflow(

@@ -540,6 +540,25 @@ def test_phase2_cmapss_command_runs_sequence_model_workflow(tmp_path, capsys) ->
     assert (artifact_dir / "results" / "cmapss_deep_compare.csv").exists()
     assert (artifact_dir / "results" / "cmapss_phase2_model_comparison.md").exists()
 
+    verify_exit_code = main(
+        [
+            "phase2-cmapss-verify-manifest",
+            "--manifest",
+            str(artifact_dir / "phase2_run_manifest.json"),
+            "--output-markdown",
+            str(artifact_dir / "phase2_manifest_audit.md"),
+        ]
+    )
+    verify_output = capsys.readouterr().out
+
+    assert verify_exit_code == 0
+    assert "audit_markdown=" in verify_output
+    assert "status=ok" in verify_output
+    assert "artifacts_checked=13" in verify_output
+    audit_markdown = (artifact_dir / "phase2_manifest_audit.md").read_text(encoding="utf-8")
+    assert "# Phase 2 C-MAPSS Manifest Audit" in audit_markdown
+    assert "- Status: ok" in audit_markdown
+
 
 def test_cmapss_export_sequences_command_writes_sequence_artifacts(tmp_path, capsys) -> None:
     write_all_tiny_cmapss_subsets(tmp_path)
