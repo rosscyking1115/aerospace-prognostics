@@ -1446,6 +1446,7 @@ def main(argv: list[str] | None = None) -> int:
         print(f"comparison_csv={result.comparison_csv_path}")
         print(f"comparison_markdown={result.comparison_markdown_path}")
         print(f"summary={result.summary_markdown_path}")
+        print(f"run_manifest={result.run_manifest_path}")
         print(f"sequence_exports={len(result.sequence_exports)}")
         print(f"deep_results={len(result.deep_compare_results)}")
         print(f"comparison_rows={len(result.comparison_rows)}")

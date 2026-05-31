@@ -534,7 +534,9 @@ def test_phase2_cmapss_command_runs_sequence_model_workflow(tmp_path, capsys) ->
     assert "sequence_exports=1" in output
     assert "deep_results=2" in output
     assert "comparison_rows=3" in output
+    assert "run_manifest=" in output
     assert (artifact_dir / "phase2_summary.md").exists()
+    assert (artifact_dir / "phase2_run_manifest.json").exists()
     assert (artifact_dir / "results" / "cmapss_deep_compare.csv").exists()
     assert (artifact_dir / "results" / "cmapss_phase2_model_comparison.md").exists()
 

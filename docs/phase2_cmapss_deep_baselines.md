@@ -75,6 +75,8 @@ Reproducible Phase 2 workflow:
 uv run aerospace-prognostics phase2-cmapss --data-dir data/raw/cmapss --artifact-dir artifacts/phase2 --subsets FD001 --models cnn bilstm tcn transformer --epochs 50 --hidden-sizes 32 64 --learning-rates 0.001 0.0003
 ```
 
+The workflow writes `phase2_summary.md` and `phase2_run_manifest.json` under the artifact directory. The manifest records run parameters, artifact paths, SHA-256/size checksums for the model outputs and sequence bundles, Python/platform/dependency versions, and Git commit state so a Phase 2 C-MAPSS run can be audited or reproduced from one bundle.
+
 Real FD001 workflow smoke run:
 
 ```powershell

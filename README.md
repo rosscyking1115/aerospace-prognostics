@@ -41,6 +41,7 @@ The working plan is tracked in [Aerospace_Prognostics_Project_Plan.md](Aerospace
 - `aerospace-prognostics smap-msl-compare-anomaly-results` CLI for ranked Track B anomaly comparison reports.
 - `aerospace-prognostics phase2-smap-msl` CLI for a one-command Track B anomaly baseline bundle.
 - `aerospace-prognostics phase2-smap-msl-verify-manifest` CLI for checking the Phase 2 SMAP/MSL artifact bundle against its run manifest and writing an optional markdown audit report.
+- `aerospace-prognostics phase2-cmapss` run manifests with artifact checksums, runtime provenance, and Git state for Track A experiment bundles.
 - `aerospace-prognostics cmapss-package-hgb-policy`, `cmapss-predict-artifact`, and `serve-api` CLIs for the production-ML deployment track.
 - FastAPI serving observability with request IDs, latency headers, JSON request logs, and `/metrics` counters.
 - Serving-time telemetry drift summaries and prediction distribution monitoring.

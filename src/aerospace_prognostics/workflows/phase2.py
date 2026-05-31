@@ -2,10 +2,16 @@
 
 from __future__ import annotations
 
+import json
+import platform
+import subprocess
+import sys
 from dataclasses import dataclass
+from importlib import metadata as importlib_metadata
 from pathlib import Path
 
 from aerospace_prognostics.data.cmapss import CMAPSS_SUBSETS
+from aerospace_prognostics.data.integrity import file_sha256
 from aerospace_prognostics.evaluation import (
     RegressionRunResult,
     write_results_csv,
@@ -43,6 +49,7 @@ class Phase2WorkflowResult:
     comparison_csv_path: Path
     comparison_markdown_path: Path
     summary_markdown_path: Path
+    run_manifest_path: Path
     sequence_exports: tuple[CmapssSequenceExportResult, ...]
     hgb_policy_results: tuple[RegressionRunResult, ...]
     deep_compare_results: tuple[RegressionRunResult, ...]
@@ -150,14 +157,69 @@ def run_phase2_cmapss_workflow(
     write_cmapss_model_comparison_markdown(comparison_rows, comparison_markdown_path)
 
     summary_markdown_path = artifacts / "phase2_summary.md"
+    run_manifest_path = artifacts / "phase2_run_manifest.json"
     _write_phase2_summary(
         summary_markdown_path,
         sequence_dir=sequence_dir,
         hgb_policy_csv_path=hgb_policy_csv_path,
         deep_compare_csv_path=deep_compare_csv_path,
         comparison_markdown_path=comparison_markdown_path,
+        run_manifest_path=run_manifest_path,
         sequence_exports=sequence_exports,
         comparison_rows=tuple(comparison_rows),
+    )
+    artifact_paths = {
+        "hgb_policy_json": _path_as_posix(hgb_policy_json_path),
+        "hgb_policy_csv": _path_as_posix(hgb_policy_csv_path),
+        "deep_compare_json": _path_as_posix(deep_compare_json_path),
+        "deep_compare_csv": _path_as_posix(deep_compare_csv_path),
+        "comparison_csv": _path_as_posix(comparison_csv_path),
+        "comparison_markdown": _path_as_posix(comparison_markdown_path),
+        "summary_markdown": _path_as_posix(summary_markdown_path),
+        "run_manifest": _path_as_posix(run_manifest_path),
+        **_sequence_artifact_paths(sequence_exports),
+    }
+    _write_phase2_run_manifest(
+        run_manifest_path,
+        {
+            "workflow": "phase2_cmapss",
+            "data_dir": _path_as_posix(root),
+            "artifact_dir": _path_as_posix(artifacts),
+            "runtime": _runtime_environment_payload(),
+            "source_control": _source_control_payload(),
+            "parameters": {
+                "subsets": subsets,
+                "window_size": window_size,
+                "stride": stride,
+                "validation_fraction": validation_fraction,
+                "validation_horizon": validation_horizon,
+                "rul_cap": rul_cap,
+                "random_state": random_state,
+                "n_regimes": n_regimes,
+                "standardize": standardize,
+                "models": models,
+                "epochs": epochs,
+                "batch_size": batch_size,
+                "learning_rates": learning_rates,
+                "hidden_sizes": hidden_sizes,
+                "num_layers": num_layers,
+                "tcn_levels": tcn_levels,
+                "transformer_heads": transformer_heads,
+                "transformer_dim_feedforward": transformer_dim_feedforward,
+                "kernel_size": kernel_size,
+                "dropout": dropout,
+                "checkpoint_policy": checkpoint_policy,
+                "device": device,
+            },
+            "artifacts": artifact_paths,
+            "artifact_integrity": _artifact_integrity_payload(artifact_paths),
+            "counts": {
+                "sequence_exports": len(sequence_exports),
+                "hgb_policy_results": len(hgb_policy_results),
+                "deep_compare_results": len(deep_compare_results),
+                "comparison_rows": len(comparison_rows),
+            },
+        },
     )
 
     return Phase2WorkflowResult(
@@ -170,6 +232,7 @@ def run_phase2_cmapss_workflow(
         comparison_csv_path=comparison_csv_path,
         comparison_markdown_path=comparison_markdown_path,
         summary_markdown_path=summary_markdown_path,
+        run_manifest_path=run_manifest_path,
         sequence_exports=sequence_exports,
         hgb_policy_results=tuple(hgb_policy_results),
         deep_compare_results=tuple(deep_compare_results),
@@ -184,6 +247,7 @@ def _write_phase2_summary(
     hgb_policy_csv_path: Path,
     deep_compare_csv_path: Path,
     comparison_markdown_path: Path,
+    run_manifest_path: Path,
     sequence_exports: tuple[CmapssSequenceExportResult, ...],
     comparison_rows: tuple[CmapssModelComparisonRow, ...],
 ) -> None:
@@ -195,6 +259,7 @@ def _write_phase2_summary(
         f"- Phase 1 HGB policy baseline: `{hgb_policy_csv_path.as_posix()}`",
         f"- Phase 2 deep comparison table: `{deep_compare_csv_path.as_posix()}`",
         f"- Ranked model comparison: `{comparison_markdown_path.as_posix()}`",
+        f"- Run manifest: `{run_manifest_path.as_posix()}`",
         "",
         "## Sequence Exports",
         "",
@@ -227,3 +292,102 @@ def _write_phase2_summary(
             f"{best.nasa_score_delta:.6f} |"
         )
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
+def _sequence_artifact_paths(
+    sequence_exports: tuple[CmapssSequenceExportResult, ...],
+) -> dict[str, str]:
+    artifacts: dict[str, str] = {}
+    for result in sequence_exports:
+        prefix = f"sequence_{result.subset.lower()}"
+        artifacts.update(
+            {
+                f"{prefix}_metadata": _path_as_posix(result.metadata_path),
+                f"{prefix}_train_npz": _path_as_posix(result.train_npz_path),
+                f"{prefix}_validation_npz": _path_as_posix(result.validation_npz_path),
+                f"{prefix}_validation_selection_npz": _path_as_posix(
+                    result.validation_selection_npz_path
+                ),
+                f"{prefix}_test_npz": _path_as_posix(result.test_npz_path),
+            }
+        )
+    return artifacts
+
+
+def _write_phase2_run_manifest(path: Path, payload: dict[str, object]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+
+
+def _artifact_integrity_payload(artifacts: dict[str, str | None]) -> dict[str, dict[str, object]]:
+    payload: dict[str, dict[str, object]] = {}
+    for key, value in sorted(artifacts.items()):
+        if key == "run_manifest" or value is None:
+            continue
+        path = Path(value)
+        if not path.exists():
+            continue
+        payload[key] = {
+            "sha256": file_sha256(path),
+            "size_bytes": path.stat().st_size,
+        }
+    return payload
+
+
+def _runtime_environment_payload() -> dict[str, object]:
+    return {
+        "python_version": sys.version.split()[0],
+        "platform": platform.platform(),
+        "project_version": _package_version("aerospace-prognostics"),
+        "dependencies": {
+            name: _package_version(name)
+            for name in ("numpy", "pandas", "scikit-learn", "torch")
+        },
+    }
+
+
+def _source_control_payload() -> dict[str, object]:
+    return {
+        "git_commit": _git_output("rev-parse", "HEAD"),
+        "git_branch": _git_output("branch", "--show-current"),
+        "git_dirty": _git_dirty(),
+    }
+
+
+def _package_version(package_name: str) -> str | None:
+    try:
+        return importlib_metadata.version(package_name)
+    except importlib_metadata.PackageNotFoundError:
+        return None
+
+
+def _git_dirty() -> bool | None:
+    output = _git_output("status", "--short")
+    if output is None:
+        return None
+    return bool(output)
+
+
+def _git_output(*args: str) -> str | None:
+    try:
+        result = subprocess.run(
+            ("git", *args),
+            cwd=_repository_root(),
+            check=True,
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+    except (OSError, subprocess.CalledProcessError, subprocess.TimeoutExpired):
+        return None
+    return result.stdout.strip() or None
+
+
+def _repository_root() -> Path:
+    return Path(__file__).resolve().parents[3]
+
+
+def _path_as_posix(path: Path | None) -> str | None:
+    if path is None:
+        return None
+    return path.as_posix()
