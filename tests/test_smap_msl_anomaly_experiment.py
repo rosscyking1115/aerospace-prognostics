@@ -7,8 +7,11 @@ import pytest
 
 from aerospace_prognostics.experiments.smap_msl_anomaly import (
     run_smap_msl_classical_baselines,
+    run_smap_msl_lstm_forecast_baseline,
     write_smap_msl_classical_baselines_csv,
     write_smap_msl_classical_baselines_json,
+    write_smap_msl_lstm_forecast_baseline_csv,
+    write_smap_msl_lstm_forecast_baseline_json,
 )
 
 
@@ -68,6 +71,51 @@ def test_write_smap_msl_classical_baseline_outputs(tmp_path) -> None:
     assert payload[0]["model_name"] == "robust_zscore"
     assert "channel_id,spacecraft,model_name" in csv_text
     assert "P-1,SMAP,robust_zscore" in csv_text
+
+
+def test_run_smap_msl_lstm_forecast_baseline_scores_selected_channel(tmp_path) -> None:
+    _write_multi_channel_smap_msl(tmp_path)
+
+    runs = run_smap_msl_lstm_forecast_baseline(
+        tmp_path,
+        channels=("P-1",),
+        window_size=2,
+        hidden_size=4,
+        epochs=1,
+        batch_size=2,
+        random_state=7,
+    )
+
+    assert [run.channel_id for run in runs] == ["P-1"]
+    assert runs[0].model_name == "lstm_forecast_robust_threshold"
+    assert runs[0].spacecraft == "SMAP"
+    assert runs[0].anomaly_points == 2
+    assert runs[0].metrics.support == 2
+    assert len(runs[0].history) == 1
+
+
+def test_write_smap_msl_lstm_forecast_baseline_outputs(tmp_path) -> None:
+    _write_multi_channel_smap_msl(tmp_path)
+    runs = run_smap_msl_lstm_forecast_baseline(
+        tmp_path,
+        channels=("P-1",),
+        window_size=2,
+        hidden_size=4,
+        epochs=1,
+        batch_size=2,
+    )
+    json_path = tmp_path / "results" / "lstm.json"
+    csv_path = tmp_path / "results" / "lstm.csv"
+
+    write_smap_msl_lstm_forecast_baseline_json(runs, json_path)
+    write_smap_msl_lstm_forecast_baseline_csv(runs, csv_path)
+
+    payload = json.loads(json_path.read_text(encoding="utf-8"))
+    csv_text = csv_path.read_text(encoding="utf-8")
+    assert payload[0]["channel_id"] == "P-1"
+    assert payload[0]["model_name"] == "lstm_forecast_robust_threshold"
+    assert "channel_id,spacecraft,model_name" in csv_text
+    assert "P-1,SMAP,lstm_forecast_robust_threshold" in csv_text
 
 
 def _write_multi_channel_smap_msl(root) -> None:

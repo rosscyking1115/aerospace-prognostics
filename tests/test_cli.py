@@ -1124,6 +1124,45 @@ def test_smap_msl_classical_baselines_command_writes_outputs(tmp_path, capsys) -
     assert output_csv.exists()
 
 
+def test_smap_msl_lstm_forecast_baseline_command_writes_outputs(tmp_path, capsys) -> None:
+    _write_cli_smap_msl_channel(tmp_path)
+    output_json = tmp_path / "results" / "smap_lstm.json"
+    output_csv = tmp_path / "results" / "smap_lstm.csv"
+
+    exit_code = main(
+        [
+            "smap-msl-lstm-forecast-baseline",
+            "--data-dir",
+            str(tmp_path),
+            "--channels",
+            "P-1",
+            "--window-size",
+            "2",
+            "--hidden-size",
+            "4",
+            "--epochs",
+            "1",
+            "--batch-size",
+            "2",
+            "--output-json",
+            str(output_json),
+            "--output-csv",
+            str(output_csv),
+        ]
+    )
+    output = capsys.readouterr().out
+    payload = json.loads(output_json.read_text(encoding="utf-8"))
+
+    assert exit_code == 0
+    assert "channels=1" in output
+    assert "runs=1" in output
+    assert "channel_id,spacecraft,model,epochs,final_train_loss" in output
+    assert "P-1,SMAP,lstm_forecast_robust_threshold" in output
+    assert payload[0]["model_name"] == "lstm_forecast_robust_threshold"
+    assert payload[0]["history"][0]["epoch"] == 1
+    assert output_csv.exists()
+
+
 def test_cmapss_package_and_predict_artifact_commands(tmp_path, capsys) -> None:
     write_tiny_cmapss_subset(tmp_path)
     artifact_path = tmp_path / "models" / "fd001.joblib"

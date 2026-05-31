@@ -57,6 +57,14 @@ Direct multi-channel SMAP/MSL comparison:
 uv run aerospace-prognostics smap-msl-classical-baselines --data-dir data/raw/smap_msl --max-channels 5 --output-json artifacts/results/smap_msl_classical_baselines_sample.json --output-csv artifacts/results/smap_msl_classical_baselines_sample.csv
 ```
 
+First forecasting-based SMAP/MSL baseline:
+
+```powershell
+uv run aerospace-prognostics smap-msl-lstm-forecast-baseline --data-dir data/raw/smap_msl --max-channels 5 --window-size 30 --epochs 10 --output-json artifacts/results/smap_msl_lstm_forecast_sample.json --output-csv artifacts/results/smap_msl_lstm_forecast_sample.csv
+```
+
+This command trains a small LSTM on nominal train windows for each selected channel, predicts the next telemetry vector, and thresholds one-step test prediction error using a robust train-error scale. It is a bridge toward the Hundman et al. forecasting-style baseline, not yet the full Telemanom nonparametric dynamic thresholding procedure.
+
 If `--feature-columns` is omitted, the command uses all numeric columns from the train CSV except the label column. For SMAP/MSL channel exports, pass `feature_0 feature_1 ...` explicitly when you want to exclude the numeric `timestep` column.
 
 ## Metric Note
@@ -67,8 +75,8 @@ Point-adjustment is included because it is common in time-series anomaly papers,
 
 ## Current Status
 
-This is not yet a reproduced SMAP/MSL Telemanom LSTM baseline. It is the Track B plumbing layer: raw SMAP/MSL loading, direct multi-channel classical runs, robust statistics, PCA reconstruction, Isolation Forest, metric handling, artifact formats, and CLI execution. The next Track B steps are:
+This is not yet a reproduced SMAP/MSL Telemanom LSTM baseline. It is the Track B baseline layer: raw SMAP/MSL loading, direct multi-channel classical runs, a first LSTM forecasting baseline, robust statistics, PCA reconstruction, Isolation Forest, metric handling, artifact formats, and CLI execution. The next Track B steps are:
 
-- run the direct multi-channel comparison on real SMAP/MSL channels and record an initial table
-- reproduce the forecasting-plus-dynamic-threshold LSTM baseline on the prepared SMAP/MSL split
+- run the direct multi-channel classical and LSTM-forecast comparisons on real SMAP/MSL channels and record an initial table
+- extend the LSTM forecasting baseline toward Telemanom's nonparametric dynamic thresholding procedure
 - move serious benchmark claims to ESA-ADB with its official evaluation tools

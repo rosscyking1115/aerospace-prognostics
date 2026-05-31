@@ -79,9 +79,13 @@ from aerospace_prognostics.experiments.cmapss_deep_baseline import (
 )
 from aerospace_prognostics.experiments.smap_msl_anomaly import (
     SmapMslClassicalBaselineRun,
+    SmapMslLstmForecastBaselineRun,
     run_smap_msl_classical_baselines,
+    run_smap_msl_lstm_forecast_baseline,
     write_smap_msl_classical_baselines_csv,
     write_smap_msl_classical_baselines_json,
+    write_smap_msl_lstm_forecast_baseline_csv,
+    write_smap_msl_lstm_forecast_baseline_json,
 )
 from aerospace_prognostics.reports.cmapss_model_comparison import (
     CmapssModelComparisonRow,
@@ -708,6 +712,26 @@ def _build_parser() -> argparse.ArgumentParser:
     smap_msl_classical.add_argument("--random-state", type=int, default=42)
     smap_msl_classical.add_argument("--output-json", type=Path)
     smap_msl_classical.add_argument("--output-csv", type=Path)
+
+    smap_msl_lstm = subparsers.add_parser(
+        "smap-msl-lstm-forecast-baseline",
+        help="Run an LSTM one-step forecast anomaly baseline across SMAP/MSL channels",
+    )
+    smap_msl_lstm.add_argument("--data-dir", type=Path, required=True)
+    smap_msl_lstm.add_argument("--channels", nargs="+")
+    smap_msl_lstm.add_argument("--max-channels", type=int)
+    smap_msl_lstm.add_argument("--window-size", type=int, default=30)
+    smap_msl_lstm.add_argument("--hidden-size", type=int, default=32)
+    smap_msl_lstm.add_argument("--num-layers", type=int, default=1)
+    smap_msl_lstm.add_argument("--dropout", type=float, default=0.0)
+    smap_msl_lstm.add_argument("--epochs", type=int, default=10)
+    smap_msl_lstm.add_argument("--batch-size", type=int, default=64)
+    smap_msl_lstm.add_argument("--learning-rate", type=float, default=1e-3)
+    smap_msl_lstm.add_argument("--threshold-sigma", type=float, default=3.0)
+    smap_msl_lstm.add_argument("--random-state", type=int, default=42)
+    smap_msl_lstm.add_argument("--device", default="cpu")
+    smap_msl_lstm.add_argument("--output-json", type=Path)
+    smap_msl_lstm.add_argument("--output-csv", type=Path)
 
     package_hgb = subparsers.add_parser(
         "cmapss-package-hgb-policy",
@@ -1666,6 +1690,31 @@ def main(argv: list[str] | None = None) -> int:
             write_smap_msl_classical_baselines_csv(runs, args.output_csv)
         return 0
 
+    if args.command == "smap-msl-lstm-forecast-baseline":
+        runs = run_smap_msl_lstm_forecast_baseline(
+            args.data_dir,
+            channels=tuple(args.channels) if args.channels is not None else None,
+            max_channels=args.max_channels,
+            window_size=args.window_size,
+            hidden_size=args.hidden_size,
+            num_layers=args.num_layers,
+            dropout=args.dropout,
+            epochs=args.epochs,
+            batch_size=args.batch_size,
+            learning_rate=args.learning_rate,
+            threshold_sigma=args.threshold_sigma,
+            random_state=args.random_state,
+            device=args.device,
+        )
+        print(f"channels={len(_smap_msl_result_channels(runs))}")
+        print(f"runs={len(runs)}")
+        _print_smap_msl_forecast_table(runs)
+        if args.output_json is not None:
+            write_smap_msl_lstm_forecast_baseline_json(runs, args.output_json)
+        if args.output_csv is not None:
+            write_smap_msl_lstm_forecast_baseline_csv(runs, args.output_csv)
+        return 0
+
     if args.command == "cmapss-package-hgb-policy":
         packaged = train_cmapss_hgb_policy_artifact(
             args.data_dir,
@@ -1771,7 +1820,30 @@ def _print_smap_msl_classical_table(runs: Iterable[SmapMslClassicalBaselineRun])
         )
 
 
-def _smap_msl_result_channels(runs: Iterable[SmapMslClassicalBaselineRun]) -> tuple[str, ...]:
+def _print_smap_msl_forecast_table(runs: Iterable[SmapMslLstmForecastBaselineRun]) -> None:
+    print(
+        "channel_id,spacecraft,model,epochs,final_train_loss,"
+        "precision,recall,f1,point_adjusted_f1,false_alarm_rate"
+    )
+    for run in runs:
+        final_train_loss = run.history[-1].train_loss if run.history else 0.0
+        print(
+            f"{run.channel_id},"
+            f"{run.spacecraft},"
+            f"{run.model_name},"
+            f"{len(run.history)},"
+            f"{final_train_loss:.6f},"
+            f"{run.metrics.precision:.6f},"
+            f"{run.metrics.recall:.6f},"
+            f"{run.metrics.f1:.6f},"
+            f"{run.point_adjusted_metrics.f1:.6f},"
+            f"{run.metrics.false_alarm_rate:.6f}"
+        )
+
+
+def _smap_msl_result_channels(
+    runs: Iterable[SmapMslClassicalBaselineRun | SmapMslLstmForecastBaselineRun],
+) -> tuple[str, ...]:
     return tuple(dict.fromkeys(run.channel_id for run in runs))
 
 

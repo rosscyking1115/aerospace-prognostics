@@ -37,6 +37,7 @@ The working plan is tracked in [Aerospace_Prognostics_Project_Plan.md](Aerospace
 - `aerospace-prognostics telemetry-classical-anomaly-baselines` CLI for robust z-score, PCA reconstruction, and Isolation Forest anomaly baseline comparisons.
 - `aerospace-prognostics smap-msl-download`, `smap-msl-summary`, and `smap-msl-export-channel-csv` CLIs for Telemanom SMAP/MSL raw `.npy` arrays and label metadata.
 - `aerospace-prognostics smap-msl-classical-baselines` CLI for direct multi-channel SMAP/MSL classical anomaly baseline runs.
+- `aerospace-prognostics smap-msl-lstm-forecast-baseline` CLI for a first forecasting-based SMAP/MSL anomaly baseline.
 - `aerospace-prognostics cmapss-package-hgb-policy`, `cmapss-predict-artifact`, and `serve-api` CLIs for the production-ML deployment track.
 - FastAPI serving observability with request IDs, latency headers, JSON request logs, and `/metrics` counters.
 - Serving-time telemetry drift summaries and prediction distribution monitoring.
@@ -103,6 +104,7 @@ uv run aerospace-prognostics smap-msl-export-channel-csv --data-dir data/raw/sma
 uv run aerospace-prognostics telemetry-robust-zscore-baseline --train-csv artifacts/smap_msl_channels/P-1/train.csv --test-csv artifacts/smap_msl_channels/P-1/test.csv --label-column label --feature-columns feature_0 feature_1 --threshold 3.5 --output-json artifacts/results/smap_msl_p1_robust_zscore.json --predictions-csv artifacts/results/smap_msl_p1_robust_zscore_predictions.csv
 uv run aerospace-prognostics telemetry-classical-anomaly-baselines --train-csv artifacts/smap_msl_channels/P-1/train.csv --test-csv artifacts/smap_msl_channels/P-1/test.csv --label-column label --feature-columns feature_0 feature_1 --output-json artifacts/results/smap_msl_p1_classical_baselines.json --output-csv artifacts/results/smap_msl_p1_classical_baselines.csv --predictions-csv artifacts/results/smap_msl_p1_classical_predictions.csv
 uv run aerospace-prognostics smap-msl-classical-baselines --data-dir data/raw/smap_msl --max-channels 5 --output-json artifacts/results/smap_msl_classical_baselines_sample.json --output-csv artifacts/results/smap_msl_classical_baselines_sample.csv
+uv run aerospace-prognostics smap-msl-lstm-forecast-baseline --data-dir data/raw/smap_msl --max-channels 5 --window-size 30 --epochs 10 --output-json artifacts/results/smap_msl_lstm_forecast_sample.json --output-csv artifacts/results/smap_msl_lstm_forecast_sample.csv
 uv run aerospace-prognostics cmapss-package-hgb-policy --data-dir data/raw/cmapss --subset FD001 --output-path artifacts/models/cmapss_fd001_hgb_policy.joblib --metadata-json artifacts/models/cmapss_fd001_hgb_policy_metadata.json
 uv run aerospace-prognostics serve-api --model-artifact artifacts/models/cmapss_fd001_hgb_policy.joblib --host 127.0.0.1 --port 8000
 uv run aerospace-prognostics phase1-cmapss --data-dir data/raw/cmapss --artifact-dir artifacts/phase1

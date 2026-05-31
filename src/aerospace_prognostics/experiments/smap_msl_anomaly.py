@@ -11,6 +11,10 @@ from aerospace_prognostics.anomaly.baselines import (
     CLASSICAL_ANOMALY_BASELINE_METHODS,
     run_classical_anomaly_baselines,
 )
+from aerospace_prognostics.anomaly.forecasting import (
+    LstmForecastTrainingEpoch,
+    run_lstm_forecast_anomaly_baseline,
+)
 from aerospace_prognostics.anomaly.metrics import AnomalyDetectionMetrics
 from aerospace_prognostics.data.smap_msl import load_smap_msl_channel, read_smap_msl_labels
 
@@ -44,6 +48,40 @@ class SmapMslClassicalBaselineRun:
             "model_config": self.model_config,
             "metrics": self.metrics.to_dict(),
             "point_adjusted_metrics": self.point_adjusted_metrics.to_dict(),
+        }
+
+
+@dataclass(frozen=True)
+class SmapMslLstmForecastBaselineRun:
+    """One LSTM forecasting anomaly-baseline result on one SMAP/MSL channel."""
+
+    channel_id: str
+    spacecraft: str
+    train_rows: int
+    test_rows: int
+    feature_count: int
+    anomaly_sequences: int
+    anomaly_points: int
+    model_name: str
+    model_config: dict[str, object]
+    metrics: AnomalyDetectionMetrics
+    point_adjusted_metrics: AnomalyDetectionMetrics
+    history: tuple[LstmForecastTrainingEpoch, ...]
+
+    def to_dict(self) -> dict[str, object]:
+        return {
+            "channel_id": self.channel_id,
+            "spacecraft": self.spacecraft,
+            "train_rows": self.train_rows,
+            "test_rows": self.test_rows,
+            "feature_count": self.feature_count,
+            "anomaly_sequences": self.anomaly_sequences,
+            "anomaly_points": self.anomaly_points,
+            "model_name": self.model_name,
+            "model_config": self.model_config,
+            "metrics": self.metrics.to_dict(),
+            "point_adjusted_metrics": self.point_adjusted_metrics.to_dict(),
+            "history": [epoch.to_dict() for epoch in self.history],
         }
 
 
@@ -96,11 +134,79 @@ def run_smap_msl_classical_baselines(
     return tuple(runs)
 
 
+def run_smap_msl_lstm_forecast_baseline(
+    data_dir: Path,
+    *,
+    channels: tuple[str, ...] | None = None,
+    max_channels: int | None = None,
+    window_size: int = 30,
+    hidden_size: int = 32,
+    num_layers: int = 1,
+    dropout: float = 0.0,
+    epochs: int = 10,
+    batch_size: int = 64,
+    learning_rate: float = 1e-3,
+    threshold_sigma: float = 3.0,
+    random_state: int = 42,
+    device: str = "cpu",
+) -> tuple[SmapMslLstmForecastBaselineRun, ...]:
+    """Run an LSTM next-step forecasting anomaly baseline on SMAP/MSL channels."""
+
+    channel_ids = _selected_channel_ids(data_dir, channels=channels, max_channels=max_channels)
+    runs: list[SmapMslLstmForecastBaselineRun] = []
+    for channel_id in channel_ids:
+        channel = load_smap_msl_channel(data_dir, channel_id)
+        result = run_lstm_forecast_anomaly_baseline(
+            channel.train_values,
+            channel.test_values,
+            channel.test_labels,
+            feature_names=channel.feature_names,
+            window_size=window_size,
+            hidden_size=hidden_size,
+            num_layers=num_layers,
+            dropout=dropout,
+            epochs=epochs,
+            batch_size=batch_size,
+            learning_rate=learning_rate,
+            threshold_sigma=threshold_sigma,
+            random_state=random_state,
+            device=device,
+        )
+        runs.append(
+            SmapMslLstmForecastBaselineRun(
+                channel_id=channel.metadata.channel_id,
+                spacecraft=channel.metadata.spacecraft,
+                train_rows=len(channel.train_values),
+                test_rows=len(channel.test_values),
+                feature_count=len(channel.feature_names),
+                anomaly_sequences=len(channel.metadata.anomaly_sequences),
+                anomaly_points=int(channel.test_labels.sum()),
+                model_name=result.model_name,
+                model_config=result.model_config,
+                metrics=result.metrics,
+                point_adjusted_metrics=result.point_adjusted_metrics,
+                history=result.history,
+            )
+        )
+    return tuple(runs)
+
+
 def write_smap_msl_classical_baselines_json(
     runs: tuple[SmapMslClassicalBaselineRun, ...],
     path: Path,
 ) -> None:
     """Write SMAP/MSL classical baseline runs as JSON."""
+
+    output_path = _prepare_output_path(path)
+    payload = [run.to_dict() for run in runs]
+    output_path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n")
+
+
+def write_smap_msl_lstm_forecast_baseline_json(
+    runs: tuple[SmapMslLstmForecastBaselineRun, ...],
+    path: Path,
+) -> None:
+    """Write SMAP/MSL LSTM forecast baseline runs as JSON."""
 
     output_path = _prepare_output_path(path)
     payload = [run.to_dict() for run in runs]
@@ -146,6 +252,64 @@ def write_smap_msl_classical_baselines_csv(
                     "feature_count": run.feature_count,
                     "anomaly_sequences": run.anomaly_sequences,
                     "anomaly_points": run.anomaly_points,
+                    "precision": f"{run.metrics.precision:.12g}",
+                    "recall": f"{run.metrics.recall:.12g}",
+                    "f1": f"{run.metrics.f1:.12g}",
+                    "point_adjusted_f1": f"{run.point_adjusted_metrics.f1:.12g}",
+                    "false_alarm_rate": f"{run.metrics.false_alarm_rate:.12g}",
+                    "miss_rate": f"{run.metrics.miss_rate:.12g}",
+                    "support": run.metrics.support,
+                    "predicted_positives": run.metrics.predicted_positives,
+                }
+            )
+
+
+def write_smap_msl_lstm_forecast_baseline_csv(
+    runs: tuple[SmapMslLstmForecastBaselineRun, ...],
+    path: Path,
+) -> None:
+    """Write SMAP/MSL LSTM forecast baseline runs as a compact metrics table."""
+
+    output_path = _prepare_output_path(path)
+    fieldnames = [
+        "channel_id",
+        "spacecraft",
+        "model_name",
+        "train_rows",
+        "test_rows",
+        "feature_count",
+        "anomaly_sequences",
+        "anomaly_points",
+        "epochs",
+        "final_train_loss",
+        "threshold",
+        "precision",
+        "recall",
+        "f1",
+        "point_adjusted_f1",
+        "false_alarm_rate",
+        "miss_rate",
+        "support",
+        "predicted_positives",
+    ]
+    with output_path.open("w", encoding="utf-8", newline="") as file:
+        writer = csv.DictWriter(file, fieldnames=fieldnames)
+        writer.writeheader()
+        for run in runs:
+            final_train_loss = run.history[-1].train_loss if run.history else 0.0
+            writer.writerow(
+                {
+                    "channel_id": run.channel_id,
+                    "spacecraft": run.spacecraft,
+                    "model_name": run.model_name,
+                    "train_rows": run.train_rows,
+                    "test_rows": run.test_rows,
+                    "feature_count": run.feature_count,
+                    "anomaly_sequences": run.anomaly_sequences,
+                    "anomaly_points": run.anomaly_points,
+                    "epochs": len(run.history),
+                    "final_train_loss": f"{final_train_loss:.12g}",
+                    "threshold": f"{float(run.model_config['threshold']):.12g}",
                     "precision": f"{run.metrics.precision:.12g}",
                     "recall": f"{run.metrics.recall:.12g}",
                     "f1": f"{run.metrics.f1:.12g}",
