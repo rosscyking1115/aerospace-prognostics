@@ -106,6 +106,7 @@ from aerospace_prognostics.reports.cmapss_model_comparison import (
 from aerospace_prognostics.sequence_exports import export_cmapss_sequence_splits
 from aerospace_prognostics.workflows.phase1 import run_phase1_cmapss_workflow
 from aerospace_prognostics.workflows.phase2 import run_phase2_cmapss_workflow
+from aerospace_prognostics.workflows.phase2_smap_msl import run_phase2_smap_msl_workflow
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -453,6 +454,47 @@ def _build_parser() -> argparse.ArgumentParser:
         default="validation_nasa",
     )
     phase2.add_argument("--device", default="cpu")
+
+    phase2_smap_msl = subparsers.add_parser(
+        "phase2-smap-msl",
+        help="Run the Phase 2 SMAP/MSL classical, forecast, and comparison workflow",
+    )
+    phase2_smap_msl.add_argument("--data-dir", type=Path, required=True)
+    phase2_smap_msl.add_argument(
+        "--artifact-dir",
+        type=Path,
+        default=Path("artifacts/phase2_smap_msl"),
+    )
+    phase2_smap_msl.add_argument("--channels", nargs="+")
+    phase2_smap_msl.add_argument("--max-channels", type=int, default=5)
+    phase2_smap_msl.add_argument(
+        "--classical-methods",
+        nargs="+",
+        choices=CLASSICAL_ANOMALY_BASELINE_METHODS,
+        default=list(CLASSICAL_ANOMALY_BASELINE_METHODS),
+    )
+    phase2_smap_msl.add_argument("--robust-threshold", type=float, default=3.5)
+    phase2_smap_msl.add_argument("--pca-components", type=int)
+    phase2_smap_msl.add_argument("--pca-threshold-quantile", type=float, default=0.99)
+    phase2_smap_msl.add_argument("--isolation-contamination", type=float, default=0.05)
+    phase2_smap_msl.add_argument("--window-size", type=int, default=30)
+    phase2_smap_msl.add_argument("--hidden-size", type=int, default=32)
+    phase2_smap_msl.add_argument("--num-layers", type=int, default=1)
+    phase2_smap_msl.add_argument("--dropout", type=float, default=0.0)
+    phase2_smap_msl.add_argument("--epochs", type=int, default=10)
+    phase2_smap_msl.add_argument("--batch-size", type=int, default=64)
+    phase2_smap_msl.add_argument("--learning-rate", type=float, default=1e-3)
+    phase2_smap_msl.add_argument("--threshold-sigma", type=float, default=3.0)
+    phase2_smap_msl.add_argument("--dynamic-batch-size", type=int, default=70)
+    phase2_smap_msl.add_argument("--dynamic-window-batches", type=int, default=30)
+    phase2_smap_msl.add_argument("--dynamic-smoothing-fraction", type=float, default=0.05)
+    phase2_smap_msl.add_argument("--dynamic-z-start", type=float, default=2.5)
+    phase2_smap_msl.add_argument("--dynamic-z-stop", type=float, default=12.0)
+    phase2_smap_msl.add_argument("--dynamic-z-step", type=float, default=0.5)
+    phase2_smap_msl.add_argument("--dynamic-error-buffer", type=int, default=100)
+    phase2_smap_msl.add_argument("--dynamic-prune-p", type=float, default=0.13)
+    phase2_smap_msl.add_argument("--random-state", type=int, default=42)
+    phase2_smap_msl.add_argument("--device", default="cpu")
 
     sequence_export = subparsers.add_parser(
         "cmapss-export-sequences",
@@ -1313,6 +1355,51 @@ def main(argv: list[str] | None = None) -> int:
         print(f"summary={result.summary_markdown_path}")
         print(f"sequence_exports={len(result.sequence_exports)}")
         print(f"deep_results={len(result.deep_compare_results)}")
+        print(f"comparison_rows={len(result.comparison_rows)}")
+        return 0
+
+    if args.command == "phase2-smap-msl":
+        result = run_phase2_smap_msl_workflow(
+            args.data_dir,
+            args.artifact_dir,
+            channels=tuple(args.channels) if args.channels is not None else None,
+            max_channels=args.max_channels,
+            classical_methods=tuple(args.classical_methods),
+            robust_threshold=args.robust_threshold,
+            pca_components=args.pca_components,
+            pca_threshold_quantile=args.pca_threshold_quantile,
+            isolation_contamination=args.isolation_contamination,
+            window_size=args.window_size,
+            hidden_size=args.hidden_size,
+            num_layers=args.num_layers,
+            dropout=args.dropout,
+            epochs=args.epochs,
+            batch_size=args.batch_size,
+            learning_rate=args.learning_rate,
+            threshold_sigma=args.threshold_sigma,
+            dynamic_threshold_config=DynamicThresholdConfig(
+                batch_size=args.dynamic_batch_size,
+                window_batches=args.dynamic_window_batches,
+                smoothing_fraction=args.dynamic_smoothing_fraction,
+                z_start=args.dynamic_z_start,
+                z_stop=args.dynamic_z_stop,
+                z_step=args.dynamic_z_step,
+                error_buffer=args.dynamic_error_buffer,
+                p=args.dynamic_prune_p,
+            ),
+            random_state=args.random_state,
+            device=args.device,
+        )
+        print(f"artifact_dir={result.artifact_dir}")
+        print(f"classical_csv={result.classical_csv_path}")
+        print(f"lstm_robust_csv={result.lstm_robust_csv_path}")
+        print(f"lstm_dynamic_csv={result.lstm_dynamic_csv_path}")
+        print(f"comparison_csv={result.comparison_csv_path}")
+        print(f"comparison_markdown={result.comparison_markdown_path}")
+        print(f"summary={result.summary_markdown_path}")
+        print(f"classical_runs={len(result.classical_runs)}")
+        print(f"lstm_robust_runs={len(result.lstm_robust_runs)}")
+        print(f"lstm_dynamic_runs={len(result.lstm_dynamic_runs)}")
         print(f"comparison_rows={len(result.comparison_rows)}")
         return 0
 

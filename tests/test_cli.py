@@ -1201,6 +1201,54 @@ def test_smap_msl_lstm_forecast_baseline_command_supports_dynamic_threshold(
     assert "P-1,SMAP,lstm_forecast_dynamic_threshold" in output
 
 
+def test_phase2_smap_msl_command_runs_anomaly_workflow(tmp_path, capsys) -> None:
+    _write_cli_smap_msl_channel(tmp_path)
+    artifact_dir = tmp_path / "phase2_smap_msl"
+
+    exit_code = main(
+        [
+            "phase2-smap-msl",
+            "--data-dir",
+            str(tmp_path),
+            "--artifact-dir",
+            str(artifact_dir),
+            "--channels",
+            "P-1",
+            "--window-size",
+            "2",
+            "--hidden-size",
+            "4",
+            "--epochs",
+            "1",
+            "--batch-size",
+            "2",
+            "--classical-methods",
+            "robust_zscore",
+            "pca_reconstruction",
+            "--pca-components",
+            "1",
+            "--pca-threshold-quantile",
+            "0.95",
+            "--dynamic-batch-size",
+            "2",
+            "--dynamic-window-batches",
+            "1",
+            "--dynamic-error-buffer",
+            "0",
+        ]
+    )
+    output = capsys.readouterr().out
+
+    assert exit_code == 0
+    assert "classical_runs=2" in output
+    assert "lstm_robust_runs=1" in output
+    assert "lstm_dynamic_runs=1" in output
+    assert "comparison_rows=4" in output
+    assert (artifact_dir / "results" / "smap_msl_anomaly_model_comparison.csv").exists()
+    assert (artifact_dir / "results" / "smap_msl_anomaly_model_comparison.md").exists()
+    assert (artifact_dir / "phase2_smap_msl_summary.md").exists()
+
+
 def test_smap_msl_compare_anomaly_results_command_writes_report_tables(
     tmp_path,
     capsys,

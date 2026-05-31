@@ -74,6 +74,14 @@ uv run aerospace-prognostics smap-msl-compare-anomaly-results --result-csv artif
 
 The comparison report ranks rows per channel by point-wise F1, then point-adjusted F1, then false-alarm and miss rates. Point-wise F1 stays first because point-adjustment can over-reward weak detectors on long labelled intervals.
 
+One-command Track B bundle:
+
+```powershell
+uv run aerospace-prognostics phase2-smap-msl --data-dir data/raw/smap_msl --artifact-dir artifacts/phase2_smap_msl --max-channels 5 --window-size 30 --epochs 10
+```
+
+This writes classical, LSTM robust-threshold, LSTM dynamic-threshold, ranked comparison, and `phase2_smap_msl_summary.md` artifacts under the requested artifact directory.
+
 If `--feature-columns` is omitted, the command uses all numeric columns from the train CSV except the label column. For SMAP/MSL channel exports, pass `feature_0 feature_1 ...` explicitly when you want to exclude the numeric `timestep` column.
 
 ## Metric Note
@@ -84,7 +92,7 @@ Point-adjustment is included because it is common in time-series anomaly papers,
 
 ## Current Status
 
-This is not yet a reproduced SMAP/MSL Telemanom LSTM baseline. It is the Track B baseline layer: raw SMAP/MSL loading, direct multi-channel classical runs, LSTM forecasting with robust and dynamic thresholding, robust statistics, PCA reconstruction, Isolation Forest, metric handling, artifact formats, model comparison reporting, and CLI execution. The next Track B steps are:
+This is not yet a reproduced SMAP/MSL Telemanom LSTM baseline. It is the Track B baseline layer: raw SMAP/MSL loading, direct multi-channel classical runs, LSTM forecasting with robust and dynamic thresholding, robust statistics, PCA reconstruction, Isolation Forest, metric handling, artifact formats, model comparison reporting, workflow orchestration, and CLI execution. The next Track B steps are:
 
 - run the direct multi-channel classical and LSTM-forecast comparisons on real SMAP/MSL channels and commit the comparison table into the technical notes
 - compare the compact dynamic threshold against Telemanom's original predictions/threshold outputs on downloaded SMAP/MSL data
