@@ -91,6 +91,12 @@ from aerospace_prognostics.experiments.smap_msl_anomaly import (
     write_smap_msl_lstm_forecast_baseline_csv,
     write_smap_msl_lstm_forecast_baseline_json,
 )
+from aerospace_prognostics.reports.anomaly_model_comparison import (
+    AnomalyModelComparisonRow,
+    build_anomaly_model_comparison,
+    write_anomaly_model_comparison_csv,
+    write_anomaly_model_comparison_markdown,
+)
 from aerospace_prognostics.reports.cmapss_model_comparison import (
     CmapssModelComparisonRow,
     build_cmapss_model_comparison,
@@ -749,6 +755,15 @@ def _build_parser() -> argparse.ArgumentParser:
     smap_msl_lstm.add_argument("--device", default="cpu")
     smap_msl_lstm.add_argument("--output-json", type=Path)
     smap_msl_lstm.add_argument("--output-csv", type=Path)
+
+    smap_msl_compare = subparsers.add_parser(
+        "smap-msl-compare-anomaly-results",
+        help="Rank SMAP/MSL anomaly result CSVs across classical and forecast baselines",
+    )
+    smap_msl_compare.add_argument("--result-csv", nargs="+", type=Path, required=True)
+    smap_msl_compare.add_argument("--source-labels", nargs="+")
+    smap_msl_compare.add_argument("--output-csv", type=Path)
+    smap_msl_compare.add_argument("--output-markdown", type=Path)
 
     package_hgb = subparsers.add_parser(
         "cmapss-package-hgb-policy",
@@ -1743,6 +1758,20 @@ def main(argv: list[str] | None = None) -> int:
             write_smap_msl_lstm_forecast_baseline_csv(runs, args.output_csv)
         return 0
 
+    if args.command == "smap-msl-compare-anomaly-results":
+        rows = build_anomaly_model_comparison(
+            tuple(args.result_csv),
+            source_labels=tuple(args.source_labels) if args.source_labels is not None else None,
+        )
+        print(f"channels={len(_anomaly_comparison_channels(rows))}")
+        print(f"rows={len(rows)}")
+        _print_anomaly_comparison_table(rows)
+        if args.output_csv is not None:
+            write_anomaly_model_comparison_csv(rows, args.output_csv)
+        if args.output_markdown is not None:
+            write_anomaly_model_comparison_markdown(rows, args.output_markdown)
+        return 0
+
     if args.command == "cmapss-package-hgb-policy":
         packaged = train_cmapss_hgb_policy_artifact(
             args.data_dir,
@@ -1867,6 +1896,30 @@ def _print_smap_msl_forecast_table(runs: Iterable[SmapMslLstmForecastBaselineRun
             f"{run.point_adjusted_metrics.f1:.6f},"
             f"{run.metrics.false_alarm_rate:.6f}"
         )
+
+
+def _print_anomaly_comparison_table(rows: Iterable[AnomalyModelComparisonRow]) -> None:
+    print(
+        "channel_id,spacecraft,rank_by_f1,source,model,"
+        "f1,point_adjusted_f1,precision,recall,false_alarm_rate"
+    )
+    for row in rows:
+        print(
+            f"{row.channel_id},"
+            f"{row.spacecraft},"
+            f"{row.rank_by_f1},"
+            f"{row.source},"
+            f"{row.model_name},"
+            f"{row.f1:.6f},"
+            f"{row.point_adjusted_f1:.6f},"
+            f"{row.precision:.6f},"
+            f"{row.recall:.6f},"
+            f"{row.false_alarm_rate:.6f}"
+        )
+
+
+def _anomaly_comparison_channels(rows: Iterable[AnomalyModelComparisonRow]) -> tuple[str, ...]:
+    return tuple(dict.fromkeys(row.channel_id for row in rows))
 
 
 def _smap_msl_result_channels(

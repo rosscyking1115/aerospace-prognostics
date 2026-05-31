@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import csv
 import json
 import zipfile
 from io import BytesIO
@@ -1200,6 +1201,52 @@ def test_smap_msl_lstm_forecast_baseline_command_supports_dynamic_threshold(
     assert "P-1,SMAP,lstm_forecast_dynamic_threshold" in output
 
 
+def test_smap_msl_compare_anomaly_results_command_writes_report_tables(
+    tmp_path,
+    capsys,
+) -> None:
+    classical_csv = tmp_path / "results" / "classical.csv"
+    forecast_csv = tmp_path / "results" / "forecast.csv"
+    output_csv = tmp_path / "reports" / "comparison.csv"
+    output_markdown = tmp_path / "reports" / "comparison.md"
+    _write_cli_anomaly_result_csv(
+        classical_csv,
+        [
+            _cli_anomaly_result_row("P-1", "SMAP", "robust_zscore", f1=0.40),
+            _cli_anomaly_result_row("P-1", "SMAP", "pca_reconstruction", f1=0.60),
+        ],
+    )
+    _write_cli_anomaly_result_csv(
+        forecast_csv,
+        [_cli_anomaly_result_row("P-1", "SMAP", "lstm_forecast_dynamic_threshold", f1=0.55)],
+    )
+
+    exit_code = main(
+        [
+            "smap-msl-compare-anomaly-results",
+            "--result-csv",
+            str(classical_csv),
+            str(forecast_csv),
+            "--source-labels",
+            "classical",
+            "lstm",
+            "--output-csv",
+            str(output_csv),
+            "--output-markdown",
+            str(output_markdown),
+        ]
+    )
+    output = capsys.readouterr().out
+
+    assert exit_code == 0
+    assert "channels=1" in output
+    assert "rows=3" in output
+    assert "P-1,SMAP,1,classical,pca_reconstruction" in output
+    assert "P-1,SMAP,2,lstm,lstm_forecast_dynamic_threshold" in output
+    assert output_csv.exists()
+    assert "# Telemetry Anomaly Model Comparison" in output_markdown.read_text(encoding="utf-8")
+
+
 def test_cmapss_package_and_predict_artifact_commands(tmp_path, capsys) -> None:
     write_tiny_cmapss_subset(tmp_path)
     artifact_path = tmp_path / "models" / "fd001.joblib"
@@ -1363,6 +1410,41 @@ def _write_cli_smap_msl_channel(root) -> None:
         root / "data" / "test" / "P-1.npy",
         np.array([[0, 0], [6, -6], [7, -7], [1, 1], [10, -10]]),
     )
+
+
+def _write_cli_anomaly_result_csv(path, rows: list[dict[str, object]]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("w", encoding="utf-8", newline="") as file:
+        writer = csv.DictWriter(file, fieldnames=list(rows[0]))
+        writer.writeheader()
+        writer.writerows(rows)
+
+
+def _cli_anomaly_result_row(
+    channel_id: str,
+    spacecraft: str,
+    model_name: str,
+    *,
+    f1: float,
+) -> dict[str, object]:
+    return {
+        "channel_id": channel_id,
+        "spacecraft": spacecraft,
+        "model_name": model_name,
+        "train_rows": 5,
+        "test_rows": 6,
+        "feature_count": 2,
+        "anomaly_sequences": 1,
+        "anomaly_points": 2,
+        "precision": 0.5,
+        "recall": 0.5,
+        "f1": f1,
+        "point_adjusted_f1": 0.5,
+        "false_alarm_rate": 0.1,
+        "miss_rate": 0.5,
+        "support": 2,
+        "predicted_positives": 2,
+    }
 
 
 def _cli_npy_bytes(values: np.ndarray) -> bytes:

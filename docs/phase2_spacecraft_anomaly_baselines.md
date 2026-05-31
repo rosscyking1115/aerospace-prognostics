@@ -66,6 +66,14 @@ uv run aerospace-prognostics smap-msl-lstm-forecast-baseline --data-dir data/raw
 
 This command trains a small LSTM on nominal train windows for each selected channel and predicts the next telemetry vector. The default threshold uses a robust train-error scale; `--threshold-method dynamic` applies a compact Telemanom-style nonparametric dynamic threshold over smoothed test forecast errors, including z-search, local windows, error buffering, and sequence pruning. It is a bridge toward the Hundman et al. forecasting baseline, not yet a byte-for-byte port of the original Keras implementation.
 
+Rank the classical and forecasting outputs in one report:
+
+```powershell
+uv run aerospace-prognostics smap-msl-compare-anomaly-results --result-csv artifacts/results/smap_msl_classical_baselines_sample.csv artifacts/results/smap_msl_lstm_forecast_sample.csv artifacts/results/smap_msl_lstm_dynamic_sample.csv --source-labels classical lstm_robust lstm_dynamic --output-csv artifacts/results/smap_msl_anomaly_model_comparison.csv --output-markdown artifacts/results/smap_msl_anomaly_model_comparison.md
+```
+
+The comparison report ranks rows per channel by point-wise F1, then point-adjusted F1, then false-alarm and miss rates. Point-wise F1 stays first because point-adjustment can over-reward weak detectors on long labelled intervals.
+
 If `--feature-columns` is omitted, the command uses all numeric columns from the train CSV except the label column. For SMAP/MSL channel exports, pass `feature_0 feature_1 ...` explicitly when you want to exclude the numeric `timestep` column.
 
 ## Metric Note
@@ -76,8 +84,8 @@ Point-adjustment is included because it is common in time-series anomaly papers,
 
 ## Current Status
 
-This is not yet a reproduced SMAP/MSL Telemanom LSTM baseline. It is the Track B baseline layer: raw SMAP/MSL loading, direct multi-channel classical runs, LSTM forecasting with robust and dynamic thresholding, robust statistics, PCA reconstruction, Isolation Forest, metric handling, artifact formats, and CLI execution. The next Track B steps are:
+This is not yet a reproduced SMAP/MSL Telemanom LSTM baseline. It is the Track B baseline layer: raw SMAP/MSL loading, direct multi-channel classical runs, LSTM forecasting with robust and dynamic thresholding, robust statistics, PCA reconstruction, Isolation Forest, metric handling, artifact formats, model comparison reporting, and CLI execution. The next Track B steps are:
 
-- run the direct multi-channel classical and LSTM-forecast comparisons on real SMAP/MSL channels and record an initial table
+- run the direct multi-channel classical and LSTM-forecast comparisons on real SMAP/MSL channels and commit the comparison table into the technical notes
 - compare the compact dynamic threshold against Telemanom's original predictions/threshold outputs on downloaded SMAP/MSL data
 - move serious benchmark claims to ESA-ADB with its official evaluation tools
