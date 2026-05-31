@@ -504,6 +504,18 @@ def _build_parser() -> argparse.ArgumentParser:
     phase2_smap_msl.add_argument("--batch-size", type=int, default=64)
     phase2_smap_msl.add_argument("--learning-rate", type=float, default=1e-3)
     phase2_smap_msl.add_argument("--threshold-sigma", type=float, default=3.0)
+    phase2_smap_msl.add_argument("--robust-policy-false-alarm-budget", type=float)
+    phase2_smap_msl.add_argument(
+        "--robust-policy-thresholds",
+        nargs="+",
+        type=float,
+        default=[3.5, 5.0, 7.0, 10.0, 15.0],
+    )
+    phase2_smap_msl.add_argument(
+        "--robust-policy-group-by",
+        choices=["spacecraft", "global"],
+        default="spacecraft",
+    )
     phase2_smap_msl.add_argument("--dynamic-batch-size", type=int, default=70)
     phase2_smap_msl.add_argument("--dynamic-window-batches", type=int, default=30)
     phase2_smap_msl.add_argument("--dynamic-smoothing-fraction", type=float, default=0.05)
@@ -1450,6 +1462,9 @@ def main(argv: list[str] | None = None) -> int:
             batch_size=args.batch_size,
             learning_rate=args.learning_rate,
             threshold_sigma=args.threshold_sigma,
+            robust_policy_false_alarm_budget=args.robust_policy_false_alarm_budget,
+            robust_policy_thresholds=tuple(args.robust_policy_thresholds),
+            robust_policy_group_by=args.robust_policy_group_by,
             dynamic_threshold_config=DynamicThresholdConfig(
                 batch_size=args.dynamic_batch_size,
                 window_batches=args.dynamic_window_batches,
@@ -1467,12 +1482,19 @@ def main(argv: list[str] | None = None) -> int:
         print(f"classical_csv={result.classical_csv_path}")
         print(f"lstm_robust_csv={result.lstm_robust_csv_path}")
         print(f"lstm_dynamic_csv={result.lstm_dynamic_csv_path}")
+        if result.robust_threshold_policy_csv_path is not None:
+            print(f"robust_threshold_policy_csv={result.robust_threshold_policy_csv_path}")
+            print(
+                "robust_threshold_operating_point_csv="
+                f"{result.robust_threshold_operating_point_csv_path}"
+            )
         print(f"comparison_csv={result.comparison_csv_path}")
         print(f"comparison_markdown={result.comparison_markdown_path}")
         print(f"summary={result.summary_markdown_path}")
         print(f"classical_runs={len(result.classical_runs)}")
         print(f"lstm_robust_runs={len(result.lstm_robust_runs)}")
         print(f"lstm_dynamic_runs={len(result.lstm_dynamic_runs)}")
+        print(f"robust_threshold_policy_runs={len(result.robust_threshold_policy_runs)}")
         print(f"comparison_rows={len(result.comparison_rows)}")
         return 0
 

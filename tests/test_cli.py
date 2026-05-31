@@ -1311,6 +1311,11 @@ def test_phase2_smap_msl_command_runs_anomaly_workflow(tmp_path, capsys) -> None
             "1",
             "--dynamic-error-buffer",
             "0",
+            "--robust-policy-false-alarm-budget",
+            "1.0",
+            "--robust-policy-thresholds",
+            "2.0",
+            "4.0",
         ]
     )
     output = capsys.readouterr().out
@@ -1319,9 +1324,12 @@ def test_phase2_smap_msl_command_runs_anomaly_workflow(tmp_path, capsys) -> None
     assert "classical_runs=2" in output
     assert "lstm_robust_runs=1" in output
     assert "lstm_dynamic_runs=1" in output
-    assert "comparison_rows=4" in output
+    assert "robust_threshold_policy_runs=1" in output
+    assert "comparison_rows=5" in output
+    assert "robust_threshold_policy_csv=" in output
     assert (artifact_dir / "results" / "smap_msl_anomaly_model_comparison.csv").exists()
     assert (artifact_dir / "results" / "smap_msl_anomaly_model_comparison.md").exists()
+    assert (artifact_dir / "results" / "smap_msl_robust_threshold_policy.csv").exists()
     assert (artifact_dir / "phase2_smap_msl_summary.md").exists()
 
 

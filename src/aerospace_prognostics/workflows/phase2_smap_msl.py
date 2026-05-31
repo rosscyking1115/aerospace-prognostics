@@ -11,12 +11,26 @@ from aerospace_prognostics.anomaly.forecasting import DynamicThresholdConfig
 from aerospace_prognostics.experiments.smap_msl_anomaly import (
     SmapMslClassicalBaselineRun,
     SmapMslLstmForecastBaselineRun,
+    SmapMslRobustThresholdOperatingPoint,
+    SmapMslRobustThresholdSweepRun,
+    aggregate_smap_msl_robust_threshold_sweep,
     run_smap_msl_classical_baselines,
     run_smap_msl_lstm_forecast_baseline,
+    run_smap_msl_robust_threshold_sweep,
+    select_smap_msl_robust_threshold_operating_points,
+    select_smap_msl_robust_threshold_policy_runs,
     write_smap_msl_classical_baselines_csv,
     write_smap_msl_classical_baselines_json,
     write_smap_msl_lstm_forecast_baseline_csv,
     write_smap_msl_lstm_forecast_baseline_json,
+    write_smap_msl_robust_threshold_operating_points_csv,
+    write_smap_msl_robust_threshold_operating_points_json,
+    write_smap_msl_robust_threshold_policy_csv,
+    write_smap_msl_robust_threshold_policy_json,
+    write_smap_msl_robust_threshold_sweep_aggregate_csv,
+    write_smap_msl_robust_threshold_sweep_aggregate_json,
+    write_smap_msl_robust_threshold_sweep_csv,
+    write_smap_msl_robust_threshold_sweep_json,
 )
 from aerospace_prognostics.reports.anomaly_model_comparison import (
     AnomalyModelComparisonRow,
@@ -37,12 +51,23 @@ class Phase2SmapMslWorkflowResult:
     lstm_robust_csv_path: Path
     lstm_dynamic_json_path: Path
     lstm_dynamic_csv_path: Path
+    robust_threshold_sweep_json_path: Path | None
+    robust_threshold_sweep_csv_path: Path | None
+    robust_threshold_sweep_aggregate_json_path: Path | None
+    robust_threshold_sweep_aggregate_csv_path: Path | None
+    robust_threshold_operating_point_json_path: Path | None
+    robust_threshold_operating_point_csv_path: Path | None
+    robust_threshold_policy_json_path: Path | None
+    robust_threshold_policy_csv_path: Path | None
     comparison_csv_path: Path
     comparison_markdown_path: Path
     summary_markdown_path: Path
     classical_runs: tuple[SmapMslClassicalBaselineRun, ...]
     lstm_robust_runs: tuple[SmapMslLstmForecastBaselineRun, ...]
     lstm_dynamic_runs: tuple[SmapMslLstmForecastBaselineRun, ...]
+    robust_threshold_sweep_runs: tuple[SmapMslRobustThresholdSweepRun, ...]
+    robust_threshold_operating_points: tuple[SmapMslRobustThresholdOperatingPoint, ...]
+    robust_threshold_policy_runs: tuple[SmapMslRobustThresholdSweepRun, ...]
     comparison_rows: tuple[AnomalyModelComparisonRow, ...]
 
 
@@ -65,6 +90,9 @@ def run_phase2_smap_msl_workflow(
     batch_size: int = 64,
     learning_rate: float = 1e-3,
     threshold_sigma: float = 3.0,
+    robust_policy_false_alarm_budget: float | None = None,
+    robust_policy_thresholds: tuple[float, ...] = (3.5, 5.0, 7.0, 10.0, 15.0),
+    robust_policy_group_by: str = "spacecraft",
     dynamic_threshold_config: DynamicThresholdConfig | None = None,
     random_state: int = 42,
     device: str = "cpu",
@@ -135,9 +163,96 @@ def run_phase2_smap_msl_workflow(
     write_smap_msl_lstm_forecast_baseline_json(lstm_dynamic_runs, lstm_dynamic_json_path)
     write_smap_msl_lstm_forecast_baseline_csv(lstm_dynamic_runs, lstm_dynamic_csv_path)
 
+    robust_threshold_sweep_runs: tuple[SmapMslRobustThresholdSweepRun, ...] = ()
+    robust_threshold_operating_points: tuple[SmapMslRobustThresholdOperatingPoint, ...] = ()
+    robust_threshold_policy_runs: tuple[SmapMslRobustThresholdSweepRun, ...] = ()
+    robust_threshold_sweep_json_path: Path | None = None
+    robust_threshold_sweep_csv_path: Path | None = None
+    robust_threshold_sweep_aggregate_json_path: Path | None = None
+    robust_threshold_sweep_aggregate_csv_path: Path | None = None
+    robust_threshold_operating_point_json_path: Path | None = None
+    robust_threshold_operating_point_csv_path: Path | None = None
+    robust_threshold_policy_json_path: Path | None = None
+    robust_threshold_policy_csv_path: Path | None = None
+    comparison_paths = [classical_csv_path, lstm_robust_csv_path, lstm_dynamic_csv_path]
+    source_labels = ["classical", "lstm_robust", "lstm_dynamic"]
+    if robust_policy_false_alarm_budget is not None:
+        robust_threshold_sweep_runs = run_smap_msl_robust_threshold_sweep(
+            root,
+            thresholds=robust_policy_thresholds,
+            channels=channels,
+            max_channels=max_channels,
+        )
+        robust_threshold_aggregates = aggregate_smap_msl_robust_threshold_sweep(
+            robust_threshold_sweep_runs
+        )
+        robust_threshold_operating_points = select_smap_msl_robust_threshold_operating_points(
+            robust_threshold_sweep_runs,
+            false_alarm_budget=robust_policy_false_alarm_budget,
+            group_by=robust_policy_group_by,
+        )
+        robust_threshold_policy_runs = select_smap_msl_robust_threshold_policy_runs(
+            robust_threshold_sweep_runs,
+            robust_threshold_operating_points,
+        )
+        robust_threshold_sweep_json_path = results_dir / "smap_msl_robust_threshold_sweep.json"
+        robust_threshold_sweep_csv_path = results_dir / "smap_msl_robust_threshold_sweep.csv"
+        robust_threshold_sweep_aggregate_json_path = (
+            results_dir / "smap_msl_robust_threshold_sweep_aggregate.json"
+        )
+        robust_threshold_sweep_aggregate_csv_path = (
+            results_dir / "smap_msl_robust_threshold_sweep_aggregate.csv"
+        )
+        robust_threshold_operating_point_json_path = (
+            results_dir / "smap_msl_robust_threshold_operating_points.json"
+        )
+        robust_threshold_operating_point_csv_path = (
+            results_dir / "smap_msl_robust_threshold_operating_points.csv"
+        )
+        robust_threshold_policy_json_path = (
+            results_dir / "smap_msl_robust_threshold_policy.json"
+        )
+        robust_threshold_policy_csv_path = results_dir / "smap_msl_robust_threshold_policy.csv"
+        write_smap_msl_robust_threshold_sweep_json(
+            robust_threshold_sweep_runs,
+            robust_threshold_sweep_json_path,
+        )
+        write_smap_msl_robust_threshold_sweep_csv(
+            robust_threshold_sweep_runs,
+            robust_threshold_sweep_csv_path,
+        )
+        write_smap_msl_robust_threshold_sweep_aggregate_json(
+            robust_threshold_aggregates,
+            robust_threshold_sweep_aggregate_json_path,
+        )
+        write_smap_msl_robust_threshold_sweep_aggregate_csv(
+            robust_threshold_aggregates,
+            robust_threshold_sweep_aggregate_csv_path,
+        )
+        write_smap_msl_robust_threshold_operating_points_json(
+            robust_threshold_operating_points,
+            robust_threshold_operating_point_json_path,
+        )
+        write_smap_msl_robust_threshold_operating_points_csv(
+            robust_threshold_operating_points,
+            robust_threshold_operating_point_csv_path,
+        )
+        write_smap_msl_robust_threshold_policy_json(
+            robust_threshold_policy_runs,
+            robust_threshold_operating_points,
+            robust_threshold_policy_json_path,
+        )
+        write_smap_msl_robust_threshold_policy_csv(
+            robust_threshold_policy_runs,
+            robust_threshold_operating_points,
+            robust_threshold_policy_csv_path,
+        )
+        comparison_paths.append(robust_threshold_policy_csv_path)
+        source_labels.append(f"robust_policy_far_{robust_policy_false_alarm_budget:g}")
+
     comparison_rows = build_anomaly_model_comparison(
-        (classical_csv_path, lstm_robust_csv_path, lstm_dynamic_csv_path),
-        source_labels=("classical", "lstm_robust", "lstm_dynamic"),
+        tuple(comparison_paths),
+        source_labels=tuple(source_labels),
     )
     comparison_csv_path = results_dir / "smap_msl_anomaly_model_comparison.csv"
     comparison_markdown_path = results_dir / "smap_msl_anomaly_model_comparison.md"
@@ -150,6 +265,8 @@ def run_phase2_smap_msl_workflow(
         classical_csv_path=classical_csv_path,
         lstm_robust_csv_path=lstm_robust_csv_path,
         lstm_dynamic_csv_path=lstm_dynamic_csv_path,
+        robust_threshold_policy_csv_path=robust_threshold_policy_csv_path,
+        robust_threshold_operating_point_csv_path=robust_threshold_operating_point_csv_path,
         comparison_markdown_path=comparison_markdown_path,
         comparison_rows=tuple(comparison_rows),
     )
@@ -162,12 +279,23 @@ def run_phase2_smap_msl_workflow(
         lstm_robust_csv_path=lstm_robust_csv_path,
         lstm_dynamic_json_path=lstm_dynamic_json_path,
         lstm_dynamic_csv_path=lstm_dynamic_csv_path,
+        robust_threshold_sweep_json_path=robust_threshold_sweep_json_path,
+        robust_threshold_sweep_csv_path=robust_threshold_sweep_csv_path,
+        robust_threshold_sweep_aggregate_json_path=robust_threshold_sweep_aggregate_json_path,
+        robust_threshold_sweep_aggregate_csv_path=robust_threshold_sweep_aggregate_csv_path,
+        robust_threshold_operating_point_json_path=robust_threshold_operating_point_json_path,
+        robust_threshold_operating_point_csv_path=robust_threshold_operating_point_csv_path,
+        robust_threshold_policy_json_path=robust_threshold_policy_json_path,
+        robust_threshold_policy_csv_path=robust_threshold_policy_csv_path,
         comparison_csv_path=comparison_csv_path,
         comparison_markdown_path=comparison_markdown_path,
         summary_markdown_path=summary_markdown_path,
         classical_runs=tuple(classical_runs),
         lstm_robust_runs=tuple(lstm_robust_runs),
         lstm_dynamic_runs=tuple(lstm_dynamic_runs),
+        robust_threshold_sweep_runs=robust_threshold_sweep_runs,
+        robust_threshold_operating_points=robust_threshold_operating_points,
+        robust_threshold_policy_runs=robust_threshold_policy_runs,
         comparison_rows=tuple(comparison_rows),
     )
 
@@ -178,6 +306,8 @@ def _write_phase2_smap_msl_summary(
     classical_csv_path: Path,
     lstm_robust_csv_path: Path,
     lstm_dynamic_csv_path: Path,
+    robust_threshold_policy_csv_path: Path | None,
+    robust_threshold_operating_point_csv_path: Path | None,
     comparison_markdown_path: Path,
     comparison_rows: tuple[AnomalyModelComparisonRow, ...],
 ) -> None:
@@ -188,13 +318,33 @@ def _write_phase2_smap_msl_summary(
         f"- Classical baseline table: `{classical_csv_path.as_posix()}`",
         f"- LSTM robust-threshold table: `{lstm_robust_csv_path.as_posix()}`",
         f"- LSTM dynamic-threshold table: `{lstm_dynamic_csv_path.as_posix()}`",
-        f"- Ranked anomaly comparison: `{comparison_markdown_path.as_posix()}`",
-        "",
-        "## Best Model By Point-Wise F1",
-        "",
-        "| Channel | Spacecraft | Source | Model | F1 | Point-Adjusted F1 | False Alarm Rate |",
-        "|---|---|---|---|---:|---:|---:|",
     ]
+    if robust_threshold_policy_csv_path is not None:
+        lines.extend(
+            [
+                (
+                    "- Robust threshold policy table: "
+                    f"`{robust_threshold_policy_csv_path.as_posix()}`"
+                ),
+                (
+                    "- Robust threshold operating points: "
+                    f"`{robust_threshold_operating_point_csv_path.as_posix()}`"
+                ),
+            ]
+        )
+    lines.extend(
+        [
+            f"- Ranked anomaly comparison: `{comparison_markdown_path.as_posix()}`",
+            "",
+            "## Best Model By Point-Wise F1",
+            "",
+            (
+                "| Channel | Spacecraft | Source | Model | F1 | "
+                "Point-Adjusted F1 | False Alarm Rate |"
+            ),
+            "|---|---|---|---|---:|---:|---:|",
+        ]
+    )
     best_rows = _best_smap_msl_rows_by_channel(comparison_rows)
     for best in best_rows:
         lines.append(

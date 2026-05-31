@@ -22,6 +22,9 @@ def test_run_phase2_smap_msl_workflow_writes_expected_artifacts(tmp_path) -> Non
         classical_methods=("robust_zscore", "pca_reconstruction"),
         pca_components=1,
         pca_threshold_quantile=0.95,
+        robust_policy_false_alarm_budget=1.0,
+        robust_policy_thresholds=(2.0, 4.0),
+        robust_policy_group_by="spacecraft",
     )
 
     assert result.classical_json_path.exists()
@@ -30,13 +33,22 @@ def test_run_phase2_smap_msl_workflow_writes_expected_artifacts(tmp_path) -> Non
     assert result.lstm_robust_csv_path.exists()
     assert result.lstm_dynamic_json_path.exists()
     assert result.lstm_dynamic_csv_path.exists()
+    assert result.robust_threshold_sweep_csv_path is not None
+    assert result.robust_threshold_sweep_csv_path.exists()
+    assert result.robust_threshold_operating_point_csv_path is not None
+    assert result.robust_threshold_operating_point_csv_path.exists()
+    assert result.robust_threshold_policy_csv_path is not None
+    assert result.robust_threshold_policy_csv_path.exists()
     assert result.comparison_csv_path.exists()
     assert result.comparison_markdown_path.exists()
     assert result.summary_markdown_path.exists()
     assert len(result.classical_runs) == 4
     assert len(result.lstm_robust_runs) == 2
     assert len(result.lstm_dynamic_runs) == 2
-    assert len(result.comparison_rows) == 8
+    assert len(result.robust_threshold_sweep_runs) == 4
+    assert len(result.robust_threshold_operating_points) == 2
+    assert len(result.robust_threshold_policy_runs) == 2
+    assert len(result.comparison_rows) == 10
 
     classical_payload = json.loads(result.classical_json_path.read_text(encoding="utf-8"))
     summary = result.summary_markdown_path.read_text(encoding="utf-8")
@@ -47,6 +59,7 @@ def test_run_phase2_smap_msl_workflow_writes_expected_artifacts(tmp_path) -> Non
     assert "## Winner Counts" in summary
     assert "## Average Metrics By Source And Model" in summary
     assert "| classical | robust_zscore |" in summary
+    assert "Robust threshold policy table" in summary
 
 
 def _write_phase2_smap_msl_fixture(root) -> None:

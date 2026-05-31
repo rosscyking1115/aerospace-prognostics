@@ -87,10 +87,10 @@ The comparison report ranks rows per channel by point-wise F1, then point-adjust
 One-command Track B bundle:
 
 ```powershell
-uv run aerospace-prognostics phase2-smap-msl --data-dir data/raw/smap_msl --artifact-dir artifacts/phase2_smap_msl --max-channels 5 --window-size 30 --epochs 10
+uv run aerospace-prognostics phase2-smap-msl --data-dir data/raw/smap_msl --artifact-dir artifacts/phase2_smap_msl --max-channels 5 --window-size 30 --epochs 10 --robust-policy-false-alarm-budget 0.15
 ```
 
-This writes classical, LSTM robust-threshold, LSTM dynamic-threshold, ranked comparison, and `phase2_smap_msl_summary.md` artifacts under the requested artifact directory.
+This writes classical, LSTM robust-threshold, LSTM dynamic-threshold, optional robust-threshold policy, ranked comparison, and `phase2_smap_msl_summary.md` artifacts under the requested artifact directory. When `--robust-policy-false-alarm-budget` is supplied, the workflow also writes threshold sweep, operating-point, and comparison-ready policy artifacts, then includes the policy rows in the ranked comparison.
 
 ## First Real SMAP/MSL Sample Run
 
