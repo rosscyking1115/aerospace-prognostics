@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import csv
 import json
 
 from aerospace_prognostics.workflows.phase2 import (
@@ -33,6 +34,7 @@ def test_run_phase2_cmapss_workflow_writes_expected_artifacts(tmp_path) -> None:
     assert result.hgb_policy_csv_path.exists()
     assert result.deep_compare_json_path.exists()
     assert result.deep_compare_csv_path.exists()
+    assert result.deep_predictions_csv_path.exists()
     assert result.comparison_csv_path.exists()
     assert result.comparison_markdown_path.exists()
     assert result.summary_markdown_path.exists()
@@ -43,29 +45,36 @@ def test_run_phase2_cmapss_workflow_writes_expected_artifacts(tmp_path) -> None:
     assert len(result.comparison_rows) == 3
 
     deep_payload = json.loads(result.deep_compare_json_path.read_text(encoding="utf-8"))
+    with result.deep_predictions_csv_path.open("r", encoding="utf-8", newline="") as file:
+        prediction_rows = list(csv.DictReader(file))
     run_manifest = json.loads(result.run_manifest_path.read_text(encoding="utf-8"))
     summary = result.summary_markdown_path.read_text(encoding="utf-8")
 
     assert deep_payload[0]["subset"] == "FD001"
+    assert len(prediction_rows) == 4
+    assert prediction_rows[0]["model_name"].startswith("compare_")
     assert run_manifest["workflow"] == "phase2_cmapss"
     assert run_manifest["parameters"]["subsets"] == ["FD001"]
     assert run_manifest["counts"]["sequence_exports"] == 1
     assert run_manifest["counts"]["deep_compare_results"] == 2
+    assert run_manifest["counts"]["deep_prediction_rows"] == 4
     assert run_manifest["counts"]["comparison_rows"] == 3
     assert "numpy" in run_manifest["runtime"]["dependencies"]
     assert "git_commit" in run_manifest["source_control"]
-    assert len(run_manifest["artifact_integrity"]) == 12
+    assert len(run_manifest["artifact_integrity"]) == 13
     assert "sha256" in run_manifest["artifact_integrity"]["deep_compare_csv"]
+    assert "sha256" in run_manifest["artifact_integrity"]["deep_predictions_csv"]
     assert run_manifest["artifacts"]["sequence_fd001_train_npz"].endswith(
         "train_sequences.npz"
     )
     assert "# Phase 2 C-MAPSS Summary" in summary
     assert "## Best Model By NASA Score" in summary
+    assert "deep prediction diagnostics" in summary
     assert "Run manifest" in summary
 
     verification = verify_phase2_cmapss_run_manifest(result.run_manifest_path)
     assert verification.ok
-    assert len(verification.checked_artifacts) == 13
+    assert len(verification.checked_artifacts) == 14
     assert verification.manifest_payload is not None
 
     audit_path = write_phase2_cmapss_manifest_audit_markdown(
@@ -75,8 +84,9 @@ def test_run_phase2_cmapss_workflow_writes_expected_artifacts(tmp_path) -> None:
     audit_markdown = audit_path.read_text(encoding="utf-8")
     assert "# Phase 2 C-MAPSS Manifest Audit" in audit_markdown
     assert "- Status: ok" in audit_markdown
-    assert "- Artifacts checked: 13" in audit_markdown
+    assert "- Artifacts checked: 14" in audit_markdown
     assert "| deep_compare_csv | yes |" in audit_markdown
+    assert "| deep_predictions_csv | yes |" in audit_markdown
     assert "- None" in audit_markdown
 
     with result.deep_compare_csv_path.open("a", encoding="utf-8") as file:

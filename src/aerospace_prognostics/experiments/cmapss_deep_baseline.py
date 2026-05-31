@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import csv
 import json
 import random
 from collections.abc import Callable
@@ -36,12 +37,31 @@ class CmapssCnnTrainingEpoch:
 
 
 @dataclass(frozen=True)
+class CmapssDeepPrediction:
+    """Official-test prediction diagnostics for one C-MAPSS engine unit."""
+
+    unit_number: int
+    actual_rul: float
+    predicted_rul: float
+    error: float
+    absolute_error: float
+    late_error: float
+    early_error: float
+
+    def to_dict(self) -> dict[str, int | float]:
+        """Return a JSON-serialisable dictionary."""
+
+        return asdict(self)
+
+
+@dataclass(frozen=True)
 class CmapssCnnBaselineRun:
     """Full CNN baseline run with the selected official-test result."""
 
     result: RegressionRunResult
     selected_epoch: int
     history: tuple[CmapssCnnTrainingEpoch, ...]
+    predictions: tuple[CmapssDeepPrediction, ...]
 
     def to_dict(self) -> dict[str, Any]:
         """Return a JSON-serialisable dictionary."""
@@ -50,6 +70,7 @@ class CmapssCnnBaselineRun:
             "result": self.result.to_dict(),
             "selected_epoch": self.selected_epoch,
             "history": [epoch.to_dict() for epoch in self.history],
+            "predictions": [prediction.to_dict() for prediction in self.predictions],
         }
 
 
@@ -60,6 +81,7 @@ class CmapssLstmBaselineRun:
     result: RegressionRunResult
     selected_epoch: int
     history: tuple[CmapssCnnTrainingEpoch, ...]
+    predictions: tuple[CmapssDeepPrediction, ...]
 
     def to_dict(self) -> dict[str, Any]:
         """Return a JSON-serialisable dictionary."""
@@ -68,6 +90,7 @@ class CmapssLstmBaselineRun:
             "result": self.result.to_dict(),
             "selected_epoch": self.selected_epoch,
             "history": [epoch.to_dict() for epoch in self.history],
+            "predictions": [prediction.to_dict() for prediction in self.predictions],
         }
 
 
@@ -78,6 +101,7 @@ class CmapssTcnBaselineRun:
     result: RegressionRunResult
     selected_epoch: int
     history: tuple[CmapssCnnTrainingEpoch, ...]
+    predictions: tuple[CmapssDeepPrediction, ...]
 
     def to_dict(self) -> dict[str, Any]:
         """Return a JSON-serialisable dictionary."""
@@ -86,6 +110,7 @@ class CmapssTcnBaselineRun:
             "result": self.result.to_dict(),
             "selected_epoch": self.selected_epoch,
             "history": [epoch.to_dict() for epoch in self.history],
+            "predictions": [prediction.to_dict() for prediction in self.predictions],
         }
 
 
@@ -96,6 +121,7 @@ class CmapssTransformerBaselineRun:
     result: RegressionRunResult
     selected_epoch: int
     history: tuple[CmapssCnnTrainingEpoch, ...]
+    predictions: tuple[CmapssDeepPrediction, ...]
 
     def to_dict(self) -> dict[str, Any]:
         """Return a JSON-serialisable dictionary."""
@@ -104,7 +130,16 @@ class CmapssTransformerBaselineRun:
             "result": self.result.to_dict(),
             "selected_epoch": self.selected_epoch,
             "history": [epoch.to_dict() for epoch in self.history],
+            "predictions": [prediction.to_dict() for prediction in self.predictions],
         }
+
+
+CmapssDeepBaselineRun = (
+    CmapssCnnBaselineRun
+    | CmapssLstmBaselineRun
+    | CmapssTcnBaselineRun
+    | CmapssTransformerBaselineRun
+)
 
 
 class CmapssOneDimensionalCnn(nn.Module):
@@ -407,7 +442,7 @@ def run_cmapss_cnn_baseline_run(
             dropout=dropout,
         )
 
-    result, selected_epoch, history = _run_sequence_baseline_run(
+    result, selected_epoch, history, predictions = _run_sequence_baseline_run(
         sequence_dir,
         subset,
         epochs=epochs,
@@ -425,6 +460,7 @@ def run_cmapss_cnn_baseline_run(
         result=result,
         selected_epoch=selected_epoch,
         history=history,
+        predictions=predictions,
     )
 
 
@@ -493,7 +529,7 @@ def run_cmapss_lstm_baseline_run(
         )
 
     model_kind = "bilstm" if bidirectional else "lstm"
-    result, selected_epoch, history = _run_sequence_baseline_run(
+    result, selected_epoch, history, predictions = _run_sequence_baseline_run(
         sequence_dir,
         subset,
         epochs=epochs,
@@ -511,6 +547,7 @@ def run_cmapss_lstm_baseline_run(
         result=result,
         selected_epoch=selected_epoch,
         history=history,
+        predictions=predictions,
     )
 
 
@@ -580,7 +617,7 @@ def run_cmapss_tcn_baseline_run(
             dropout=dropout,
         )
 
-    result, selected_epoch, history = _run_sequence_baseline_run(
+    result, selected_epoch, history, predictions = _run_sequence_baseline_run(
         sequence_dir,
         subset,
         epochs=epochs,
@@ -599,6 +636,7 @@ def run_cmapss_tcn_baseline_run(
         result=result,
         selected_epoch=selected_epoch,
         history=history,
+        predictions=predictions,
     )
 
 
@@ -677,7 +715,7 @@ def run_cmapss_transformer_baseline_run(
             dropout=dropout,
         )
 
-    result, selected_epoch, history = _run_sequence_baseline_run(
+    result, selected_epoch, history, predictions = _run_sequence_baseline_run(
         sequence_dir,
         subset,
         epochs=epochs,
@@ -696,6 +734,7 @@ def run_cmapss_transformer_baseline_run(
         result=result,
         selected_epoch=selected_epoch,
         history=history,
+        predictions=predictions,
     )
 
 
@@ -711,7 +750,12 @@ def _run_sequence_baseline_run(
     device: str,
     model_factory: Callable[[int, int], nn.Module],
     model_name_base_factory: Callable[[dict[str, Any]], str],
-) -> tuple[RegressionRunResult, int, tuple[CmapssCnnTrainingEpoch, ...]]:
+) -> tuple[
+    RegressionRunResult,
+    int,
+    tuple[CmapssCnnTrainingEpoch, ...],
+    tuple[CmapssDeepPrediction, ...],
+]:
     if epochs < 1:
         raise ValueError("epochs must be at least 1")
     if batch_size < 1:
@@ -815,7 +859,41 @@ def _run_sequence_baseline_run(
         random_state=random_state,
         standardize=bool(metadata["standardize"]),
     )
-    return result, selected_epoch.epoch, tuple(history)
+    predictions = _build_sequence_predictions(
+        test_payload["unit_numbers"],
+        test_payload["targets"],
+        test_predictions,
+    )
+    return result, selected_epoch.epoch, tuple(history), predictions
+
+
+def _build_sequence_predictions(
+    unit_numbers: np.ndarray,
+    actual_rul: np.ndarray,
+    predicted_rul: np.ndarray,
+) -> tuple[CmapssDeepPrediction, ...]:
+    rows: list[CmapssDeepPrediction] = []
+    for unit_number, actual, predicted in zip(
+        unit_numbers,
+        actual_rul,
+        predicted_rul,
+        strict=True,
+    ):
+        actual_value = float(actual)
+        predicted_value = float(predicted)
+        error = predicted_value - actual_value
+        rows.append(
+            CmapssDeepPrediction(
+                unit_number=int(unit_number),
+                actual_rul=actual_value,
+                predicted_rul=predicted_value,
+                error=error,
+                absolute_error=abs(error),
+                late_error=max(error, 0.0),
+                early_error=max(-error, 0.0),
+            )
+        )
+    return tuple(rows)
 
 
 def run_all_cmapss_cnn_baselines(
@@ -1093,16 +1171,60 @@ def run_cmapss_deep_baseline_comparison(
 ) -> list[RegressionRunResult]:
     """Compare selected Phase 2 deep baselines across compact hyperparameter grids."""
 
+    return [
+        run.result
+        for run in run_cmapss_deep_baseline_comparison_runs(
+            sequence_dir,
+            subsets=subsets,
+            models=models,
+            epochs=epochs,
+            batch_size=batch_size,
+            learning_rates=learning_rates,
+            hidden_sizes=hidden_sizes,
+            num_layers=num_layers,
+            tcn_levels=tcn_levels,
+            transformer_heads=transformer_heads,
+            transformer_dim_feedforward=transformer_dim_feedforward,
+            kernel_size=kernel_size,
+            dropout=dropout,
+            checkpoint_policy=checkpoint_policy,
+            random_state=random_state,
+            device=device,
+        )
+    ]
+
+
+def run_cmapss_deep_baseline_comparison_runs(
+    sequence_dir: str | Path,
+    *,
+    subsets: tuple[str, ...],
+    models: tuple[str, ...] = ("cnn", "bilstm", "tcn"),
+    epochs: int = 5,
+    batch_size: int = 256,
+    learning_rates: tuple[float, ...] = (1e-3,),
+    hidden_sizes: tuple[int, ...] = (32,),
+    num_layers: int = 1,
+    tcn_levels: int = 3,
+    transformer_heads: int = 4,
+    transformer_dim_feedforward: int | None = None,
+    kernel_size: int = 3,
+    dropout: float = 0.1,
+    checkpoint_policy: str = "validation_nasa",
+    random_state: int = 42,
+    device: str = "cpu",
+) -> list[CmapssDeepBaselineRun]:
+    """Compare deep baselines and preserve histories plus per-unit predictions."""
+
     _validate_deep_comparison_inputs(
         models=models,
         learning_rates=learning_rates,
         hidden_sizes=hidden_sizes,
     )
-    results: list[RegressionRunResult] = []
+    runs: list[CmapssDeepBaselineRun] = []
     for model_name in models:
         for learning_rate in learning_rates:
             for hidden_size in hidden_sizes:
-                run_results = _run_deep_comparison_candidate(
+                candidate_runs = _run_deep_comparison_candidate_runs(
                     sequence_dir,
                     subsets=subsets,
                     model_name=model_name,
@@ -1120,16 +1242,54 @@ def run_cmapss_deep_baseline_comparison(
                     random_state=random_state,
                     device=device,
                 )
-                results.extend(
-                    _with_comparison_label(
-                        result,
+                runs.extend(
+                    _with_comparison_run_label(
+                        run,
                         model_name=model_name,
                         learning_rate=learning_rate,
                         hidden_size=hidden_size,
                     )
-                    for result in run_results
+                    for run in candidate_runs
                 )
-    return results
+    return runs
+
+
+def write_cmapss_deep_predictions_csv(
+    runs: list[CmapssDeepBaselineRun] | tuple[CmapssDeepBaselineRun, ...],
+    output_path: str | Path,
+) -> Path:
+    """Write official-test per-unit prediction diagnostics for deep C-MAPSS runs."""
+
+    path = Path(output_path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fieldnames = [
+        "dataset",
+        "subset",
+        "model_name",
+        "selected_epoch",
+        "unit_number",
+        "actual_rul",
+        "predicted_rul",
+        "error",
+        "absolute_error",
+        "late_error",
+        "early_error",
+    ]
+    with path.open("w", encoding="utf-8", newline="") as file:
+        writer = csv.DictWriter(file, fieldnames=fieldnames)
+        writer.writeheader()
+        for run in runs:
+            for prediction in run.predictions:
+                writer.writerow(
+                    {
+                        "dataset": run.result.dataset,
+                        "subset": run.result.subset,
+                        "model_name": run.result.model_name,
+                        "selected_epoch": run.selected_epoch,
+                        **prediction.to_dict(),
+                    }
+                )
+    return path
 
 
 def _validate_deep_comparison_inputs(
@@ -1153,7 +1313,7 @@ def _validate_deep_comparison_inputs(
         raise ValueError("hidden_sizes must all be at least 1")
 
 
-def _run_deep_comparison_candidate(
+def _run_deep_comparison_candidate_runs(
     sequence_dir: str | Path,
     *,
     subsets: tuple[str, ...],
@@ -1171,9 +1331,9 @@ def _run_deep_comparison_candidate(
     checkpoint_policy: str,
     random_state: int,
     device: str,
-) -> list[RegressionRunResult]:
+) -> list[CmapssDeepBaselineRun]:
     if model_name == "cnn":
-        return run_all_cmapss_cnn_baselines(
+        return run_all_cmapss_cnn_baseline_runs(
             sequence_dir,
             subsets=subsets,
             epochs=epochs,
@@ -1187,7 +1347,7 @@ def _run_deep_comparison_candidate(
             device=device,
         )
     if model_name in {"lstm", "bilstm"}:
-        return run_all_cmapss_lstm_baselines(
+        return run_all_cmapss_lstm_baseline_runs(
             sequence_dir,
             subsets=subsets,
             epochs=epochs,
@@ -1202,7 +1362,7 @@ def _run_deep_comparison_candidate(
             device=device,
         )
     if model_name == "tcn":
-        return run_all_cmapss_tcn_baselines(
+        return run_all_cmapss_tcn_baseline_runs(
             sequence_dir,
             subsets=subsets,
             epochs=epochs,
@@ -1216,7 +1376,7 @@ def _run_deep_comparison_candidate(
             random_state=random_state,
             device=device,
         )
-    return run_all_cmapss_transformer_baselines(
+    return run_all_cmapss_transformer_baseline_runs(
         sequence_dir,
         subsets=subsets,
         epochs=epochs,
@@ -1244,6 +1404,24 @@ def _with_comparison_label(
         f"compare_{model_name}_h{hidden_size}_lr{_format_comparison_float(learning_rate)}"
     )
     return replace(result, model_name=f"{label}_{result.model_name}")
+
+
+def _with_comparison_run_label(
+    run: CmapssDeepBaselineRun,
+    *,
+    model_name: str,
+    learning_rate: float,
+    hidden_size: int,
+) -> CmapssDeepBaselineRun:
+    return replace(
+        run,
+        result=_with_comparison_label(
+            run.result,
+            model_name=model_name,
+            learning_rate=learning_rate,
+            hidden_size=hidden_size,
+        ),
+    )
 
 
 def _format_comparison_float(value: float) -> str:

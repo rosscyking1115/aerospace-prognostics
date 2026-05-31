@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import csv
+
 import torch
 
 from aerospace_prognostics.experiments.cmapss_deep_baseline import (
@@ -14,12 +16,14 @@ from aerospace_prognostics.experiments.cmapss_deep_baseline import (
     run_cmapss_cnn_baseline,
     run_cmapss_cnn_baseline_run,
     run_cmapss_deep_baseline_comparison,
+    run_cmapss_deep_baseline_comparison_runs,
     run_cmapss_lstm_baseline,
     run_cmapss_lstm_baseline_run,
     run_cmapss_tcn_baseline,
     run_cmapss_tcn_baseline_run,
     run_cmapss_transformer_baseline,
     run_cmapss_transformer_baseline_run,
+    write_cmapss_deep_predictions_csv,
 )
 from aerospace_prognostics.sequence_exports import export_cmapss_sequence_splits
 from tests.cmapss_fixtures import write_all_tiny_cmapss_subsets, write_tiny_cmapss_subset
@@ -212,6 +216,10 @@ def test_run_cmapss_cnn_baseline_run_tracks_history_and_selected_epoch(tmp_path)
     assert run.selected_epoch in {1, 2}
     assert f"_best_e{run.selected_epoch}_" in run.result.model_name
     assert all(epoch.train_loss >= 0 for epoch in run.history)
+    assert len(run.predictions) == run.result.test_rul_values
+    assert all(prediction.absolute_error >= 0 for prediction in run.predictions)
+    assert all(prediction.late_error >= 0 for prediction in run.predictions)
+    assert all(prediction.early_error >= 0 for prediction in run.predictions)
 
 
 def test_run_cmapss_lstm_baseline_run_supports_bidirectional_checkpointing(
@@ -542,3 +550,38 @@ def test_run_cmapss_deep_baseline_comparison_labels_candidates(tmp_path) -> None
     assert any(
         "compare_transformer_h4_lr0p001" in result.model_name for result in results
     )
+
+
+def test_write_cmapss_deep_predictions_csv_records_unit_diagnostics(tmp_path) -> None:
+    write_tiny_cmapss_subset(tmp_path)
+    sequence_dir = tmp_path / "sequences"
+    export_cmapss_sequence_splits(
+        tmp_path,
+        sequence_dir,
+        "FD001",
+        window_size=2,
+        validation_fraction=0.5,
+        validation_horizon=1,
+    )
+    output_csv = tmp_path / "predictions" / "deep_predictions.csv"
+
+    runs = run_cmapss_deep_baseline_comparison_runs(
+        sequence_dir,
+        subsets=("FD001",),
+        models=("cnn",),
+        epochs=1,
+        batch_size=2,
+        learning_rates=(1e-3,),
+        hidden_sizes=(4,),
+    )
+    write_cmapss_deep_predictions_csv(runs, output_csv)
+
+    with output_csv.open("r", encoding="utf-8", newline="") as file:
+        rows = list(csv.DictReader(file))
+
+    assert len(rows) == runs[0].result.test_rul_values
+    assert rows[0]["model_name"].startswith("compare_cnn_h4_lr0p001")
+    assert rows[0]["unit_number"]
+    assert rows[0]["actual_rul"]
+    assert rows[0]["predicted_rul"]
+    assert rows[0]["absolute_error"]

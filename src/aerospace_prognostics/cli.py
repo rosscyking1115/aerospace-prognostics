@@ -1465,6 +1465,7 @@ def main(argv: list[str] | None = None) -> int:
         print(f"hgb_policy_csv={result.hgb_policy_csv_path}")
         print(f"deep_compare_json={result.deep_compare_json_path}")
         print(f"deep_compare_csv={result.deep_compare_csv_path}")
+        print(f"deep_predictions_csv={result.deep_predictions_csv_path}")
         print(f"comparison_csv={result.comparison_csv_path}")
         print(f"comparison_markdown={result.comparison_markdown_path}")
         print(f"summary={result.summary_markdown_path}")
