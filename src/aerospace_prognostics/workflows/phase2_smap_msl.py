@@ -50,7 +50,7 @@ def run_phase2_smap_msl_workflow(
     artifact_dir: str | Path,
     *,
     channels: tuple[str, ...] | None = None,
-    max_channels: int | None = 5,
+    max_channels: int | None = None,
     classical_methods: tuple[str, ...] = CLASSICAL_ANOMALY_BASELINE_METHODS,
     robust_threshold: float = 3.5,
     pca_components: int | None = None,

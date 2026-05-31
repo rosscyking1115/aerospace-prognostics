@@ -104,6 +104,29 @@ It generated 15 classical runs, 5 robust-threshold LSTM runs, 5 dynamic-threshol
 
 The result is a useful warning sign, not a finished benchmark. E-1 shows the dynamic threshold can produce a strong, low-false-alarm detector on some channels, but several other winners have high false-alarm rates. The point-adjusted scores are often much larger than point-wise F1, including for detectors with very low point-wise recall, so point-wise precision/recall and false-alarm rate remain the primary readout.
 
+To avoid relying only on the first five label rows, a second sample used an explicit mixed SMAP/MSL channel set:
+
+```powershell
+uv run aerospace-prognostics phase2-smap-msl --data-dir data/raw/smap_msl --artifact-dir artifacts/phase2_smap_msl_mixed_sample --channels P-1 S-1 E-1 E-2 E-3 M-1 M-2 P-10 F-7 C-1 --window-size 30 --epochs 10 --batch-size 64
+```
+
+That run produced 30 classical runs, 10 robust-threshold LSTM runs, 10 dynamic-threshold LSTM runs, and 50 ranked comparison rows. When `--channels` is supplied, the workflow now honors the full explicit list unless `--max-channels` is also provided.
+
+| Channel | Spacecraft | Best Source | Best Model | Point-wise F1 | Point-adjusted F1 | False Alarm Rate |
+|---|---|---|---|---:|---:|---:|
+| C-1 | MSL | lstm_dynamic | `lstm_forecast_dynamic_threshold` | 0.531746 | 0.531746 | 0.124488 |
+| E-1 | SMAP | lstm_dynamic | `lstm_forecast_dynamic_threshold` | 0.685279 | 0.958794 | 0.001249 |
+| E-2 | SMAP | lstm_robust | `lstm_forecast_robust_threshold` | 0.274818 | 0.624944 | 0.235212 |
+| E-3 | SMAP | lstm_robust | `lstm_forecast_robust_threshold` | 0.103143 | 0.811261 | 0.293483 |
+| F-7 | MSL | lstm_dynamic | `lstm_forecast_dynamic_threshold` | 0.302352 | 0.419187 | 0.072339 |
+| M-1 | MSL | lstm_robust | `lstm_forecast_robust_threshold` | 0.397296 | 0.850858 | 0.352113 |
+| M-2 | MSL | classical | `isolation_forest` | 0.746284 | 0.965313 | 0.072183 |
+| P-1 | SMAP | lstm_robust | `lstm_forecast_robust_threshold` | 0.115776 | 0.404525 | 0.285143 |
+| P-10 | MSL | lstm_dynamic | `lstm_forecast_dynamic_threshold` | 0.182578 | 0.182578 | 0.196515 |
+| S-1 | SMAP | classical | `robust_zscore` | 0.222222 | 0.311978 | 0.287084 |
+
+The mixed sample reinforces the need for multiple baseline families. MSL channel M-2 is best served by Isolation Forest, while E-1 and C-1 favor dynamic LSTM thresholding. There is no single method that looks uniformly reliable yet.
+
 If `--feature-columns` is omitted, the command uses all numeric columns from the train CSV except the label column. For SMAP/MSL channel exports, pass `feature_0 feature_1 ...` explicitly when you want to exclude the numeric `timestep` column.
 
 ## Metric Note
@@ -116,6 +139,6 @@ Point-adjustment is included because it is common in time-series anomaly papers,
 
 This is not yet a reproduced SMAP/MSL Telemanom LSTM baseline. It is the Track B baseline layer: raw SMAP/MSL loading, direct multi-channel classical runs, LSTM forecasting with robust and dynamic thresholding, robust statistics, PCA reconstruction, Isolation Forest, metric handling, artifact formats, model comparison reporting, workflow orchestration, and CLI execution. The next Track B steps are:
 
-- scale the direct multi-channel classical and LSTM-forecast comparison beyond the first five SMAP/MSL channels
+- scale the direct multi-channel classical and LSTM-forecast comparison beyond the mixed ten-channel sample
 - compare the compact dynamic threshold against Telemanom's original predictions/threshold outputs on downloaded SMAP/MSL data
 - move serious benchmark claims to ESA-ADB with its official evaluation tools

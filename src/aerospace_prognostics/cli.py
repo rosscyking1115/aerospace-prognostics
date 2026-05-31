@@ -466,7 +466,7 @@ def _build_parser() -> argparse.ArgumentParser:
         default=Path("artifacts/phase2_smap_msl"),
     )
     phase2_smap_msl.add_argument("--channels", nargs="+")
-    phase2_smap_msl.add_argument("--max-channels", type=int, default=5)
+    phase2_smap_msl.add_argument("--max-channels", type=int)
     phase2_smap_msl.add_argument(
         "--classical-methods",
         nargs="+",
@@ -1369,7 +1369,11 @@ def main(argv: list[str] | None = None) -> int:
             args.data_dir,
             args.artifact_dir,
             channels=tuple(args.channels) if args.channels is not None else None,
-            max_channels=args.max_channels,
+            max_channels=(
+                args.max_channels
+                if args.max_channels is not None
+                else _phase2_smap_msl_default_max_channels(args.channels)
+            ),
             classical_methods=tuple(args.classical_methods),
             robust_threshold=args.robust_threshold,
             pca_components=args.pca_components,
@@ -2019,6 +2023,12 @@ def _smap_msl_result_channels(
     runs: Iterable[SmapMslClassicalBaselineRun | SmapMslLstmForecastBaselineRun],
 ) -> tuple[str, ...]:
     return tuple(dict.fromkeys(run.channel_id for run in runs))
+
+
+def _phase2_smap_msl_default_max_channels(channels: list[str] | None) -> int | None:
+    if channels is not None:
+        return None
+    return 5
 
 
 def _comparison_subsets(rows: Iterable[CmapssModelComparisonRow]) -> list[str]:
