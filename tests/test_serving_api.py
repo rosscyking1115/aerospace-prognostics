@@ -23,6 +23,7 @@ def test_serving_api_health_version_and_predict(tmp_path) -> None:
     telemetry = json.loads(bundle.test.to_json(orient="records"))
 
     health = client.get("/health")
+    ready = client.get("/ready")
     version = client.get("/version")
     response = client.post(
         "/predict",
@@ -33,6 +34,8 @@ def test_serving_api_health_version_and_predict(tmp_path) -> None:
 
     assert health.status_code == 200
     assert health.json()["status"] == "ok"
+    assert ready.status_code == 200
+    assert ready.json() == {"status": "ready", "model_loaded": True}
     assert version.status_code == 200
     assert version.json()["subset"] == "FD001"
     assert response.status_code == 200
@@ -44,7 +47,7 @@ def test_serving_api_health_version_and_predict(tmp_path) -> None:
     assert payload["monitoring"]["predictions"]["count"] == 2
     assert "sensor_1" in payload["monitoring"]["telemetry"]["columns"]
     assert metrics.status_code == 200
-    assert "aerospace_prognostics_requests_total 3" in metrics.text
+    assert "aerospace_prognostics_requests_total 4" in metrics.text
     assert (
         'aerospace_prognostics_http_responses_total{method="POST",path="/predict",'
         'status_code="200"} 1'
@@ -73,11 +76,14 @@ def test_serving_api_enforces_optional_api_key(tmp_path) -> None:
     client = TestClient(create_app(artifact_path, api_key="test-secret"))
 
     health = client.get("/health")
+    ready = client.get("/ready")
     missing_key = client.get("/version")
     bad_key = client.get("/metrics", headers={"x-api-key": "wrong"})
     valid_key = client.get("/version", headers={"authorization": "Bearer test-secret"})
 
     assert health.status_code == 200
+    assert ready.status_code == 200
+    assert ready.json()["status"] == "ready"
     assert missing_key.status_code == 401
     assert missing_key.headers["www-authenticate"] == "ApiKey"
     assert bad_key.status_code == 401
@@ -163,12 +169,19 @@ def test_serving_api_reports_missing_model_and_metrics() -> None:
     client = TestClient(create_app())
 
     health = client.get("/health")
+    ready = client.get("/ready")
     predict = client.post("/predict", json={"telemetry": [{"unit_number": 1}]})
     metrics = client.get("/metrics")
 
     assert health.status_code == 200
     assert health.json() == {"status": "missing_model", "model_loaded": False}
+    assert ready.status_code == 503
+    assert ready.json() == {"status": "missing_model", "model_loaded": False}
     assert predict.status_code == 503
+    assert (
+        'aerospace_prognostics_http_responses_total{method="GET",path="/ready",'
+        'status_code="503"} 1'
+    ) in metrics.text
     assert (
         'aerospace_prognostics_http_responses_total{method="POST",path="/predict",'
         'status_code="503"} 1'

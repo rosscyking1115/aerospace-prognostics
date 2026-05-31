@@ -43,7 +43,7 @@ The working plan is tracked in [Aerospace_Prognostics_Project_Plan.md](Aerospace
 - `aerospace-prognostics phase2-smap-msl-verify-manifest` CLI for checking the Phase 2 SMAP/MSL artifact bundle against its run manifest and writing an optional markdown audit report.
 - `aerospace-prognostics phase2-cmapss` run manifests with artifact checksums, runtime provenance, Git state, and verifier/audit reports for Track A experiment bundles.
 - `aerospace-prognostics cmapss-package-hgb-policy`, `cmapss-predict-artifact`, and `serve-api` CLIs for the production-ML deployment track.
-- FastAPI serving observability with request IDs, latency headers, JSON request logs, and `/metrics` counters.
+- FastAPI serving observability with `/health` liveness, `/ready` readiness, request IDs, latency headers, JSON request logs, and `/metrics` counters.
 - Serving-time telemetry drift summaries and prediction distribution monitoring.
 - Candidate artifact promotion metadata with stable IDs and rollback guidance.
 - Optional API-key authentication and serving rate limits for protected inference endpoints.

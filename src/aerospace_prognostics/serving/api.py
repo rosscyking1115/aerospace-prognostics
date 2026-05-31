@@ -15,7 +15,7 @@ from typing import Any
 
 import pandas as pd
 from fastapi import FastAPI, HTTPException, Request
-from fastapi.responses import PlainTextResponse
+from fastapi.responses import JSONResponse, PlainTextResponse
 from pydantic import BaseModel, Field
 
 from aerospace_prognostics.deployment.artifacts import (
@@ -198,6 +198,14 @@ def create_app(
     def health() -> dict[str, bool | str]:
         loaded = app.state.artifact is not None
         return {"status": "ok" if loaded else "missing_model", "model_loaded": loaded}
+
+    @app.get("/ready", response_model=None)
+    def ready() -> dict[str, bool | str] | JSONResponse:
+        loaded = app.state.artifact is not None
+        payload = {"status": "ready" if loaded else "missing_model", "model_loaded": loaded}
+        if not loaded:
+            return JSONResponse(status_code=503, content=payload)
+        return payload
 
     @app.get("/version")
     def version(request: Request) -> dict[str, Any]:

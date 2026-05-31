@@ -55,3 +55,7 @@ jobs:
             exit 1
           fi
           HEALTH_RESPONSE="$response" python -c "import json, os; payload = json.loads(os.environ['HEALTH_RESPONSE']); assert payload == {'status': 'missing_model', 'model_loaded': False}"
+          ready_status=$(curl --silent --output /tmp/ready.json --write-out "%{http_code}" http://127.0.0.1:8000/ready)
+          cat /tmp/ready.json
+          test "$ready_status" = "503"
+          READY_RESPONSE="$(cat /tmp/ready.json)" python -c "import json, os; payload = json.loads(os.environ['READY_RESPONSE']); assert payload == {'status': 'missing_model', 'model_loaded': False}"

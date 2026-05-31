@@ -12,7 +12,7 @@ uv run aerospace-prognostics serve-api --model-artifact artifacts/models/cmapss_
 
 ## Container Serving
 
-The serving image does not bundle a model artifact. A clean container starts and reports `missing_model` from `GET /health`, which lets CI validate the image without committing generated artifacts.
+The serving image does not bundle a model artifact. A clean container starts and reports `missing_model` from `GET /health`, which lets CI validate the image without committing generated artifacts. `GET /ready` returns HTTP 503 until a model artifact is loaded, so orchestrators can distinguish a live container from one that is ready for prediction traffic.
 
 Run the image with an explicit model mount and environment variable when serving predictions:
 
@@ -28,6 +28,7 @@ docker run --rm -p 8000:8000 `
 The API exposes:
 
 - `GET /health`
+- `GET /ready`
 - `GET /version`
 - `GET /metrics`
 - `POST /predict`
@@ -40,7 +41,7 @@ Prediction responses include a `monitoring` block. It compares request telemetry
 
 ## Authentication And Rate Limiting
 
-`GET /health` is intentionally unauthenticated so container orchestrators can check readiness without a secret. `GET /version`, `GET /metrics`, and `POST /predict` enforce optional API-key authentication when `AEROSPACE_PROGNOSTICS_API_KEY` is set. Clients may send the key with either `x-api-key: <key>` or `Authorization: Bearer <key>`.
+`GET /health` and `GET /ready` are intentionally unauthenticated so container orchestrators can check liveness and readiness without a secret. `GET /version`, `GET /metrics`, and `POST /predict` enforce optional API-key authentication when `AEROSPACE_PROGNOSTICS_API_KEY` is set. Clients may send the key with either `x-api-key: <key>` or `Authorization: Bearer <key>`.
 
 Set `AEROSPACE_PROGNOSTICS_RATE_LIMIT_PER_MINUTE` to a positive integer to enable an in-memory fixed-window rate limit for protected endpoints. Requests are bucketed by authenticated API key when authentication is enabled, otherwise by client host. The default value is `0`, which disables rate limiting for local development and CI smoke checks.
 
@@ -67,7 +68,7 @@ Rollback procedure:
 
 1. Restore the previous promoted artifact pointer or container environment value.
 2. Restart or redeploy the serving process.
-3. Confirm `GET /version` reports the prior artifact metadata and `GET /health` returns `ok`.
+3. Confirm `GET /version` reports the prior artifact metadata, `GET /health` returns `ok`, and `GET /ready` returns `ready`.
 4. Preserve request logs and monitoring summaries from the failed candidate for post-incident review.
 
 ## Production Readiness Notes
@@ -84,7 +85,7 @@ Current scope:
 
 - Local model artifact packaging with `joblib`.
 - Batch inference from CSV.
-- FastAPI inference surface with request validation and health/version endpoints.
+- FastAPI inference surface with request validation, liveness, readiness, and version endpoints.
 - Structured JSON request logs, request IDs, latency headers, and scrapeable serving metrics.
 - Request telemetry drift summaries and prediction-distribution monitoring.
 - Promotion metadata with stable artifact IDs and rollback runbook.
