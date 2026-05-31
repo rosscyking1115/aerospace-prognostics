@@ -75,6 +75,14 @@ Reproducible Phase 2 workflow:
 uv run aerospace-prognostics phase2-cmapss --data-dir data/raw/cmapss --artifact-dir artifacts/phase2 --subsets FD001 --models cnn bilstm tcn transformer --epochs 50 --hidden-sizes 32 64 --learning-rates 0.001 0.0003
 ```
 
+Real FD001 workflow smoke run:
+
+```powershell
+uv run aerospace-prognostics phase2-cmapss --data-dir data/raw/cmapss --artifact-dir artifacts/phase2_fd001_smoke --subsets FD001 --models cnn tcn --epochs 3 --batch-size 256 --hidden-sizes 16 --learning-rates 0.001 --tcn-levels 1 --validation-horizon 30 --checkpoint-policy validation_nasa
+```
+
+This is a reproducibility and orchestration check, not a quality benchmark. It confirms that the workflow can regenerate sequence tensors, train multiple deep candidates, run the Phase 1 HGB policy baseline, and emit the ranked comparison bundle from the real FD001 files in one command.
+
 ## FD001 First Result
 
 | Checkpoint | Model | Selected Epoch | Validation RMSE | Validation NASA Score | Official Test RMSE | Official Test NASA Score |
@@ -82,6 +90,8 @@ uv run aerospace-prognostics phase2-cmapss --data-dir data/raw/cmapss --artifact
 | Phase 1 reference | `hist_gradient_boosting_regime_engineered_w10_r6_default` | n/a | n/a | n/a | 13.012889 | 253.465322 |
 | Phase 2 final-epoch smoke baseline | `cnn_1d_w30_e50_c32_final_e50` | 50 | 28.228949 | 1154.680228 | 22.755049 | 3854.711070 |
 | Phase 2 validation-selected smoke baseline | `cnn_1d_w30_e50_c32_best_e2` | 2 | 14.486795 | 49.644294 | 45.900152 | 20542.376235 |
+| Phase 2 workflow smoke baseline | `compare_tcn_h16_lr0p001_tcn_w30_e3_c16_l1_k3_best_e3` | 3 | 53.316125 | 1403204.206645 | 46.968692 | 19115.956643 |
+| Phase 2 workflow smoke baseline | `compare_cnn_h16_lr0p001_cnn_1d_w30_e3_c16_best_e3` | 3 | 53.269599 | 1570720.650364 | 46.877603 | 21879.546393 |
 
 Both CNN results are worse than the Phase 1 HGB policy on FD001. That is useful, not alarming: it confirms the training and scoring path works while showing that this first architecture is underfit and poorly calibrated for the official test split.
 
@@ -89,11 +99,11 @@ The validation-selected run is especially important. It chooses epoch 2 because 
 
 ## Current Interpretation
 
-The Phase 2 pipeline is now real: exported sequence windows feed torch models, CNN, LSTM/BiLSTM, TCN, and Transformer baselines train from the CLI, rolling validation-selection windows drive checkpoint choice, validation final-window artifacts remain available for reporting, official-test predictions are scored with the project metrics, JSON/CSV outputs use the same result container as the classical baselines, optional history JSON records per-epoch training loss plus validation metrics, the comparison command can produce a single architecture/learning-rate sweep table, the reporting command ranks Phase 2 candidates against the Phase 1 HGB policy baseline, and `phase2-cmapss` ties the full Track A workflow together.
+The Phase 2 pipeline is now real: exported sequence windows feed torch models, CNN, LSTM/BiLSTM, TCN, and Transformer baselines train from the CLI, rolling validation-selection windows drive checkpoint choice, validation final-window artifacts remain available for reporting, official-test predictions are scored with the project metrics, JSON/CSV outputs use the same result container as the classical baselines, optional history JSON records per-epoch training loss plus validation metrics, the comparison command can produce a single architecture/learning-rate sweep table, the reporting command ranks Phase 2 candidates against the Phase 1 HGB policy baseline, and `phase2-cmapss` ties the full Track A workflow together. The first real FD001 workflow smoke run produced one sequence export, two deep results, and three comparison rows.
 
 The next deep-learning work should focus on model quality rather than plumbing:
 
-- Run the Phase 2 workflow on real FD001 first, then expand to FD002-FD004 after checking runtime.
+- Scale the real FD001 workflow beyond smoke settings before expanding to FD002-FD004.
 - Use the workflow parameters for wider/deeper CNNs, residual or TCN-style blocks, attention heads, and learning-rate sweeps.
 - Use the ranked report command for every Phase 2 run bundle, especially when checking the known FD003 validation mismatch.
 - Keep all sensors for now; Phase 1 sensor-filter validation showed EDA filtering harms FD002 and FD004.
