@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import csv
 import json
 import platform
 import subprocess
@@ -75,6 +76,19 @@ class Phase2SmapMslWorkflowResult:
     robust_threshold_operating_points: tuple[SmapMslRobustThresholdOperatingPoint, ...]
     robust_threshold_policy_runs: tuple[SmapMslRobustThresholdSweepRun, ...]
     comparison_rows: tuple[AnomalyModelComparisonRow, ...]
+
+
+@dataclass(frozen=True)
+class Phase2SmapMslRunManifestVerification:
+    """Verification result for a SMAP/MSL Phase 2 run manifest."""
+
+    manifest_path: Path
+    checked_artifacts: tuple[Path, ...]
+    problems: tuple[str, ...]
+
+    @property
+    def ok(self) -> bool:
+        return not self.problems
 
 
 def run_phase2_smap_msl_workflow(
@@ -388,6 +402,41 @@ def run_phase2_smap_msl_workflow(
     )
 
 
+def verify_phase2_smap_msl_run_manifest(
+    manifest_path: str | Path,
+    *,
+    root: str | Path = ".",
+) -> Phase2SmapMslRunManifestVerification:
+    """Verify that a SMAP/MSL Phase 2 manifest points to a complete artifact bundle."""
+
+    path = Path(manifest_path)
+    artifact_root = Path(root)
+    problems: list[str] = []
+    checked_artifacts: list[Path] = []
+    payload = _read_run_manifest_payload(path, problems)
+    if payload is None:
+        return Phase2SmapMslRunManifestVerification(path, (), tuple(problems))
+
+    if payload.get("workflow") != "phase2_smap_msl":
+        problems.append("workflow must be phase2_smap_msl")
+    for section in ("selection", "runtime", "source_control", "parameters", "artifacts", "counts"):
+        if not isinstance(payload.get(section), dict):
+            problems.append(f"{section} section is missing or invalid")
+
+    artifacts = payload.get("artifacts")
+    if isinstance(artifacts, dict):
+        checked_artifacts.extend(_verify_manifest_artifacts(artifacts, artifact_root, problems))
+    counts = payload.get("counts")
+    if isinstance(artifacts, dict) and isinstance(counts, dict):
+        _verify_manifest_csv_counts(artifacts, counts, artifact_root, problems)
+
+    return Phase2SmapMslRunManifestVerification(
+        manifest_path=path,
+        checked_artifacts=tuple(checked_artifacts),
+        problems=tuple(problems),
+    )
+
+
 def _write_phase2_smap_msl_summary(
     path: Path,
     *,
@@ -455,6 +504,86 @@ def _write_phase2_smap_msl_summary(
         count_header="Rows",
     )
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
+def _read_run_manifest_payload(path: Path, problems: list[str]) -> dict[str, object] | None:
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        problems.append(f"{path} is missing")
+        return None
+    except json.JSONDecodeError as error:
+        problems.append(f"{path} is not valid JSON: {error.msg}")
+        return None
+    if not isinstance(payload, dict):
+        problems.append(f"{path} must contain a JSON object")
+        return None
+    return payload
+
+
+def _verify_manifest_artifacts(
+    artifacts: dict[object, object],
+    root: Path,
+    problems: list[str],
+) -> tuple[Path, ...]:
+    checked_paths: list[Path] = []
+    for key, value in sorted(artifacts.items()):
+        if value is None:
+            continue
+        if not isinstance(value, str):
+            problems.append(f"artifact {key} must be a string path or null")
+            continue
+        artifact_path = _resolve_manifest_path(value, root)
+        checked_paths.append(artifact_path)
+        if not artifact_path.exists():
+            problems.append(f"artifact {key} is missing: {artifact_path}")
+    return tuple(checked_paths)
+
+
+def _verify_manifest_csv_counts(
+    artifacts: dict[object, object],
+    counts: dict[object, object],
+    root: Path,
+    problems: list[str],
+) -> None:
+    count_checks = {
+        "classical_csv": "classical_runs",
+        "lstm_robust_csv": "lstm_robust_runs",
+        "lstm_dynamic_csv": "lstm_dynamic_runs",
+        "robust_threshold_sweep_csv": "robust_threshold_sweep_runs",
+        "robust_threshold_operating_point_csv": "robust_threshold_operating_points",
+        "robust_threshold_policy_csv": "robust_threshold_policy_runs",
+        "comparison_csv": "comparison_rows",
+    }
+    for artifact_key, count_key in count_checks.items():
+        path_value = artifacts.get(artifact_key)
+        expected_count = counts.get(count_key)
+        if path_value is None or expected_count is None:
+            continue
+        if not isinstance(path_value, str) or not isinstance(expected_count, int):
+            continue
+        artifact_path = _resolve_manifest_path(path_value, root)
+        if not artifact_path.exists():
+            continue
+        row_count = _csv_data_row_count(artifact_path)
+        if row_count != expected_count:
+            problems.append(
+                f"{artifact_key} has {row_count} rows; expected {expected_count} from {count_key}"
+            )
+
+
+def _csv_data_row_count(path: Path) -> int:
+    with path.open("r", encoding="utf-8", newline="") as file:
+        reader = csv.reader(file)
+        next(reader, None)
+        return sum(1 for _ in reader)
+
+
+def _resolve_manifest_path(path: str, root: Path) -> Path:
+    artifact_path = Path(path)
+    if artifact_path.is_absolute():
+        return artifact_path
+    return root / artifact_path
 
 
 def _write_phase2_smap_msl_run_manifest(path: Path, payload: dict[str, object]) -> None:

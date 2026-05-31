@@ -4,7 +4,10 @@ import json
 
 import numpy as np
 
-from aerospace_prognostics.workflows.phase2_smap_msl import run_phase2_smap_msl_workflow
+from aerospace_prognostics.workflows.phase2_smap_msl import (
+    run_phase2_smap_msl_workflow,
+    verify_phase2_smap_msl_run_manifest,
+)
 
 
 def test_run_phase2_smap_msl_workflow_writes_expected_artifacts(tmp_path) -> None:
@@ -75,6 +78,15 @@ def test_run_phase2_smap_msl_workflow_writes_expected_artifacts(tmp_path) -> Non
     assert "| classical | robust_zscore |" in summary
     assert "Robust threshold policy table" in summary
     assert "Run manifest" in summary
+
+    verification = verify_phase2_smap_msl_run_manifest(result.run_manifest_path)
+    assert verification.ok
+    assert len(verification.checked_artifacts) == 18
+
+    result.comparison_csv_path.unlink()
+    failed_verification = verify_phase2_smap_msl_run_manifest(result.run_manifest_path)
+    assert not failed_verification.ok
+    assert any("comparison_csv is missing" in problem for problem in failed_verification.problems)
 
 
 def _write_phase2_smap_msl_fixture(root) -> None:

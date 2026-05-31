@@ -125,7 +125,10 @@ from aerospace_prognostics.reports.cmapss_model_comparison import (
 from aerospace_prognostics.sequence_exports import export_cmapss_sequence_splits
 from aerospace_prognostics.workflows.phase1 import run_phase1_cmapss_workflow
 from aerospace_prognostics.workflows.phase2 import run_phase2_cmapss_workflow
-from aerospace_prognostics.workflows.phase2_smap_msl import run_phase2_smap_msl_workflow
+from aerospace_prognostics.workflows.phase2_smap_msl import (
+    run_phase2_smap_msl_workflow,
+    verify_phase2_smap_msl_run_manifest,
+)
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -526,6 +529,13 @@ def _build_parser() -> argparse.ArgumentParser:
     phase2_smap_msl.add_argument("--dynamic-prune-p", type=float, default=0.13)
     phase2_smap_msl.add_argument("--random-state", type=int, default=42)
     phase2_smap_msl.add_argument("--device", default="cpu")
+
+    phase2_smap_msl_verify = subparsers.add_parser(
+        "phase2-smap-msl-verify-manifest",
+        help="Verify a Phase 2 SMAP/MSL run manifest and referenced artifacts",
+    )
+    phase2_smap_msl_verify.add_argument("--manifest", type=Path, required=True)
+    phase2_smap_msl_verify.add_argument("--root", type=Path, default=Path("."))
 
     sequence_export = subparsers.add_parser(
         "cmapss-export-sequences",
@@ -1498,6 +1508,15 @@ def main(argv: list[str] | None = None) -> int:
         print(f"robust_threshold_policy_runs={len(result.robust_threshold_policy_runs)}")
         print(f"comparison_rows={len(result.comparison_rows)}")
         return 0
+
+    if args.command == "phase2-smap-msl-verify-manifest":
+        result = verify_phase2_smap_msl_run_manifest(args.manifest, root=args.root)
+        print(f"status={'ok' if result.ok else 'failed'}")
+        print(f"manifest={result.manifest_path}")
+        print(f"artifacts_checked={len(result.checked_artifacts)}")
+        for problem in result.problems:
+            print(f"problem={problem}")
+        return 0 if result.ok else 1
 
     if args.command == "cmapss-export-sequences":
         results = [

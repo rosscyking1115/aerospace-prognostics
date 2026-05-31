@@ -1334,6 +1334,19 @@ def test_phase2_smap_msl_command_runs_anomaly_workflow(tmp_path, capsys) -> None
     assert (artifact_dir / "phase2_smap_msl_summary.md").exists()
     assert (artifact_dir / "phase2_smap_msl_run_manifest.json").exists()
 
+    verify_exit_code = main(
+        [
+            "phase2-smap-msl-verify-manifest",
+            "--manifest",
+            str(artifact_dir / "phase2_smap_msl_run_manifest.json"),
+        ]
+    )
+    verify_output = capsys.readouterr().out
+
+    assert verify_exit_code == 0
+    assert "status=ok" in verify_output
+    assert "artifacts_checked=18" in verify_output
+
 
 def test_smap_msl_compare_anomaly_results_command_writes_report_tables(
     tmp_path,
