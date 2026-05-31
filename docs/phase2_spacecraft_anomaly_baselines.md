@@ -63,6 +63,7 @@ Direct multi-channel SMAP/MSL comparison:
 
 ```powershell
 uv run aerospace-prognostics smap-msl-classical-baselines --data-dir data/raw/smap_msl --max-channels 5 --output-json artifacts/results/smap_msl_classical_baselines_sample.json --output-csv artifacts/results/smap_msl_classical_baselines_sample.csv
+uv run aerospace-prognostics smap-msl-classical-baselines --data-dir data/raw/smap_msl --output-json artifacts/results/smap_msl_classical_all.json --output-csv artifacts/results/smap_msl_classical_all.csv
 ```
 
 First forecasting-based SMAP/MSL baseline:
@@ -78,9 +79,10 @@ Rank the classical and forecasting outputs in one report:
 
 ```powershell
 uv run aerospace-prognostics smap-msl-compare-anomaly-results --result-csv artifacts/results/smap_msl_classical_baselines_sample.csv artifacts/results/smap_msl_lstm_forecast_sample.csv artifacts/results/smap_msl_lstm_dynamic_sample.csv --source-labels classical lstm_robust lstm_dynamic --output-csv artifacts/results/smap_msl_anomaly_model_comparison.csv --output-markdown artifacts/results/smap_msl_anomaly_model_comparison.md
+uv run aerospace-prognostics smap-msl-compare-anomaly-results --result-csv artifacts/results/smap_msl_classical_all.csv --source-labels classical_all --output-csv artifacts/results/smap_msl_classical_all_comparison.csv --output-markdown artifacts/results/smap_msl_classical_all_comparison.md
 ```
 
-The comparison report ranks rows per channel by point-wise F1, then point-adjusted F1, then false-alarm and miss rates. Point-wise F1 stays first because point-adjustment can over-reward weak detectors on long labelled intervals.
+The comparison report ranks rows per channel by point-wise F1, then point-adjusted F1, then false-alarm and miss rates. It also writes aggregate winner counts and average metrics by source/model. Point-wise F1 stays first because point-adjustment can over-reward weak detectors on long labelled intervals.
 
 One-command Track B bundle:
 
@@ -144,6 +146,15 @@ uv run aerospace-prognostics phase2-smap-msl --data-dir data/raw/smap_msl --arti
 
 That run produced 60 classical runs, 20 robust-threshold LSTM runs, 20 dynamic-threshold LSTM runs, and 100 ranked comparison rows. Winner counts were dynamic-threshold LSTM 8 of 20, robust-threshold LSTM 7 of 20, Isolation Forest 2 of 20, and robust z-score 3 of 20. The highest individual point-wise F1s came from M-6 dynamic LSTM (0.863962), E-7 dynamic LSTM (0.801712), and M-2 Isolation Forest (0.746284). The broad sample still shows several high false-alarm winners, so the conservative readout remains point-wise F1 plus false-alarm rate, not point-adjusted F1 alone.
 
+An all-channel classical-only sweep now covers the full unique-channel baseline floor:
+
+```powershell
+uv run aerospace-prognostics smap-msl-classical-baselines --data-dir data/raw/smap_msl --output-json artifacts/results/smap_msl_classical_all.json --output-csv artifacts/results/smap_msl_classical_all.csv
+uv run aerospace-prognostics smap-msl-compare-anomaly-results --result-csv artifacts/results/smap_msl_classical_all.csv --source-labels classical_all --output-csv artifacts/results/smap_msl_classical_all_comparison.csv --output-markdown artifacts/results/smap_msl_classical_all_comparison.md
+```
+
+The raw labels contain 82 rows but 81 unique channel IDs; `P-2` appears twice in the source labels. Benchmark selection and SMAP/MSL experiment execution now deduplicate by channel ID while preserving first-seen label order. The all-channel classical sweep generated 243 rows across 81 unique channels. Winner counts were robust z-score 41 of 81, PCA reconstruction 21 of 81, and Isolation Forest 19 of 81. Across all 81 rows per method, robust z-score had the highest mean point-wise F1 (0.165343) but also the highest mean false-alarm rate (0.187988), while PCA reconstruction and Isolation Forest had lower mean false-alarm rates at 0.059153 and 0.065929. This makes per-family threshold tuning the next sensible Track B improvement.
+
 If `--feature-columns` is omitted, the command uses all numeric columns from the train CSV except the label column. For SMAP/MSL channel exports, pass `feature_0 feature_1 ...` explicitly when you want to exclude the numeric `timestep` column.
 
 ## Metric Note
@@ -156,6 +167,6 @@ Point-adjustment is included because it is common in time-series anomaly papers,
 
 This is not yet a reproduced SMAP/MSL Telemanom LSTM baseline. It is the Track B baseline layer: raw SMAP/MSL loading, direct multi-channel classical runs, LSTM forecasting with robust and dynamic thresholding, robust statistics, PCA reconstruction, Isolation Forest, metric handling, artifact formats, model comparison reporting, workflow orchestration, and CLI execution. The next Track B steps are:
 
-- scale the balanced SMAP/MSL benchmark beyond the current 20-channel sweep or tune thresholds per spacecraft family
+- tune classical and LSTM thresholds per spacecraft family to reduce false alarms without hiding point-wise recall losses
 - compare the compact dynamic threshold against Telemanom's original predictions/threshold outputs on downloaded SMAP/MSL data
 - move serious benchmark claims to ESA-ADB with its official evaluation tools

@@ -45,7 +45,14 @@ def test_write_anomaly_model_comparison_outputs_csv_and_markdown(tmp_path) -> No
     input_csv = tmp_path / "input.csv"
     output_csv = tmp_path / "reports" / "comparison.csv"
     output_markdown = tmp_path / "reports" / "comparison.md"
-    _write_result_csv(input_csv, [_row("P-1", "SMAP", "robust_zscore", f1=0.40)])
+    _write_result_csv(
+        input_csv,
+        [
+            _row("P-1", "SMAP", "robust_zscore", f1=0.40),
+            _row("P-1", "SMAP", "isolation_forest", f1=0.60),
+            _row("E-1", "SMAP", "robust_zscore", f1=0.50),
+        ],
+    )
     rows = build_anomaly_model_comparison((input_csv,), source_labels=("classical",))
 
     write_anomaly_model_comparison_csv(rows, output_csv)
@@ -56,6 +63,10 @@ def test_write_anomaly_model_comparison_outputs_csv_and_markdown(tmp_path) -> No
     assert csv_rows[0]["model_name"] == "robust_zscore"
     assert "# Telemetry Anomaly Model Comparison" in markdown
     assert "`robust_zscore`" in markdown
+    assert "## Winner Counts" in markdown
+    assert "| classical | `isolation_forest` | 1 |" in markdown
+    assert "| classical | `robust_zscore` | 1 |" in markdown
+    assert "## Average Metrics By Source And Model" in markdown
 
 
 def test_render_anomaly_model_comparison_markdown_rejects_empty_rows() -> None:

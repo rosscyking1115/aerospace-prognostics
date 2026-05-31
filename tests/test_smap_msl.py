@@ -70,6 +70,14 @@ def test_select_smap_msl_channels_balances_spacecraft(tmp_path) -> None:
     assert selections[0].anomaly_points == 3
 
 
+def test_select_smap_msl_channels_deduplicates_channel_ids(tmp_path) -> None:
+    _write_smap_msl_selection_fixture(tmp_path, include_duplicate=True)
+
+    selections = select_smap_msl_channels(tmp_path, count=5, strategy="label_order")
+
+    assert [selection.channel_id for selection in selections] == ["P-1", "P-2", "M-1", "M-2"]
+
+
 def test_write_smap_msl_channel_selection_outputs(tmp_path) -> None:
     _write_smap_msl_selection_fixture(tmp_path)
     selections = select_smap_msl_channels(tmp_path, count=2, strategy="label_order")
@@ -104,19 +112,19 @@ def _write_tiny_smap_msl_channel(root) -> None:
     )
 
 
-def _write_smap_msl_selection_fixture(root) -> None:
+def _write_smap_msl_selection_fixture(root, *, include_duplicate: bool = False) -> None:
     root.mkdir(parents=True, exist_ok=True)
+    rows = [
+        "chan_id,spacecraft,anomaly_sequences,class,num_values",
+        '"P-1",SMAP,"[[1, 2]]","[contextual]",5',
+        '"P-2",SMAP,"[[1, 1]]","[point]",5',
+        '"M-1",MSL,"[[3, 5]]","[contextual]",8',
+        '"M-2",MSL,"[[0, 0], [2, 2]]","[point, point]",6',
+    ]
+    if include_duplicate:
+        rows.append('"P-2",SMAP,"[[2, 2]]","[point]",5')
     root.joinpath("labeled_anomalies.csv").write_text(
-        "\n".join(
-            [
-                "chan_id,spacecraft,anomaly_sequences,class,num_values",
-                '"P-1",SMAP,"[[1, 2]]","[contextual]",5',
-                '"P-2",SMAP,"[[1, 1]]","[point]",5',
-                '"M-1",MSL,"[[3, 5]]","[contextual]",8',
-                '"M-2",MSL,"[[0, 0], [2, 2]]","[point, point]",6',
-            ]
-        )
-        + "\n",
+        "\n".join(rows) + "\n",
         encoding="utf-8",
     )
 

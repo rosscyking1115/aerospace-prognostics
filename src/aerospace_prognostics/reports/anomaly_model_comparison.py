@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import csv
+from collections.abc import Iterable
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
@@ -149,6 +150,18 @@ def render_anomaly_model_comparison_markdown(
             f"{row.false_alarm_rate:.6f} | "
             f"{row.miss_rate:.6f} |"
         )
+    _append_aggregate_table(
+        lines,
+        rows=_best_rows_by_channel(rows),
+        heading="Winner Counts",
+        count_header="Channels Won",
+    )
+    _append_aggregate_table(
+        lines,
+        rows=tuple(rows),
+        heading="Average Metrics By Source And Model",
+        count_header="Rows",
+    )
     return "\n".join(lines) + "\n"
 
 
@@ -209,6 +222,68 @@ def _optional_int(value: str | None) -> int | None:
     if value is None or value == "":
         return None
     return int(value)
+
+
+def _best_rows_by_channel(
+    rows: list[AnomalyModelComparisonRow],
+) -> tuple[AnomalyModelComparisonRow, ...]:
+    best_rows: list[AnomalyModelComparisonRow] = []
+    for channel_id in sorted({row.channel_id for row in rows}):
+        best_rows.append(
+            min(
+                (row for row in rows if row.channel_id == channel_id),
+                key=lambda row: row.rank_by_f1,
+            )
+        )
+    return tuple(best_rows)
+
+
+def _append_aggregate_table(
+    lines: list[str],
+    *,
+    rows: tuple[AnomalyModelComparisonRow, ...],
+    heading: str,
+    count_header: str,
+) -> None:
+    lines.extend(
+        [
+            "",
+            f"## {heading}",
+            "",
+            (
+                f"| Source | Model | {count_header} | Mean F1 | "
+                "Mean Point-Adjusted F1 | Mean False Alarm Rate |"
+            ),
+            "|---|---|---:|---:|---:|---:|",
+        ]
+    )
+    for source, model_name, group in _group_rows_by_model(rows):
+        mean_f1 = _mean(row.f1 for row in group)
+        mean_point_adjusted_f1 = _mean(row.point_adjusted_f1 for row in group)
+        mean_false_alarm_rate = _mean(row.false_alarm_rate for row in group)
+        lines.append(
+            f"| {source} | `{model_name}` | {len(group)} | {mean_f1:.6f} | "
+            f"{mean_point_adjusted_f1:.6f} | {mean_false_alarm_rate:.6f} |"
+        )
+
+
+def _group_rows_by_model(
+    rows: tuple[AnomalyModelComparisonRow, ...],
+) -> tuple[tuple[str, str, tuple[AnomalyModelComparisonRow, ...]], ...]:
+    grouped: dict[tuple[str, str], list[AnomalyModelComparisonRow]] = {}
+    for row in rows:
+        grouped.setdefault((row.source, row.model_name), []).append(row)
+    return tuple(
+        (source, model_name, tuple(grouped[(source, model_name)]))
+        for source, model_name in sorted(grouped)
+    )
+
+
+def _mean(values: Iterable[float]) -> float:
+    sequence = tuple(values)
+    if not sequence:
+        raise ValueError("cannot average an empty metric sequence")
+    return sum(sequence) / len(sequence)
 
 
 def _prepare_output_path(path: str | Path) -> Path:

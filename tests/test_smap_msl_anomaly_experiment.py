@@ -45,6 +45,17 @@ def test_run_smap_msl_classical_baselines_respects_max_channels(tmp_path) -> Non
     assert [run.channel_id for run in runs] == ["P-1"]
 
 
+def test_run_smap_msl_classical_baselines_deduplicates_label_channels(tmp_path) -> None:
+    _write_multi_channel_smap_msl(tmp_path, include_duplicate=True)
+
+    runs = run_smap_msl_classical_baselines(
+        tmp_path,
+        methods=("robust_zscore",),
+    )
+
+    assert [run.channel_id for run in runs] == ["P-1", "C-1"]
+
+
 def test_run_smap_msl_classical_baselines_rejects_missing_channel(tmp_path) -> None:
     _write_multi_channel_smap_msl(tmp_path)
 
@@ -135,18 +146,18 @@ def test_write_smap_msl_lstm_forecast_baseline_outputs(tmp_path) -> None:
     assert "P-1,SMAP,lstm_forecast_robust_threshold" in csv_text
 
 
-def _write_multi_channel_smap_msl(root) -> None:
+def _write_multi_channel_smap_msl(root, *, include_duplicate: bool = False) -> None:
     (root / "data" / "train").mkdir(parents=True)
     (root / "data" / "test").mkdir(parents=True)
+    rows = [
+        "chan_id,spacecraft,anomaly_sequences,class,num_values",
+        '"P-1",SMAP,"[[1, 2]]","[contextual]",5',
+        '"C-1",MSL,"[[3, 4]]","[point]",5',
+    ]
+    if include_duplicate:
+        rows.append('"P-1",SMAP,"[[2, 2]]","[point]",5')
     (root / "labeled_anomalies.csv").write_text(
-        "\n".join(
-            [
-                "chan_id,spacecraft,anomaly_sequences,class,num_values",
-                '"P-1",SMAP,"[[1, 2]]","[contextual]",5',
-                '"C-1",MSL,"[[3, 4]]","[point]",5',
-            ]
-        )
-        + "\n",
+        "\n".join(rows) + "\n",
         encoding="utf-8",
     )
     for channel_id in ("P-1", "C-1"):

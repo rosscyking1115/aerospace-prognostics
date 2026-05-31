@@ -335,7 +335,9 @@ def _selected_channel_ids(
 ) -> tuple[str, ...]:
     if max_channels is not None and max_channels <= 0:
         raise ValueError("max_channels must be positive")
-    available = tuple(metadata.channel_id for metadata in read_smap_msl_labels(data_dir))
+    available = tuple(
+        dict.fromkeys(metadata.channel_id for metadata in read_smap_msl_labels(data_dir))
+    )
     if channels is not None:
         missing = sorted(set(channels) - set(available))
         if missing:

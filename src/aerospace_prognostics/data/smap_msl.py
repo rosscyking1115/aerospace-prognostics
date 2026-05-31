@@ -181,7 +181,7 @@ def select_smap_msl_channels(
         raise ValueError("count must be positive")
     if min_anomaly_sequences < 0:
         raise ValueError("min_anomaly_sequences must be non-negative")
-    labels = read_smap_msl_labels(data_dir)
+    labels = _unique_smap_msl_metadata_by_channel(read_smap_msl_labels(data_dir))
     allowed_spacecraft = {item.upper() for item in spacecraft} if spacecraft is not None else None
     candidates = tuple(
         metadata
@@ -318,6 +318,15 @@ def _balanced_smap_msl_metadata(
             break
         index += 1
     return tuple(selected)
+
+
+def _unique_smap_msl_metadata_by_channel(
+    metadata: tuple[SmapMslChannelMetadata, ...],
+) -> tuple[SmapMslChannelMetadata, ...]:
+    by_channel: dict[str, SmapMslChannelMetadata] = {}
+    for item in metadata:
+        by_channel.setdefault(item.channel_id, item)
+    return tuple(by_channel.values())
 
 
 def _smap_msl_interval_points(intervals: tuple[tuple[int, int], ...]) -> int:
