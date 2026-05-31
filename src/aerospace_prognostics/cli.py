@@ -16,7 +16,13 @@ from aerospace_prognostics.anomaly.baselines import (
     run_robust_zscore_baseline,
 )
 from aerospace_prognostics.data.cmapss import CMAPSS_SUBSETS, load_cmapss_subset
-from aerospace_prognostics.data.downloads import NASA_CMAPSS_URL, download_cmapss_dataset
+from aerospace_prognostics.data.downloads import (
+    NASA_CMAPSS_URL,
+    TELEMANOM_SMAP_MSL_DATA_URL,
+    TELEMANOM_SMAP_MSL_LABELS_URL,
+    download_cmapss_dataset,
+    download_smap_msl_dataset,
+)
 from aerospace_prognostics.data.manifest import (
     build_cmapss_manifest,
     read_manifest,
@@ -358,6 +364,21 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     download.add_argument("--source-url", default=NASA_CMAPSS_URL)
     download.add_argument("--force", action="store_true")
+
+    smap_msl_download = subparsers.add_parser(
+        "smap-msl-download",
+        help="Download and extract the Telemanom SMAP/MSL raw arrays and labels",
+    )
+    smap_msl_download.add_argument("--output-dir", type=Path, default=Path("data/raw/smap_msl"))
+    smap_msl_download.add_argument(
+        "--archive-path",
+        type=Path,
+        default=Path("data/raw/downloads/smap_msl_telemanom.zip"),
+        help="Destination for the downloaded archive, or an existing Kaggle archive to import",
+    )
+    smap_msl_download.add_argument("--source-url", default=TELEMANOM_SMAP_MSL_DATA_URL)
+    smap_msl_download.add_argument("--labels-url", default=TELEMANOM_SMAP_MSL_LABELS_URL)
+    smap_msl_download.add_argument("--force", action="store_true")
 
     phase1 = subparsers.add_parser(
         "phase1-cmapss",
@@ -1157,6 +1178,23 @@ def main(argv: list[str] | None = None) -> int:
         print(f"output_dir={result.output_dir}")
         print(f"metadata={result.metadata_path}")
         print(f"files={len(result.extracted_files)}")
+        return 0
+
+    if args.command == "smap-msl-download":
+        result = download_smap_msl_dataset(
+            args.output_dir,
+            source_url=args.source_url,
+            labels_url=args.labels_url,
+            archive_path=args.archive_path,
+            force=args.force,
+        )
+        print(f"source_url={result.source_url}")
+        print(f"labels_url={result.labels_url}")
+        print(f"archive={result.archive_path}")
+        print(f"output_dir={result.output_dir}")
+        print(f"labels={result.labels_path}")
+        print(f"metadata={result.metadata_path}")
+        print(f"arrays={len(result.extracted_arrays)}")
         return 0
 
     if args.command == "phase1-cmapss":

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import zipfile
+from io import BytesIO
 
 import numpy as np
 
@@ -1202,6 +1203,49 @@ def test_cmapss_download_command_extracts_archive(tmp_path, capsys) -> None:
     assert (output_dir / "train_FD001.txt").exists()
 
 
+def test_smap_msl_download_command_extracts_archive(tmp_path, capsys) -> None:
+    source_zip = tmp_path / "smap_msl_source.zip"
+    labels_csv = tmp_path / "labels.csv"
+    labels_csv.write_text(
+        "\n".join(
+            [
+                "chan_id,spacecraft,anomaly_sequences,class,num_values",
+                '"P-1",SMAP,"[[1, 2]]","[contextual]",3',
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    with zipfile.ZipFile(source_zip, "w") as archive:
+        archive.writestr("data/data/train/P-1.npy", _cli_npy_bytes(np.array([[0.0], [1.0]])))
+        archive.writestr(
+            "data/data/test/P-1.npy",
+            _cli_npy_bytes(np.array([[0.0], [5.0], [6.0]])),
+        )
+    output_dir = tmp_path / "raw" / "smap_msl"
+
+    exit_code = main(
+        [
+            "smap-msl-download",
+            "--output-dir",
+            str(output_dir),
+            "--archive-path",
+            str(tmp_path / "downloads" / "smap_msl.zip"),
+            "--source-url",
+            source_zip.as_uri(),
+            "--labels-url",
+            labels_csv.as_uri(),
+        ]
+    )
+    output = capsys.readouterr().out
+
+    assert exit_code == 0
+    assert "arrays=2" in output
+    assert (output_dir / "labeled_anomalies.csv").exists()
+    assert (output_dir / "data" / "train" / "P-1.npy").exists()
+    assert (output_dir / "data" / "test" / "P-1.npy").exists()
+
+
 def _cli_result(
     subset: str,
     model_name: str,
@@ -1243,3 +1287,9 @@ def _write_cli_smap_msl_channel(root) -> None:
         root / "data" / "test" / "P-1.npy",
         np.array([[0, 0], [6, -6], [7, -7], [1, 1], [10, -10]]),
     )
+
+
+def _cli_npy_bytes(values: np.ndarray) -> bytes:
+    buffer = BytesIO()
+    np.save(buffer, values)
+    return buffer.getvalue()

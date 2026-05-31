@@ -35,7 +35,7 @@ The working plan is tracked in [Aerospace_Prognostics_Project_Plan.md](Aerospace
 - `aerospace-prognostics cmapss-compare-rul-results` CLI for Phase 1 vs Phase 2 ranked model-comparison reports.
 - `aerospace-prognostics telemetry-robust-zscore-baseline` CLI for the Phase 2 spacecraft anomaly-detection baseline plumbing.
 - `aerospace-prognostics telemetry-classical-anomaly-baselines` CLI for robust z-score, PCA reconstruction, and Isolation Forest anomaly baseline comparisons.
-- `aerospace-prognostics smap-msl-summary` and `smap-msl-export-channel-csv` CLIs for Telemanom SMAP/MSL raw `.npy` arrays and label metadata.
+- `aerospace-prognostics smap-msl-download`, `smap-msl-summary`, and `smap-msl-export-channel-csv` CLIs for Telemanom SMAP/MSL raw `.npy` arrays and label metadata.
 - `aerospace-prognostics smap-msl-classical-baselines` CLI for direct multi-channel SMAP/MSL classical anomaly baseline runs.
 - `aerospace-prognostics cmapss-package-hgb-policy`, `cmapss-predict-artifact`, and `serve-api` CLIs for the production-ML deployment track.
 - FastAPI serving observability with request IDs, latency headers, JSON request logs, and `/metrics` counters.
@@ -97,6 +97,7 @@ uv run aerospace-prognostics cmapss-tcn-baseline --sequence-dir artifacts/sequen
 uv run aerospace-prognostics cmapss-transformer-baseline --sequence-dir artifacts/sequences/cmapss --subsets FD001 --epochs 50 --d-model 64 --num-heads 4 --num-layers 2 --dim-feedforward 128 --output-json artifacts/results/cmapss_transformer_fd001_baseline.json --output-csv artifacts/results/cmapss_transformer_fd001_baseline.csv --history-json artifacts/results/cmapss_transformer_fd001_history.json
 uv run aerospace-prognostics cmapss-deep-baseline-compare --sequence-dir artifacts/sequences/cmapss --subsets FD001 --models cnn bilstm tcn transformer --epochs 50 --hidden-sizes 32 64 --learning-rates 0.001 0.0003 --output-json artifacts/results/cmapss_deep_compare_fd001.json --output-csv artifacts/results/cmapss_deep_compare_fd001.csv
 uv run aerospace-prognostics cmapss-compare-rul-results --baseline-csv artifacts/results/cmapss_hgb_policy_baseline.csv --candidate-csv artifacts/results/cmapss_deep_compare_fd001.csv --output-csv artifacts/results/cmapss_phase2_model_comparison.csv --output-markdown artifacts/results/cmapss_phase2_model_comparison.md
+uv run aerospace-prognostics smap-msl-download --output-dir data/raw/smap_msl --archive-path data/raw/downloads/smap_msl_telemanom.zip
 uv run aerospace-prognostics smap-msl-summary --data-dir data/raw/smap_msl
 uv run aerospace-prognostics smap-msl-export-channel-csv --data-dir data/raw/smap_msl --channel-id P-1 --output-dir artifacts/smap_msl_channels --metadata-json artifacts/smap_msl_channels/P-1/export.json
 uv run aerospace-prognostics telemetry-robust-zscore-baseline --train-csv artifacts/smap_msl_channels/P-1/train.csv --test-csv artifacts/smap_msl_channels/P-1/test.csv --label-column label --feature-columns feature_0 feature_1 --threshold 3.5 --output-json artifacts/results/smap_msl_p1_robust_zscore.json --predictions-csv artifacts/results/smap_msl_p1_robust_zscore_predictions.csv
@@ -107,3 +108,5 @@ uv run aerospace-prognostics serve-api --model-artifact artifacts/models/cmapss_
 uv run aerospace-prognostics phase1-cmapss --data-dir data/raw/cmapss --artifact-dir artifacts/phase1
 uv run aerospace-prognostics phase2-cmapss --data-dir data/raw/cmapss --artifact-dir artifacts/phase2 --subsets FD001 --models cnn bilstm tcn transformer --epochs 50 --hidden-sizes 32 64 --learning-rates 0.001 0.0003
 ```
+
+Telemanom's current README points users to the Kaggle-hosted SMAP/MSL archive. If the legacy public S3 archive is unavailable, download `patrickfleith/nasa-anomaly-detection-dataset-smap-msl` to `data/raw/downloads/smap_msl_telemanom.zip`, then rerun `smap-msl-download`; the command will import that local archive without downloading it again.
