@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import shutil
+import urllib.error
 import urllib.request
 import zipfile
 from dataclasses import asdict, dataclass
@@ -21,6 +22,7 @@ TELEMANOM_SMAP_MSL_DATA_URL = "https://s3-us-west-2.amazonaws.com/telemanom/data
 TELEMANOM_SMAP_MSL_LABELS_URL = (
     "https://raw.githubusercontent.com/khundman/telemanom/master/labeled_anomalies.csv"
 )
+TELEMANOM_SMAP_MSL_KAGGLE_DATASET = "patrickfleith/nasa-anomaly-detection-dataset-smap-msl"
 
 
 @dataclass(frozen=True)
@@ -103,13 +105,31 @@ def download_smap_msl_dataset(
     )
     archive.parent.mkdir(parents=True, exist_ok=True)
     if force or not archive.exists():
-        urllib.request.urlretrieve(source_url, archive)
+        try:
+            urllib.request.urlretrieve(source_url, archive)
+        except (urllib.error.HTTPError, urllib.error.URLError) as exc:
+            raise RuntimeError(
+                _smap_msl_download_guidance(
+                    source_url=source_url,
+                    archive_path=archive,
+                    error=exc,
+                )
+            ) from exc
 
     extracted_arrays = _extract_smap_msl_zip(archive, destination, force=force)
     labels_path = destination / "labeled_anomalies.csv"
     labels_missing = force or not labels_path.exists()
     if labels_missing and not _extract_smap_msl_labels(archive, labels_path, force=force):
-        urllib.request.urlretrieve(labels_url, labels_path)
+        try:
+            urllib.request.urlretrieve(labels_url, labels_path)
+        except (urllib.error.HTTPError, urllib.error.URLError) as exc:
+            raise RuntimeError(
+                _smap_msl_download_guidance(
+                    source_url=labels_url,
+                    archive_path=archive,
+                    error=exc,
+                )
+            ) from exc
     metadata_path = _write_smap_msl_download_metadata(
         destination,
         source_url=source_url,
@@ -259,6 +279,21 @@ def _smap_msl_member_split(member_path: Path) -> str | None:
     if "test" in parts:
         return "test"
     return None
+
+
+def _smap_msl_download_guidance(
+    *,
+    source_url: str,
+    archive_path: Path,
+    error: BaseException,
+) -> str:
+    return (
+        f"Could not download SMAP/MSL data from {source_url}: {error}. "
+        "The legacy public Telemanom S3 archive may be unavailable or access-restricted. "
+        f"Download the Kaggle dataset `{TELEMANOM_SMAP_MSL_KAGGLE_DATASET}` to "
+        f"`{archive_path.as_posix()}`, then rerun `smap-msl-download`; existing local "
+        "archives are imported without another download."
+    )
 
 
 def _write_download_metadata(

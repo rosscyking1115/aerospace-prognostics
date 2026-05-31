@@ -1279,13 +1279,19 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     if args.command == "smap-msl-download":
-        result = download_smap_msl_dataset(
-            args.output_dir,
-            source_url=args.source_url,
-            labels_url=args.labels_url,
-            archive_path=args.archive_path,
-            force=args.force,
-        )
+        try:
+            result = download_smap_msl_dataset(
+                args.output_dir,
+                source_url=args.source_url,
+                labels_url=args.labels_url,
+                archive_path=args.archive_path,
+                force=args.force,
+            )
+        except RuntimeError as exc:
+            print("status=failed")
+            for line in str(exc).splitlines():
+                print(f"problem={line}")
+            return 1
         print(f"source_url={result.source_url}")
         print(f"labels_url={result.labels_url}")
         print(f"archive={result.archive_path}")

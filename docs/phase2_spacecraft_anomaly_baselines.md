@@ -27,7 +27,7 @@ Download Telemanom SMAP/MSL raw arrays and labels:
 uv run aerospace-prognostics smap-msl-download --output-dir data/raw/smap_msl --archive-path data/raw/downloads/smap_msl_telemanom.zip
 ```
 
-The downloader can use the legacy public Telemanom `data.zip` URL and the `labeled_anomalies.csv` file from the Telemanom repository. Telemanom's current README points users to the Kaggle-hosted `patrickfleith/nasa-anomaly-detection-dataset-smap-msl` archive; if the legacy S3 URL is unavailable, download that archive to `data/raw/downloads/smap_msl_telemanom.zip`, then rerun the command. Existing local archives are imported without another download, and the extracted arrays are written under `data/train` and `data/test` inside the requested output directory.
+The downloader can use the legacy public Telemanom `data.zip` URL and the `labeled_anomalies.csv` file from the Telemanom repository. Telemanom's current README points users to the Kaggle-hosted `patrickfleith/nasa-anomaly-detection-dataset-smap-msl` archive; if the legacy S3 URL is unavailable or returns HTTP 403, download that archive to `data/raw/downloads/smap_msl_telemanom.zip`, then rerun the command. Existing local archives are imported without another download, and the extracted arrays are written under `data/train` and `data/test` inside the requested output directory.
 
 Telemanom raw-data summary and channel export:
 

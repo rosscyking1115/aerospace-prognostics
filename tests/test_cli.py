@@ -1417,6 +1417,33 @@ def test_smap_msl_download_command_extracts_archive(tmp_path, capsys) -> None:
     assert (output_dir / "data" / "test" / "P-1.npy").exists()
 
 
+def test_smap_msl_download_command_reports_actionable_download_failure(
+    tmp_path,
+    capsys,
+    monkeypatch,
+) -> None:
+    def fail_download(*args, **kwargs):
+        raise RuntimeError("Could not download SMAP/MSL data\nDownload the Kaggle dataset")
+
+    monkeypatch.setattr("aerospace_prognostics.cli.download_smap_msl_dataset", fail_download)
+
+    exit_code = main(
+        [
+            "smap-msl-download",
+            "--output-dir",
+            str(tmp_path / "raw" / "smap_msl"),
+            "--archive-path",
+            str(tmp_path / "downloads" / "smap_msl.zip"),
+        ]
+    )
+    output = capsys.readouterr().out
+
+    assert exit_code == 1
+    assert "status=failed" in output
+    assert "problem=Could not download SMAP/MSL data" in output
+    assert "problem=Download the Kaggle dataset" in output
+
+
 def _cli_result(
     subset: str,
     model_name: str,

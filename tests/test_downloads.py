@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import urllib.error
 import zipfile
 from io import BytesIO
 
@@ -169,6 +170,31 @@ def test_download_smap_msl_dataset_rejects_zip_without_arrays(tmp_path) -> None:
         assert "missing train/test .npy arrays" in str(exc)
     else:
         raise AssertionError("expected incomplete SMAP/MSL zip to fail")
+
+
+def test_download_smap_msl_dataset_reports_kaggle_fallback_when_download_fails(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    def fail_download(url, filename):
+        raise urllib.error.HTTPError(url, 403, "Forbidden", hdrs=None, fp=None)
+
+    monkeypatch.setattr("urllib.request.urlretrieve", fail_download)
+    archive_path = tmp_path / "downloads" / "smap_msl.zip"
+
+    try:
+        download_smap_msl_dataset(
+            tmp_path / "raw" / "smap_msl",
+            source_url="https://s3-us-west-2.amazonaws.com/telemanom/data.zip",
+            archive_path=archive_path,
+        )
+    except RuntimeError as exc:
+        message = str(exc)
+        assert "legacy public Telemanom S3 archive" in message
+        assert "patrickfleith/nasa-anomaly-detection-dataset-smap-msl" in message
+        assert archive_path.as_posix() in message
+    else:
+        raise AssertionError("expected failed SMAP/MSL download to report Kaggle fallback")
 
 
 def _npy_bytes(values: np.ndarray) -> bytes:
