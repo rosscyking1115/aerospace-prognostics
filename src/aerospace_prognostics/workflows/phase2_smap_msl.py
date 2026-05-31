@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
@@ -62,6 +63,7 @@ class Phase2SmapMslWorkflowResult:
     comparison_csv_path: Path
     comparison_markdown_path: Path
     summary_markdown_path: Path
+    run_manifest_path: Path
     classical_runs: tuple[SmapMslClassicalBaselineRun, ...]
     lstm_robust_runs: tuple[SmapMslLstmForecastBaselineRun, ...]
     lstm_dynamic_runs: tuple[SmapMslLstmForecastBaselineRun, ...]
@@ -260,6 +262,84 @@ def run_phase2_smap_msl_workflow(
     write_anomaly_model_comparison_markdown(comparison_rows, comparison_markdown_path)
 
     summary_markdown_path = artifacts / "phase2_smap_msl_summary.md"
+    run_manifest_path = artifacts / "phase2_smap_msl_run_manifest.json"
+    _write_phase2_smap_msl_run_manifest(
+        run_manifest_path,
+        {
+            "workflow": "phase2_smap_msl",
+            "data_dir": root.as_posix(),
+            "artifact_dir": artifacts.as_posix(),
+            "selection": {
+                "channels": list(channels) if channels is not None else None,
+                "max_channels": max_channels,
+            },
+            "parameters": {
+                "classical_methods": list(classical_methods),
+                "robust_threshold": robust_threshold,
+                "pca_components": pca_components,
+                "pca_threshold_quantile": pca_threshold_quantile,
+                "isolation_contamination": isolation_contamination,
+                "window_size": window_size,
+                "hidden_size": hidden_size,
+                "num_layers": num_layers,
+                "dropout": dropout,
+                "epochs": epochs,
+                "batch_size": batch_size,
+                "learning_rate": learning_rate,
+                "threshold_sigma": threshold_sigma,
+                "robust_policy_false_alarm_budget": robust_policy_false_alarm_budget,
+                "robust_policy_thresholds": list(robust_policy_thresholds),
+                "robust_policy_group_by": robust_policy_group_by,
+                "dynamic_threshold_config": (
+                    dynamic_threshold_config or DynamicThresholdConfig()
+                ).to_dict(),
+                "random_state": random_state,
+                "device": device,
+            },
+            "artifacts": {
+                "classical_json": _path_as_posix(classical_json_path),
+                "classical_csv": _path_as_posix(classical_csv_path),
+                "lstm_robust_json": _path_as_posix(lstm_robust_json_path),
+                "lstm_robust_csv": _path_as_posix(lstm_robust_csv_path),
+                "lstm_dynamic_json": _path_as_posix(lstm_dynamic_json_path),
+                "lstm_dynamic_csv": _path_as_posix(lstm_dynamic_csv_path),
+                "robust_threshold_sweep_json": _path_as_posix(
+                    robust_threshold_sweep_json_path
+                ),
+                "robust_threshold_sweep_csv": _path_as_posix(robust_threshold_sweep_csv_path),
+                "robust_threshold_sweep_aggregate_json": _path_as_posix(
+                    robust_threshold_sweep_aggregate_json_path
+                ),
+                "robust_threshold_sweep_aggregate_csv": _path_as_posix(
+                    robust_threshold_sweep_aggregate_csv_path
+                ),
+                "robust_threshold_operating_point_json": _path_as_posix(
+                    robust_threshold_operating_point_json_path
+                ),
+                "robust_threshold_operating_point_csv": _path_as_posix(
+                    robust_threshold_operating_point_csv_path
+                ),
+                "robust_threshold_policy_json": _path_as_posix(
+                    robust_threshold_policy_json_path
+                ),
+                "robust_threshold_policy_csv": _path_as_posix(robust_threshold_policy_csv_path),
+                "comparison_csv": _path_as_posix(comparison_csv_path),
+                "comparison_markdown": _path_as_posix(comparison_markdown_path),
+                "summary_markdown": _path_as_posix(summary_markdown_path),
+                "run_manifest": _path_as_posix(run_manifest_path),
+            },
+            "counts": {
+                "channels": len({row.channel_id for row in comparison_rows}),
+                "classical_runs": len(classical_runs),
+                "lstm_robust_runs": len(lstm_robust_runs),
+                "lstm_dynamic_runs": len(lstm_dynamic_runs),
+                "robust_threshold_sweep_runs": len(robust_threshold_sweep_runs),
+                "robust_threshold_operating_points": len(robust_threshold_operating_points),
+                "robust_threshold_policy_runs": len(robust_threshold_policy_runs),
+                "comparison_rows": len(comparison_rows),
+            },
+        },
+    )
     _write_phase2_smap_msl_summary(
         summary_markdown_path,
         classical_csv_path=classical_csv_path,
@@ -268,6 +348,7 @@ def run_phase2_smap_msl_workflow(
         robust_threshold_policy_csv_path=robust_threshold_policy_csv_path,
         robust_threshold_operating_point_csv_path=robust_threshold_operating_point_csv_path,
         comparison_markdown_path=comparison_markdown_path,
+        run_manifest_path=run_manifest_path,
         comparison_rows=tuple(comparison_rows),
     )
 
@@ -290,6 +371,7 @@ def run_phase2_smap_msl_workflow(
         comparison_csv_path=comparison_csv_path,
         comparison_markdown_path=comparison_markdown_path,
         summary_markdown_path=summary_markdown_path,
+        run_manifest_path=run_manifest_path,
         classical_runs=tuple(classical_runs),
         lstm_robust_runs=tuple(lstm_robust_runs),
         lstm_dynamic_runs=tuple(lstm_dynamic_runs),
@@ -309,6 +391,7 @@ def _write_phase2_smap_msl_summary(
     robust_threshold_policy_csv_path: Path | None,
     robust_threshold_operating_point_csv_path: Path | None,
     comparison_markdown_path: Path,
+    run_manifest_path: Path,
     comparison_rows: tuple[AnomalyModelComparisonRow, ...],
 ) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -335,6 +418,7 @@ def _write_phase2_smap_msl_summary(
     lines.extend(
         [
             f"- Ranked anomaly comparison: `{comparison_markdown_path.as_posix()}`",
+            f"- Run manifest: `{run_manifest_path.as_posix()}`",
             "",
             "## Best Model By Point-Wise F1",
             "",
@@ -365,6 +449,17 @@ def _write_phase2_smap_msl_summary(
         count_header="Rows",
     )
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
+def _write_phase2_smap_msl_run_manifest(path: Path, payload: dict[str, object]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+
+
+def _path_as_posix(path: Path | None) -> str | None:
+    if path is None:
+        return None
+    return path.as_posix()
 
 
 def _best_smap_msl_rows_by_channel(

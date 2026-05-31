@@ -42,6 +42,7 @@ def test_run_phase2_smap_msl_workflow_writes_expected_artifacts(tmp_path) -> Non
     assert result.comparison_csv_path.exists()
     assert result.comparison_markdown_path.exists()
     assert result.summary_markdown_path.exists()
+    assert result.run_manifest_path.exists()
     assert len(result.classical_runs) == 4
     assert len(result.lstm_robust_runs) == 2
     assert len(result.lstm_dynamic_runs) == 2
@@ -51,15 +52,25 @@ def test_run_phase2_smap_msl_workflow_writes_expected_artifacts(tmp_path) -> Non
     assert len(result.comparison_rows) == 10
 
     classical_payload = json.loads(result.classical_json_path.read_text(encoding="utf-8"))
+    run_manifest = json.loads(result.run_manifest_path.read_text(encoding="utf-8"))
     summary = result.summary_markdown_path.read_text(encoding="utf-8")
 
     assert {row["channel_id"] for row in classical_payload} == {"P-1", "M-1"}
+    assert run_manifest["workflow"] == "phase2_smap_msl"
+    assert run_manifest["selection"]["channels"] == ["P-1", "M-1"]
+    assert run_manifest["parameters"]["robust_policy_false_alarm_budget"] == 1.0
+    assert run_manifest["counts"]["robust_threshold_policy_runs"] == 2
+    assert run_manifest["counts"]["comparison_rows"] == 10
+    assert run_manifest["artifacts"]["robust_threshold_policy_csv"].endswith(
+        "smap_msl_robust_threshold_policy.csv"
+    )
     assert "# Phase 2 SMAP/MSL Summary" in summary
     assert "## Best Model By Point-Wise F1" in summary
     assert "## Winner Counts" in summary
     assert "## Average Metrics By Source And Model" in summary
     assert "| classical | robust_zscore |" in summary
     assert "Robust threshold policy table" in summary
+    assert "Run manifest" in summary
 
 
 def _write_phase2_smap_msl_fixture(root) -> None:

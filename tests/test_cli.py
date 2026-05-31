@@ -1327,10 +1327,12 @@ def test_phase2_smap_msl_command_runs_anomaly_workflow(tmp_path, capsys) -> None
     assert "robust_threshold_policy_runs=1" in output
     assert "comparison_rows=5" in output
     assert "robust_threshold_policy_csv=" in output
+    assert "run_manifest=" in output
     assert (artifact_dir / "results" / "smap_msl_anomaly_model_comparison.csv").exists()
     assert (artifact_dir / "results" / "smap_msl_anomaly_model_comparison.md").exists()
     assert (artifact_dir / "results" / "smap_msl_robust_threshold_policy.csv").exists()
     assert (artifact_dir / "phase2_smap_msl_summary.md").exists()
+    assert (artifact_dir / "phase2_smap_msl_run_manifest.json").exists()
 
 
 def test_smap_msl_compare_anomaly_results_command_writes_report_tables(

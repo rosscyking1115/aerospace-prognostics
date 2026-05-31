@@ -1491,6 +1491,7 @@ def main(argv: list[str] | None = None) -> int:
         print(f"comparison_csv={result.comparison_csv_path}")
         print(f"comparison_markdown={result.comparison_markdown_path}")
         print(f"summary={result.summary_markdown_path}")
+        print(f"run_manifest={result.run_manifest_path}")
         print(f"classical_runs={len(result.classical_runs)}")
         print(f"lstm_robust_runs={len(result.lstm_robust_runs)}")
         print(f"lstm_dynamic_runs={len(result.lstm_dynamic_runs)}")
