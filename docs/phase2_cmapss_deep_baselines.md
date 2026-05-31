@@ -86,6 +86,15 @@ uv run aerospace-prognostics phase2-cmapss --data-dir data/raw/cmapss --artifact
 
 This is a reproducibility and orchestration check, not a quality benchmark. It confirms that the workflow can regenerate sequence tensors, train multiple deep candidates, run the Phase 1 HGB policy baseline, and emit the ranked comparison bundle from the real FD001 files in one command.
 
+First FD001 benchmark-shaped workflow run:
+
+```powershell
+uv run aerospace-prognostics phase2-cmapss --data-dir data/raw/cmapss --artifact-dir artifacts/phase2_fd001_benchmark_20e --subsets FD001 --models cnn bilstm tcn transformer --epochs 20 --batch-size 256 --hidden-sizes 32 --learning-rates 0.001 --tcn-levels 2 --validation-horizon 30 --checkpoint-policy validation_nasa
+uv run aerospace-prognostics phase2-cmapss-verify-manifest --manifest artifacts/phase2_fd001_benchmark_20e/phase2_run_manifest.json --output-markdown artifacts/phase2_fd001_benchmark_20e/phase2_manifest_audit.md
+```
+
+This run trained all four Phase 2 model families for 20 epochs on real FD001 sequence tensors, produced four deep results and five comparison rows, and verified the run manifest with `status=ok` across 13 checked artifacts. The Phase 1 HGB policy remains the best row, but the Transformer checkpoint is now close enough to be a useful deep-learning baseline rather than only a plumbing test.
+
 ## FD001 First Result
 
 | Checkpoint | Model | Selected Epoch | Validation RMSE | Validation NASA Score | Official Test RMSE | Official Test NASA Score |
@@ -95,10 +104,16 @@ This is a reproducibility and orchestration check, not a quality benchmark. It c
 | Phase 2 validation-selected smoke baseline | `cnn_1d_w30_e50_c32_best_e2` | 2 | 14.486795 | 49.644294 | 45.900152 | 20542.376235 |
 | Phase 2 workflow smoke baseline | `compare_tcn_h16_lr0p001_tcn_w30_e3_c16_l1_k3_best_e3` | 3 | 53.316125 | 1403204.206645 | 46.968692 | 19115.956643 |
 | Phase 2 workflow smoke baseline | `compare_cnn_h16_lr0p001_cnn_1d_w30_e3_c16_best_e3` | 3 | 53.269599 | 1570720.650364 | 46.877603 | 21879.546393 |
+| Phase 2 benchmark-shaped baseline | `compare_transformer_h32_lr0p001_transformer_w30_e20_d32_h4_l1_ff64_best_e20` | 20 | 19.251686 | 15309.424315 | 16.173196 | 352.015482 |
+| Phase 2 benchmark-shaped baseline | `compare_tcn_h32_lr0p001_tcn_w30_e20_c32_l2_k3_best_e13` | 13 | 23.086388 | 34936.741283 | 19.065325 | 807.884690 |
+| Phase 2 benchmark-shaped baseline | `compare_cnn_h32_lr0p001_cnn_1d_w30_e20_c32_best_e13` | 13 | 26.932023 | 55135.426955 | 25.045474 | 3858.156520 |
+| Phase 2 benchmark-shaped baseline | `compare_bilstm_h32_lr0p001_bilstm_w30_e20_h32_l1_best_e20` | 20 | 45.309112 | 168914.199343 | 37.189642 | 4237.429679 |
 
 Both CNN results are worse than the Phase 1 HGB policy on FD001. That is useful, not alarming: it confirms the training and scoring path works while showing that this first architecture is underfit and poorly calibrated for the official test split.
 
 The validation-selected run is especially important. It chooses epoch 2 because the original train-only validation split used only one final window per held-out unit, so a tiny validation signal looked strong while the official test score collapsed. Phase 2 now exports rolling validation-selection windows to reduce that failure mode before relying on early stopping as a model-selection signal.
+
+The 20-epoch benchmark shows the next Track A modelling problem clearly: deep sequence models are working end to end, but the classical HGB policy is still stronger on FD001. The immediate follow-up should be targeted rather than broad: improve the Transformer and TCN candidates with longer training, smaller learning-rate sweeps, residual or regularized temporal blocks, and validation diagnostics before expanding the full grid to FD002-FD004.
 
 ## Current Interpretation
 
@@ -106,7 +121,7 @@ The Phase 2 pipeline is now real: exported sequence windows feed torch models, C
 
 The next deep-learning work should focus on model quality rather than plumbing:
 
-- Scale the real FD001 workflow beyond smoke settings before expanding to FD002-FD004.
-- Use the workflow parameters for wider/deeper CNNs, residual or TCN-style blocks, attention heads, and learning-rate sweeps.
+- Continue FD001 beyond the 20-epoch benchmark with focused Transformer and TCN sweeps before expanding to FD002-FD004.
+- Use the workflow parameters for wider/deeper CNNs, residual or TCN-style blocks, attention heads, regularization, and learning-rate sweeps.
 - Use the ranked report command for every Phase 2 run bundle, especially when checking the known FD003 validation mismatch.
 - Keep all sensors for now; Phase 1 sensor-filter validation showed EDA filtering harms FD002 and FD004.
