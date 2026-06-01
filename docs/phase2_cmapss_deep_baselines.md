@@ -13,7 +13,7 @@ This note records the first Phase 2 sequence-model checkpoint. Phase 1 ended wit
 | Window size | 30 cycles |
 | Features | 24 standardized operating-setting and sensor channels |
 | Optimizer | Adam |
-| Loss | MSE by default; optional `nasa_surrogate` asymmetric training loss |
+| Loss | MSE by default; optional `nasa_surrogate` and MSE+NASA blended losses |
 | Random seed | 42 |
 | Metrics | RMSE and NASA asymmetric RUL score |
 | Checkpoint policies | `validation_nasa` or `final` |
@@ -76,7 +76,7 @@ uv run aerospace-prognostics phase2-cmapss --data-dir data/raw/cmapss --artifact
 uv run aerospace-prognostics phase2-cmapss-verify-manifest --manifest artifacts/phase2/phase2_run_manifest.json --output-markdown artifacts/phase2/phase2_manifest_audit.md
 ```
 
-All deep baseline commands and the workflow accept `--training-loss mse` or `--training-loss nasa_surrogate`. The surrogate keeps training differentiable while matching the NASA RUL score's asymmetric shape more closely: late predictions are penalized with the harsher denominator used by the official metric, and early predictions use the gentler denominator. Non-default runs include `_loss_nasa_surrogate_` in model names and record the training loss in the Phase 2 manifest and audit report.
+All deep baseline commands and the workflow accept `--training-loss mse`, `--training-loss nasa_surrogate`, `--training-loss mse_nasa_blend_w0p001`, or `--training-loss mse_nasa_blend_w0p0001`. The pure surrogate keeps training differentiable while matching the NASA RUL score's asymmetric shape more closely: late predictions are penalized with the harsher denominator used by the official metric, and early predictions use the gentler denominator. The blended losses add a small NASA-surrogate penalty to MSE so the optimization stays near the stable RUL regression scale while still nudging the model toward the asymmetric metric. Non-default runs include the loss name in model names and record the training loss in the Phase 2 manifest and audit report.
 
 The workflow writes `phase2_summary.md` and `phase2_run_manifest.json` under the artifact directory. It also writes `results/cmapss_deep_predictions.csv`, a per-unit official-test diagnostics table with actual RUL, predicted RUL, signed error, absolute error, end cycle, and early/late error split for every deep-model candidate. The companion `results/cmapss_deep_prediction_diagnostics.csv`, `results/cmapss_deep_prediction_rul_bins.csv`, and markdown report summarize mean error, mean/max absolute error, late-prediction rate, actual-RUL-bin calibration, and the highest-error units. The same diagnostics are now emitted for rolling validation-selection windows under `results/cmapss_deep_validation_selection_predictions.csv`, `results/cmapss_deep_validation_selection_prediction_diagnostics.csv`, `results/cmapss_deep_validation_selection_prediction_rul_bins.csv`, and `results/cmapss_deep_validation_selection_prediction_diagnostics.md`, so calibration and tail-error ideas can be judged on train-only validation behavior before the official test table is touched. The manifest records run parameters, artifact paths, SHA-256/size checksums for the model outputs, prediction diagnostics, and sequence bundles, Python/platform/dependency versions, and Git commit state so a Phase 2 C-MAPSS run can be audited or reproduced from one bundle. The verify command checks manifest structure, referenced artifact existence, artifact checksums, and CSV row counts; with `--output-markdown`, it also writes a compact audit report.
 
@@ -187,6 +187,25 @@ uv run aerospace-prognostics cmapss-calibrate-deep-predictions --method predicte
 
 The predicted-bin residual method is inference-safe because bins are assigned from raw predicted RUL, not actual RUL. With the default shrinkage strength of 100, it fit six correction rows: global plus raw-predicted bins 0-30, 31-60, 61-90, 91-120, and 121+. Every bin learned a positive correction because validation-selection predictions are early-biased in each raw-prediction range. Official-test RMSE improved from 14.339589 to 14.224681, but NASA score still worsened from 299.978246 to 341.716670; mean error moved to 1.450547 and late-prediction rate rose to 0.59. A quick shrinkage sweep found the same tradeoff: stronger shrinkage reduces the NASA penalty but approaches the raw model. This keeps residual-bin calibration as a diagnostic tool, while the promotion path should be NASA-aware model selection or training loss.
 
+NASA-aware loss smoke checks:
+
+```powershell
+uv run aerospace-prognostics phase2-cmapss --data-dir data/raw/cmapss --artifact-dir artifacts/phase2_fd001_transformer_h32_10e_mse_reference --subsets FD001 --models transformer --epochs 10 --batch-size 256 --hidden-sizes 32 --learning-rates 0.001 --validation-horizon 30 --checkpoint-policy validation_nasa --training-loss mse
+uv run aerospace-prognostics phase2-cmapss --data-dir data/raw/cmapss --artifact-dir artifacts/phase2_fd001_transformer_h32_10e_mse_nasa_blend_w0p001 --subsets FD001 --models transformer --epochs 10 --batch-size 256 --hidden-sizes 32 --learning-rates 0.001 --validation-horizon 30 --checkpoint-policy validation_nasa --training-loss mse_nasa_blend_w0p001
+uv run aerospace-prognostics phase2-cmapss --data-dir data/raw/cmapss --artifact-dir artifacts/phase2_fd001_transformer_h32_10e_mse_nasa_blend_w0p0001 --subsets FD001 --models transformer --epochs 10 --batch-size 256 --hidden-sizes 32 --learning-rates 0.001 --validation-horizon 30 --checkpoint-policy validation_nasa --training-loss mse_nasa_blend_w0p0001
+```
+
+These short runs are loss-path checks, not promotion candidates. All three manifests verified with `status=ok` across 21 checked artifacts. At a 10-epoch budget the blended losses stay effectively on the MSE trajectory, while the pure NASA surrogate undertrains badly:
+
+| Training Loss | Epochs | Official Test RMSE | Official Test NASA Score | Mean Error | Late Rate |
+|---|---:|---:|---:|---:|---:|
+| `mse` | 10 | 45.047094 | 10736.524843 | -32.541825 | 0.190000 |
+| `mse_nasa_blend_w0p0001` | 10 | 45.049205 | 10738.845270 | -32.543126 | 0.190000 |
+| `mse_nasa_blend_w0p001` | 10 | 45.068130 | 10759.665550 | -32.554764 | 0.190000 |
+| `nasa_surrogate` | 10 | 61.077437 | 52942.409835 | -45.432663 | 0.240000 |
+
+The takeaway is useful even though the scores are weak: pure NASA-surrogate optimization is too steep as a standalone objective, while the blended variants are safe knobs for longer Transformer sweeps. Any promotion-quality comparison should use the known 40-epoch Transformer budget or longer; 10 epochs mostly measures undertraining.
+
 ## FD001 First Result
 
 | Checkpoint | Model | Selected Epoch | Validation RMSE | Validation NASA Score | Official Test RMSE | Official Test NASA Score |
@@ -202,6 +221,10 @@ The predicted-bin residual method is inference-safe because bins are assigned fr
 | Phase 2 prediction diagnostic refresh | `compare_transformer_h32_lr0p001_transformer_w30_e40_d32_h4_l1_ff64_best_e39` | 39 | 15.026410 | 11200.658784 | 14.339589 | 299.978246 |
 | Phase 2 validation-affine diagnostic | `compare_transformer_h32_lr0p001_transformer_w30_e40_d32_h4_l1_ff64_best_e39_affine_calibrated` | 39 | 15.026410 | 11200.658784 | 14.271605 | 345.146822 |
 | Phase 2 predicted-bin residual diagnostic | `compare_transformer_h32_lr0p001_transformer_w30_e40_d32_h4_l1_ff64_best_e39_predicted_bin_residual` | 39 | 15.026410 | 11200.658784 | 14.224681 | 341.716670 |
+| Phase 2 10-epoch loss smoke | `compare_transformer_h32_lr0p001_transformer_w30_e10_d32_h4_l1_ff64_best_e10` | 10 | 54.524260 | 421709.482281 | 45.047094 | 10736.524843 |
+| Phase 2 10-epoch loss smoke | `compare_transformer_h32_lr0p001_transformer_w30_e10_d32_h4_l1_ff64_loss_mse_nasa_blend_w0p0001_best_e10` | 10 | 54.526576 | 421800.208048 | 45.049205 | 10738.845270 |
+| Phase 2 10-epoch loss smoke | `compare_transformer_h32_lr0p001_transformer_w30_e10_d32_h4_l1_ff64_loss_mse_nasa_blend_w0p001_best_e10` | 10 | 54.547339 | 422614.178776 | 45.068130 | 10759.665550 |
+| Phase 2 10-epoch loss smoke | `compare_transformer_h32_lr0p001_transformer_w30_e10_d32_h4_l1_ff64_loss_nasa_surrogate_best_e10` | 10 | 72.427759 | 2080357.379217 | 61.077437 | 52942.409835 |
 | Phase 2 focused sweep | `compare_transformer_h64_lr0p001_transformer_w30_e40_d64_h4_l1_ff128_best_e22` | 22 | 15.341944 | 11914.289576 | 14.759614 | 328.647072 |
 | Phase 2 focused sweep | `compare_tcn_h64_lr0p0003_tcn_w30_e40_c64_l3_k3_best_e34` | 34 | 21.604288 | 26895.387798 | 17.417167 | 439.757150 |
 | Phase 2 benchmark-shaped baseline | `compare_tcn_h32_lr0p001_tcn_w30_e20_c32_l2_k3_best_e13` | 13 | 23.086388 | 34936.741283 | 19.065325 | 807.884690 |

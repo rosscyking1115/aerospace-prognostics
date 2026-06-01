@@ -96,6 +96,22 @@ def test_nasa_surrogate_training_loss_penalizes_late_errors_more() -> None:
     assert float(mse_loss) == pytest.approx(100.0)
 
 
+def test_mse_nasa_blend_training_loss_keeps_mse_scale() -> None:
+    target = torch.tensor([100.0])
+    pure_nasa_loss = _deep_training_loss(
+        torch.tensor([110.0]),
+        target,
+        training_loss="nasa_surrogate",
+    )
+    blended_loss = _deep_training_loss(
+        torch.tensor([110.0]),
+        target,
+        training_loss="mse_nasa_blend_w0p001",
+    )
+
+    assert float(blended_loss) == pytest.approx(100.0 + (0.001 * float(pure_nasa_loss)))
+
+
 def test_run_cmapss_cnn_baseline_returns_structured_result(tmp_path) -> None:
     write_tiny_cmapss_subset(tmp_path)
     sequence_dir = tmp_path / "sequences"
@@ -272,6 +288,31 @@ def test_run_cmapss_cnn_baseline_run_supports_nasa_surrogate_loss(tmp_path) -> N
     )
 
     assert "_loss_nasa_surrogate_" in run.result.model_name
+    assert run.history[0].train_loss >= 0
+
+
+def test_run_cmapss_cnn_baseline_run_supports_mse_nasa_blend_loss(tmp_path) -> None:
+    write_tiny_cmapss_subset(tmp_path)
+    sequence_dir = tmp_path / "sequences"
+    export_cmapss_sequence_splits(
+        tmp_path,
+        sequence_dir,
+        "FD001",
+        window_size=2,
+        validation_fraction=0.5,
+        validation_horizon=1,
+    )
+
+    run = run_cmapss_cnn_baseline_run(
+        sequence_dir,
+        "FD001",
+        epochs=1,
+        batch_size=2,
+        training_loss="mse_nasa_blend_w0p001",
+        hidden_channels=4,
+    )
+
+    assert "_loss_mse_nasa_blend_w0p001_" in run.result.model_name
     assert run.history[0].train_loss >= 0
 
 

@@ -19,7 +19,12 @@ from aerospace_prognostics.evaluation import RegressionRunResult
 from aerospace_prognostics.metrics import nasa_rul_score, rmse
 
 CMAPSS_DEEP_COMPARISON_MODELS = ("cnn", "lstm", "bilstm", "tcn", "transformer")
-CMAPSS_DEEP_TRAINING_LOSSES = ("mse", "nasa_surrogate")
+CMAPSS_DEEP_TRAINING_LOSSES = (
+    "mse",
+    "nasa_surrogate",
+    "mse_nasa_blend_w0p001",
+    "mse_nasa_blend_w0p0001",
+)
 
 
 @dataclass(frozen=True)
@@ -980,11 +985,28 @@ def _deep_training_loss(
     if training_loss == "mse":
         return nn.functional.mse_loss(predictions, targets)
     if training_loss == "nasa_surrogate":
-        errors = predictions - targets
-        late_terms = torch.expm1(torch.clamp(errors / 10.0, min=0.0, max=20.0))
-        early_terms = torch.expm1(torch.clamp(-errors / 13.0, min=0.0, max=20.0))
-        return torch.mean(late_terms + early_terms)
+        return _nasa_surrogate_loss(predictions, targets)
+    blend_weight = _nasa_surrogate_blend_weight(training_loss)
+    if blend_weight is not None:
+        return nn.functional.mse_loss(predictions, targets) + (
+            blend_weight * _nasa_surrogate_loss(predictions, targets)
+        )
     raise ValueError(f"unknown training_loss: {training_loss}")
+
+
+def _nasa_surrogate_loss(predictions: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
+    errors = predictions - targets
+    late_terms = torch.expm1(torch.clamp(errors / 10.0, min=0.0, max=20.0))
+    early_terms = torch.expm1(torch.clamp(-errors / 13.0, min=0.0, max=20.0))
+    return torch.mean(late_terms + early_terms)
+
+
+def _nasa_surrogate_blend_weight(training_loss: str) -> float | None:
+    weights = {
+        "mse_nasa_blend_w0p001": 1e-3,
+        "mse_nasa_blend_w0p0001": 1e-4,
+    }
+    return weights.get(training_loss)
 
 
 def _validate_training_loss(training_loss: str) -> None:

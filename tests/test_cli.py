@@ -523,7 +523,7 @@ def test_phase2_cmapss_command_runs_sequence_model_workflow(tmp_path, capsys) ->
             "--batch-size",
             "2",
             "--training-loss",
-            "nasa_surrogate",
+            "mse_nasa_blend_w0p001",
             "--hidden-sizes",
             "4",
             "--tcn-levels",
@@ -566,9 +566,9 @@ def test_phase2_cmapss_command_runs_sequence_model_workflow(tmp_path, capsys) ->
     manifest = json.loads(
         (artifact_dir / "phase2_run_manifest.json").read_text(encoding="utf-8")
     )
-    assert manifest["parameters"]["training_loss"] == "nasa_surrogate"
+    assert manifest["parameters"]["training_loss"] == "mse_nasa_blend_w0p001"
     summary_markdown = (artifact_dir / "phase2_summary.md").read_text(encoding="utf-8")
-    assert "- Training loss: nasa_surrogate" in summary_markdown
+    assert "- Training loss: mse_nasa_blend_w0p001" in summary_markdown
 
     verify_exit_code = main(
         [
@@ -588,7 +588,7 @@ def test_phase2_cmapss_command_runs_sequence_model_workflow(tmp_path, capsys) ->
     audit_markdown = (artifact_dir / "phase2_manifest_audit.md").read_text(encoding="utf-8")
     assert "# Phase 2 C-MAPSS Manifest Audit" in audit_markdown
     assert "- Status: ok" in audit_markdown
-    assert "- Training loss: nasa_surrogate" in audit_markdown
+    assert "- Training loss: mse_nasa_blend_w0p001" in audit_markdown
 
 
 def test_cmapss_export_sequences_command_writes_sequence_artifacts(tmp_path, capsys) -> None:
