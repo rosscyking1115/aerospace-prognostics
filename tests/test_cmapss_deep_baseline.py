@@ -126,6 +126,23 @@ def test_mse_nasa_blend_training_loss_keeps_mse_scale() -> None:
     assert float(blended_loss) == pytest.approx(100.0 + (0.001 * float(pure_nasa_loss)))
 
 
+def test_asymmetric_mse_training_loss_penalizes_late_errors_with_mse_scale() -> None:
+    target = torch.tensor([100.0])
+    late_loss = _deep_training_loss(
+        torch.tensor([110.0]),
+        target,
+        training_loss="asymmetric_mse_late_w2",
+    )
+    early_loss = _deep_training_loss(
+        torch.tensor([90.0]),
+        target,
+        training_loss="asymmetric_mse_late_w2",
+    )
+
+    assert float(late_loss) == pytest.approx(200.0)
+    assert float(early_loss) == pytest.approx(100.0)
+
+
 def test_run_cmapss_cnn_baseline_returns_structured_result(tmp_path) -> None:
     write_tiny_cmapss_subset(tmp_path)
     sequence_dir = tmp_path / "sequences"

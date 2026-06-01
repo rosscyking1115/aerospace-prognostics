@@ -24,6 +24,9 @@ CMAPSS_DEEP_TRAINING_LOSSES = (
     "nasa_surrogate",
     "mse_nasa_blend_w0p001",
     "mse_nasa_blend_w0p0001",
+    "asymmetric_mse_late_w1p5",
+    "asymmetric_mse_late_w2",
+    "asymmetric_mse_late_w3",
 )
 
 
@@ -1115,6 +1118,9 @@ def _deep_training_loss(
         return nn.functional.mse_loss(predictions, targets)
     if training_loss == "nasa_surrogate":
         return _nasa_surrogate_loss(predictions, targets)
+    late_weight = _asymmetric_mse_late_weight(training_loss)
+    if late_weight is not None:
+        return _asymmetric_mse_loss(predictions, targets, late_weight=late_weight)
     blend_weight = _nasa_surrogate_blend_weight(training_loss)
     if blend_weight is not None:
         return nn.functional.mse_loss(predictions, targets) + (
@@ -1128,6 +1134,26 @@ def _nasa_surrogate_loss(predictions: torch.Tensor, targets: torch.Tensor) -> to
     late_terms = torch.expm1(torch.clamp(errors / 10.0, min=0.0, max=20.0))
     early_terms = torch.expm1(torch.clamp(-errors / 13.0, min=0.0, max=20.0))
     return torch.mean(late_terms + early_terms)
+
+
+def _asymmetric_mse_loss(
+    predictions: torch.Tensor,
+    targets: torch.Tensor,
+    *,
+    late_weight: float,
+) -> torch.Tensor:
+    errors = predictions - targets
+    weights = torch.where(errors > 0.0, late_weight, 1.0)
+    return torch.mean(weights * errors.pow(2))
+
+
+def _asymmetric_mse_late_weight(training_loss: str) -> float | None:
+    weights = {
+        "asymmetric_mse_late_w1p5": 1.5,
+        "asymmetric_mse_late_w2": 2.0,
+        "asymmetric_mse_late_w3": 3.0,
+    }
+    return weights.get(training_loss)
 
 
 def _nasa_surrogate_blend_weight(training_loss: str) -> float | None:
