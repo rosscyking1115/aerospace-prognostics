@@ -961,6 +961,58 @@ def test_cmapss_calibrate_deep_predictions_command_writes_reports(
     assert output_markdown.exists()
 
 
+def test_cmapss_calibrate_deep_predictions_command_supports_predicted_bin_residual(
+    tmp_path,
+    capsys,
+) -> None:
+    calibration_csv = tmp_path / "results" / "validation_predictions.csv"
+    predictions_csv = tmp_path / "results" / "official_predictions.csv"
+    output_csv = tmp_path / "reports" / "official_predictions_calibrated.csv"
+    output_calibration_csv = tmp_path / "reports" / "calibration.csv"
+    _write_cli_predictions(
+        calibration_csv,
+        [
+            _cli_prediction("FD001", "transformer", 1, 10.0, 20.0),
+            _cli_prediction("FD001", "transformer", 2, 55.0, 45.0),
+            _cli_prediction("FD001", "transformer", 3, 65.0, 80.0),
+        ],
+    )
+    _write_cli_predictions(
+        predictions_csv,
+        [
+            _cli_prediction("FD001", "transformer", 4, 30.0, 45.0),
+        ],
+    )
+
+    exit_code = main(
+        [
+            "cmapss-calibrate-deep-predictions",
+            "--method",
+            "predicted_bin_residual",
+            "--shrinkage-strength",
+            "0",
+            "--calibration-csv",
+            str(calibration_csv),
+            "--predictions-csv",
+            str(predictions_csv),
+            "--output-csv",
+            str(output_csv),
+            "--output-calibration-csv",
+            str(output_calibration_csv),
+        ]
+    )
+
+    output = capsys.readouterr().out
+    rows = list(csv.DictReader(output_csv.open("r", encoding="utf-8", newline="")))
+    assert exit_code == 0
+    assert "calibration_method=predicted_bin_residual" in output
+    assert "bin=31-60" in output
+    assert rows[0]["calibration_method"] == "validation_predicted_bin_residual"
+    assert rows[0]["calibration_predicted_rul_bin"] == "31-60"
+    assert float(rows[0]["predicted_rul"]) == 55.0
+    assert output_calibration_csv.exists()
+
+
 def test_cmapss_compare_rul_results_command_writes_report_tables(
     tmp_path,
     capsys,

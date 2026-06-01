@@ -42,11 +42,40 @@ class CmapssAffinePredictionCalibration:
 
 
 @dataclass(frozen=True)
+class CmapssPredictedRulBinResidualCalibration:
+    """Residual calibration fitted for one raw-predicted-RUL bin."""
+
+    subset: str
+    model_name: str
+    predicted_rul_bin: str
+    lower_bound: float
+    upper_bound: float | str
+    calibration_count: int
+    mean_actual_rul: float
+    mean_raw_predicted_rul: float
+    mean_error: float
+    shrinkage_weight: float
+    correction: float
+    clip_min: float
+    method: str = "validation_predicted_bin_residual"
+
+    def to_dict(self) -> dict[str, str | int | float]:
+        """Return a flat serialisable row."""
+
+        return asdict(self)
+
+
+CmapssPredictionCalibration = (
+    CmapssAffinePredictionCalibration | CmapssPredictedRulBinResidualCalibration
+)
+
+
+@dataclass(frozen=True)
 class CmapssPredictionCalibrationResult:
     """Paths and summaries produced by a calibrated prediction run."""
 
     calibrated_predictions_csv_path: Path
-    calibrations: tuple[CmapssAffinePredictionCalibration, ...]
+    calibrations: tuple[CmapssPredictionCalibration, ...]
     calibrated_prediction_count: int
     calibration_csv_path: Path | None = None
     diagnostics_csv_path: Path | None = None
@@ -82,20 +111,68 @@ def fit_cmapss_affine_prediction_calibrations(
     return tuple(calibrations)
 
 
+def fit_cmapss_predicted_rul_bin_residual_calibrations(
+    calibration_csv: str | Path,
+    *,
+    shrinkage_strength: float = 100.0,
+    clip_min: float = 0.0,
+) -> tuple[CmapssPredictedRulBinResidualCalibration, ...]:
+    """Fit residual corrections by raw predicted-RUL bin."""
+
+    if shrinkage_strength < 0.0:
+        raise ValueError("shrinkage_strength must be non-negative")
+    rows = _read_prediction_rows(calibration_csv)
+    grouped: dict[tuple[str, str], list[dict[str, str]]] = {}
+    for row in rows:
+        grouped.setdefault((row["subset"], row["model_name"]), []).append(row)
+
+    calibrations: list[CmapssPredictedRulBinResidualCalibration] = []
+    for subset, model_name in sorted(grouped):
+        group = grouped[(subset, model_name)]
+        calibrations.append(
+            _fit_predicted_rul_bin_residual_calibration(
+                subset,
+                model_name,
+                "all",
+                group,
+                shrinkage_strength=shrinkage_strength,
+                clip_min=clip_min,
+            )
+        )
+        rows_by_bin: dict[str, list[dict[str, str]]] = {}
+        for row in group:
+            bin_label = _predicted_rul_bin(_float(row["predicted_rul"]))
+            rows_by_bin.setdefault(bin_label, []).append(row)
+        for bin_label in _PREDICTED_RUL_BIN_ORDER:
+            if bin_label in rows_by_bin:
+                calibrations.append(
+                    _fit_predicted_rul_bin_residual_calibration(
+                        subset,
+                        model_name,
+                        bin_label,
+                        rows_by_bin[bin_label],
+                        shrinkage_strength=shrinkage_strength,
+                        clip_min=clip_min,
+                    )
+                )
+    return tuple(calibrations)
+
+
 def write_cmapss_affine_prediction_calibration_csv(
-    calibrations: Iterable[CmapssAffinePredictionCalibration],
+    calibrations: Iterable[CmapssPredictionCalibration],
     path: str | Path,
 ) -> Path:
-    """Write fitted affine calibration parameters as CSV."""
+    """Write fitted calibration parameters as CSV."""
 
     calibration_rows = tuple(calibrations)
     if not calibration_rows:
         raise ValueError("calibrations must contain at least one item")
     output_path = _prepare_output_path(path)
+    fieldnames = _calibration_fieldnames(calibration_rows)
     with output_path.open("w", encoding="utf-8", newline="") as file:
         writer = csv.DictWriter(
             file,
-            fieldnames=list(calibration_rows[0].to_dict()),
+            fieldnames=fieldnames,
         )
         writer.writeheader()
         writer.writerows(row.to_dict() for row in calibration_rows)
@@ -105,15 +182,24 @@ def write_cmapss_affine_prediction_calibration_csv(
 def write_cmapss_affine_calibrated_predictions_csv(
     predictions_csv: str | Path,
     output_csv: str | Path,
-    calibrations: Iterable[CmapssAffinePredictionCalibration],
+    calibrations: Iterable[CmapssPredictionCalibration],
 ) -> int:
-    """Apply fitted affine calibrations and write a recalculated prediction CSV."""
+    """Apply fitted calibrations and write a recalculated prediction CSV."""
 
     prediction_path = Path(predictions_csv)
     rows, fieldnames = _read_prediction_rows_with_fieldnames(prediction_path)
-    calibration_by_key = {
+    calibration_rows = tuple(calibrations)
+    affine_by_key = {
         (calibration.subset, calibration.model_name): calibration
-        for calibration in calibrations
+        for calibration in calibration_rows
+        if isinstance(calibration, CmapssAffinePredictionCalibration)
+    }
+    residual_by_key = {
+        (calibration.subset, calibration.model_name, calibration.predicted_rul_bin): (
+            calibration
+        )
+        for calibration in calibration_rows
+        if isinstance(calibration, CmapssPredictedRulBinResidualCalibration)
     }
     output_path = _prepare_output_path(output_csv)
     output_fieldnames = _calibrated_prediction_fieldnames(fieldnames)
@@ -123,15 +209,18 @@ def write_cmapss_affine_calibrated_predictions_csv(
         writer.writeheader()
         for row in rows:
             calibration_key = (row["subset"], row["model_name"])
-            if calibration_key not in calibration_by_key:
+            calibration = _select_prediction_calibration(
+                row,
+                affine_by_key,
+                residual_by_key,
+            )
+            if calibration is None:
                 subset, model_name = calibration_key
                 raise ValueError(
                     "missing calibration for prediction row: "
                     f"subset={subset}, model_name={model_name}"
                 )
-            writer.writerow(
-                _calibrated_prediction_row(row, calibration_by_key[calibration_key])
-            )
+            writer.writerow(_calibrated_prediction_row(row, calibration))
 
     return len(rows)
 
@@ -141,19 +230,32 @@ def calibrate_cmapss_deep_predictions(
     calibration_csv: str | Path,
     predictions_csv: str | Path,
     output_csv: str | Path,
+    method: str = "affine",
     output_calibration_csv: str | Path | None = None,
     output_diagnostics_csv: str | Path | None = None,
     output_rul_bins_csv: str | Path | None = None,
     output_markdown: str | Path | None = None,
     top_n: int = 10,
     clip_min: float = 0.0,
+    shrinkage_strength: float = 100.0,
 ) -> CmapssPredictionCalibrationResult:
-    """Fit validation affine calibration, write calibrated predictions, and reports."""
+    """Fit validation calibration, write calibrated predictions, and reports."""
 
-    calibrations = fit_cmapss_affine_prediction_calibrations(
-        calibration_csv,
-        clip_min=clip_min,
-    )
+    if method == "affine":
+        calibrations: tuple[CmapssPredictionCalibration, ...] = (
+            fit_cmapss_affine_prediction_calibrations(
+                calibration_csv,
+                clip_min=clip_min,
+            )
+        )
+    elif method == "predicted_bin_residual":
+        calibrations = fit_cmapss_predicted_rul_bin_residual_calibrations(
+            calibration_csv,
+            shrinkage_strength=shrinkage_strength,
+            clip_min=clip_min,
+        )
+    else:
+        raise ValueError("method must be 'affine' or 'predicted_bin_residual'")
     calibrated_prediction_count = write_cmapss_affine_calibrated_predictions_csv(
         predictions_csv,
         output_csv,
@@ -261,10 +363,29 @@ def _fit_group_affine_calibration(
 
 def _calibrated_prediction_row(
     row: dict[str, str],
-    calibration: CmapssAffinePredictionCalibration,
+    calibration: CmapssPredictionCalibration,
 ) -> dict[str, Any]:
     raw_prediction = _float(row.get("raw_predicted_rul") or row["predicted_rul"])
-    calibrated_prediction = calibration.intercept + calibration.slope * raw_prediction
+    if isinstance(calibration, CmapssAffinePredictionCalibration):
+        calibrated_prediction = calibration.intercept + calibration.slope * raw_prediction
+        calibration_payload: dict[str, Any] = {
+            "calibration_count": calibration.calibration_count,
+            "calibration_intercept": calibration.intercept,
+            "calibration_slope": calibration.slope,
+            "calibration_predicted_rul_bin": "",
+            "calibration_correction": "",
+            "calibration_shrinkage_weight": "",
+        }
+    else:
+        calibrated_prediction = raw_prediction + calibration.correction
+        calibration_payload = {
+            "calibration_count": calibration.calibration_count,
+            "calibration_intercept": "",
+            "calibration_slope": "",
+            "calibration_predicted_rul_bin": calibration.predicted_rul_bin,
+            "calibration_correction": calibration.correction,
+            "calibration_shrinkage_weight": calibration.shrinkage_weight,
+        }
     calibrated_prediction = max(calibration.clip_min, calibrated_prediction)
     actual_rul = _float(row["actual_rul"])
     error = calibrated_prediction - actual_rul
@@ -279,13 +400,59 @@ def _calibrated_prediction_row(
             "late_error": max(error, 0.0),
             "early_error": max(-error, 0.0),
             "calibration_method": calibration.method,
-            "calibration_count": calibration.calibration_count,
-            "calibration_intercept": calibration.intercept,
-            "calibration_slope": calibration.slope,
             "calibration_clip_min": calibration.clip_min,
+            **calibration_payload,
         }
     )
     return output_row
+
+
+def _fit_predicted_rul_bin_residual_calibration(
+    subset: str,
+    model_name: str,
+    bin_label: str,
+    rows: list[dict[str, str]],
+    *,
+    shrinkage_strength: float,
+    clip_min: float,
+) -> CmapssPredictedRulBinResidualCalibration:
+    mean_error = _mean(_float(row["error"]) for row in rows)
+    shrinkage_weight = len(rows) / (len(rows) + shrinkage_strength)
+    lower_bound, upper_bound = _predicted_rul_bin_bounds(bin_label)
+    return CmapssPredictedRulBinResidualCalibration(
+        subset=subset,
+        model_name=model_name,
+        predicted_rul_bin=bin_label,
+        lower_bound=lower_bound,
+        upper_bound=upper_bound,
+        calibration_count=len(rows),
+        mean_actual_rul=_mean(_float(row["actual_rul"]) for row in rows),
+        mean_raw_predicted_rul=_mean(_float(row["predicted_rul"]) for row in rows),
+        mean_error=mean_error,
+        shrinkage_weight=shrinkage_weight,
+        correction=-mean_error * shrinkage_weight,
+        clip_min=clip_min,
+    )
+
+
+def _select_prediction_calibration(
+    row: dict[str, str],
+    affine_by_key: dict[tuple[str, str], CmapssAffinePredictionCalibration],
+    residual_by_key: dict[
+        tuple[str, str, str],
+        CmapssPredictedRulBinResidualCalibration,
+    ],
+) -> CmapssPredictionCalibration | None:
+    subset = row["subset"]
+    model_name = row["model_name"]
+    if affine_by_key:
+        return affine_by_key.get((subset, model_name))
+    raw_prediction = _float(row.get("raw_predicted_rul") or row["predicted_rul"])
+    bin_label = _predicted_rul_bin(raw_prediction)
+    return residual_by_key.get(
+        (subset, model_name, bin_label),
+        residual_by_key.get((subset, model_name, "all")),
+    )
 
 
 def _read_prediction_rows(path: str | Path) -> list[dict[str, str]]:
@@ -320,11 +487,49 @@ def _calibrated_prediction_fieldnames(fieldnames: list[str]) -> list[str]:
         "calibration_count",
         "calibration_intercept",
         "calibration_slope",
+        "calibration_predicted_rul_bin",
+        "calibration_correction",
+        "calibration_shrinkage_weight",
         "calibration_clip_min",
     ):
         if fieldname not in output_fieldnames:
             output_fieldnames.append(fieldname)
     return output_fieldnames
+
+
+def _calibration_fieldnames(
+    calibrations: tuple[CmapssPredictionCalibration, ...],
+) -> list[str]:
+    fieldnames: list[str] = []
+    for calibration in calibrations:
+        for fieldname in calibration.to_dict():
+            if fieldname not in fieldnames:
+                fieldnames.append(fieldname)
+    return fieldnames
+
+
+def _predicted_rul_bin(predicted_rul: float) -> str:
+    if predicted_rul <= 30:
+        return "0-30"
+    if predicted_rul <= 60:
+        return "31-60"
+    if predicted_rul <= 90:
+        return "61-90"
+    if predicted_rul <= 120:
+        return "91-120"
+    return "121+"
+
+
+def _predicted_rul_bin_bounds(label: str) -> tuple[float, float | str]:
+    bounds: dict[str, tuple[float, float | str]] = {
+        "all": (0.0, "inf"),
+        "0-30": (0.0, 30.0),
+        "31-60": (30.0, 60.0),
+        "61-90": (60.0, 90.0),
+        "91-120": (90.0, 120.0),
+        "121+": (120.0, "inf"),
+    }
+    return bounds[label]
 
 
 def _mean(values: Iterable[float]) -> float:
@@ -355,3 +560,5 @@ _REQUIRED_PREDICTION_COLUMNS = {
     "late_error",
     "early_error",
 }
+
+_PREDICTED_RUL_BIN_ORDER = ("0-30", "31-60", "61-90", "91-120", "121+")

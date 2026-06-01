@@ -731,9 +731,14 @@ def _build_parser() -> argparse.ArgumentParser:
     calibrate_deep_predictions = subparsers.add_parser(
         "cmapss-calibrate-deep-predictions",
         help=(
-            "Fit validation affine calibration for deep C-MAPSS predictions "
+            "Fit validation calibration for deep C-MAPSS predictions "
             "and apply it to an official-test prediction CSV"
         ),
+    )
+    calibrate_deep_predictions.add_argument(
+        "--method",
+        choices=["affine", "predicted_bin_residual"],
+        default="affine",
     )
     calibrate_deep_predictions.add_argument(
         "--calibration-csv",
@@ -754,6 +759,12 @@ def _build_parser() -> argparse.ArgumentParser:
     calibrate_deep_predictions.add_argument("--output-markdown", type=Path)
     calibrate_deep_predictions.add_argument("--top-n", type=int, default=10)
     calibrate_deep_predictions.add_argument("--clip-min", type=float, default=0.0)
+    calibrate_deep_predictions.add_argument(
+        "--shrinkage-strength",
+        type=float,
+        default=100.0,
+        help="Residual-bin shrinkage strength; larger values shrink corrections more",
+    )
 
     compare_rul_results = subparsers.add_parser(
         "cmapss-compare-rul-results",
@@ -1859,24 +1870,36 @@ def main(argv: list[str] | None = None) -> int:
             calibration_csv=args.calibration_csv,
             predictions_csv=args.predictions_csv,
             output_csv=args.output_csv,
+            method=args.method,
             output_calibration_csv=args.output_calibration_csv,
             output_diagnostics_csv=args.output_diagnostics_csv,
             output_rul_bins_csv=args.output_rul_bins_csv,
             output_markdown=args.output_markdown,
             top_n=args.top_n,
             clip_min=args.clip_min,
+            shrinkage_strength=args.shrinkage_strength,
         )
+        print(f"calibration_method={args.method}")
         print(f"calibration_groups={len(result.calibrations)}")
         print(f"calibrated_prediction_rows={result.calibrated_prediction_count}")
         print(f"calibrated_predictions_csv={result.calibrated_predictions_csv_path}")
         for calibration in result.calibrations:
-            print(
-                "calibration="
-                f"{calibration.subset}:{calibration.model_name}:"
-                f"rows={calibration.calibration_count}:"
-                f"intercept={_format_cli_float(calibration.intercept)}:"
-                f"slope={_format_cli_float(calibration.slope)}"
-            )
+            if hasattr(calibration, "predicted_rul_bin"):
+                print(
+                    "calibration="
+                    f"{calibration.subset}:{calibration.model_name}:"
+                    f"bin={calibration.predicted_rul_bin}:"
+                    f"rows={calibration.calibration_count}:"
+                    f"correction={_format_cli_float(calibration.correction)}"
+                )
+            else:
+                print(
+                    "calibration="
+                    f"{calibration.subset}:{calibration.model_name}:"
+                    f"rows={calibration.calibration_count}:"
+                    f"intercept={_format_cli_float(calibration.intercept)}:"
+                    f"slope={_format_cli_float(calibration.slope)}"
+                )
         if result.calibration_csv_path is not None:
             print(f"calibration_csv={result.calibration_csv_path}")
         if result.diagnostics_csv_path is not None:
