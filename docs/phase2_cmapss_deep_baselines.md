@@ -13,7 +13,7 @@ This note records the first Phase 2 sequence-model checkpoint. Phase 1 ended wit
 | Window size | 30 cycles |
 | Features | 24 standardized operating-setting and sensor channels |
 | Optimizer | Adam |
-| Loss | MSE |
+| Loss | MSE by default; optional `nasa_surrogate` asymmetric training loss |
 | Random seed | 42 |
 | Metrics | RMSE and NASA asymmetric RUL score |
 | Checkpoint policies | `validation_nasa` or `final` |
@@ -75,6 +75,8 @@ Reproducible Phase 2 workflow:
 uv run aerospace-prognostics phase2-cmapss --data-dir data/raw/cmapss --artifact-dir artifacts/phase2 --subsets FD001 --models cnn bilstm tcn transformer --epochs 50 --hidden-sizes 32 64 --learning-rates 0.001 0.0003
 uv run aerospace-prognostics phase2-cmapss-verify-manifest --manifest artifacts/phase2/phase2_run_manifest.json --output-markdown artifacts/phase2/phase2_manifest_audit.md
 ```
+
+All deep baseline commands and the workflow accept `--training-loss mse` or `--training-loss nasa_surrogate`. The surrogate keeps training differentiable while matching the NASA RUL score's asymmetric shape more closely: late predictions are penalized with the harsher denominator used by the official metric, and early predictions use the gentler denominator. Non-default runs include `_loss_nasa_surrogate_` in model names and record the training loss in the Phase 2 manifest and audit report.
 
 The workflow writes `phase2_summary.md` and `phase2_run_manifest.json` under the artifact directory. It also writes `results/cmapss_deep_predictions.csv`, a per-unit official-test diagnostics table with actual RUL, predicted RUL, signed error, absolute error, end cycle, and early/late error split for every deep-model candidate. The companion `results/cmapss_deep_prediction_diagnostics.csv`, `results/cmapss_deep_prediction_rul_bins.csv`, and markdown report summarize mean error, mean/max absolute error, late-prediction rate, actual-RUL-bin calibration, and the highest-error units. The same diagnostics are now emitted for rolling validation-selection windows under `results/cmapss_deep_validation_selection_predictions.csv`, `results/cmapss_deep_validation_selection_prediction_diagnostics.csv`, `results/cmapss_deep_validation_selection_prediction_rul_bins.csv`, and `results/cmapss_deep_validation_selection_prediction_diagnostics.md`, so calibration and tail-error ideas can be judged on train-only validation behavior before the official test table is touched. The manifest records run parameters, artifact paths, SHA-256/size checksums for the model outputs, prediction diagnostics, and sequence bundles, Python/platform/dependency versions, and Git commit state so a Phase 2 C-MAPSS run can be audited or reproduced from one bundle. The verify command checks manifest structure, referenced artifact existence, artifact checksums, and CSV row counts; with `--output-markdown`, it also writes a compact audit report.
 

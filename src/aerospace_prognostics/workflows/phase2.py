@@ -109,6 +109,7 @@ def run_phase2_cmapss_workflow(
     epochs: int = 5,
     batch_size: int = 256,
     learning_rates: tuple[float, ...] = (1e-3,),
+    training_loss: str = "mse",
     hidden_sizes: tuple[int, ...] = (32,),
     num_layers: int = 1,
     tcn_levels: int = 3,
@@ -167,6 +168,7 @@ def run_phase2_cmapss_workflow(
         epochs=epochs,
         batch_size=batch_size,
         learning_rates=learning_rates,
+        training_loss=training_loss,
         hidden_sizes=hidden_sizes,
         num_layers=num_layers,
         tcn_levels=tcn_levels,
@@ -292,6 +294,7 @@ def run_phase2_cmapss_workflow(
             deep_validation_selection_prediction_rul_bin_diagnostics
         ),
         comparison_rows=tuple(comparison_rows),
+        training_loss=training_loss,
     )
     artifact_paths = {
         "hgb_policy_json": _path_as_posix(hgb_policy_json_path),
@@ -346,6 +349,7 @@ def run_phase2_cmapss_workflow(
                 "epochs": epochs,
                 "batch_size": batch_size,
                 "learning_rates": learning_rates,
+                "training_loss": training_loss,
                 "hidden_sizes": hidden_sizes,
                 "num_layers": num_layers,
                 "tcn_levels": tcn_levels,
@@ -501,6 +505,7 @@ def write_phase2_cmapss_manifest_audit_markdown(
         f"- Subsets: {_markdown_inline(parameters.get('subsets'))}",
         f"- Models: {_markdown_inline(parameters.get('models'))}",
         f"- Epochs: {_markdown_inline(parameters.get('epochs'))}",
+        f"- Training loss: {_markdown_inline(parameters.get('training_loss'))}",
         f"- Checkpoint policy: {_markdown_inline(parameters.get('checkpoint_policy'))}",
         "",
         "## Runtime",
@@ -600,11 +605,13 @@ def _write_phase2_summary(
         CmapssPredictionRulBinDiagnosticRow, ...
     ],
     comparison_rows: tuple[CmapssModelComparisonRow, ...],
+    training_loss: str,
 ) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     lines = [
         "# Phase 2 C-MAPSS Summary",
         "",
+        f"- Training loss: {training_loss}",
         f"- Sequence tensors: `{sequence_dir.as_posix()}`",
         f"- Phase 1 HGB policy baseline: `{hgb_policy_csv_path.as_posix()}`",
         f"- Phase 2 deep comparison table: `{deep_compare_csv_path.as_posix()}`",

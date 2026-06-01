@@ -522,6 +522,8 @@ def test_phase2_cmapss_command_runs_sequence_model_workflow(tmp_path, capsys) ->
             "1",
             "--batch-size",
             "2",
+            "--training-loss",
+            "nasa_surrogate",
             "--hidden-sizes",
             "4",
             "--tcn-levels",
@@ -561,6 +563,12 @@ def test_phase2_cmapss_command_runs_sequence_model_workflow(tmp_path, capsys) ->
         artifact_dir / "results" / "cmapss_deep_validation_selection_prediction_diagnostics.md"
     ).exists()
     assert (artifact_dir / "results" / "cmapss_phase2_model_comparison.md").exists()
+    manifest = json.loads(
+        (artifact_dir / "phase2_run_manifest.json").read_text(encoding="utf-8")
+    )
+    assert manifest["parameters"]["training_loss"] == "nasa_surrogate"
+    summary_markdown = (artifact_dir / "phase2_summary.md").read_text(encoding="utf-8")
+    assert "- Training loss: nasa_surrogate" in summary_markdown
 
     verify_exit_code = main(
         [
@@ -580,6 +588,7 @@ def test_phase2_cmapss_command_runs_sequence_model_workflow(tmp_path, capsys) ->
     audit_markdown = (artifact_dir / "phase2_manifest_audit.md").read_text(encoding="utf-8")
     assert "# Phase 2 C-MAPSS Manifest Audit" in audit_markdown
     assert "- Status: ok" in audit_markdown
+    assert "- Training loss: nasa_surrogate" in audit_markdown
 
 
 def test_cmapss_export_sequences_command_writes_sequence_artifacts(tmp_path, capsys) -> None:
@@ -649,6 +658,8 @@ def test_cmapss_cnn_baseline_command_writes_result_tables(tmp_path, capsys) -> N
             "2",
             "--hidden-channels",
             "4",
+            "--training-loss",
+            "nasa_surrogate",
             "--output-csv",
             str(output_csv),
             "--history-json",
@@ -659,8 +670,10 @@ def test_cmapss_cnn_baseline_command_writes_result_tables(tmp_path, capsys) -> N
 
     assert exit_code == 0
     assert "epochs=1" in output
+    assert "training_loss=nasa_surrogate" in output
     assert "checkpoint_policy=validation_nasa" in output
     assert "FD001,cnn_1d_w2_e1_c4" in output
+    assert "_loss_nasa_surrogate_" in output
     assert "selected_epochs=FD001:1" in output
     assert output_csv.exists()
     assert history_json.exists()

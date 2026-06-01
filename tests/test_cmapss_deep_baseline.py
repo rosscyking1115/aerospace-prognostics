@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import csv
 
+import pytest
 import torch
 
 from aerospace_prognostics.experiments.cmapss_deep_baseline import (
@@ -9,6 +10,7 @@ from aerospace_prognostics.experiments.cmapss_deep_baseline import (
     CmapssOneDimensionalCnn,
     CmapssTemporalConvolutionalRegressor,
     CmapssTransformerRegressor,
+    _deep_training_loss,
     run_all_cmapss_cnn_baselines,
     run_all_cmapss_lstm_baselines,
     run_all_cmapss_tcn_baselines,
@@ -70,6 +72,28 @@ def test_cmapss_transformer_forward_returns_batch_predictions() -> None:
     predictions = model(torch.zeros((2, 5, 3), dtype=torch.float32))
 
     assert predictions.shape == (2,)
+
+
+def test_nasa_surrogate_training_loss_penalizes_late_errors_more() -> None:
+    target = torch.tensor([100.0])
+    late_loss = _deep_training_loss(
+        torch.tensor([110.0]),
+        target,
+        training_loss="nasa_surrogate",
+    )
+    early_loss = _deep_training_loss(
+        torch.tensor([90.0]),
+        target,
+        training_loss="nasa_surrogate",
+    )
+    mse_loss = _deep_training_loss(
+        torch.tensor([110.0]),
+        target,
+        training_loss="mse",
+    )
+
+    assert late_loss > early_loss
+    assert float(mse_loss) == pytest.approx(100.0)
 
 
 def test_run_cmapss_cnn_baseline_returns_structured_result(tmp_path) -> None:
@@ -224,6 +248,31 @@ def test_run_cmapss_cnn_baseline_run_tracks_history_and_selected_epoch(tmp_path)
     assert all(
         prediction.absolute_error >= 0 for prediction in run.validation_selection_predictions
     )
+
+
+def test_run_cmapss_cnn_baseline_run_supports_nasa_surrogate_loss(tmp_path) -> None:
+    write_tiny_cmapss_subset(tmp_path)
+    sequence_dir = tmp_path / "sequences"
+    export_cmapss_sequence_splits(
+        tmp_path,
+        sequence_dir,
+        "FD001",
+        window_size=2,
+        validation_fraction=0.5,
+        validation_horizon=1,
+    )
+
+    run = run_cmapss_cnn_baseline_run(
+        sequence_dir,
+        "FD001",
+        epochs=1,
+        batch_size=2,
+        training_loss="nasa_surrogate",
+        hidden_channels=4,
+    )
+
+    assert "_loss_nasa_surrogate_" in run.result.model_name
+    assert run.history[0].train_loss >= 0
 
 
 def test_run_cmapss_lstm_baseline_run_supports_bidirectional_checkpointing(

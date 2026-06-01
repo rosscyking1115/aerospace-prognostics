@@ -76,6 +76,7 @@ from aerospace_prognostics.experiments.cmapss_baseline import (
 )
 from aerospace_prognostics.experiments.cmapss_deep_baseline import (
     CMAPSS_DEEP_COMPARISON_MODELS,
+    CMAPSS_DEEP_TRAINING_LOSSES,
     CmapssCnnBaselineRun,
     CmapssLstmBaselineRun,
     CmapssTcnBaselineRun,
@@ -472,6 +473,11 @@ def _build_parser() -> argparse.ArgumentParser:
     phase2.add_argument("--epochs", type=int, default=5)
     phase2.add_argument("--batch-size", type=int, default=256)
     phase2.add_argument("--learning-rates", nargs="+", type=float, default=[1e-3])
+    phase2.add_argument(
+        "--training-loss",
+        choices=CMAPSS_DEEP_TRAINING_LOSSES,
+        default="mse",
+    )
     phase2.add_argument("--hidden-sizes", nargs="+", type=int, default=[32])
     phase2.add_argument("--num-layers", type=int, default=1)
     phase2.add_argument("--tcn-levels", type=int, default=3)
@@ -589,6 +595,11 @@ def _build_parser() -> argparse.ArgumentParser:
     cnn_baseline.add_argument("--epochs", type=int, default=5)
     cnn_baseline.add_argument("--batch-size", type=int, default=256)
     cnn_baseline.add_argument("--learning-rate", type=float, default=1e-3)
+    cnn_baseline.add_argument(
+        "--training-loss",
+        choices=CMAPSS_DEEP_TRAINING_LOSSES,
+        default="mse",
+    )
     cnn_baseline.add_argument("--hidden-channels", type=int, default=32)
     cnn_baseline.add_argument("--kernel-size", type=int, default=3)
     cnn_baseline.add_argument("--dropout", type=float, default=0.1)
@@ -617,6 +628,11 @@ def _build_parser() -> argparse.ArgumentParser:
     lstm_baseline.add_argument("--epochs", type=int, default=5)
     lstm_baseline.add_argument("--batch-size", type=int, default=256)
     lstm_baseline.add_argument("--learning-rate", type=float, default=1e-3)
+    lstm_baseline.add_argument(
+        "--training-loss",
+        choices=CMAPSS_DEEP_TRAINING_LOSSES,
+        default="mse",
+    )
     lstm_baseline.add_argument("--hidden-size", type=int, default=32)
     lstm_baseline.add_argument("--num-layers", type=int, default=1)
     lstm_baseline.add_argument("--dropout", type=float, default=0.1)
@@ -646,6 +662,11 @@ def _build_parser() -> argparse.ArgumentParser:
     tcn_baseline.add_argument("--epochs", type=int, default=5)
     tcn_baseline.add_argument("--batch-size", type=int, default=256)
     tcn_baseline.add_argument("--learning-rate", type=float, default=1e-3)
+    tcn_baseline.add_argument(
+        "--training-loss",
+        choices=CMAPSS_DEEP_TRAINING_LOSSES,
+        default="mse",
+    )
     tcn_baseline.add_argument("--hidden-channels", type=int, default=32)
     tcn_baseline.add_argument("--num-levels", type=int, default=3)
     tcn_baseline.add_argument("--kernel-size", type=int, default=3)
@@ -675,6 +696,11 @@ def _build_parser() -> argparse.ArgumentParser:
     transformer_baseline.add_argument("--epochs", type=int, default=5)
     transformer_baseline.add_argument("--batch-size", type=int, default=256)
     transformer_baseline.add_argument("--learning-rate", type=float, default=1e-3)
+    transformer_baseline.add_argument(
+        "--training-loss",
+        choices=CMAPSS_DEEP_TRAINING_LOSSES,
+        default="mse",
+    )
     transformer_baseline.add_argument("--d-model", type=int, default=32)
     transformer_baseline.add_argument("--num-heads", type=int, default=4)
     transformer_baseline.add_argument("--num-layers", type=int, default=2)
@@ -711,6 +737,11 @@ def _build_parser() -> argparse.ArgumentParser:
     deep_compare.add_argument("--epochs", type=int, default=5)
     deep_compare.add_argument("--batch-size", type=int, default=256)
     deep_compare.add_argument("--learning-rates", nargs="+", type=float, default=[1e-3])
+    deep_compare.add_argument(
+        "--training-loss",
+        choices=CMAPSS_DEEP_TRAINING_LOSSES,
+        default="mse",
+    )
     deep_compare.add_argument("--hidden-sizes", nargs="+", type=int, default=[32])
     deep_compare.add_argument("--num-layers", type=int, default=1)
     deep_compare.add_argument("--tcn-levels", type=int, default=3)
@@ -1490,6 +1521,7 @@ def main(argv: list[str] | None = None) -> int:
             epochs=args.epochs,
             batch_size=args.batch_size,
             learning_rates=tuple(args.learning_rates),
+            training_loss=args.training_loss,
             hidden_sizes=tuple(args.hidden_sizes),
             num_layers=args.num_layers,
             tcn_levels=args.tcn_levels,
@@ -1671,6 +1703,7 @@ def main(argv: list[str] | None = None) -> int:
             epochs=args.epochs,
             batch_size=args.batch_size,
             learning_rate=args.learning_rate,
+            training_loss=args.training_loss,
             hidden_channels=args.hidden_channels,
             kernel_size=args.kernel_size,
             dropout=args.dropout,
@@ -1682,6 +1715,7 @@ def main(argv: list[str] | None = None) -> int:
         print(f"epochs={args.epochs}")
         print(f"batch_size={args.batch_size}")
         print(f"learning_rate={args.learning_rate}")
+        print(f"training_loss={args.training_loss}")
         print(f"hidden_channels={args.hidden_channels}")
         print(f"kernel_size={args.kernel_size}")
         print(f"dropout={args.dropout}")
@@ -1707,6 +1741,7 @@ def main(argv: list[str] | None = None) -> int:
             epochs=args.epochs,
             batch_size=args.batch_size,
             learning_rate=args.learning_rate,
+            training_loss=args.training_loss,
             hidden_size=args.hidden_size,
             num_layers=args.num_layers,
             dropout=args.dropout,
@@ -1719,6 +1754,7 @@ def main(argv: list[str] | None = None) -> int:
         print(f"epochs={args.epochs}")
         print(f"batch_size={args.batch_size}")
         print(f"learning_rate={args.learning_rate}")
+        print(f"training_loss={args.training_loss}")
         print(f"hidden_size={args.hidden_size}")
         print(f"num_layers={args.num_layers}")
         print(f"dropout={args.dropout}")
@@ -1745,6 +1781,7 @@ def main(argv: list[str] | None = None) -> int:
             epochs=args.epochs,
             batch_size=args.batch_size,
             learning_rate=args.learning_rate,
+            training_loss=args.training_loss,
             hidden_channels=args.hidden_channels,
             num_levels=args.num_levels,
             kernel_size=args.kernel_size,
@@ -1757,6 +1794,7 @@ def main(argv: list[str] | None = None) -> int:
         print(f"epochs={args.epochs}")
         print(f"batch_size={args.batch_size}")
         print(f"learning_rate={args.learning_rate}")
+        print(f"training_loss={args.training_loss}")
         print(f"hidden_channels={args.hidden_channels}")
         print(f"num_levels={args.num_levels}")
         print(f"kernel_size={args.kernel_size}")
@@ -1783,6 +1821,7 @@ def main(argv: list[str] | None = None) -> int:
             epochs=args.epochs,
             batch_size=args.batch_size,
             learning_rate=args.learning_rate,
+            training_loss=args.training_loss,
             d_model=args.d_model,
             num_heads=args.num_heads,
             num_layers=args.num_layers,
@@ -1796,6 +1835,7 @@ def main(argv: list[str] | None = None) -> int:
         print(f"epochs={args.epochs}")
         print(f"batch_size={args.batch_size}")
         print(f"learning_rate={args.learning_rate}")
+        print(f"training_loss={args.training_loss}")
         print(f"d_model={args.d_model}")
         print(f"num_heads={args.num_heads}")
         print(f"num_layers={args.num_layers}")
@@ -1824,6 +1864,7 @@ def main(argv: list[str] | None = None) -> int:
             epochs=args.epochs,
             batch_size=args.batch_size,
             learning_rates=tuple(args.learning_rates),
+            training_loss=args.training_loss,
             hidden_sizes=tuple(args.hidden_sizes),
             num_layers=args.num_layers,
             tcn_levels=args.tcn_levels,
@@ -1842,6 +1883,7 @@ def main(argv: list[str] | None = None) -> int:
             "learning_rates="
             + ",".join(_format_cli_float(value) for value in args.learning_rates)
         )
+        print(f"training_loss={args.training_loss}")
         print(f"hidden_sizes={','.join(str(value) for value in args.hidden_sizes)}")
         print(f"num_layers={args.num_layers}")
         print(f"tcn_levels={args.tcn_levels}")

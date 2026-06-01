@@ -19,6 +19,7 @@ from aerospace_prognostics.evaluation import RegressionRunResult
 from aerospace_prognostics.metrics import nasa_rul_score, rmse
 
 CMAPSS_DEEP_COMPARISON_MODELS = ("cnn", "lstm", "bilstm", "tcn", "transformer")
+CMAPSS_DEEP_TRAINING_LOSSES = ("mse", "nasa_surrogate")
 
 
 @dataclass(frozen=True)
@@ -402,6 +403,7 @@ def run_cmapss_cnn_baseline(
     epochs: int = 5,
     batch_size: int = 256,
     learning_rate: float = 1e-3,
+    training_loss: str = "mse",
     hidden_channels: int = 32,
     kernel_size: int = 3,
     dropout: float = 0.1,
@@ -417,6 +419,7 @@ def run_cmapss_cnn_baseline(
         epochs=epochs,
         batch_size=batch_size,
         learning_rate=learning_rate,
+        training_loss=training_loss,
         hidden_channels=hidden_channels,
         kernel_size=kernel_size,
         dropout=dropout,
@@ -433,6 +436,7 @@ def run_cmapss_cnn_baseline_run(
     epochs: int = 5,
     batch_size: int = 256,
     learning_rate: float = 1e-3,
+    training_loss: str = "mse",
     hidden_channels: int = 32,
     kernel_size: int = 3,
     dropout: float = 0.1,
@@ -448,6 +452,7 @@ def run_cmapss_cnn_baseline_run(
         raise ValueError("batch_size must be at least 1")
     if learning_rate <= 0:
         raise ValueError("learning_rate must be positive")
+    _validate_training_loss(training_loss)
     if checkpoint_policy not in {"validation_nasa", "final"}:
         raise ValueError("checkpoint_policy must be 'validation_nasa' or 'final'")
 
@@ -466,6 +471,7 @@ def run_cmapss_cnn_baseline_run(
             epochs=epochs,
             batch_size=batch_size,
             learning_rate=learning_rate,
+            training_loss=training_loss,
             checkpoint_policy=checkpoint_policy,
             random_state=random_state,
             device=device,
@@ -491,6 +497,7 @@ def run_cmapss_lstm_baseline(
     epochs: int = 5,
     batch_size: int = 256,
     learning_rate: float = 1e-3,
+    training_loss: str = "mse",
     hidden_size: int = 32,
     num_layers: int = 1,
     dropout: float = 0.1,
@@ -507,6 +514,7 @@ def run_cmapss_lstm_baseline(
         epochs=epochs,
         batch_size=batch_size,
         learning_rate=learning_rate,
+        training_loss=training_loss,
         hidden_size=hidden_size,
         num_layers=num_layers,
         dropout=dropout,
@@ -524,6 +532,7 @@ def run_cmapss_lstm_baseline_run(
     epochs: int = 5,
     batch_size: int = 256,
     learning_rate: float = 1e-3,
+    training_loss: str = "mse",
     hidden_size: int = 32,
     num_layers: int = 1,
     dropout: float = 0.1,
@@ -556,6 +565,7 @@ def run_cmapss_lstm_baseline_run(
             epochs=epochs,
             batch_size=batch_size,
             learning_rate=learning_rate,
+            training_loss=training_loss,
             checkpoint_policy=checkpoint_policy,
             random_state=random_state,
             device=device,
@@ -581,6 +591,7 @@ def run_cmapss_tcn_baseline(
     epochs: int = 5,
     batch_size: int = 256,
     learning_rate: float = 1e-3,
+    training_loss: str = "mse",
     hidden_channels: int = 32,
     num_levels: int = 3,
     kernel_size: int = 3,
@@ -597,6 +608,7 @@ def run_cmapss_tcn_baseline(
         epochs=epochs,
         batch_size=batch_size,
         learning_rate=learning_rate,
+        training_loss=training_loss,
         hidden_channels=hidden_channels,
         num_levels=num_levels,
         kernel_size=kernel_size,
@@ -614,6 +626,7 @@ def run_cmapss_tcn_baseline_run(
     epochs: int = 5,
     batch_size: int = 256,
     learning_rate: float = 1e-3,
+    training_loss: str = "mse",
     hidden_channels: int = 32,
     num_levels: int = 3,
     kernel_size: int = 3,
@@ -647,6 +660,7 @@ def run_cmapss_tcn_baseline_run(
             epochs=epochs,
             batch_size=batch_size,
             learning_rate=learning_rate,
+            training_loss=training_loss,
             checkpoint_policy=checkpoint_policy,
             random_state=random_state,
             device=device,
@@ -673,6 +687,7 @@ def run_cmapss_transformer_baseline(
     epochs: int = 5,
     batch_size: int = 256,
     learning_rate: float = 1e-3,
+    training_loss: str = "mse",
     d_model: int = 32,
     num_heads: int = 4,
     num_layers: int = 2,
@@ -690,6 +705,7 @@ def run_cmapss_transformer_baseline(
         epochs=epochs,
         batch_size=batch_size,
         learning_rate=learning_rate,
+        training_loss=training_loss,
         d_model=d_model,
         num_heads=num_heads,
         num_layers=num_layers,
@@ -708,6 +724,7 @@ def run_cmapss_transformer_baseline_run(
     epochs: int = 5,
     batch_size: int = 256,
     learning_rate: float = 1e-3,
+    training_loss: str = "mse",
     d_model: int = 32,
     num_heads: int = 4,
     num_layers: int = 2,
@@ -748,6 +765,7 @@ def run_cmapss_transformer_baseline_run(
             epochs=epochs,
             batch_size=batch_size,
             learning_rate=learning_rate,
+            training_loss=training_loss,
             checkpoint_policy=checkpoint_policy,
             random_state=random_state,
             device=device,
@@ -774,6 +792,7 @@ def _run_sequence_baseline_run(
     epochs: int,
     batch_size: int,
     learning_rate: float,
+    training_loss: str,
     checkpoint_policy: str,
     random_state: int,
     device: str,
@@ -792,6 +811,7 @@ def _run_sequence_baseline_run(
         raise ValueError("batch_size must be at least 1")
     if learning_rate <= 0:
         raise ValueError("learning_rate must be positive")
+    _validate_training_loss(training_loss)
     if checkpoint_policy not in {"validation_nasa", "final"}:
         raise ValueError("checkpoint_policy must be 'validation_nasa' or 'final'")
 
@@ -808,7 +828,6 @@ def _run_sequence_baseline_run(
         int(train_payload["windows"].shape[1]),
     ).to(torch_device)
     optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
-    loss_function = nn.MSELoss()
     loader = DataLoader(
         TensorDataset(
             torch.as_tensor(train_payload["windows"], dtype=torch.float32),
@@ -830,7 +849,11 @@ def _run_sequence_baseline_run(
             batch_windows = batch_windows.to(torch_device)
             batch_targets = batch_targets.to(torch_device)
             optimizer.zero_grad()
-            loss = loss_function(model(batch_windows), batch_targets)
+            loss = _deep_training_loss(
+                model(batch_windows),
+                batch_targets,
+                training_loss=training_loss,
+            )
             loss.backward()
             optimizer.step()
             batch_size_actual = len(batch_targets)
@@ -874,7 +897,8 @@ def _run_sequence_baseline_run(
         torch_device,
     )
     test_predictions = _predict(model, test_payload["windows"], torch_device)
-    model_name = f"{model_name_base_factory(metadata)}_{selected_label}"
+    loss_label = "" if training_loss == "mse" else f"_loss_{training_loss}"
+    model_name = f"{model_name_base_factory(metadata)}{loss_label}_{selected_label}"
 
     result = RegressionRunResult(
         dataset="C-MAPSS-sequence",
@@ -947,6 +971,28 @@ def _build_sequence_predictions(
     return tuple(rows)
 
 
+def _deep_training_loss(
+    predictions: torch.Tensor,
+    targets: torch.Tensor,
+    *,
+    training_loss: str,
+) -> torch.Tensor:
+    if training_loss == "mse":
+        return nn.functional.mse_loss(predictions, targets)
+    if training_loss == "nasa_surrogate":
+        errors = predictions - targets
+        late_terms = torch.expm1(torch.clamp(errors / 10.0, min=0.0, max=20.0))
+        early_terms = torch.expm1(torch.clamp(-errors / 13.0, min=0.0, max=20.0))
+        return torch.mean(late_terms + early_terms)
+    raise ValueError(f"unknown training_loss: {training_loss}")
+
+
+def _validate_training_loss(training_loss: str) -> None:
+    if training_loss not in CMAPSS_DEEP_TRAINING_LOSSES:
+        valid = "', '".join(CMAPSS_DEEP_TRAINING_LOSSES)
+        raise ValueError(f"training_loss must be one of: '{valid}'")
+
+
 def run_all_cmapss_cnn_baselines(
     sequence_dir: str | Path,
     *,
@@ -954,6 +1000,7 @@ def run_all_cmapss_cnn_baselines(
     epochs: int = 5,
     batch_size: int = 256,
     learning_rate: float = 1e-3,
+    training_loss: str = "mse",
     hidden_channels: int = 32,
     kernel_size: int = 3,
     dropout: float = 0.1,
@@ -971,6 +1018,7 @@ def run_all_cmapss_cnn_baselines(
             epochs=epochs,
             batch_size=batch_size,
             learning_rate=learning_rate,
+            training_loss=training_loss,
             hidden_channels=hidden_channels,
             kernel_size=kernel_size,
             dropout=dropout,
@@ -988,6 +1036,7 @@ def run_all_cmapss_lstm_baselines(
     epochs: int = 5,
     batch_size: int = 256,
     learning_rate: float = 1e-3,
+    training_loss: str = "mse",
     hidden_size: int = 32,
     num_layers: int = 1,
     dropout: float = 0.1,
@@ -1006,6 +1055,7 @@ def run_all_cmapss_lstm_baselines(
             epochs=epochs,
             batch_size=batch_size,
             learning_rate=learning_rate,
+            training_loss=training_loss,
             hidden_size=hidden_size,
             num_layers=num_layers,
             dropout=dropout,
@@ -1024,6 +1074,7 @@ def run_all_cmapss_lstm_baseline_runs(
     epochs: int = 5,
     batch_size: int = 256,
     learning_rate: float = 1e-3,
+    training_loss: str = "mse",
     hidden_size: int = 32,
     num_layers: int = 1,
     dropout: float = 0.1,
@@ -1041,6 +1092,7 @@ def run_all_cmapss_lstm_baseline_runs(
             epochs=epochs,
             batch_size=batch_size,
             learning_rate=learning_rate,
+            training_loss=training_loss,
             hidden_size=hidden_size,
             num_layers=num_layers,
             dropout=dropout,
@@ -1060,6 +1112,7 @@ def run_all_cmapss_tcn_baselines(
     epochs: int = 5,
     batch_size: int = 256,
     learning_rate: float = 1e-3,
+    training_loss: str = "mse",
     hidden_channels: int = 32,
     num_levels: int = 3,
     kernel_size: int = 3,
@@ -1078,6 +1131,7 @@ def run_all_cmapss_tcn_baselines(
             epochs=epochs,
             batch_size=batch_size,
             learning_rate=learning_rate,
+            training_loss=training_loss,
             hidden_channels=hidden_channels,
             num_levels=num_levels,
             kernel_size=kernel_size,
@@ -1096,6 +1150,7 @@ def run_all_cmapss_transformer_baselines(
     epochs: int = 5,
     batch_size: int = 256,
     learning_rate: float = 1e-3,
+    training_loss: str = "mse",
     d_model: int = 32,
     num_heads: int = 4,
     num_layers: int = 2,
@@ -1115,6 +1170,7 @@ def run_all_cmapss_transformer_baselines(
             epochs=epochs,
             batch_size=batch_size,
             learning_rate=learning_rate,
+            training_loss=training_loss,
             d_model=d_model,
             num_heads=num_heads,
             num_layers=num_layers,
@@ -1134,6 +1190,7 @@ def run_all_cmapss_transformer_baseline_runs(
     epochs: int = 5,
     batch_size: int = 256,
     learning_rate: float = 1e-3,
+    training_loss: str = "mse",
     d_model: int = 32,
     num_heads: int = 4,
     num_layers: int = 2,
@@ -1152,6 +1209,7 @@ def run_all_cmapss_transformer_baseline_runs(
             epochs=epochs,
             batch_size=batch_size,
             learning_rate=learning_rate,
+            training_loss=training_loss,
             d_model=d_model,
             num_heads=num_heads,
             num_layers=num_layers,
@@ -1172,6 +1230,7 @@ def run_all_cmapss_tcn_baseline_runs(
     epochs: int = 5,
     batch_size: int = 256,
     learning_rate: float = 1e-3,
+    training_loss: str = "mse",
     hidden_channels: int = 32,
     num_levels: int = 3,
     kernel_size: int = 3,
@@ -1189,6 +1248,7 @@ def run_all_cmapss_tcn_baseline_runs(
             epochs=epochs,
             batch_size=batch_size,
             learning_rate=learning_rate,
+            training_loss=training_loss,
             hidden_channels=hidden_channels,
             num_levels=num_levels,
             kernel_size=kernel_size,
@@ -1209,6 +1269,7 @@ def run_cmapss_deep_baseline_comparison(
     epochs: int = 5,
     batch_size: int = 256,
     learning_rates: tuple[float, ...] = (1e-3,),
+    training_loss: str = "mse",
     hidden_sizes: tuple[int, ...] = (32,),
     num_layers: int = 1,
     tcn_levels: int = 3,
@@ -1231,6 +1292,7 @@ def run_cmapss_deep_baseline_comparison(
             epochs=epochs,
             batch_size=batch_size,
             learning_rates=learning_rates,
+            training_loss=training_loss,
             hidden_sizes=hidden_sizes,
             num_layers=num_layers,
             tcn_levels=tcn_levels,
@@ -1253,6 +1315,7 @@ def run_cmapss_deep_baseline_comparison_runs(
     epochs: int = 5,
     batch_size: int = 256,
     learning_rates: tuple[float, ...] = (1e-3,),
+    training_loss: str = "mse",
     hidden_sizes: tuple[int, ...] = (32,),
     num_layers: int = 1,
     tcn_levels: int = 3,
@@ -1269,6 +1332,7 @@ def run_cmapss_deep_baseline_comparison_runs(
     _validate_deep_comparison_inputs(
         models=models,
         learning_rates=learning_rates,
+        training_loss=training_loss,
         hidden_sizes=hidden_sizes,
     )
     runs: list[CmapssDeepBaselineRun] = []
@@ -1282,6 +1346,7 @@ def run_cmapss_deep_baseline_comparison_runs(
                     epochs=epochs,
                     batch_size=batch_size,
                     learning_rate=learning_rate,
+                    training_loss=training_loss,
                     hidden_size=hidden_size,
                     num_layers=num_layers,
                     tcn_levels=tcn_levels,
@@ -1360,6 +1425,7 @@ def _validate_deep_comparison_inputs(
     *,
     models: tuple[str, ...],
     learning_rates: tuple[float, ...],
+    training_loss: str,
     hidden_sizes: tuple[int, ...],
 ) -> None:
     if not models:
@@ -1373,6 +1439,7 @@ def _validate_deep_comparison_inputs(
         raise ValueError("hidden_sizes must contain at least one value")
     if any(learning_rate <= 0 for learning_rate in learning_rates):
         raise ValueError("learning_rates must all be positive")
+    _validate_training_loss(training_loss)
     if any(hidden_size < 1 for hidden_size in hidden_sizes):
         raise ValueError("hidden_sizes must all be at least 1")
 
@@ -1385,6 +1452,7 @@ def _run_deep_comparison_candidate_runs(
     epochs: int,
     batch_size: int,
     learning_rate: float,
+    training_loss: str,
     hidden_size: int,
     num_layers: int,
     tcn_levels: int,
@@ -1403,6 +1471,7 @@ def _run_deep_comparison_candidate_runs(
             epochs=epochs,
             batch_size=batch_size,
             learning_rate=learning_rate,
+            training_loss=training_loss,
             hidden_channels=hidden_size,
             kernel_size=kernel_size,
             dropout=dropout,
@@ -1417,6 +1486,7 @@ def _run_deep_comparison_candidate_runs(
             epochs=epochs,
             batch_size=batch_size,
             learning_rate=learning_rate,
+            training_loss=training_loss,
             hidden_size=hidden_size,
             num_layers=num_layers,
             dropout=dropout,
@@ -1432,6 +1502,7 @@ def _run_deep_comparison_candidate_runs(
             epochs=epochs,
             batch_size=batch_size,
             learning_rate=learning_rate,
+            training_loss=training_loss,
             hidden_channels=hidden_size,
             num_levels=tcn_levels,
             kernel_size=kernel_size,
@@ -1446,6 +1517,7 @@ def _run_deep_comparison_candidate_runs(
         epochs=epochs,
         batch_size=batch_size,
         learning_rate=learning_rate,
+        training_loss=training_loss,
         d_model=hidden_size,
         num_heads=transformer_heads,
         num_layers=num_layers,
@@ -1497,6 +1569,7 @@ def run_all_cmapss_cnn_baseline_runs(
     epochs: int = 5,
     batch_size: int = 256,
     learning_rate: float = 1e-3,
+    training_loss: str = "mse",
     hidden_channels: int = 32,
     kernel_size: int = 3,
     dropout: float = 0.1,
@@ -1513,6 +1586,7 @@ def run_all_cmapss_cnn_baseline_runs(
             epochs=epochs,
             batch_size=batch_size,
             learning_rate=learning_rate,
+            training_loss=training_loss,
             hidden_channels=hidden_channels,
             kernel_size=kernel_size,
             dropout=dropout,
