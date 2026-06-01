@@ -206,6 +206,25 @@ These short runs are loss-path checks, not promotion candidates. All three manif
 
 The takeaway is useful even though the scores are weak: pure NASA-surrogate optimization is too steep as a standalone objective, while the blended variants are safe knobs for longer Transformer sweeps. Any promotion-quality comparison should use the known 40-epoch Transformer budget or longer; 10 epochs mostly measures undertraining.
 
+40-epoch blended-loss Transformer check:
+
+```powershell
+uv run aerospace-prognostics phase2-cmapss --data-dir data/raw/cmapss --artifact-dir artifacts/phase2_fd001_transformer_h32_40e_mse_nasa_blend_w0p0001 --subsets FD001 --models transformer --epochs 40 --batch-size 256 --hidden-sizes 32 --learning-rates 0.001 --validation-horizon 30 --checkpoint-policy validation_nasa --training-loss mse_nasa_blend_w0p0001
+uv run aerospace-prognostics phase2-cmapss --data-dir data/raw/cmapss --artifact-dir artifacts/phase2_fd001_transformer_h32_40e_mse_nasa_blend_w0p001 --subsets FD001 --models transformer --epochs 40 --batch-size 256 --hidden-sizes 32 --learning-rates 0.001 --validation-horizon 30 --checkpoint-policy validation_nasa --training-loss mse_nasa_blend_w0p001
+uv run aerospace-prognostics phase2-cmapss-verify-manifest --manifest artifacts/phase2_fd001_transformer_h32_40e_mse_nasa_blend_w0p0001/phase2_run_manifest.json --output-markdown artifacts/phase2_fd001_transformer_h32_40e_mse_nasa_blend_w0p0001/phase2_manifest_audit.md
+uv run aerospace-prognostics phase2-cmapss-verify-manifest --manifest artifacts/phase2_fd001_transformer_h32_40e_mse_nasa_blend_w0p001/phase2_run_manifest.json --output-markdown artifacts/phase2_fd001_transformer_h32_40e_mse_nasa_blend_w0p001/phase2_manifest_audit.md
+```
+
+Both manifests verified with `status=ok` across 21 checked artifacts. The blended losses stayed on the same selected checkpoint pattern as MSE, selecting epoch 39, and produced only tiny official-test changes:
+
+| Training Loss | Selected Epoch | Validation RMSE | Validation NASA Score | Official Test RMSE | Official Test NASA Score | Mean Error | Late Rate |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| `mse` | 39 | 15.026410 | 11200.658784 | 14.339589 | 299.978246 | -2.515066 | 0.430000 |
+| `mse_nasa_blend_w0p0001` | 39 | 15.026353 | 11200.184598 | 14.339547 | 299.974989 | -2.515430 | 0.430000 |
+| `mse_nasa_blend_w0p001` | 39 | 15.025851 | 11195.969932 | 14.339186 | 299.946394 | -2.518681 | 0.430000 |
+
+The `w0p001` blend is the best of this small loss-shaping check, but the improvement is marginal: NASA score moves by about -0.031853 versus the MSE Transformer and remains well behind the Phase 1 HGB policy score of 253.465322. That means loss blending is safe to carry into later sweeps, but it is not by itself the missing model-quality step. The next stronger candidate should be architecture or constraint work: residual temporal blocks, monotonic degradation penalties, or target/health-index shaping.
+
 ## FD001 First Result
 
 | Checkpoint | Model | Selected Epoch | Validation RMSE | Validation NASA Score | Official Test RMSE | Official Test NASA Score |
@@ -221,6 +240,8 @@ The takeaway is useful even though the scores are weak: pure NASA-surrogate opti
 | Phase 2 prediction diagnostic refresh | `compare_transformer_h32_lr0p001_transformer_w30_e40_d32_h4_l1_ff64_best_e39` | 39 | 15.026410 | 11200.658784 | 14.339589 | 299.978246 |
 | Phase 2 validation-affine diagnostic | `compare_transformer_h32_lr0p001_transformer_w30_e40_d32_h4_l1_ff64_best_e39_affine_calibrated` | 39 | 15.026410 | 11200.658784 | 14.271605 | 345.146822 |
 | Phase 2 predicted-bin residual diagnostic | `compare_transformer_h32_lr0p001_transformer_w30_e40_d32_h4_l1_ff64_best_e39_predicted_bin_residual` | 39 | 15.026410 | 11200.658784 | 14.224681 | 341.716670 |
+| Phase 2 40-epoch blended-loss check | `compare_transformer_h32_lr0p001_transformer_w30_e40_d32_h4_l1_ff64_loss_mse_nasa_blend_w0p001_best_e39` | 39 | 15.025851 | 11195.969932 | 14.339186 | 299.946394 |
+| Phase 2 40-epoch blended-loss check | `compare_transformer_h32_lr0p001_transformer_w30_e40_d32_h4_l1_ff64_loss_mse_nasa_blend_w0p0001_best_e39` | 39 | 15.026353 | 11200.184598 | 14.339547 | 299.974989 |
 | Phase 2 10-epoch loss smoke | `compare_transformer_h32_lr0p001_transformer_w30_e10_d32_h4_l1_ff64_best_e10` | 10 | 54.524260 | 421709.482281 | 45.047094 | 10736.524843 |
 | Phase 2 10-epoch loss smoke | `compare_transformer_h32_lr0p001_transformer_w30_e10_d32_h4_l1_ff64_loss_mse_nasa_blend_w0p0001_best_e10` | 10 | 54.526576 | 421800.208048 | 45.049205 | 10738.845270 |
 | Phase 2 10-epoch loss smoke | `compare_transformer_h32_lr0p001_transformer_w30_e10_d32_h4_l1_ff64_loss_mse_nasa_blend_w0p001_best_e10` | 10 | 54.547339 | 422614.178776 | 45.068130 | 10759.665550 |
