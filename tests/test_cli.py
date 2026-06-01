@@ -1088,6 +1088,7 @@ def test_cmapss_compare_rul_results_command_writes_report_tables(
 ) -> None:
     baseline_csv = tmp_path / "results" / "hgb.csv"
     candidate_csv = tmp_path / "results" / "deep.csv"
+    prediction_csv = tmp_path / "results" / "calibrated_predictions.csv"
     output_csv = tmp_path / "reports" / "comparison.csv"
     output_markdown = tmp_path / "reports" / "comparison.md"
     write_results_csv(
@@ -1101,6 +1102,13 @@ def test_cmapss_compare_rul_results_command_writes_report_tables(
         ],
         candidate_csv,
     )
+    _write_cli_predictions(
+        prediction_csv,
+        [
+            _cli_prediction("FD001", "transformer", 1, 100.0, 95.0),
+            _cli_prediction("FD001", "transformer", 2, 120.0, 119.0),
+        ],
+    )
 
     exit_code = main(
         [
@@ -1109,6 +1117,10 @@ def test_cmapss_compare_rul_results_command_writes_report_tables(
             str(baseline_csv),
             "--candidate-csv",
             str(candidate_csv),
+            "--prediction-csv",
+            str(prediction_csv),
+            "--prediction-model-suffixes",
+            "calibrated",
             "--output-csv",
             str(output_csv),
             "--output-markdown",
@@ -1118,10 +1130,10 @@ def test_cmapss_compare_rul_results_command_writes_report_tables(
     output = capsys.readouterr().out
 
     assert exit_code == 0
-    assert "rows=3" in output
+    assert "rows=4" in output
     assert "subsets=FD001" in output
-    assert "best_by_nasa=FD001:phase2_deep:tcn" in output
-    assert "FD001,1,phase2_deep,tcn,12.500000,240.000000" in output
+    assert "best_by_nasa=FD001:phase2_predictions:transformer_calibrated" in output
+    assert "FD001,1,phase2_predictions,transformer_calibrated" in output
     assert output_csv.exists()
     assert output_markdown.exists()
 

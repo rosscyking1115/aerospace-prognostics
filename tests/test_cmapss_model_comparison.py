@@ -48,6 +48,41 @@ def test_build_cmapss_model_comparison_ranks_candidates_against_baseline(
     assert tcn_row.nasa_score_ratio == 0.8
 
 
+def test_build_cmapss_model_comparison_summarizes_prediction_csvs(tmp_path) -> None:
+    baseline_csv = tmp_path / "baseline.csv"
+    prediction_csv = tmp_path / "predictions.csv"
+    write_results_csv([_result("FD001", "hgb", rmse=10.0, nasa_score=100.0)], baseline_csv)
+    _write_prediction_csv(
+        prediction_csv,
+        [
+            {
+                "subset": "FD001",
+                "model_name": "transformer",
+                "actual_rul": "100",
+                "predicted_rul": "90",
+            },
+            {
+                "subset": "FD001",
+                "model_name": "transformer",
+                "actual_rul": "120",
+                "predicted_rul": "125",
+            },
+        ],
+    )
+
+    rows = build_cmapss_model_comparison(
+        baseline_csv,
+        prediction_csvs=(prediction_csv,),
+        prediction_label="phase2_calibrated",
+        prediction_model_suffixes=("nasa_shift",),
+    )
+
+    prediction_row = next(row for row in rows if row.phase == "phase2_calibrated")
+    assert prediction_row.model_name == "transformer_nasa_shift"
+    assert prediction_row.rmse == 7.905694150420948
+    assert prediction_row.nasa_score > 0.0
+
+
 def test_write_cmapss_model_comparison_outputs_csv_and_markdown(tmp_path) -> None:
     baseline_csv = tmp_path / "baseline.csv"
     candidate_csv = tmp_path / "candidate.csv"
@@ -101,3 +136,14 @@ def _result(
         random_state=42,
         standardize=True,
     )
+
+
+def _write_prediction_csv(path, rows: list[dict[str, str]]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("w", encoding="utf-8", newline="") as file:
+        writer = csv.DictWriter(
+            file,
+            fieldnames=["subset", "model_name", "actual_rul", "predicted_rul"],
+        )
+        writer.writeheader()
+        writer.writerows(rows)

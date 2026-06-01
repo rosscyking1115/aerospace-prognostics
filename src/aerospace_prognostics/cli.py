@@ -816,10 +816,13 @@ def _build_parser() -> argparse.ArgumentParser:
     compare_rul_results.add_argument("--baseline-csv", type=Path, required=True)
     compare_rul_results.add_argument(
         "--candidate-csv",
-        nargs="+",
+        nargs="*",
         type=Path,
-        required=True,
+        default=[],
     )
+    compare_rul_results.add_argument("--prediction-csv", nargs="*", type=Path, default=[])
+    compare_rul_results.add_argument("--prediction-label", default="phase2_predictions")
+    compare_rul_results.add_argument("--prediction-model-suffixes", nargs="+")
     compare_rul_results.add_argument("--baseline-label", default="phase1_hgb_policy")
     compare_rul_results.add_argument("--candidate-label", default="phase2_deep")
     compare_rul_results.add_argument("--output-csv", type=Path)
@@ -1972,6 +1975,9 @@ def main(argv: list[str] | None = None) -> int:
             tuple(args.candidate_csv),
             baseline_label=args.baseline_label,
             candidate_label=args.candidate_label,
+            prediction_csvs=tuple(args.prediction_csv),
+            prediction_label=args.prediction_label,
+            prediction_model_suffixes=tuple(args.prediction_model_suffixes or ()),
         )
         print(f"rows={len(rows)}")
         print(f"subsets={','.join(_comparison_subsets(rows))}")

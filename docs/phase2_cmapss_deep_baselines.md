@@ -266,6 +266,22 @@ Combining the best uncalibrated deep model with validation-fitted predicted-bin 
 | 25 | 14.469072 | 280.724865 |
 | 0 | 14.660178 | 288.942564 |
 
+FD001 deep leaderboard refresh:
+
+```powershell
+uv run aerospace-prognostics cmapss-compare-rul-results --baseline-csv artifacts/phase2_fd001_transformer_h32_40e_asymmetric_mse_late_w1p5/results/cmapss_hgb_policy_baseline.csv --candidate-csv artifacts/phase2_fd001_transformer_h32_40e_validation_diagnostics/results/cmapss_deep_compare.csv artifacts/phase2_fd001_transformer_h32_40e_asymmetric_mse_late_w1p5/results/cmapss_deep_compare.csv --prediction-csv artifacts/phase2_fd001_transformer_h32_40e_validation_diagnostics/results/cmapss_deep_predictions_predicted_bin_nasa_shift_s200_calibrated.csv artifacts/phase2_fd001_transformer_h32_40e_asymmetric_mse_late_w1p5/results/cmapss_deep_predictions_predicted_bin_nasa_shift_s500_calibrated.csv --prediction-model-suffixes predicted_bin_nasa_shift_s200 predicted_bin_nasa_shift_s500 --prediction-label phase2_calibrated --output-csv artifacts/phase2_fd001_deep_leaderboard/cmapss_fd001_deep_leaderboard.csv --output-markdown artifacts/phase2_fd001_deep_leaderboard/cmapss_fd001_deep_leaderboard.md
+```
+
+The comparison command now accepts prediction CSVs in addition to result tables, summarizing each prediction file into RMSE and NASA score before ranking. That keeps calibrated candidates in the same leaderboard without hand-built intermediate result CSVs. The refreshed FD001 leaderboard ranks HGB first, then the asymmetric-loss plus NASA-shift combo, then raw-MSE NASA-shift calibration, then the uncalibrated asymmetric and raw-MSE Transformer runs:
+
+| Rank | Phase | Model Family | Official Test RMSE | Official Test NASA Score | NASA Delta vs HGB |
+|---:|---|---|---:|---:|---:|
+| 1 | `phase1_hgb_policy` | HGB policy | 13.012889 | 253.465322 | 0.000000 |
+| 2 | `phase2_calibrated` | Asymmetric Transformer + NASA-shift s500 | 14.267129 | 272.578820 | 19.113497 |
+| 3 | `phase2_calibrated` | MSE Transformer + NASA-shift s200 | 14.460923 | 278.840518 | 25.375195 |
+| 4 | `phase2_deep` | Asymmetric Transformer | 14.154401 | 279.487610 | 26.022287 |
+| 5 | `phase2_deep` | MSE Transformer | 14.339589 | 299.978246 | 46.512924 |
+
 Residual CNN architecture smoke check:
 
 ```powershell
@@ -346,5 +362,5 @@ The next deep-learning work should focus on model quality rather than plumbing:
 - Use the workflow parameters for wider/deeper CNNs, residual or TCN-style blocks, attention heads, regularization, and learning-rate sweeps.
 - Use `cmapss_deep_prediction_diagnostics.md`, `cmapss_deep_predictions.csv`, and the validation-selection diagnostic artifacts to inspect late-prediction clusters, high-absolute-error units, and validation-vs-test mismatch before adding broader grids.
 - Use validation-selection errors by unit, end cycle, and RUL range as the first decision surface for calibration and tail-sensitive modelling before rechecking official-test behavior; affine and predicted-bin residual checks improved RMSE but failed the NASA-score tradeoff, asymmetric late-weighted MSE improved the best uncalibrated deep NASA score to 279.487610, and pairing that model with predicted-bin NASA-shift calibration improved the best deep NASA score to 272.578820.
-- Use the ranked report command for every Phase 2 run bundle, especially when checking the known FD003 validation mismatch.
+- Use the ranked report command for every Phase 2 run bundle and calibrated prediction CSV, especially when checking the known FD003 validation mismatch.
 - Keep all sensors for now; Phase 1 sensor-filter validation showed EDA filtering harms FD002 and FD004.

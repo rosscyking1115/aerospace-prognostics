@@ -7,6 +7,8 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
 
+from aerospace_prognostics.metrics import nasa_rul_score, rmse
+
 
 @dataclass(frozen=True)
 class CmapssModelComparisonRow:
@@ -32,21 +34,36 @@ class CmapssModelComparisonRow:
 
 def build_cmapss_model_comparison(
     baseline_csv: str | Path,
-    candidate_csvs: tuple[str | Path, ...],
+    candidate_csvs: tuple[str | Path, ...] = (),
     *,
     baseline_label: str = "phase1_hgb_policy",
     candidate_label: str = "phase2_deep",
+    prediction_csvs: tuple[str | Path, ...] = (),
+    prediction_label: str = "phase2_predictions",
+    prediction_model_suffixes: tuple[str, ...] = (),
 ) -> list[CmapssModelComparisonRow]:
     """Build a ranked comparison table from baseline and candidate result CSVs."""
 
-    if not candidate_csvs:
-        raise ValueError("candidate_csvs must contain at least one path")
+    if not candidate_csvs and not prediction_csvs:
+        raise ValueError("candidate_csvs or prediction_csvs must contain at least one path")
+    if prediction_model_suffixes and len(prediction_model_suffixes) != len(prediction_csvs):
+        raise ValueError("prediction_model_suffixes must match prediction_csvs length")
 
     baseline_results = _read_result_rows(baseline_csv)
     candidate_results = [
         result
         for candidate_csv in candidate_csvs
         for result in _read_result_rows(candidate_csv)
+    ]
+    prediction_results = [
+        result
+        for index, prediction_csv in enumerate(prediction_csvs)
+        for result in _read_prediction_result_rows(
+            prediction_csv,
+            model_name_suffix=(
+                prediction_model_suffixes[index] if prediction_model_suffixes else None
+            ),
+        )
     ]
     baseline_by_subset = _single_result_by_subset(baseline_results, baseline_csv)
     grouped: dict[str, list[dict[str, Any]]] = {
@@ -58,6 +75,11 @@ def build_cmapss_model_comparison(
         if subset not in baseline_by_subset:
             raise ValueError(f"candidate result has no baseline for subset: {subset}")
         grouped.setdefault(subset, []).append({**result, "phase": candidate_label})
+    for result in prediction_results:
+        subset = str(result["subset"])
+        if subset not in baseline_by_subset:
+            raise ValueError(f"prediction result has no baseline for subset: {subset}")
+        grouped.setdefault(subset, []).append({**result, "phase": prediction_label})
 
     comparison_rows: list[CmapssModelComparisonRow] = []
     for subset in sorted(grouped):
@@ -163,6 +185,49 @@ def _read_result_rows(path: str | Path) -> list[dict[str, Any]]:
         missing = ", ".join(sorted(missing_columns))
         raise ValueError(f"result CSV is missing required columns: {missing}")
     return rows
+
+
+def _read_prediction_result_rows(
+    path: str | Path,
+    *,
+    model_name_suffix: str | None = None,
+) -> list[dict[str, Any]]:
+    prediction_path = Path(path)
+    if not prediction_path.exists():
+        raise FileNotFoundError(f"missing prediction CSV: {prediction_path}")
+    with prediction_path.open("r", encoding="utf-8", newline="") as file:
+        rows = list(csv.DictReader(file))
+    if not rows:
+        raise ValueError(f"prediction CSV has no rows: {prediction_path}")
+    required_columns = {"subset", "model_name", "actual_rul", "predicted_rul"}
+    missing_columns = required_columns - set(rows[0])
+    if missing_columns:
+        missing = ", ".join(sorted(missing_columns))
+        raise ValueError(f"prediction CSV is missing required columns: {missing}")
+
+    grouped: dict[tuple[str, str], dict[str, list[float]]] = {}
+    for row in rows:
+        subset = str(row["subset"])
+        model_name = _prediction_model_name(str(row["model_name"]), model_name_suffix)
+        group = grouped.setdefault((subset, model_name), {"actual": [], "predicted": []})
+        group["actual"].append(float(row["actual_rul"]))
+        group["predicted"].append(float(row["predicted_rul"]))
+
+    return [
+        {
+            "subset": subset,
+            "model_name": model_name,
+            "rmse": rmse(values["actual"], values["predicted"]),
+            "nasa_score": nasa_rul_score(values["actual"], values["predicted"]),
+        }
+        for (subset, model_name), values in sorted(grouped.items())
+    ]
+
+
+def _prediction_model_name(model_name: str, suffix: str | None) -> str:
+    if suffix is None or suffix == "":
+        return model_name
+    return f"{model_name}_{suffix}"
 
 
 def _single_result_by_subset(
