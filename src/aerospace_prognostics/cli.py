@@ -768,7 +768,7 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     calibrate_deep_predictions.add_argument(
         "--method",
-        choices=["affine", "predicted_bin_residual"],
+        choices=["affine", "predicted_bin_residual", "predicted_bin_nasa_shift"],
         default="affine",
     )
     calibrate_deep_predictions.add_argument(

@@ -8,6 +8,7 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
 
+from aerospace_prognostics.metrics import nasa_rul_score
 from aerospace_prognostics.reports.cmapss_prediction_diagnostics import (
     CmapssPredictionDiagnosticRow,
     CmapssPredictionRulBinDiagnosticRow,
@@ -158,6 +159,63 @@ def fit_cmapss_predicted_rul_bin_residual_calibrations(
     return tuple(calibrations)
 
 
+def fit_cmapss_predicted_rul_bin_nasa_shift_calibrations(
+    calibration_csv: str | Path,
+    *,
+    shrinkage_strength: float = 100.0,
+    max_shift: float = 30.0,
+    shift_step: float = 1.0,
+    clip_min: float = 0.0,
+) -> tuple[CmapssPredictedRulBinResidualCalibration, ...]:
+    """Fit raw-predicted-RUL bin shifts by validation NASA score."""
+
+    if shrinkage_strength < 0.0:
+        raise ValueError("shrinkage_strength must be non-negative")
+    if max_shift < 0.0:
+        raise ValueError("max_shift must be non-negative")
+    if shift_step <= 0.0:
+        raise ValueError("shift_step must be positive")
+    rows = _read_prediction_rows(calibration_csv)
+    grouped: dict[tuple[str, str], list[dict[str, str]]] = {}
+    for row in rows:
+        grouped.setdefault((row["subset"], row["model_name"]), []).append(row)
+
+    calibrations: list[CmapssPredictedRulBinResidualCalibration] = []
+    for subset, model_name in sorted(grouped):
+        group = grouped[(subset, model_name)]
+        calibrations.append(
+            _fit_predicted_rul_bin_nasa_shift_calibration(
+                subset,
+                model_name,
+                "all",
+                group,
+                shrinkage_strength=shrinkage_strength,
+                max_shift=max_shift,
+                shift_step=shift_step,
+                clip_min=clip_min,
+            )
+        )
+        rows_by_bin: dict[str, list[dict[str, str]]] = {}
+        for row in group:
+            bin_label = _predicted_rul_bin(_float(row["predicted_rul"]))
+            rows_by_bin.setdefault(bin_label, []).append(row)
+        for bin_label in _PREDICTED_RUL_BIN_ORDER:
+            if bin_label in rows_by_bin:
+                calibrations.append(
+                    _fit_predicted_rul_bin_nasa_shift_calibration(
+                        subset,
+                        model_name,
+                        bin_label,
+                        rows_by_bin[bin_label],
+                        shrinkage_strength=shrinkage_strength,
+                        max_shift=max_shift,
+                        shift_step=shift_step,
+                        clip_min=clip_min,
+                    )
+                )
+    return tuple(calibrations)
+
+
 def write_cmapss_affine_prediction_calibration_csv(
     calibrations: Iterable[CmapssPredictionCalibration],
     path: str | Path,
@@ -254,8 +312,17 @@ def calibrate_cmapss_deep_predictions(
             shrinkage_strength=shrinkage_strength,
             clip_min=clip_min,
         )
+    elif method == "predicted_bin_nasa_shift":
+        calibrations = fit_cmapss_predicted_rul_bin_nasa_shift_calibrations(
+            calibration_csv,
+            shrinkage_strength=shrinkage_strength,
+            clip_min=clip_min,
+        )
     else:
-        raise ValueError("method must be 'affine' or 'predicted_bin_residual'")
+        raise ValueError(
+            "method must be 'affine', 'predicted_bin_residual', "
+            "or 'predicted_bin_nasa_shift'"
+        )
     calibrated_prediction_count = write_cmapss_affine_calibrated_predictions_csv(
         predictions_csv,
         output_csv,
@@ -433,6 +500,78 @@ def _fit_predicted_rul_bin_residual_calibration(
         correction=-mean_error * shrinkage_weight,
         clip_min=clip_min,
     )
+
+
+def _fit_predicted_rul_bin_nasa_shift_calibration(
+    subset: str,
+    model_name: str,
+    bin_label: str,
+    rows: list[dict[str, str]],
+    *,
+    shrinkage_strength: float,
+    max_shift: float,
+    shift_step: float,
+    clip_min: float,
+) -> CmapssPredictedRulBinResidualCalibration:
+    raw_predictions = [_float(row["predicted_rul"]) for row in rows]
+    actual_values = [_float(row["actual_rul"]) for row in rows]
+    best_shift = _best_nasa_shift(
+        actual_values,
+        raw_predictions,
+        max_shift=max_shift,
+        shift_step=shift_step,
+        clip_min=clip_min,
+    )
+    shrinkage_weight = len(rows) / (len(rows) + shrinkage_strength)
+    lower_bound, upper_bound = _predicted_rul_bin_bounds(bin_label)
+    return CmapssPredictedRulBinResidualCalibration(
+        subset=subset,
+        model_name=model_name,
+        predicted_rul_bin=bin_label,
+        lower_bound=lower_bound,
+        upper_bound=upper_bound,
+        calibration_count=len(rows),
+        mean_actual_rul=_mean(actual_values),
+        mean_raw_predicted_rul=_mean(raw_predictions),
+        mean_error=_mean(_float(row["error"]) for row in rows),
+        shrinkage_weight=shrinkage_weight,
+        correction=best_shift * shrinkage_weight,
+        clip_min=clip_min,
+        method="validation_predicted_bin_nasa_shift",
+    )
+
+
+def _best_nasa_shift(
+    actual_values: list[float],
+    raw_predictions: list[float],
+    *,
+    max_shift: float,
+    shift_step: float,
+    clip_min: float,
+) -> float:
+    candidates = _candidate_shifts(max_shift=max_shift, shift_step=shift_step)
+    return min(
+        candidates,
+        key=lambda shift: (
+            nasa_rul_score(
+                actual_values,
+                [max(clip_min, prediction + shift) for prediction in raw_predictions],
+            ),
+            abs(shift),
+            shift,
+        ),
+    )
+
+
+def _candidate_shifts(*, max_shift: float, shift_step: float) -> tuple[float, ...]:
+    shifts: list[float] = []
+    shift = -max_shift
+    while shift <= max_shift + (shift_step * 0.5):
+        shifts.append(round(shift, 12))
+        shift += shift_step
+    if 0.0 not in shifts:
+        shifts.append(0.0)
+    return tuple(sorted(set(shifts)))
 
 
 def _select_prediction_calibration(
