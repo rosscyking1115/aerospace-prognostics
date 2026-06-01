@@ -33,6 +33,13 @@ from aerospace_prognostics.reports.cmapss_model_comparison import (
     write_cmapss_model_comparison_csv,
     write_cmapss_model_comparison_markdown,
 )
+from aerospace_prognostics.reports.cmapss_prediction_diagnostics import (
+    CmapssPredictionDiagnosticRow,
+    build_cmapss_prediction_diagnostics,
+    select_cmapss_high_error_predictions,
+    write_cmapss_prediction_diagnostics_csv,
+    write_cmapss_prediction_diagnostics_markdown,
+)
 from aerospace_prognostics.sequence_exports import (
     CmapssSequenceExportResult,
     export_cmapss_sequence_splits,
@@ -50,6 +57,8 @@ class Phase2WorkflowResult:
     deep_compare_json_path: Path
     deep_compare_csv_path: Path
     deep_predictions_csv_path: Path
+    deep_prediction_diagnostics_csv_path: Path
+    deep_prediction_diagnostics_markdown_path: Path
     comparison_csv_path: Path
     comparison_markdown_path: Path
     summary_markdown_path: Path
@@ -168,6 +177,28 @@ def run_phase2_cmapss_workflow(
     write_results_json(deep_compare_results, deep_compare_json_path)
     write_results_csv(deep_compare_results, deep_compare_csv_path)
     write_cmapss_deep_predictions_csv(deep_compare_runs, deep_predictions_csv_path)
+    deep_prediction_diagnostics = build_cmapss_prediction_diagnostics(
+        deep_predictions_csv_path
+    )
+    deep_prediction_outliers = select_cmapss_high_error_predictions(
+        deep_predictions_csv_path,
+        top_n=10,
+    )
+    deep_prediction_diagnostics_csv_path = (
+        results_dir / "cmapss_deep_prediction_diagnostics.csv"
+    )
+    deep_prediction_diagnostics_markdown_path = (
+        results_dir / "cmapss_deep_prediction_diagnostics.md"
+    )
+    write_cmapss_prediction_diagnostics_csv(
+        deep_prediction_diagnostics,
+        deep_prediction_diagnostics_csv_path,
+    )
+    write_cmapss_prediction_diagnostics_markdown(
+        deep_prediction_diagnostics,
+        deep_prediction_outliers,
+        deep_prediction_diagnostics_markdown_path,
+    )
 
     comparison_rows = build_cmapss_model_comparison(
         hgb_policy_csv_path,
@@ -186,9 +217,11 @@ def run_phase2_cmapss_workflow(
         hgb_policy_csv_path=hgb_policy_csv_path,
         deep_compare_csv_path=deep_compare_csv_path,
         deep_predictions_csv_path=deep_predictions_csv_path,
+        deep_prediction_diagnostics_markdown_path=deep_prediction_diagnostics_markdown_path,
         comparison_markdown_path=comparison_markdown_path,
         run_manifest_path=run_manifest_path,
         sequence_exports=sequence_exports,
+        deep_prediction_diagnostics=tuple(deep_prediction_diagnostics),
         comparison_rows=tuple(comparison_rows),
     )
     artifact_paths = {
@@ -197,6 +230,12 @@ def run_phase2_cmapss_workflow(
         "deep_compare_json": _path_as_posix(deep_compare_json_path),
         "deep_compare_csv": _path_as_posix(deep_compare_csv_path),
         "deep_predictions_csv": _path_as_posix(deep_predictions_csv_path),
+        "deep_prediction_diagnostics_csv": _path_as_posix(
+            deep_prediction_diagnostics_csv_path
+        ),
+        "deep_prediction_diagnostics_markdown": _path_as_posix(
+            deep_prediction_diagnostics_markdown_path
+        ),
         "comparison_csv": _path_as_posix(comparison_csv_path),
         "comparison_markdown": _path_as_posix(comparison_markdown_path),
         "summary_markdown": _path_as_posix(summary_markdown_path),
@@ -242,6 +281,7 @@ def run_phase2_cmapss_workflow(
                 "hgb_policy_results": len(hgb_policy_results),
                 "deep_compare_results": len(deep_compare_results),
                 "deep_prediction_rows": _csv_data_row_count(deep_predictions_csv_path),
+                "deep_prediction_diagnostics": len(deep_prediction_diagnostics),
                 "comparison_rows": len(comparison_rows),
             },
         },
@@ -255,6 +295,8 @@ def run_phase2_cmapss_workflow(
         deep_compare_json_path=deep_compare_json_path,
         deep_compare_csv_path=deep_compare_csv_path,
         deep_predictions_csv_path=deep_predictions_csv_path,
+        deep_prediction_diagnostics_csv_path=deep_prediction_diagnostics_csv_path,
+        deep_prediction_diagnostics_markdown_path=deep_prediction_diagnostics_markdown_path,
         comparison_csv_path=comparison_csv_path,
         comparison_markdown_path=comparison_markdown_path,
         summary_markdown_path=summary_markdown_path,
@@ -440,9 +482,11 @@ def _write_phase2_summary(
     hgb_policy_csv_path: Path,
     deep_compare_csv_path: Path,
     deep_predictions_csv_path: Path,
+    deep_prediction_diagnostics_markdown_path: Path,
     comparison_markdown_path: Path,
     run_manifest_path: Path,
     sequence_exports: tuple[CmapssSequenceExportResult, ...],
+    deep_prediction_diagnostics: tuple[CmapssPredictionDiagnosticRow, ...],
     comparison_rows: tuple[CmapssModelComparisonRow, ...],
 ) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -453,6 +497,10 @@ def _write_phase2_summary(
         f"- Phase 1 HGB policy baseline: `{hgb_policy_csv_path.as_posix()}`",
         f"- Phase 2 deep comparison table: `{deep_compare_csv_path.as_posix()}`",
         f"- Phase 2 deep prediction diagnostics: `{deep_predictions_csv_path.as_posix()}`",
+        (
+            "- Phase 2 prediction diagnostics report: "
+            f"`{deep_prediction_diagnostics_markdown_path.as_posix()}`"
+        ),
         f"- Ranked model comparison: `{comparison_markdown_path.as_posix()}`",
         f"- Run manifest: `{run_manifest_path.as_posix()}`",
         "",
@@ -466,6 +514,21 @@ def _write_phase2_summary(
             f"| {result.subset} | {result.train_windows} | "
             f"{result.validation_selection_windows} | {result.test_windows} | "
             f"{len(result.feature_columns)} |"
+        )
+    lines.extend(
+        [
+            "",
+            "## Deep Prediction Diagnostics",
+            "",
+            "| Subset | Model | Rows | Mean Error | Mean Abs Error | Max Abs Error | Late Rate |",
+            "|---|---|---:|---:|---:|---:|---:|",
+        ]
+    )
+    for row in deep_prediction_diagnostics:
+        lines.append(
+            f"| {row.subset} | `{row.model_name}` | {row.prediction_count} | "
+            f"{row.mean_error:.6f} | {row.mean_absolute_error:.6f} | "
+            f"{row.max_absolute_error:.6f} | {row.late_prediction_rate:.6f} |"
         )
     lines.extend(
         [
@@ -588,6 +651,7 @@ def _verify_manifest_csv_counts(
         "hgb_policy_csv": "hgb_policy_results",
         "deep_compare_csv": "deep_compare_results",
         "deep_predictions_csv": "deep_prediction_rows",
+        "deep_prediction_diagnostics_csv": "deep_prediction_diagnostics",
         "comparison_csv": "comparison_rows",
     }
     for artifact_key, count_key in count_checks.items():

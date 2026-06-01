@@ -76,7 +76,7 @@ uv run aerospace-prognostics phase2-cmapss --data-dir data/raw/cmapss --artifact
 uv run aerospace-prognostics phase2-cmapss-verify-manifest --manifest artifacts/phase2/phase2_run_manifest.json --output-markdown artifacts/phase2/phase2_manifest_audit.md
 ```
 
-The workflow writes `phase2_summary.md` and `phase2_run_manifest.json` under the artifact directory. It also writes `results/cmapss_deep_predictions.csv`, a per-unit official-test diagnostics table with actual RUL, predicted RUL, signed error, absolute error, and early/late error split for every deep-model candidate. The manifest records run parameters, artifact paths, SHA-256/size checksums for the model outputs, prediction diagnostics, and sequence bundles, Python/platform/dependency versions, and Git commit state so a Phase 2 C-MAPSS run can be audited or reproduced from one bundle. The verify command checks manifest structure, referenced artifact existence, artifact checksums, and CSV row counts; with `--output-markdown`, it also writes a compact audit report.
+The workflow writes `phase2_summary.md` and `phase2_run_manifest.json` under the artifact directory. It also writes `results/cmapss_deep_predictions.csv`, a per-unit official-test diagnostics table with actual RUL, predicted RUL, signed error, absolute error, and early/late error split for every deep-model candidate. The companion `results/cmapss_deep_prediction_diagnostics.csv` and markdown report summarize mean error, mean/max absolute error, late-prediction rate, and the highest-error units. The manifest records run parameters, artifact paths, SHA-256/size checksums for the model outputs, prediction diagnostics, and sequence bundles, Python/platform/dependency versions, and Git commit state so a Phase 2 C-MAPSS run can be audited or reproduced from one bundle. The verify command checks manifest structure, referenced artifact existence, artifact checksums, and CSV row counts; with `--output-markdown`, it also writes a compact audit report.
 
 Real FD001 workflow smoke run:
 
@@ -145,6 +145,6 @@ The next deep-learning work should focus on model quality rather than plumbing:
 
 - Continue FD001 with focused Transformer architecture, regularization, and validation diagnostics before expanding to FD002-FD004.
 - Use the workflow parameters for wider/deeper CNNs, residual or TCN-style blocks, attention heads, regularization, and learning-rate sweeps.
-- Use `cmapss_deep_predictions.csv` to inspect late-prediction clusters, high-absolute-error units, and validation-vs-test mismatch before adding broader grids.
+- Use `cmapss_deep_prediction_diagnostics.md` and `cmapss_deep_predictions.csv` to inspect late-prediction clusters, high-absolute-error units, and validation-vs-test mismatch before adding broader grids.
 - Use the ranked report command for every Phase 2 run bundle, especially when checking the known FD003 validation mismatch.
 - Keep all sensors for now; Phase 1 sensor-filter validation showed EDA filtering harms FD002 and FD004.
