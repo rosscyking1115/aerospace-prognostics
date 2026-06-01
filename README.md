@@ -15,7 +15,7 @@ The working plan is tracked in [Aerospace_Prognostics_Project_Plan.md](Aerospace
 - C-MAPSS EDA summaries for sensor drift, flat sensors, correlations, and operating-regime clusters.
 - C-MAPSS manifest and verification commands for dataset provenance.
 - Phase 1 C-MAPSS workflow command for provenance, EDA, baseline results, and a markdown run summary.
-- Phase 2 C-MAPSS workflow command for sequence exports, deep-model sweeps, per-unit prediction diagnostics, ranked reporting, and a markdown run summary.
+- Phase 2 C-MAPSS workflow command for sequence exports, deep-model sweeps, official-test and validation-selection prediction diagnostics, ranked reporting, and a markdown run summary.
 - `aerospace-prognostics cmapss-summary` CLI for sanity-checking local C-MAPSS files.
 - `aerospace-prognostics cmapss-baseline` CLI for a first-pass scikit-learn gradient-boosting RUL baseline.
 - `aerospace-prognostics cmapss-engineered-baseline-all` CLI for rolling/delta feature baselines.
@@ -42,7 +42,7 @@ The working plan is tracked in [Aerospace_Prognostics_Project_Plan.md](Aerospace
 - `aerospace-prognostics phase2-smap-msl` CLI for a one-command Track B anomaly baseline bundle.
 - `aerospace-prognostics phase2-smap-msl-verify-manifest` CLI for checking the Phase 2 SMAP/MSL artifact bundle against its run manifest and writing an optional markdown audit report.
 - `aerospace-prognostics phase2-cmapss` run manifests with artifact checksums, runtime provenance, Git state, and verifier/audit reports for Track A experiment bundles.
-- Phase 2 C-MAPSS deep prediction diagnostics for official-test per-unit actual RUL, predicted RUL, signed error, absolute error, early/late error split, aggregate error summaries, RUL-bin calibration views, and high-error unit reports.
+- Phase 2 C-MAPSS deep prediction diagnostics for official-test and validation-selection per-window actual RUL, predicted RUL, signed error, absolute error, early/late error split, aggregate error summaries, RUL-bin calibration views, and high-error unit reports.
 - `aerospace-prognostics cmapss-package-hgb-policy`, `cmapss-predict-artifact`, `cmapss-validate-artifact`, and `serve-api` CLIs for the production-ML deployment track.
 - FastAPI serving observability with `/health` liveness, `/ready` readiness plus artifact identity, request IDs, latency headers, JSON request logs, and `/metrics` counters.
 - Serving-time telemetry drift summaries and prediction distribution monitoring.

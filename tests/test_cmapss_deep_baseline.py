@@ -220,6 +220,10 @@ def test_run_cmapss_cnn_baseline_run_tracks_history_and_selected_epoch(tmp_path)
     assert all(prediction.absolute_error >= 0 for prediction in run.predictions)
     assert all(prediction.late_error >= 0 for prediction in run.predictions)
     assert all(prediction.early_error >= 0 for prediction in run.predictions)
+    assert run.validation_selection_predictions
+    assert all(
+        prediction.absolute_error >= 0 for prediction in run.validation_selection_predictions
+    )
 
 
 def test_run_cmapss_lstm_baseline_run_supports_bidirectional_checkpointing(
@@ -580,8 +584,48 @@ def test_write_cmapss_deep_predictions_csv_records_unit_diagnostics(tmp_path) ->
         rows = list(csv.DictReader(file))
 
     assert len(rows) == runs[0].result.test_rul_values
+    assert rows[0]["prediction_split"] == "official_test"
     assert rows[0]["model_name"].startswith("compare_cnn_h4_lr0p001")
     assert rows[0]["unit_number"]
+    assert rows[0]["end_cycle"]
     assert rows[0]["actual_rul"]
     assert rows[0]["predicted_rul"]
     assert rows[0]["absolute_error"]
+
+
+def test_write_cmapss_deep_predictions_csv_records_validation_selection_rows(
+    tmp_path,
+) -> None:
+    write_tiny_cmapss_subset(tmp_path)
+    sequence_dir = tmp_path / "sequences"
+    export_cmapss_sequence_splits(
+        tmp_path,
+        sequence_dir,
+        "FD001",
+        window_size=2,
+        validation_fraction=0.5,
+        validation_horizon=1,
+    )
+    output_csv = tmp_path / "predictions" / "validation_selection_predictions.csv"
+
+    runs = run_cmapss_deep_baseline_comparison_runs(
+        sequence_dir,
+        subsets=("FD001",),
+        models=("cnn",),
+        epochs=1,
+        batch_size=2,
+        learning_rates=(1e-3,),
+        hidden_sizes=(4,),
+    )
+    write_cmapss_deep_predictions_csv(
+        runs,
+        output_csv,
+        prediction_split="validation_selection",
+    )
+
+    with output_csv.open("r", encoding="utf-8", newline="") as file:
+        rows = list(csv.DictReader(file))
+
+    assert len(rows) == len(runs[0].validation_selection_predictions)
+    assert rows[0]["prediction_split"] == "validation_selection"
+    assert rows[0]["end_cycle"]

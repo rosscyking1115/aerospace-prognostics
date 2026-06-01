@@ -1467,16 +1467,29 @@ def main(argv: list[str] | None = None) -> int:
         print(f"deep_compare_csv={result.deep_compare_csv_path}")
         print(f"deep_predictions_csv={result.deep_predictions_csv_path}")
         print(
-            "deep_prediction_diagnostics_csv="
-            f"{result.deep_prediction_diagnostics_csv_path}"
+            "deep_validation_selection_predictions_csv="
+            f"{result.deep_validation_selection_predictions_csv_path}"
+        )
+        print(f"deep_prediction_diagnostics_csv={result.deep_prediction_diagnostics_csv_path}")
+        print(
+            "deep_validation_selection_prediction_diagnostics_csv="
+            f"{result.deep_validation_selection_prediction_diagnostics_csv_path}"
         )
         print(
             "deep_prediction_rul_bin_diagnostics_csv="
             f"{result.deep_prediction_rul_bin_diagnostics_csv_path}"
         )
         print(
+            "deep_validation_selection_prediction_rul_bin_diagnostics_csv="
+            f"{result.deep_validation_selection_prediction_rul_bin_diagnostics_csv_path}"
+        )
+        print(
             "deep_prediction_diagnostics_markdown="
             f"{result.deep_prediction_diagnostics_markdown_path}"
+        )
+        print(
+            "deep_validation_selection_prediction_diagnostics_markdown="
+            f"{result.deep_validation_selection_prediction_diagnostics_markdown_path}"
         )
         print(f"comparison_csv={result.comparison_csv_path}")
         print(f"comparison_markdown={result.comparison_markdown_path}")

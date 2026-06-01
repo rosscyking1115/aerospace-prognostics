@@ -38,9 +38,10 @@ class CmapssCnnTrainingEpoch:
 
 @dataclass(frozen=True)
 class CmapssDeepPrediction:
-    """Official-test prediction diagnostics for one C-MAPSS engine unit."""
+    """Prediction diagnostics for one C-MAPSS sequence window."""
 
     unit_number: int
+    end_cycle: int
     actual_rul: float
     predicted_rul: float
     error: float
@@ -62,6 +63,7 @@ class CmapssCnnBaselineRun:
     selected_epoch: int
     history: tuple[CmapssCnnTrainingEpoch, ...]
     predictions: tuple[CmapssDeepPrediction, ...]
+    validation_selection_predictions: tuple[CmapssDeepPrediction, ...]
 
     def to_dict(self) -> dict[str, Any]:
         """Return a JSON-serialisable dictionary."""
@@ -71,6 +73,9 @@ class CmapssCnnBaselineRun:
             "selected_epoch": self.selected_epoch,
             "history": [epoch.to_dict() for epoch in self.history],
             "predictions": [prediction.to_dict() for prediction in self.predictions],
+            "validation_selection_predictions": [
+                prediction.to_dict() for prediction in self.validation_selection_predictions
+            ],
         }
 
 
@@ -82,6 +87,7 @@ class CmapssLstmBaselineRun:
     selected_epoch: int
     history: tuple[CmapssCnnTrainingEpoch, ...]
     predictions: tuple[CmapssDeepPrediction, ...]
+    validation_selection_predictions: tuple[CmapssDeepPrediction, ...]
 
     def to_dict(self) -> dict[str, Any]:
         """Return a JSON-serialisable dictionary."""
@@ -91,6 +97,9 @@ class CmapssLstmBaselineRun:
             "selected_epoch": self.selected_epoch,
             "history": [epoch.to_dict() for epoch in self.history],
             "predictions": [prediction.to_dict() for prediction in self.predictions],
+            "validation_selection_predictions": [
+                prediction.to_dict() for prediction in self.validation_selection_predictions
+            ],
         }
 
 
@@ -102,6 +111,7 @@ class CmapssTcnBaselineRun:
     selected_epoch: int
     history: tuple[CmapssCnnTrainingEpoch, ...]
     predictions: tuple[CmapssDeepPrediction, ...]
+    validation_selection_predictions: tuple[CmapssDeepPrediction, ...]
 
     def to_dict(self) -> dict[str, Any]:
         """Return a JSON-serialisable dictionary."""
@@ -111,6 +121,9 @@ class CmapssTcnBaselineRun:
             "selected_epoch": self.selected_epoch,
             "history": [epoch.to_dict() for epoch in self.history],
             "predictions": [prediction.to_dict() for prediction in self.predictions],
+            "validation_selection_predictions": [
+                prediction.to_dict() for prediction in self.validation_selection_predictions
+            ],
         }
 
 
@@ -122,6 +135,7 @@ class CmapssTransformerBaselineRun:
     selected_epoch: int
     history: tuple[CmapssCnnTrainingEpoch, ...]
     predictions: tuple[CmapssDeepPrediction, ...]
+    validation_selection_predictions: tuple[CmapssDeepPrediction, ...]
 
     def to_dict(self) -> dict[str, Any]:
         """Return a JSON-serialisable dictionary."""
@@ -131,6 +145,9 @@ class CmapssTransformerBaselineRun:
             "selected_epoch": self.selected_epoch,
             "history": [epoch.to_dict() for epoch in self.history],
             "predictions": [prediction.to_dict() for prediction in self.predictions],
+            "validation_selection_predictions": [
+                prediction.to_dict() for prediction in self.validation_selection_predictions
+            ],
         }
 
 
@@ -442,25 +459,28 @@ def run_cmapss_cnn_baseline_run(
             dropout=dropout,
         )
 
-    result, selected_epoch, history, predictions = _run_sequence_baseline_run(
-        sequence_dir,
-        subset,
-        epochs=epochs,
-        batch_size=batch_size,
-        learning_rate=learning_rate,
-        checkpoint_policy=checkpoint_policy,
-        random_state=random_state,
-        device=device,
-        model_factory=model_factory,
-        model_name_base_factory=lambda metadata: (
-            f"cnn_1d_w{metadata['window_size']}_e{epochs}_c{hidden_channels}"
-        ),
+    result, selected_epoch, history, predictions, validation_selection_predictions = (
+        _run_sequence_baseline_run(
+            sequence_dir,
+            subset,
+            epochs=epochs,
+            batch_size=batch_size,
+            learning_rate=learning_rate,
+            checkpoint_policy=checkpoint_policy,
+            random_state=random_state,
+            device=device,
+            model_factory=model_factory,
+            model_name_base_factory=lambda metadata: (
+                f"cnn_1d_w{metadata['window_size']}_e{epochs}_c{hidden_channels}"
+            ),
+        )
     )
     return CmapssCnnBaselineRun(
         result=result,
         selected_epoch=selected_epoch,
         history=history,
         predictions=predictions,
+        validation_selection_predictions=validation_selection_predictions,
     )
 
 
@@ -529,25 +549,28 @@ def run_cmapss_lstm_baseline_run(
         )
 
     model_kind = "bilstm" if bidirectional else "lstm"
-    result, selected_epoch, history, predictions = _run_sequence_baseline_run(
-        sequence_dir,
-        subset,
-        epochs=epochs,
-        batch_size=batch_size,
-        learning_rate=learning_rate,
-        checkpoint_policy=checkpoint_policy,
-        random_state=random_state,
-        device=device,
-        model_factory=model_factory,
-        model_name_base_factory=lambda metadata: (
-            f"{model_kind}_w{metadata['window_size']}_e{epochs}_h{hidden_size}_l{num_layers}"
-        ),
+    result, selected_epoch, history, predictions, validation_selection_predictions = (
+        _run_sequence_baseline_run(
+            sequence_dir,
+            subset,
+            epochs=epochs,
+            batch_size=batch_size,
+            learning_rate=learning_rate,
+            checkpoint_policy=checkpoint_policy,
+            random_state=random_state,
+            device=device,
+            model_factory=model_factory,
+            model_name_base_factory=lambda metadata: (
+                f"{model_kind}_w{metadata['window_size']}_e{epochs}_h{hidden_size}_l{num_layers}"
+            ),
+        )
     )
     return CmapssLstmBaselineRun(
         result=result,
         selected_epoch=selected_epoch,
         history=history,
         predictions=predictions,
+        validation_selection_predictions=validation_selection_predictions,
     )
 
 
@@ -617,26 +640,29 @@ def run_cmapss_tcn_baseline_run(
             dropout=dropout,
         )
 
-    result, selected_epoch, history, predictions = _run_sequence_baseline_run(
-        sequence_dir,
-        subset,
-        epochs=epochs,
-        batch_size=batch_size,
-        learning_rate=learning_rate,
-        checkpoint_policy=checkpoint_policy,
-        random_state=random_state,
-        device=device,
-        model_factory=model_factory,
-        model_name_base_factory=lambda metadata: (
-            f"tcn_w{metadata['window_size']}_e{epochs}_c{hidden_channels}"
-            f"_l{num_levels}_k{kernel_size}"
-        ),
+    result, selected_epoch, history, predictions, validation_selection_predictions = (
+        _run_sequence_baseline_run(
+            sequence_dir,
+            subset,
+            epochs=epochs,
+            batch_size=batch_size,
+            learning_rate=learning_rate,
+            checkpoint_policy=checkpoint_policy,
+            random_state=random_state,
+            device=device,
+            model_factory=model_factory,
+            model_name_base_factory=lambda metadata: (
+                f"tcn_w{metadata['window_size']}_e{epochs}_c{hidden_channels}"
+                f"_l{num_levels}_k{kernel_size}"
+            ),
+        )
     )
     return CmapssTcnBaselineRun(
         result=result,
         selected_epoch=selected_epoch,
         history=history,
         predictions=predictions,
+        validation_selection_predictions=validation_selection_predictions,
     )
 
 
@@ -715,26 +741,29 @@ def run_cmapss_transformer_baseline_run(
             dropout=dropout,
         )
 
-    result, selected_epoch, history, predictions = _run_sequence_baseline_run(
-        sequence_dir,
-        subset,
-        epochs=epochs,
-        batch_size=batch_size,
-        learning_rate=learning_rate,
-        checkpoint_policy=checkpoint_policy,
-        random_state=random_state,
-        device=device,
-        model_factory=model_factory,
-        model_name_base_factory=lambda metadata: (
-            f"transformer_w{metadata['window_size']}_e{epochs}_d{d_model}"
-            f"_h{num_heads}_l{num_layers}_ff{dim_feedforward}"
-        ),
+    result, selected_epoch, history, predictions, validation_selection_predictions = (
+        _run_sequence_baseline_run(
+            sequence_dir,
+            subset,
+            epochs=epochs,
+            batch_size=batch_size,
+            learning_rate=learning_rate,
+            checkpoint_policy=checkpoint_policy,
+            random_state=random_state,
+            device=device,
+            model_factory=model_factory,
+            model_name_base_factory=lambda metadata: (
+                f"transformer_w{metadata['window_size']}_e{epochs}_d{d_model}"
+                f"_h{num_heads}_l{num_layers}_ff{dim_feedforward}"
+            ),
+        )
     )
     return CmapssTransformerBaselineRun(
         result=result,
         selected_epoch=selected_epoch,
         history=history,
         predictions=predictions,
+        validation_selection_predictions=validation_selection_predictions,
     )
 
 
@@ -754,6 +783,7 @@ def _run_sequence_baseline_run(
     RegressionRunResult,
     int,
     tuple[CmapssCnnTrainingEpoch, ...],
+    tuple[CmapssDeepPrediction, ...],
     tuple[CmapssDeepPrediction, ...],
 ]:
     if epochs < 1:
@@ -838,6 +868,11 @@ def _run_sequence_baseline_run(
 
     model.load_state_dict(selected_state)
     model.to(torch_device)
+    selected_validation_predictions = _predict(
+        model,
+        validation_payload["windows"],
+        torch_device,
+    )
     test_predictions = _predict(model, test_payload["windows"], torch_device)
     model_name = f"{model_name_base_factory(metadata)}_{selected_label}"
 
@@ -861,20 +896,35 @@ def _run_sequence_baseline_run(
     )
     predictions = _build_sequence_predictions(
         test_payload["unit_numbers"],
+        test_payload["end_cycles"],
         test_payload["targets"],
         test_predictions,
     )
-    return result, selected_epoch.epoch, tuple(history), predictions
+    validation_selection_predictions = _build_sequence_predictions(
+        validation_payload["unit_numbers"],
+        validation_payload["end_cycles"],
+        validation_payload["targets"],
+        selected_validation_predictions,
+    )
+    return (
+        result,
+        selected_epoch.epoch,
+        tuple(history),
+        predictions,
+        validation_selection_predictions,
+    )
 
 
 def _build_sequence_predictions(
     unit_numbers: np.ndarray,
+    end_cycles: np.ndarray,
     actual_rul: np.ndarray,
     predicted_rul: np.ndarray,
 ) -> tuple[CmapssDeepPrediction, ...]:
     rows: list[CmapssDeepPrediction] = []
-    for unit_number, actual, predicted in zip(
+    for unit_number, end_cycle, actual, predicted in zip(
         unit_numbers,
+        end_cycles,
         actual_rul,
         predicted_rul,
         strict=True,
@@ -885,6 +935,7 @@ def _build_sequence_predictions(
         rows.append(
             CmapssDeepPrediction(
                 unit_number=int(unit_number),
+                end_cycle=int(end_cycle),
                 actual_rul=actual_value,
                 predicted_rul=predicted_value,
                 error=error,
@@ -1257,17 +1308,24 @@ def run_cmapss_deep_baseline_comparison_runs(
 def write_cmapss_deep_predictions_csv(
     runs: list[CmapssDeepBaselineRun] | tuple[CmapssDeepBaselineRun, ...],
     output_path: str | Path,
+    *,
+    prediction_split: str = "official_test",
 ) -> Path:
-    """Write official-test per-unit prediction diagnostics for deep C-MAPSS runs."""
+    """Write per-window prediction diagnostics for deep C-MAPSS runs."""
+
+    if prediction_split not in {"official_test", "validation_selection"}:
+        raise ValueError("prediction_split must be 'official_test' or 'validation_selection'")
 
     path = Path(output_path)
     path.parent.mkdir(parents=True, exist_ok=True)
     fieldnames = [
         "dataset",
+        "prediction_split",
         "subset",
         "model_name",
         "selected_epoch",
         "unit_number",
+        "end_cycle",
         "actual_rul",
         "predicted_rul",
         "error",
@@ -1279,10 +1337,16 @@ def write_cmapss_deep_predictions_csv(
         writer = csv.DictWriter(file, fieldnames=fieldnames)
         writer.writeheader()
         for run in runs:
-            for prediction in run.predictions:
+            predictions = (
+                run.predictions
+                if prediction_split == "official_test"
+                else run.validation_selection_predictions
+            )
+            for prediction in predictions:
                 writer.writerow(
                     {
                         "dataset": run.result.dataset,
+                        "prediction_split": prediction_split,
                         "subset": run.result.subset,
                         "model_name": run.result.model_name,
                         "selected_epoch": run.selected_epoch,
@@ -1400,9 +1464,7 @@ def _with_comparison_label(
     learning_rate: float,
     hidden_size: int,
 ) -> RegressionRunResult:
-    label = (
-        f"compare_{model_name}_h{hidden_size}_lr{_format_comparison_float(learning_rate)}"
-    )
+    label = f"compare_{model_name}_h{hidden_size}_lr{_format_comparison_float(learning_rate)}"
     return replace(result, model_name=f"{label}_{result.model_name}")
 
 
@@ -1505,6 +1567,7 @@ def _load_sequence_npz(path: Path) -> dict[str, np.ndarray]:
         "windows": payload["windows"].astype(np.float32),
         "targets": payload["targets"].astype(np.float32),
         "unit_numbers": payload["unit_numbers"],
+        "end_cycles": payload["end_cycles"],
     }
 
 
