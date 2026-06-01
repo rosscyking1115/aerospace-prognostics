@@ -901,6 +901,66 @@ def test_cmapss_deep_baseline_compare_command_writes_result_tables(
     assert output_csv.exists()
 
 
+def test_cmapss_calibrate_deep_predictions_command_writes_reports(
+    tmp_path,
+    capsys,
+) -> None:
+    calibration_csv = tmp_path / "results" / "validation_predictions.csv"
+    predictions_csv = tmp_path / "results" / "official_predictions.csv"
+    output_csv = tmp_path / "reports" / "official_predictions_calibrated.csv"
+    output_calibration_csv = tmp_path / "reports" / "calibration.csv"
+    output_diagnostics_csv = tmp_path / "reports" / "diagnostics.csv"
+    output_rul_bins_csv = tmp_path / "reports" / "diagnostics_by_rul_bin.csv"
+    output_markdown = tmp_path / "reports" / "diagnostics.md"
+    _write_cli_predictions(
+        calibration_csv,
+        [
+            _cli_prediction("FD001", "transformer", 1, 10.0, 5.0),
+            _cli_prediction("FD001", "transformer", 2, 30.0, 15.0),
+        ],
+    )
+    _write_cli_predictions(
+        predictions_csv,
+        [
+            _cli_prediction("FD001", "transformer", 3, 20.0, 8.0),
+        ],
+    )
+
+    exit_code = main(
+        [
+            "cmapss-calibrate-deep-predictions",
+            "--calibration-csv",
+            str(calibration_csv),
+            "--predictions-csv",
+            str(predictions_csv),
+            "--output-csv",
+            str(output_csv),
+            "--output-calibration-csv",
+            str(output_calibration_csv),
+            "--output-diagnostics-csv",
+            str(output_diagnostics_csv),
+            "--output-rul-bins-csv",
+            str(output_rul_bins_csv),
+            "--output-markdown",
+            str(output_markdown),
+        ]
+    )
+
+    output = capsys.readouterr().out
+    rows = list(csv.DictReader(output_csv.open("r", encoding="utf-8", newline="")))
+    assert exit_code == 0
+    assert "calibration_groups=1" in output
+    assert "calibrated_prediction_rows=1" in output
+    assert "calibration=FD001:transformer:rows=2:intercept=0:slope=2" in output
+    assert "calibration_csv=" in output
+    assert rows[0]["calibration_method"] == "validation_affine"
+    assert float(rows[0]["predicted_rul"]) == 16.0
+    assert output_calibration_csv.exists()
+    assert output_diagnostics_csv.exists()
+    assert output_rul_bins_csv.exists()
+    assert output_markdown.exists()
+
+
 def test_cmapss_compare_rul_results_command_writes_report_tables(
     tmp_path,
     capsys,
@@ -1640,6 +1700,42 @@ def _cli_result(
         random_state=42,
         standardize=True,
     )
+
+
+def _cli_prediction(
+    subset: str,
+    model_name: str,
+    unit_number: int,
+    actual_rul: float,
+    predicted_rul: float,
+) -> dict[str, str | int | float]:
+    error = predicted_rul - actual_rul
+    return {
+        "dataset": "C-MAPSS-sequence",
+        "prediction_split": "validation_selection",
+        "subset": subset,
+        "model_name": model_name,
+        "selected_epoch": 1,
+        "unit_number": unit_number,
+        "end_cycle": 10 + unit_number,
+        "actual_rul": actual_rul,
+        "predicted_rul": predicted_rul,
+        "error": error,
+        "absolute_error": abs(error),
+        "late_error": max(error, 0.0),
+        "early_error": max(-error, 0.0),
+    }
+
+
+def _write_cli_predictions(
+    path,
+    rows: list[dict[str, str | int | float]],
+) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("w", encoding="utf-8", newline="") as file:
+        writer = csv.DictWriter(file, fieldnames=list(rows[0]))
+        writer.writeheader()
+        writer.writerows(rows)
 
 
 def _write_cli_smap_msl_channel(root) -> None:

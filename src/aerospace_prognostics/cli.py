@@ -123,6 +123,9 @@ from aerospace_prognostics.reports.cmapss_model_comparison import (
     write_cmapss_model_comparison_csv,
     write_cmapss_model_comparison_markdown,
 )
+from aerospace_prognostics.reports.cmapss_prediction_calibration import (
+    calibrate_cmapss_deep_predictions,
+)
 from aerospace_prognostics.sequence_exports import export_cmapss_sequence_splits
 from aerospace_prognostics.workflows.phase1 import run_phase1_cmapss_workflow
 from aerospace_prognostics.workflows.phase2 import (
@@ -724,6 +727,33 @@ def _build_parser() -> argparse.ArgumentParser:
     deep_compare.add_argument("--device", default="cpu")
     deep_compare.add_argument("--output-json", type=Path)
     deep_compare.add_argument("--output-csv", type=Path)
+
+    calibrate_deep_predictions = subparsers.add_parser(
+        "cmapss-calibrate-deep-predictions",
+        help=(
+            "Fit validation affine calibration for deep C-MAPSS predictions "
+            "and apply it to an official-test prediction CSV"
+        ),
+    )
+    calibrate_deep_predictions.add_argument(
+        "--calibration-csv",
+        type=Path,
+        required=True,
+        help="Validation-selection prediction CSV used to fit calibration",
+    )
+    calibrate_deep_predictions.add_argument(
+        "--predictions-csv",
+        type=Path,
+        required=True,
+        help="Prediction CSV to calibrate",
+    )
+    calibrate_deep_predictions.add_argument("--output-csv", type=Path, required=True)
+    calibrate_deep_predictions.add_argument("--output-calibration-csv", type=Path)
+    calibrate_deep_predictions.add_argument("--output-diagnostics-csv", type=Path)
+    calibrate_deep_predictions.add_argument("--output-rul-bins-csv", type=Path)
+    calibrate_deep_predictions.add_argument("--output-markdown", type=Path)
+    calibrate_deep_predictions.add_argument("--top-n", type=int, default=10)
+    calibrate_deep_predictions.add_argument("--clip-min", type=float, default=0.0)
 
     compare_rul_results = subparsers.add_parser(
         "cmapss-compare-rul-results",
@@ -1822,6 +1852,39 @@ def main(argv: list[str] | None = None) -> int:
             write_results_json(results, args.output_json)
         if args.output_csv is not None:
             write_results_csv(results, args.output_csv)
+        return 0
+
+    if args.command == "cmapss-calibrate-deep-predictions":
+        result = calibrate_cmapss_deep_predictions(
+            calibration_csv=args.calibration_csv,
+            predictions_csv=args.predictions_csv,
+            output_csv=args.output_csv,
+            output_calibration_csv=args.output_calibration_csv,
+            output_diagnostics_csv=args.output_diagnostics_csv,
+            output_rul_bins_csv=args.output_rul_bins_csv,
+            output_markdown=args.output_markdown,
+            top_n=args.top_n,
+            clip_min=args.clip_min,
+        )
+        print(f"calibration_groups={len(result.calibrations)}")
+        print(f"calibrated_prediction_rows={result.calibrated_prediction_count}")
+        print(f"calibrated_predictions_csv={result.calibrated_predictions_csv_path}")
+        for calibration in result.calibrations:
+            print(
+                "calibration="
+                f"{calibration.subset}:{calibration.model_name}:"
+                f"rows={calibration.calibration_count}:"
+                f"intercept={_format_cli_float(calibration.intercept)}:"
+                f"slope={_format_cli_float(calibration.slope)}"
+            )
+        if result.calibration_csv_path is not None:
+            print(f"calibration_csv={result.calibration_csv_path}")
+        if result.diagnostics_csv_path is not None:
+            print(f"diagnostics_csv={result.diagnostics_csv_path}")
+        if result.rul_bins_csv_path is not None:
+            print(f"rul_bins_csv={result.rul_bins_csv_path}")
+        if result.diagnostics_markdown_path is not None:
+            print(f"diagnostics_markdown={result.diagnostics_markdown_path}")
         return 0
 
     if args.command == "cmapss-compare-rul-results":

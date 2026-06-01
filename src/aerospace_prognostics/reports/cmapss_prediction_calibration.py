@@ -1,0 +1,357 @@
+"""Post-hoc calibration utilities for C-MAPSS deep prediction CSVs."""
+
+from __future__ import annotations
+
+import csv
+from collections.abc import Iterable
+from dataclasses import asdict, dataclass
+from pathlib import Path
+from typing import Any
+
+from aerospace_prognostics.reports.cmapss_prediction_diagnostics import (
+    CmapssPredictionDiagnosticRow,
+    CmapssPredictionRulBinDiagnosticRow,
+    build_cmapss_prediction_diagnostics,
+    build_cmapss_prediction_rul_bin_diagnostics,
+    select_cmapss_high_error_predictions,
+    write_cmapss_prediction_diagnostics_csv,
+    write_cmapss_prediction_diagnostics_markdown,
+    write_cmapss_prediction_rul_bin_diagnostics_csv,
+)
+
+
+@dataclass(frozen=True)
+class CmapssAffinePredictionCalibration:
+    """Affine calibration fitted for one subset/model pair."""
+
+    subset: str
+    model_name: str
+    calibration_count: int
+    intercept: float
+    slope: float
+    mean_actual_rul: float
+    mean_raw_predicted_rul: float
+    raw_predicted_rul_variance: float
+    clip_min: float
+    method: str = "validation_affine"
+
+    def to_dict(self) -> dict[str, str | int | float]:
+        """Return a flat serialisable row."""
+
+        return asdict(self)
+
+
+@dataclass(frozen=True)
+class CmapssPredictionCalibrationResult:
+    """Paths and summaries produced by a calibrated prediction run."""
+
+    calibrated_predictions_csv_path: Path
+    calibrations: tuple[CmapssAffinePredictionCalibration, ...]
+    calibrated_prediction_count: int
+    calibration_csv_path: Path | None = None
+    diagnostics_csv_path: Path | None = None
+    rul_bins_csv_path: Path | None = None
+    diagnostics_markdown_path: Path | None = None
+    diagnostics: tuple[CmapssPredictionDiagnosticRow, ...] = ()
+    rul_bin_diagnostics: tuple[CmapssPredictionRulBinDiagnosticRow, ...] = ()
+
+
+def fit_cmapss_affine_prediction_calibrations(
+    calibration_csv: str | Path,
+    *,
+    clip_min: float = 0.0,
+) -> tuple[CmapssAffinePredictionCalibration, ...]:
+    """Fit one affine RUL calibration per subset/model from validation predictions."""
+
+    rows = _read_prediction_rows(calibration_csv)
+    grouped: dict[tuple[str, str], list[dict[str, str]]] = {}
+    for row in rows:
+        grouped.setdefault((row["subset"], row["model_name"]), []).append(row)
+
+    calibrations: list[CmapssAffinePredictionCalibration] = []
+    for subset, model_name in sorted(grouped):
+        group = grouped[(subset, model_name)]
+        calibrations.append(
+            _fit_group_affine_calibration(
+                subset,
+                model_name,
+                group,
+                clip_min=clip_min,
+            )
+        )
+    return tuple(calibrations)
+
+
+def write_cmapss_affine_prediction_calibration_csv(
+    calibrations: Iterable[CmapssAffinePredictionCalibration],
+    path: str | Path,
+) -> Path:
+    """Write fitted affine calibration parameters as CSV."""
+
+    calibration_rows = tuple(calibrations)
+    if not calibration_rows:
+        raise ValueError("calibrations must contain at least one item")
+    output_path = _prepare_output_path(path)
+    with output_path.open("w", encoding="utf-8", newline="") as file:
+        writer = csv.DictWriter(
+            file,
+            fieldnames=list(calibration_rows[0].to_dict()),
+        )
+        writer.writeheader()
+        writer.writerows(row.to_dict() for row in calibration_rows)
+    return output_path
+
+
+def write_cmapss_affine_calibrated_predictions_csv(
+    predictions_csv: str | Path,
+    output_csv: str | Path,
+    calibrations: Iterable[CmapssAffinePredictionCalibration],
+) -> int:
+    """Apply fitted affine calibrations and write a recalculated prediction CSV."""
+
+    prediction_path = Path(predictions_csv)
+    rows, fieldnames = _read_prediction_rows_with_fieldnames(prediction_path)
+    calibration_by_key = {
+        (calibration.subset, calibration.model_name): calibration
+        for calibration in calibrations
+    }
+    output_path = _prepare_output_path(output_csv)
+    output_fieldnames = _calibrated_prediction_fieldnames(fieldnames)
+
+    with output_path.open("w", encoding="utf-8", newline="") as file:
+        writer = csv.DictWriter(file, fieldnames=output_fieldnames)
+        writer.writeheader()
+        for row in rows:
+            calibration_key = (row["subset"], row["model_name"])
+            if calibration_key not in calibration_by_key:
+                subset, model_name = calibration_key
+                raise ValueError(
+                    "missing calibration for prediction row: "
+                    f"subset={subset}, model_name={model_name}"
+                )
+            writer.writerow(
+                _calibrated_prediction_row(row, calibration_by_key[calibration_key])
+            )
+
+    return len(rows)
+
+
+def calibrate_cmapss_deep_predictions(
+    *,
+    calibration_csv: str | Path,
+    predictions_csv: str | Path,
+    output_csv: str | Path,
+    output_calibration_csv: str | Path | None = None,
+    output_diagnostics_csv: str | Path | None = None,
+    output_rul_bins_csv: str | Path | None = None,
+    output_markdown: str | Path | None = None,
+    top_n: int = 10,
+    clip_min: float = 0.0,
+) -> CmapssPredictionCalibrationResult:
+    """Fit validation affine calibration, write calibrated predictions, and reports."""
+
+    calibrations = fit_cmapss_affine_prediction_calibrations(
+        calibration_csv,
+        clip_min=clip_min,
+    )
+    calibrated_prediction_count = write_cmapss_affine_calibrated_predictions_csv(
+        predictions_csv,
+        output_csv,
+        calibrations,
+    )
+
+    calibration_csv_path = Path(output_calibration_csv) if output_calibration_csv else None
+    if calibration_csv_path is not None:
+        write_cmapss_affine_prediction_calibration_csv(
+            calibrations,
+            calibration_csv_path,
+        )
+
+    diagnostics: tuple[CmapssPredictionDiagnosticRow, ...] = ()
+    rul_bin_diagnostics: tuple[CmapssPredictionRulBinDiagnosticRow, ...] = ()
+    if output_diagnostics_csv is not None or output_markdown is not None:
+        diagnostics = tuple(build_cmapss_prediction_diagnostics(output_csv))
+    if output_rul_bins_csv is not None or output_markdown is not None:
+        rul_bin_diagnostics = tuple(
+            build_cmapss_prediction_rul_bin_diagnostics(output_csv)
+        )
+
+    diagnostics_csv_path = Path(output_diagnostics_csv) if output_diagnostics_csv else None
+    if diagnostics_csv_path is not None:
+        write_cmapss_prediction_diagnostics_csv(list(diagnostics), diagnostics_csv_path)
+
+    rul_bins_csv_path = Path(output_rul_bins_csv) if output_rul_bins_csv else None
+    if rul_bins_csv_path is not None:
+        write_cmapss_prediction_rul_bin_diagnostics_csv(
+            list(rul_bin_diagnostics),
+            rul_bins_csv_path,
+        )
+
+    diagnostics_markdown_path = Path(output_markdown) if output_markdown else None
+    if diagnostics_markdown_path is not None:
+        write_cmapss_prediction_diagnostics_markdown(
+            list(diagnostics),
+            select_cmapss_high_error_predictions(output_csv, top_n=top_n),
+            diagnostics_markdown_path,
+            rul_bin_diagnostics=list(rul_bin_diagnostics),
+        )
+
+    return CmapssPredictionCalibrationResult(
+        calibrated_predictions_csv_path=Path(output_csv),
+        calibrations=calibrations,
+        calibrated_prediction_count=calibrated_prediction_count,
+        calibration_csv_path=calibration_csv_path,
+        diagnostics_csv_path=diagnostics_csv_path,
+        rul_bins_csv_path=rul_bins_csv_path,
+        diagnostics_markdown_path=diagnostics_markdown_path,
+        diagnostics=diagnostics,
+        rul_bin_diagnostics=rul_bin_diagnostics,
+    )
+
+
+def _fit_group_affine_calibration(
+    subset: str,
+    model_name: str,
+    rows: list[dict[str, str]],
+    *,
+    clip_min: float,
+) -> CmapssAffinePredictionCalibration:
+    raw_predictions = [_float(row["predicted_rul"]) for row in rows]
+    actual_values = [_float(row["actual_rul"]) for row in rows]
+    mean_raw_prediction = _mean(raw_predictions)
+    mean_actual = _mean(actual_values)
+    variance = _mean(
+        (raw_prediction - mean_raw_prediction) ** 2
+        for raw_prediction in raw_predictions
+    )
+    if variance <= 1e-12:
+        slope = 1.0
+        intercept = _mean(
+            actual - raw_prediction
+            for actual, raw_prediction in zip(
+                actual_values,
+                raw_predictions,
+                strict=True,
+            )
+        )
+    else:
+        covariance = _mean(
+            (raw_prediction - mean_raw_prediction) * (actual - mean_actual)
+            for raw_prediction, actual in zip(
+                raw_predictions,
+                actual_values,
+                strict=True,
+            )
+        )
+        slope = covariance / variance
+        intercept = mean_actual - slope * mean_raw_prediction
+
+    return CmapssAffinePredictionCalibration(
+        subset=subset,
+        model_name=model_name,
+        calibration_count=len(rows),
+        intercept=intercept,
+        slope=slope,
+        mean_actual_rul=mean_actual,
+        mean_raw_predicted_rul=mean_raw_prediction,
+        raw_predicted_rul_variance=variance,
+        clip_min=clip_min,
+    )
+
+
+def _calibrated_prediction_row(
+    row: dict[str, str],
+    calibration: CmapssAffinePredictionCalibration,
+) -> dict[str, Any]:
+    raw_prediction = _float(row.get("raw_predicted_rul") or row["predicted_rul"])
+    calibrated_prediction = calibration.intercept + calibration.slope * raw_prediction
+    calibrated_prediction = max(calibration.clip_min, calibrated_prediction)
+    actual_rul = _float(row["actual_rul"])
+    error = calibrated_prediction - actual_rul
+
+    output_row: dict[str, Any] = dict(row)
+    output_row.update(
+        {
+            "raw_predicted_rul": raw_prediction,
+            "predicted_rul": calibrated_prediction,
+            "error": error,
+            "absolute_error": abs(error),
+            "late_error": max(error, 0.0),
+            "early_error": max(-error, 0.0),
+            "calibration_method": calibration.method,
+            "calibration_count": calibration.calibration_count,
+            "calibration_intercept": calibration.intercept,
+            "calibration_slope": calibration.slope,
+            "calibration_clip_min": calibration.clip_min,
+        }
+    )
+    return output_row
+
+
+def _read_prediction_rows(path: str | Path) -> list[dict[str, str]]:
+    rows, _ = _read_prediction_rows_with_fieldnames(path)
+    return rows
+
+
+def _read_prediction_rows_with_fieldnames(
+    path: str | Path,
+) -> tuple[list[dict[str, str]], list[str]]:
+    prediction_path = Path(path)
+    if not prediction_path.exists():
+        raise FileNotFoundError(f"missing prediction CSV: {prediction_path}")
+    with prediction_path.open("r", encoding="utf-8", newline="") as file:
+        reader = csv.DictReader(file)
+        rows = list(reader)
+        fieldnames = list(reader.fieldnames or [])
+    if not rows:
+        raise ValueError(f"prediction CSV has no rows: {prediction_path}")
+    missing_columns = _REQUIRED_PREDICTION_COLUMNS - set(fieldnames)
+    if missing_columns:
+        missing = ", ".join(sorted(missing_columns))
+        raise ValueError(f"prediction CSV is missing required columns: {missing}")
+    return rows, fieldnames
+
+
+def _calibrated_prediction_fieldnames(fieldnames: list[str]) -> list[str]:
+    output_fieldnames = list(fieldnames)
+    for fieldname in (
+        "raw_predicted_rul",
+        "calibration_method",
+        "calibration_count",
+        "calibration_intercept",
+        "calibration_slope",
+        "calibration_clip_min",
+    ):
+        if fieldname not in output_fieldnames:
+            output_fieldnames.append(fieldname)
+    return output_fieldnames
+
+
+def _mean(values: Iterable[float]) -> float:
+    sequence = tuple(values)
+    if not sequence:
+        raise ValueError("cannot average an empty metric sequence")
+    return sum(sequence) / len(sequence)
+
+
+def _float(value: Any) -> float:
+    return float(value)
+
+
+def _prepare_output_path(path: str | Path) -> Path:
+    output_path = Path(path)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    return output_path
+
+
+_REQUIRED_PREDICTION_COLUMNS = {
+    "subset",
+    "model_name",
+    "unit_number",
+    "actual_rul",
+    "predicted_rul",
+    "error",
+    "absolute_error",
+    "late_error",
+    "early_error",
+}
