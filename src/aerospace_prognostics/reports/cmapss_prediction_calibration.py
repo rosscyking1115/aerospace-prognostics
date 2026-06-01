@@ -296,6 +296,8 @@ def calibrate_cmapss_deep_predictions(
     top_n: int = 10,
     clip_min: float = 0.0,
     shrinkage_strength: float = 100.0,
+    nasa_shift_max: float = 30.0,
+    nasa_shift_step: float = 1.0,
 ) -> CmapssPredictionCalibrationResult:
     """Fit validation calibration, write calibrated predictions, and reports."""
 
@@ -316,6 +318,8 @@ def calibrate_cmapss_deep_predictions(
         calibrations = fit_cmapss_predicted_rul_bin_nasa_shift_calibrations(
             calibration_csv,
             shrinkage_strength=shrinkage_strength,
+            max_shift=nasa_shift_max,
+            shift_step=nasa_shift_step,
             clip_min=clip_min,
         )
     else:

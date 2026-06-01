@@ -796,6 +796,18 @@ def _build_parser() -> argparse.ArgumentParser:
         default=100.0,
         help="Residual-bin shrinkage strength; larger values shrink corrections more",
     )
+    calibrate_deep_predictions.add_argument(
+        "--nasa-shift-max",
+        type=float,
+        default=30.0,
+        help="Maximum absolute shift searched for predicted-bin NASA-shift calibration",
+    )
+    calibrate_deep_predictions.add_argument(
+        "--nasa-shift-step",
+        type=float,
+        default=1.0,
+        help="Shift grid step for predicted-bin NASA-shift calibration",
+    )
 
     compare_rul_results = subparsers.add_parser(
         "cmapss-compare-rul-results",
@@ -1920,6 +1932,8 @@ def main(argv: list[str] | None = None) -> int:
             top_n=args.top_n,
             clip_min=args.clip_min,
             shrinkage_strength=args.shrinkage_strength,
+            nasa_shift_max=args.nasa_shift_max,
+            nasa_shift_step=args.nasa_shift_step,
         )
         print(f"calibration_method={args.method}")
         print(f"calibration_groups={len(result.calibrations)}")

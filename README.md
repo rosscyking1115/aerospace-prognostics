@@ -32,7 +32,7 @@ The working plan is tracked in [Aerospace_Prognostics_Project_Plan.md](Aerospace
 - `aerospace-prognostics cmapss-tcn-baseline` CLI for Phase 2 temporal convolution sequence baselines.
 - `aerospace-prognostics cmapss-transformer-baseline` CLI for Phase 2 attention-based sequence baselines.
 - `aerospace-prognostics cmapss-deep-baseline-compare` CLI for compact Phase 2 architecture and learning-rate sweeps, including residual CNN candidates.
-- `aerospace-prognostics cmapss-calibrate-deep-predictions` CLI for validation-fitted affine, predicted-bin residual, and NASA-shift calibration diagnostics.
+- `aerospace-prognostics cmapss-calibrate-deep-predictions` CLI for validation-fitted affine, predicted-bin residual, and tunable NASA-shift calibration diagnostics.
 - `aerospace-prognostics cmapss-compare-rul-results` CLI for Phase 1 vs Phase 2 ranked model-comparison reports.
 - `aerospace-prognostics telemetry-robust-zscore-baseline` CLI for the Phase 2 spacecraft anomaly-detection baseline plumbing.
 - `aerospace-prognostics telemetry-classical-anomaly-baselines` CLI for robust z-score, PCA reconstruction, and Isolation Forest anomaly baseline comparisons.
