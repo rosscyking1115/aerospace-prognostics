@@ -36,6 +36,7 @@ def test_run_phase2_cmapss_workflow_writes_expected_artifacts(tmp_path) -> None:
     assert result.deep_compare_csv_path.exists()
     assert result.deep_predictions_csv_path.exists()
     assert result.deep_prediction_diagnostics_csv_path.exists()
+    assert result.deep_prediction_rul_bin_diagnostics_csv_path.exists()
     assert result.deep_prediction_diagnostics_markdown_path.exists()
     assert result.comparison_csv_path.exists()
     assert result.comparison_markdown_path.exists()
@@ -55,6 +56,12 @@ def test_run_phase2_cmapss_workflow_writes_expected_artifacts(tmp_path) -> None:
         newline="",
     ) as file:
         diagnostic_rows = list(csv.DictReader(file))
+    with result.deep_prediction_rul_bin_diagnostics_csv_path.open(
+        "r",
+        encoding="utf-8",
+        newline="",
+    ) as file:
+        rul_bin_rows = list(csv.DictReader(file))
     run_manifest = json.loads(result.run_manifest_path.read_text(encoding="utf-8"))
     summary = result.summary_markdown_path.read_text(encoding="utf-8")
 
@@ -63,21 +70,28 @@ def test_run_phase2_cmapss_workflow_writes_expected_artifacts(tmp_path) -> None:
     assert prediction_rows[0]["model_name"].startswith("compare_")
     assert len(diagnostic_rows) == 2
     assert diagnostic_rows[0]["mean_absolute_error"]
+    assert rul_bin_rows
+    assert "actual_rul_bin" in rul_bin_rows[0]
     assert run_manifest["workflow"] == "phase2_cmapss"
     assert run_manifest["parameters"]["subsets"] == ["FD001"]
     assert run_manifest["counts"]["sequence_exports"] == 1
     assert run_manifest["counts"]["deep_compare_results"] == 2
     assert run_manifest["counts"]["deep_prediction_rows"] == 4
     assert run_manifest["counts"]["deep_prediction_diagnostics"] == 2
+    assert run_manifest["counts"]["deep_prediction_rul_bin_diagnostics"] >= 2
     assert run_manifest["counts"]["comparison_rows"] == 3
     assert "numpy" in run_manifest["runtime"]["dependencies"]
     assert "git_commit" in run_manifest["source_control"]
-    assert len(run_manifest["artifact_integrity"]) == 15
+    assert len(run_manifest["artifact_integrity"]) == 16
     assert "sha256" in run_manifest["artifact_integrity"]["deep_compare_csv"]
     assert "sha256" in run_manifest["artifact_integrity"]["deep_predictions_csv"]
     assert (
         "sha256"
         in run_manifest["artifact_integrity"]["deep_prediction_diagnostics_csv"]
+    )
+    assert (
+        "sha256"
+        in run_manifest["artifact_integrity"]["deep_prediction_rul_bin_diagnostics_csv"]
     )
     assert run_manifest["artifacts"]["sequence_fd001_train_npz"].endswith(
         "train_sequences.npz"
@@ -85,12 +99,13 @@ def test_run_phase2_cmapss_workflow_writes_expected_artifacts(tmp_path) -> None:
     assert "# Phase 2 C-MAPSS Summary" in summary
     assert "## Best Model By NASA Score" in summary
     assert "## Deep Prediction Diagnostics" in summary
+    assert "## Deep Prediction RUL Bins" in summary
     assert "deep prediction diagnostics" in summary
     assert "Run manifest" in summary
 
     verification = verify_phase2_cmapss_run_manifest(result.run_manifest_path)
     assert verification.ok
-    assert len(verification.checked_artifacts) == 16
+    assert len(verification.checked_artifacts) == 17
     assert verification.manifest_payload is not None
 
     audit_path = write_phase2_cmapss_manifest_audit_markdown(
@@ -100,10 +115,11 @@ def test_run_phase2_cmapss_workflow_writes_expected_artifacts(tmp_path) -> None:
     audit_markdown = audit_path.read_text(encoding="utf-8")
     assert "# Phase 2 C-MAPSS Manifest Audit" in audit_markdown
     assert "- Status: ok" in audit_markdown
-    assert "- Artifacts checked: 16" in audit_markdown
+    assert "- Artifacts checked: 17" in audit_markdown
     assert "| deep_compare_csv | yes |" in audit_markdown
     assert "| deep_predictions_csv | yes |" in audit_markdown
     assert "| deep_prediction_diagnostics_csv | yes |" in audit_markdown
+    assert "| deep_prediction_rul_bin_diagnostics_csv | yes |" in audit_markdown
     assert "- None" in audit_markdown
 
     with result.deep_compare_csv_path.open("a", encoding="utf-8") as file:

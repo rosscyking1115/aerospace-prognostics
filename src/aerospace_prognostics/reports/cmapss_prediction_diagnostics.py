@@ -53,6 +53,30 @@ class CmapssPredictionOutlierRow:
         return asdict(self)
 
 
+@dataclass(frozen=True)
+class CmapssPredictionRulBinDiagnosticRow:
+    """Aggregate prediction diagnostics for one actual-RUL range."""
+
+    subset: str
+    model_name: str
+    actual_rul_bin: str
+    prediction_count: int
+    mean_actual_rul: float
+    mean_predicted_rul: float
+    mean_error: float
+    mean_absolute_error: float
+    max_absolute_error: float
+    mean_late_error: float
+    late_prediction_rate: float
+    mean_early_error: float
+    early_prediction_rate: float
+
+    def to_dict(self) -> dict[str, str | int | float]:
+        """Return a flat serialisable row."""
+
+        return asdict(self)
+
+
 def build_cmapss_prediction_diagnostics(
     predictions_csv: str | Path,
 ) -> list[CmapssPredictionDiagnosticRow]:
@@ -66,25 +90,43 @@ def build_cmapss_prediction_diagnostics(
     diagnostics: list[CmapssPredictionDiagnosticRow] = []
     for subset, model_name in sorted(grouped):
         group = grouped[(subset, model_name)]
-        absolute_errors = [_float(row["absolute_error"]) for row in group]
-        late_errors = [_float(row["late_error"]) for row in group]
-        early_errors = [_float(row["early_error"]) for row in group]
+        diagnostics.append(_prediction_diagnostic_row(subset, model_name, group))
+    return diagnostics
+
+
+def build_cmapss_prediction_rul_bin_diagnostics(
+    predictions_csv: str | Path,
+) -> list[CmapssPredictionRulBinDiagnosticRow]:
+    """Build aggregate diagnostics grouped by actual-RUL ranges."""
+
+    rows = _read_prediction_rows(predictions_csv)
+    grouped: dict[tuple[str, str, str], list[dict[str, str]]] = {}
+    for row in rows:
+        bin_label = _actual_rul_bin(_float(row["actual_rul"]))
+        grouped.setdefault((row["subset"], row["model_name"], bin_label), []).append(row)
+
+    diagnostics: list[CmapssPredictionRulBinDiagnosticRow] = []
+    for subset, model_name, bin_label in sorted(
+        grouped,
+        key=lambda key: (key[0], key[1], _actual_rul_bin_sort_key(key[2])),
+    ):
+        group = grouped[(subset, model_name, bin_label)]
+        row = _prediction_diagnostic_row(subset, model_name, group)
         diagnostics.append(
-            CmapssPredictionDiagnosticRow(
-                subset=subset,
-                model_name=model_name,
-                prediction_count=len(group),
-                mean_actual_rul=_mean(_float(row["actual_rul"]) for row in group),
-                mean_predicted_rul=_mean(
-                    _float(row["predicted_rul"]) for row in group
-                ),
-                mean_error=_mean(_float(row["error"]) for row in group),
-                mean_absolute_error=_mean(absolute_errors),
-                max_absolute_error=max(absolute_errors),
-                mean_late_error=_mean(late_errors),
-                late_prediction_rate=_rate(value > 0 for value in late_errors),
-                mean_early_error=_mean(early_errors),
-                early_prediction_rate=_rate(value > 0 for value in early_errors),
+            CmapssPredictionRulBinDiagnosticRow(
+                subset=row.subset,
+                model_name=row.model_name,
+                actual_rul_bin=bin_label,
+                prediction_count=row.prediction_count,
+                mean_actual_rul=row.mean_actual_rul,
+                mean_predicted_rul=row.mean_predicted_rul,
+                mean_error=row.mean_error,
+                mean_absolute_error=row.mean_absolute_error,
+                max_absolute_error=row.max_absolute_error,
+                mean_late_error=row.mean_late_error,
+                late_prediction_rate=row.late_prediction_rate,
+                mean_early_error=row.mean_early_error,
+                early_prediction_rate=row.early_prediction_rate,
             )
         )
     return diagnostics
@@ -140,16 +182,37 @@ def write_cmapss_prediction_diagnostics_csv(
         writer.writerows(row.to_dict() for row in rows)
 
 
+def write_cmapss_prediction_rul_bin_diagnostics_csv(
+    rows: list[CmapssPredictionRulBinDiagnosticRow],
+    path: str | Path,
+) -> None:
+    """Write actual-RUL bin diagnostics rows as CSV."""
+
+    if not rows:
+        raise ValueError("rows must contain at least one item")
+    output_path = _prepare_output_path(path)
+    with output_path.open("w", encoding="utf-8", newline="") as file:
+        writer = csv.DictWriter(file, fieldnames=list(rows[0].to_dict()))
+        writer.writeheader()
+        writer.writerows(row.to_dict() for row in rows)
+
+
 def write_cmapss_prediction_diagnostics_markdown(
     diagnostics: list[CmapssPredictionDiagnosticRow],
     outliers: list[CmapssPredictionOutlierRow],
     path: str | Path,
+    *,
+    rul_bin_diagnostics: list[CmapssPredictionRulBinDiagnosticRow] | None = None,
 ) -> None:
     """Write prediction diagnostics as a compact Markdown report."""
 
     output_path = _prepare_output_path(path)
     output_path.write_text(
-        render_cmapss_prediction_diagnostics_markdown(diagnostics, outliers),
+        render_cmapss_prediction_diagnostics_markdown(
+            diagnostics,
+            outliers,
+            rul_bin_diagnostics=rul_bin_diagnostics,
+        ),
         encoding="utf-8",
     )
 
@@ -157,6 +220,8 @@ def write_cmapss_prediction_diagnostics_markdown(
 def render_cmapss_prediction_diagnostics_markdown(
     diagnostics: list[CmapssPredictionDiagnosticRow],
     outliers: list[CmapssPredictionOutlierRow],
+    *,
+    rul_bin_diagnostics: list[CmapssPredictionRulBinDiagnosticRow] | None = None,
 ) -> str:
     """Render prediction diagnostics as Markdown tables."""
 
@@ -187,6 +252,32 @@ def render_cmapss_prediction_diagnostics_markdown(
             f"{row.mean_early_error:.6f} | "
             f"{row.early_prediction_rate:.6f} |"
         )
+    if rul_bin_diagnostics:
+        lines.extend(
+            [
+                "",
+                "## Error By Actual RUL Bin",
+                "",
+                (
+                    "| Subset | Model | Actual RUL Bin | Rows | Mean Error | "
+                    "Mean Abs Error | Max Abs Error | Late Rate | Early Rate |"
+                ),
+                "|---|---|---|---:|---:|---:|---:|---:|---:|",
+            ]
+        )
+        for row in rul_bin_diagnostics:
+            lines.append(
+                "| "
+                f"{row.subset} | "
+                f"`{row.model_name}` | "
+                f"{row.actual_rul_bin} | "
+                f"{row.prediction_count} | "
+                f"{row.mean_error:.6f} | "
+                f"{row.mean_absolute_error:.6f} | "
+                f"{row.max_absolute_error:.6f} | "
+                f"{row.late_prediction_rate:.6f} | "
+                f"{row.early_prediction_rate:.6f} |"
+            )
     if outliers:
         lines.extend(
             [
@@ -241,6 +332,47 @@ def _read_prediction_rows(path: str | Path) -> list[dict[str, str]]:
         missing = ", ".join(sorted(missing_columns))
         raise ValueError(f"prediction CSV is missing required columns: {missing}")
     return rows
+
+
+def _prediction_diagnostic_row(
+    subset: str,
+    model_name: str,
+    rows: list[dict[str, str]],
+) -> CmapssPredictionDiagnosticRow:
+    absolute_errors = [_float(row["absolute_error"]) for row in rows]
+    late_errors = [_float(row["late_error"]) for row in rows]
+    early_errors = [_float(row["early_error"]) for row in rows]
+    return CmapssPredictionDiagnosticRow(
+        subset=subset,
+        model_name=model_name,
+        prediction_count=len(rows),
+        mean_actual_rul=_mean(_float(row["actual_rul"]) for row in rows),
+        mean_predicted_rul=_mean(_float(row["predicted_rul"]) for row in rows),
+        mean_error=_mean(_float(row["error"]) for row in rows),
+        mean_absolute_error=_mean(absolute_errors),
+        max_absolute_error=max(absolute_errors),
+        mean_late_error=_mean(late_errors),
+        late_prediction_rate=_rate(value > 0 for value in late_errors),
+        mean_early_error=_mean(early_errors),
+        early_prediction_rate=_rate(value > 0 for value in early_errors),
+    )
+
+
+def _actual_rul_bin(actual_rul: float) -> str:
+    if actual_rul <= 30:
+        return "0-30"
+    if actual_rul <= 60:
+        return "31-60"
+    if actual_rul <= 90:
+        return "61-90"
+    if actual_rul <= 120:
+        return "91-120"
+    return "121+"
+
+
+def _actual_rul_bin_sort_key(label: str) -> int:
+    order = {"0-30": 0, "31-60": 1, "61-90": 2, "91-120": 3, "121+": 4}
+    return order[label]
 
 
 def _mean(values: Iterable[float]) -> float:

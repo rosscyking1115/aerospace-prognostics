@@ -536,6 +536,7 @@ def test_phase2_cmapss_command_runs_sequence_model_workflow(tmp_path, capsys) ->
     assert "comparison_rows=3" in output
     assert "deep_predictions_csv=" in output
     assert "deep_prediction_diagnostics_csv=" in output
+    assert "deep_prediction_rul_bin_diagnostics_csv=" in output
     assert "deep_prediction_diagnostics_markdown=" in output
     assert "run_manifest=" in output
     assert (artifact_dir / "phase2_summary.md").exists()
@@ -544,6 +545,9 @@ def test_phase2_cmapss_command_runs_sequence_model_workflow(tmp_path, capsys) ->
     assert (artifact_dir / "results" / "cmapss_deep_predictions.csv").exists()
     assert (
         artifact_dir / "results" / "cmapss_deep_prediction_diagnostics.csv"
+    ).exists()
+    assert (
+        artifact_dir / "results" / "cmapss_deep_prediction_rul_bins.csv"
     ).exists()
     assert (
         artifact_dir / "results" / "cmapss_deep_prediction_diagnostics.md"
@@ -564,7 +568,7 @@ def test_phase2_cmapss_command_runs_sequence_model_workflow(tmp_path, capsys) ->
     assert verify_exit_code == 0
     assert "audit_markdown=" in verify_output
     assert "status=ok" in verify_output
-    assert "artifacts_checked=16" in verify_output
+    assert "artifacts_checked=17" in verify_output
     audit_markdown = (artifact_dir / "phase2_manifest_audit.md").read_text(encoding="utf-8")
     assert "# Phase 2 C-MAPSS Manifest Audit" in audit_markdown
     assert "- Status: ok" in audit_markdown

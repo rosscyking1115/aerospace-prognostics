@@ -35,10 +35,13 @@ from aerospace_prognostics.reports.cmapss_model_comparison import (
 )
 from aerospace_prognostics.reports.cmapss_prediction_diagnostics import (
     CmapssPredictionDiagnosticRow,
+    CmapssPredictionRulBinDiagnosticRow,
     build_cmapss_prediction_diagnostics,
+    build_cmapss_prediction_rul_bin_diagnostics,
     select_cmapss_high_error_predictions,
     write_cmapss_prediction_diagnostics_csv,
     write_cmapss_prediction_diagnostics_markdown,
+    write_cmapss_prediction_rul_bin_diagnostics_csv,
 )
 from aerospace_prognostics.sequence_exports import (
     CmapssSequenceExportResult,
@@ -58,6 +61,7 @@ class Phase2WorkflowResult:
     deep_compare_csv_path: Path
     deep_predictions_csv_path: Path
     deep_prediction_diagnostics_csv_path: Path
+    deep_prediction_rul_bin_diagnostics_csv_path: Path
     deep_prediction_diagnostics_markdown_path: Path
     comparison_csv_path: Path
     comparison_markdown_path: Path
@@ -180,12 +184,18 @@ def run_phase2_cmapss_workflow(
     deep_prediction_diagnostics = build_cmapss_prediction_diagnostics(
         deep_predictions_csv_path
     )
+    deep_prediction_rul_bin_diagnostics = build_cmapss_prediction_rul_bin_diagnostics(
+        deep_predictions_csv_path
+    )
     deep_prediction_outliers = select_cmapss_high_error_predictions(
         deep_predictions_csv_path,
         top_n=10,
     )
     deep_prediction_diagnostics_csv_path = (
         results_dir / "cmapss_deep_prediction_diagnostics.csv"
+    )
+    deep_prediction_rul_bin_diagnostics_csv_path = (
+        results_dir / "cmapss_deep_prediction_rul_bins.csv"
     )
     deep_prediction_diagnostics_markdown_path = (
         results_dir / "cmapss_deep_prediction_diagnostics.md"
@@ -194,10 +204,15 @@ def run_phase2_cmapss_workflow(
         deep_prediction_diagnostics,
         deep_prediction_diagnostics_csv_path,
     )
+    write_cmapss_prediction_rul_bin_diagnostics_csv(
+        deep_prediction_rul_bin_diagnostics,
+        deep_prediction_rul_bin_diagnostics_csv_path,
+    )
     write_cmapss_prediction_diagnostics_markdown(
         deep_prediction_diagnostics,
         deep_prediction_outliers,
         deep_prediction_diagnostics_markdown_path,
+        rul_bin_diagnostics=deep_prediction_rul_bin_diagnostics,
     )
 
     comparison_rows = build_cmapss_model_comparison(
@@ -222,6 +237,7 @@ def run_phase2_cmapss_workflow(
         run_manifest_path=run_manifest_path,
         sequence_exports=sequence_exports,
         deep_prediction_diagnostics=tuple(deep_prediction_diagnostics),
+        deep_prediction_rul_bin_diagnostics=tuple(deep_prediction_rul_bin_diagnostics),
         comparison_rows=tuple(comparison_rows),
     )
     artifact_paths = {
@@ -232,6 +248,9 @@ def run_phase2_cmapss_workflow(
         "deep_predictions_csv": _path_as_posix(deep_predictions_csv_path),
         "deep_prediction_diagnostics_csv": _path_as_posix(
             deep_prediction_diagnostics_csv_path
+        ),
+        "deep_prediction_rul_bin_diagnostics_csv": _path_as_posix(
+            deep_prediction_rul_bin_diagnostics_csv_path
         ),
         "deep_prediction_diagnostics_markdown": _path_as_posix(
             deep_prediction_diagnostics_markdown_path
@@ -282,6 +301,9 @@ def run_phase2_cmapss_workflow(
                 "deep_compare_results": len(deep_compare_results),
                 "deep_prediction_rows": _csv_data_row_count(deep_predictions_csv_path),
                 "deep_prediction_diagnostics": len(deep_prediction_diagnostics),
+                "deep_prediction_rul_bin_diagnostics": len(
+                    deep_prediction_rul_bin_diagnostics
+                ),
                 "comparison_rows": len(comparison_rows),
             },
         },
@@ -296,6 +318,7 @@ def run_phase2_cmapss_workflow(
         deep_compare_csv_path=deep_compare_csv_path,
         deep_predictions_csv_path=deep_predictions_csv_path,
         deep_prediction_diagnostics_csv_path=deep_prediction_diagnostics_csv_path,
+        deep_prediction_rul_bin_diagnostics_csv_path=deep_prediction_rul_bin_diagnostics_csv_path,
         deep_prediction_diagnostics_markdown_path=deep_prediction_diagnostics_markdown_path,
         comparison_csv_path=comparison_csv_path,
         comparison_markdown_path=comparison_markdown_path,
@@ -487,6 +510,10 @@ def _write_phase2_summary(
     run_manifest_path: Path,
     sequence_exports: tuple[CmapssSequenceExportResult, ...],
     deep_prediction_diagnostics: tuple[CmapssPredictionDiagnosticRow, ...],
+    deep_prediction_rul_bin_diagnostics: tuple[
+        CmapssPredictionRulBinDiagnosticRow,
+        ...
+    ],
     comparison_rows: tuple[CmapssModelComparisonRow, ...],
 ) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -529,6 +556,21 @@ def _write_phase2_summary(
             f"| {row.subset} | `{row.model_name}` | {row.prediction_count} | "
             f"{row.mean_error:.6f} | {row.mean_absolute_error:.6f} | "
             f"{row.max_absolute_error:.6f} | {row.late_prediction_rate:.6f} |"
+        )
+    lines.extend(
+        [
+            "",
+            "## Deep Prediction RUL Bins",
+            "",
+            "| Subset | Actual RUL Bin | Rows | Mean Error | Mean Abs Error | Late Rate |",
+            "|---|---|---:|---:|---:|---:|",
+        ]
+    )
+    for row in deep_prediction_rul_bin_diagnostics:
+        lines.append(
+            f"| {row.subset} | {row.actual_rul_bin} | {row.prediction_count} | "
+            f"{row.mean_error:.6f} | {row.mean_absolute_error:.6f} | "
+            f"{row.late_prediction_rate:.6f} |"
         )
     lines.extend(
         [
@@ -652,6 +694,7 @@ def _verify_manifest_csv_counts(
         "deep_compare_csv": "deep_compare_results",
         "deep_predictions_csv": "deep_prediction_rows",
         "deep_prediction_diagnostics_csv": "deep_prediction_diagnostics",
+        "deep_prediction_rul_bin_diagnostics_csv": "deep_prediction_rul_bin_diagnostics",
         "comparison_csv": "comparison_rows",
     }
     for artifact_key, count_key in count_checks.items():

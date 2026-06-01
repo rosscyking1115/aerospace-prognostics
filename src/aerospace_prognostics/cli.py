@@ -1471,6 +1471,10 @@ def main(argv: list[str] | None = None) -> int:
             f"{result.deep_prediction_diagnostics_csv_path}"
         )
         print(
+            "deep_prediction_rul_bin_diagnostics_csv="
+            f"{result.deep_prediction_rul_bin_diagnostics_csv_path}"
+        )
+        print(
             "deep_prediction_diagnostics_markdown="
             f"{result.deep_prediction_diagnostics_markdown_path}"
         )
