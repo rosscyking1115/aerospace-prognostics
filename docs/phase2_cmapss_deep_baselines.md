@@ -121,6 +121,17 @@ uv run aerospace-prognostics phase2-cmapss-verify-manifest --manifest artifacts/
 
 This run verified with `status=ok` across 21 checked artifacts, but it is not a promotion path. The stronger TCN variant selected epoch 14 and scored official-test RMSE 21.389947 with NASA score 1936.346453, far behind both the 40-epoch Transformer and the Phase 1 HGB policy. The result is still useful: it rules out the full LayerNorm + weight normalization + mean-pooling bundle as a simple fix, while preserving those knobs for narrower ablations such as last-step pooling with normalization only.
 
+Narrow TCN ablations using the same FD001 sequence export showed that the pooling choice was the largest issue. Keeping last-step pooling and adding only LayerNorm improved the full enhanced bundle substantially, but still did not approach the best Transformer or HGB policy:
+
+| TCN Variant | Selected Epoch | Official Test RMSE | Official Test NASA Score |
+|---|---:|---:|---:|
+| `l4_layer_norm_last` | 22 | 16.333360 | 388.493948 |
+| `l4_layer_norm_weight_norm_last` | 22 | 17.254959 | 459.037869 |
+| `l4_plain_last` | 34 | 17.918531 | 476.481255 |
+| `l4_layer_norm_weight_norm_mean` | 14 | 21.389947 | 1936.346453 |
+
+The next TCN-only experiment should keep `--tcn-pooling last`, avoid weight norm by default, and try LayerNorm with smaller architecture changes such as `--tcn-levels 3` or hidden size 64. The broader Track A priority remains the Transformer path because the best calibrated Transformer still leads the deep-model board.
+
 Longer single-configuration Transformer diagnostic:
 
 ```powershell
@@ -364,7 +375,7 @@ Both CNN results are worse than the Phase 1 HGB policy on FD001. That is useful,
 
 The validation-selected run is especially important. It chooses epoch 2 because the original train-only validation split used only one final window per held-out unit, so a tiny validation signal looked strong while the official test score collapsed. Phase 2 now exports rolling validation-selection windows to reduce that failure mode before relying on early stopping as a model-selection signal.
 
-The 20-epoch benchmark, 40-epoch focused sweep, enhanced-TCN check, 80-epoch diagnostic, prediction-diagnostics refresh, RUL-bin refresh, validation-selection diagnostics refresh, calibration checks, and asymmetric-loss checks show the next Track A modelling problem clearly: deep sequence models are working end to end, but the classical HGB policy is still stronger on FD001. The Transformer is the strongest deep family so far, especially with hidden size 32 and learning rate 0.001. The lower 0.0003 learning rate undertrained badly at hidden size 32, while hidden size 64 improved but still trailed the smaller 0.001 run. Extending the best configuration to 80 epochs did not help because validation selection still stopped at epoch 39. The full enhanced-TCN bundle underperformed badly, so TCN follow-up should use narrower ablations rather than promoting all regularization and pooling changes together. Validation-fitted NASA-shift calibration and asymmetric late-weighted MSE both improve NASA behavior, and their combination is the current best deep result, but it is not enough yet to pass the Phase 1 HGB policy. The immediate follow-up should move from "train longer" or "shift everything" to richer NASA-aware architecture diagnostics: tail-sensitive validation, regularization, residual temporal blocks, monotonic or health-index constraints, and unit-level error analysis before expanding the full grid to FD002-FD004.
+The 20-epoch benchmark, 40-epoch focused sweep, enhanced-TCN check, 80-epoch diagnostic, prediction-diagnostics refresh, RUL-bin refresh, validation-selection diagnostics refresh, calibration checks, and asymmetric-loss checks show the next Track A modelling problem clearly: deep sequence models are working end to end, but the classical HGB policy is still stronger on FD001. The Transformer is the strongest deep family so far, especially with hidden size 32 and learning rate 0.001. The lower 0.0003 learning rate undertrained badly at hidden size 32, while hidden size 64 improved but still trailed the smaller 0.001 run. Extending the best configuration to 80 epochs did not help because validation selection still stopped at epoch 39. The full enhanced-TCN bundle underperformed badly; narrower ablations show last-step pooling plus LayerNorm is much better than mean pooling or weight norm, but still not competitive with the Transformer. Validation-fitted NASA-shift calibration and asymmetric late-weighted MSE both improve NASA behavior, and their combination is the current best deep result, but it is not enough yet to pass the Phase 1 HGB policy. The immediate follow-up should move from "train longer" or "shift everything" to richer NASA-aware architecture diagnostics: tail-sensitive validation, regularization, residual temporal blocks, monotonic or health-index constraints, and unit-level error analysis before expanding the full grid to FD002-FD004.
 
 ## Current Interpretation
 
