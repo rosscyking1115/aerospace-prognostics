@@ -143,6 +143,32 @@ The expanded manifest verified with `status=ok` across 17 checked artifacts. The
 
 This narrows the next experiment: preserve the strong low-RUL behavior, reduce the dangerous late bias in the 61-90 bin, and address the high-RUL compression that pushes every 121+ unit early. Candidate fixes include RUL-range-weighted validation diagnostics, target transformation or loss weighting by actual-RUL bin, and calibration layers on top of the sequence model outputs.
 
+Validation-selection diagnostics refresh:
+
+```powershell
+uv run aerospace-prognostics phase2-cmapss --data-dir data/raw/cmapss --artifact-dir artifacts/phase2_fd001_transformer_h32_40e_validation_diagnostics --subsets FD001 --models transformer --epochs 40 --batch-size 256 --hidden-sizes 32 --learning-rates 0.001 --validation-horizon 30 --checkpoint-policy validation_nasa
+uv run aerospace-prognostics phase2-cmapss-verify-manifest --manifest artifacts/phase2_fd001_transformer_h32_40e_validation_diagnostics/phase2_run_manifest.json --output-markdown artifacts/phase2_fd001_transformer_h32_40e_validation_diagnostics/phase2_manifest_audit.md
+```
+
+The validation-diagnostics manifest verified with `status=ok` across 21 checked artifacts. The official-test score is unchanged, selected epoch 39 with RMSE 14.339589 and NASA score 299.978246, while the validation-selection prediction table adds 3,109 train-only diagnostic rows.
+
+| Split | Rows | Mean Error | Mean Abs Error | Max Abs Error | Late Rate | Early Rate |
+|---|---:|---:|---:|---:|---:|---:|
+| Official test | 100 | -2.515066 | 10.759874 | 41.532448 | 0.430000 | 0.570000 |
+| Validation selection | 3109 | -4.223712 | 11.774581 | 55.148552 | 0.297523 | 0.702477 |
+
+Validation-selection bins confirm that the official-test tail issues are not random test-only noise:
+
+| Actual RUL Bin | Validation Rows | Mean Error | Mean Abs Error | Max Abs Error | Late Rate | Early Rate |
+|---|---:|---:|---:|---:|---:|---:|
+| 0-30 | 20 | -0.804168 | 6.982858 | 19.718727 | 0.400000 | 0.600000 |
+| 31-60 | 600 | 1.782091 | 9.811895 | 55.148552 | 0.485000 | 0.515000 |
+| 61-90 | 600 | 3.545005 | 13.864291 | 48.582710 | 0.558333 | 0.441667 |
+| 91-120 | 587 | -4.102196 | 14.238667 | 50.725517 | 0.495741 | 0.504259 |
+| 121+ | 1302 | -10.678729 | 10.678729 | 53.914551 | 0.000000 | 1.000000 |
+
+The strongest validation-backed diagnosis is now high-RUL compression: every 121+ validation-selection window and every 121+ official-test unit is predicted early. The 61-90 range is still the late-risk band, but validation shows a weaker late skew than the official test set. The next modelling slice should therefore use validation-selection diagnostics to fit or select a correction before official-test re-evaluation, with a priority on high-RUL target compression and mid-RUL late-risk control.
+
 ## FD001 First Result
 
 | Checkpoint | Model | Selected Epoch | Validation RMSE | Validation NASA Score | Official Test RMSE | Official Test NASA Score |
@@ -166,7 +192,7 @@ Both CNN results are worse than the Phase 1 HGB policy on FD001. That is useful,
 
 The validation-selected run is especially important. It chooses epoch 2 because the original train-only validation split used only one final window per held-out unit, so a tiny validation signal looked strong while the official test score collapsed. Phase 2 now exports rolling validation-selection windows to reduce that failure mode before relying on early stopping as a model-selection signal.
 
-The 20-epoch benchmark, 40-epoch focused sweep, 80-epoch diagnostic, prediction-diagnostics refresh, and RUL-bin refresh show the next Track A modelling problem clearly: deep sequence models are working end to end, but the classical HGB policy is still stronger on FD001. The Transformer is the strongest deep family so far, especially with hidden size 32 and learning rate 0.001. The lower 0.0003 learning rate undertrained badly at hidden size 32, while hidden size 64 improved but still trailed the smaller 0.001 run. Extending the best configuration to 80 epochs did not help because validation selection still stopped at epoch 39. The official-test diagnostics show strong near-failure behavior, late-biased misses in the 61-90 RUL bin, and high-RUL compression in the 121+ bin, so the immediate follow-up should shift from "train longer" to calibration and architecture diagnostics: target/loss shaping, tail-sensitive validation, regularization, residual temporal blocks, and unit-level error analysis before expanding the full grid to FD002-FD004.
+The 20-epoch benchmark, 40-epoch focused sweep, 80-epoch diagnostic, prediction-diagnostics refresh, RUL-bin refresh, and validation-selection diagnostics refresh show the next Track A modelling problem clearly: deep sequence models are working end to end, but the classical HGB policy is still stronger on FD001. The Transformer is the strongest deep family so far, especially with hidden size 32 and learning rate 0.001. The lower 0.0003 learning rate undertrained badly at hidden size 32, while hidden size 64 improved but still trailed the smaller 0.001 run. Extending the best configuration to 80 epochs did not help because validation selection still stopped at epoch 39. The diagnostics show strong near-failure behavior, late-biased misses in the 61-90 RUL range, and validation-backed high-RUL compression in the 121+ bin, so the immediate follow-up should shift from "train longer" to validation-fitted calibration and architecture diagnostics: target/loss shaping, tail-sensitive validation, regularization, residual temporal blocks, and unit-level error analysis before expanding the full grid to FD002-FD004.
 
 ## Current Interpretation
 
