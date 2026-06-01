@@ -9,7 +9,7 @@ This note records the first Phase 2 sequence-model checkpoint. Phase 1 ended wit
 | Dataset | NASA C-MAPSS Turbofan Engine Degradation Simulation Data Set |
 | Input artifacts | `artifacts/sequences/cmapss/<subset>/{train,validation,validation_selection,test}_sequences.npz` |
 | Sequence export command | `uv run aerospace-prognostics cmapss-export-sequences --data-dir data/raw/cmapss --output-dir artifacts/sequences/cmapss --window-size 30 --stride 1` |
-| Deep model baselines | Compact PyTorch 1D-CNN; LSTM/BiLSTM; TCN; Transformer encoder |
+| Deep model baselines | Compact PyTorch 1D-CNN; residual CNN; LSTM/BiLSTM; TCN; Transformer encoder |
 | Window size | 30 cycles |
 | Features | 24 standardized operating-setting and sensor channels |
 | Optimizer | Adam |
@@ -60,7 +60,7 @@ uv run aerospace-prognostics cmapss-transformer-baseline --sequence-dir artifact
 Compact architecture and learning-rate comparison:
 
 ```powershell
-uv run aerospace-prognostics cmapss-deep-baseline-compare --sequence-dir artifacts/sequences/cmapss --subsets FD001 --models cnn bilstm tcn transformer --epochs 50 --batch-size 256 --hidden-sizes 32 64 --learning-rates 0.001 0.0003 --checkpoint-policy validation_nasa --output-json artifacts/results/cmapss_deep_compare_fd001.json --output-csv artifacts/results/cmapss_deep_compare_fd001.csv
+uv run aerospace-prognostics cmapss-deep-baseline-compare --sequence-dir artifacts/sequences/cmapss --subsets FD001 --models cnn rescnn bilstm tcn transformer --epochs 50 --batch-size 256 --hidden-sizes 32 64 --learning-rates 0.001 0.0003 --checkpoint-policy validation_nasa --output-json artifacts/results/cmapss_deep_compare_fd001.json --output-csv artifacts/results/cmapss_deep_compare_fd001.csv
 ```
 
 Ranked Phase 1 versus Phase 2 report:
@@ -72,11 +72,11 @@ uv run aerospace-prognostics cmapss-compare-rul-results --baseline-csv artifacts
 Reproducible Phase 2 workflow:
 
 ```powershell
-uv run aerospace-prognostics phase2-cmapss --data-dir data/raw/cmapss --artifact-dir artifacts/phase2 --subsets FD001 --models cnn bilstm tcn transformer --epochs 50 --hidden-sizes 32 64 --learning-rates 0.001 0.0003
+uv run aerospace-prognostics phase2-cmapss --data-dir data/raw/cmapss --artifact-dir artifacts/phase2 --subsets FD001 --models cnn rescnn bilstm tcn transformer --epochs 50 --hidden-sizes 32 64 --learning-rates 0.001 0.0003
 uv run aerospace-prognostics phase2-cmapss-verify-manifest --manifest artifacts/phase2/phase2_run_manifest.json --output-markdown artifacts/phase2/phase2_manifest_audit.md
 ```
 
-All deep baseline commands and the workflow accept `--training-loss mse`, `--training-loss nasa_surrogate`, `--training-loss mse_nasa_blend_w0p001`, or `--training-loss mse_nasa_blend_w0p0001`. The pure surrogate keeps training differentiable while matching the NASA RUL score's asymmetric shape more closely: late predictions are penalized with the harsher denominator used by the official metric, and early predictions use the gentler denominator. The blended losses add a small NASA-surrogate penalty to MSE so the optimization stays near the stable RUL regression scale while still nudging the model toward the asymmetric metric. Non-default runs include the loss name in model names and record the training loss in the Phase 2 manifest and audit report.
+All deep baseline commands and the workflow accept `--training-loss mse`, `--training-loss nasa_surrogate`, `--training-loss mse_nasa_blend_w0p001`, or `--training-loss mse_nasa_blend_w0p0001`. The pure surrogate keeps training differentiable while matching the NASA RUL score's asymmetric shape more closely: late predictions are penalized with the harsher denominator used by the official metric, and early predictions use the gentler denominator. The blended losses add a small NASA-surrogate penalty to MSE so the optimization stays near the stable RUL regression scale while still nudging the model toward the asymmetric metric. Non-default runs include the loss name in model names and record the training loss in the Phase 2 manifest and audit report. The comparison command and workflow also accept `--models rescnn`; in that shared sweep interface, `--tcn-levels` controls the residual CNN block count.
 
 The workflow writes `phase2_summary.md` and `phase2_run_manifest.json` under the artifact directory. It also writes `results/cmapss_deep_predictions.csv`, a per-unit official-test diagnostics table with actual RUL, predicted RUL, signed error, absolute error, end cycle, and early/late error split for every deep-model candidate. The companion `results/cmapss_deep_prediction_diagnostics.csv`, `results/cmapss_deep_prediction_rul_bins.csv`, and markdown report summarize mean error, mean/max absolute error, late-prediction rate, actual-RUL-bin calibration, and the highest-error units. The same diagnostics are now emitted for rolling validation-selection windows under `results/cmapss_deep_validation_selection_predictions.csv`, `results/cmapss_deep_validation_selection_prediction_diagnostics.csv`, `results/cmapss_deep_validation_selection_prediction_rul_bins.csv`, and `results/cmapss_deep_validation_selection_prediction_diagnostics.md`, so calibration and tail-error ideas can be judged on train-only validation behavior before the official test table is touched. The manifest records run parameters, artifact paths, SHA-256/size checksums for the model outputs, prediction diagnostics, and sequence bundles, Python/platform/dependency versions, and Git commit state so a Phase 2 C-MAPSS run can be audited or reproduced from one bundle. The verify command checks manifest structure, referenced artifact existence, artifact checksums, and CSV row counts; with `--output-markdown`, it also writes a compact audit report.
 
@@ -225,6 +225,15 @@ Both manifests verified with `status=ok` across 21 checked artifacts. The blende
 
 The `w0p001` blend is the best of this small loss-shaping check, but the improvement is marginal: NASA score moves by about -0.031853 versus the MSE Transformer and remains well behind the Phase 1 HGB policy score of 253.465322. That means loss blending is safe to carry into later sweeps, but it is not by itself the missing model-quality step. The next stronger candidate should be architecture or constraint work: residual temporal blocks, monotonic degradation penalties, or target/health-index shaping.
 
+Residual CNN architecture smoke check:
+
+```powershell
+uv run aerospace-prognostics phase2-cmapss --data-dir data/raw/cmapss --artifact-dir artifacts/phase2_fd001_rescnn_h32_20e_smoke --subsets FD001 --models rescnn --epochs 20 --batch-size 256 --hidden-sizes 32 --learning-rates 0.001 --tcn-levels 3 --validation-horizon 30 --checkpoint-policy validation_nasa
+uv run aerospace-prognostics phase2-cmapss-verify-manifest --manifest artifacts/phase2_fd001_rescnn_h32_20e_smoke/phase2_run_manifest.json --output-markdown artifacts/phase2_fd001_rescnn_h32_20e_smoke/phase2_manifest_audit.md
+```
+
+The residual CNN adds same-length temporal convolution blocks with skip connections behind the shared Phase 2 sequence-training path. The manifest verified with `status=ok` across 21 checked artifacts. This first 20-epoch FD001 smoke run selected epoch 7 and landed between the simple CNN and the Transformer: official-test RMSE 21.711146 and NASA score 2003.639663. It is a useful architecture candidate for future sweeps, but not a promotion candidate yet; the 40-epoch Transformer remains the strongest deep model so far, and the Phase 1 HGB policy remains the overall FD001 leader.
+
 ## FD001 First Result
 
 | Checkpoint | Model | Selected Epoch | Validation RMSE | Validation NASA Score | Official Test RMSE | Official Test NASA Score |
@@ -242,6 +251,7 @@ The `w0p001` blend is the best of this small loss-shaping check, but the improve
 | Phase 2 predicted-bin residual diagnostic | `compare_transformer_h32_lr0p001_transformer_w30_e40_d32_h4_l1_ff64_best_e39_predicted_bin_residual` | 39 | 15.026410 | 11200.658784 | 14.224681 | 341.716670 |
 | Phase 2 40-epoch blended-loss check | `compare_transformer_h32_lr0p001_transformer_w30_e40_d32_h4_l1_ff64_loss_mse_nasa_blend_w0p001_best_e39` | 39 | 15.025851 | 11195.969932 | 14.339186 | 299.946394 |
 | Phase 2 40-epoch blended-loss check | `compare_transformer_h32_lr0p001_transformer_w30_e40_d32_h4_l1_ff64_loss_mse_nasa_blend_w0p0001_best_e39` | 39 | 15.026353 | 11200.184598 | 14.339547 | 299.974989 |
+| Phase 2 residual CNN smoke | `compare_rescnn_h32_lr0p001_rescnn_w30_e20_c32_b3_k3_best_e7` | 7 | 25.695627 | 52381.612522 | 21.711146 | 2003.639663 |
 | Phase 2 10-epoch loss smoke | `compare_transformer_h32_lr0p001_transformer_w30_e10_d32_h4_l1_ff64_best_e10` | 10 | 54.524260 | 421709.482281 | 45.047094 | 10736.524843 |
 | Phase 2 10-epoch loss smoke | `compare_transformer_h32_lr0p001_transformer_w30_e10_d32_h4_l1_ff64_loss_mse_nasa_blend_w0p0001_best_e10` | 10 | 54.526576 | 421800.208048 | 45.049205 | 10738.845270 |
 | Phase 2 10-epoch loss smoke | `compare_transformer_h32_lr0p001_transformer_w30_e10_d32_h4_l1_ff64_loss_mse_nasa_blend_w0p001_best_e10` | 10 | 54.547339 | 422614.178776 | 45.068130 | 10759.665550 |
@@ -260,7 +270,7 @@ The 20-epoch benchmark, 40-epoch focused sweep, 80-epoch diagnostic, prediction-
 
 ## Current Interpretation
 
-The Phase 2 pipeline is now real: exported sequence windows feed torch models, CNN, LSTM/BiLSTM, TCN, and Transformer baselines train from the CLI, rolling validation-selection windows drive checkpoint choice, validation final-window artifacts remain available for reporting, official-test and validation-selection predictions are scored with the project metrics and emitted for per-window diagnostics, JSON/CSV outputs use the same result container as the classical baselines, optional history JSON records per-epoch training loss plus validation metrics, the comparison command can produce a single architecture/learning-rate sweep table, the reporting command ranks Phase 2 candidates against the Phase 1 HGB policy baseline, and `phase2-cmapss` ties the full Track A workflow together. The first real FD001 workflow smoke run produced one sequence export, two deep results, and three comparison rows.
+The Phase 2 pipeline is now real: exported sequence windows feed torch models, CNN, residual CNN, LSTM/BiLSTM, TCN, and Transformer baselines train from the CLI/workflow path, rolling validation-selection windows drive checkpoint choice, validation final-window artifacts remain available for reporting, official-test and validation-selection predictions are scored with the project metrics and emitted for per-window diagnostics, JSON/CSV outputs use the same result container as the classical baselines, optional history JSON records per-epoch training loss plus validation metrics, the comparison command can produce a single architecture/learning-rate sweep table, the reporting command ranks Phase 2 candidates against the Phase 1 HGB policy baseline, and `phase2-cmapss` ties the full Track A workflow together. The first real FD001 workflow smoke run produced one sequence export, two deep results, and three comparison rows.
 
 The next deep-learning work should focus on model quality rather than plumbing:
 

@@ -18,7 +18,7 @@ from torch.utils.data import DataLoader, TensorDataset
 from aerospace_prognostics.evaluation import RegressionRunResult
 from aerospace_prognostics.metrics import nasa_rul_score, rmse
 
-CMAPSS_DEEP_COMPARISON_MODELS = ("cnn", "lstm", "bilstm", "tcn", "transformer")
+CMAPSS_DEEP_COMPARISON_MODELS = ("cnn", "rescnn", "lstm", "bilstm", "tcn", "transformer")
 CMAPSS_DEEP_TRAINING_LOSSES = (
     "mse",
     "nasa_surrogate",
@@ -193,6 +193,78 @@ class CmapssOneDimensionalCnn(nn.Module):
         """Predict RUL from `(batch, timesteps, features)` windows."""
 
         return self.network(windows.transpose(1, 2)).squeeze(-1)
+
+
+class _ResidualCnnBlock(nn.Module):
+    """Same-length temporal convolution block with a residual path."""
+
+    def __init__(
+        self,
+        *,
+        channels: int,
+        kernel_size: int,
+        dropout: float,
+    ) -> None:
+        super().__init__()
+        self.network = nn.Sequential(
+            nn.Conv1d(channels, channels, kernel_size, padding="same"),
+            nn.ReLU(),
+            nn.Dropout(dropout),
+            nn.Conv1d(channels, channels, kernel_size, padding="same"),
+            nn.Dropout(dropout),
+        )
+        self.activation = nn.ReLU()
+
+    def forward(self, values: torch.Tensor) -> torch.Tensor:
+        return self.activation(self.network(values) + values)
+
+
+class CmapssResidualCnnRegressor(nn.Module):
+    """Residual 1D-CNN baseline over C-MAPSS sensor windows."""
+
+    def __init__(
+        self,
+        *,
+        feature_count: int,
+        hidden_channels: int = 32,
+        num_blocks: int = 3,
+        kernel_size: int = 3,
+        dropout: float = 0.1,
+    ) -> None:
+        super().__init__()
+        if hidden_channels < 1:
+            raise ValueError("hidden_channels must be at least 1")
+        if num_blocks < 1:
+            raise ValueError("num_blocks must be at least 1")
+        if kernel_size < 1:
+            raise ValueError("kernel_size must be at least 1")
+        padding = kernel_size // 2
+        self.input_projection = nn.Sequential(
+            nn.Conv1d(feature_count, hidden_channels, kernel_size, padding=padding),
+            nn.ReLU(),
+        )
+        self.blocks = nn.Sequential(
+            *(
+                _ResidualCnnBlock(
+                    channels=hidden_channels,
+                    kernel_size=kernel_size,
+                    dropout=dropout,
+                )
+                for _ in range(num_blocks)
+            )
+        )
+        self.head = nn.Sequential(
+            nn.AdaptiveAvgPool1d(1),
+            nn.Flatten(),
+            nn.Dropout(dropout),
+            nn.Linear(hidden_channels, 1),
+        )
+
+    def forward(self, windows: torch.Tensor) -> torch.Tensor:
+        """Predict RUL from `(batch, timesteps, features)` windows."""
+
+        features = self.input_projection(windows.transpose(1, 2))
+        return self.head(self.blocks(features)).squeeze(-1)
 
 
 class CmapssLstmRegressor(nn.Module):
@@ -483,6 +555,63 @@ def run_cmapss_cnn_baseline_run(
             model_factory=model_factory,
             model_name_base_factory=lambda metadata: (
                 f"cnn_1d_w{metadata['window_size']}_e{epochs}_c{hidden_channels}"
+            ),
+        )
+    )
+    return CmapssCnnBaselineRun(
+        result=result,
+        selected_epoch=selected_epoch,
+        history=history,
+        predictions=predictions,
+        validation_selection_predictions=validation_selection_predictions,
+    )
+
+
+def run_cmapss_residual_cnn_baseline_run(
+    sequence_dir: str | Path,
+    subset: str,
+    *,
+    epochs: int = 5,
+    batch_size: int = 256,
+    learning_rate: float = 1e-3,
+    training_loss: str = "mse",
+    hidden_channels: int = 32,
+    num_blocks: int = 3,
+    kernel_size: int = 3,
+    dropout: float = 0.1,
+    checkpoint_policy: str = "validation_nasa",
+    random_state: int = 42,
+    device: str = "cpu",
+) -> CmapssCnnBaselineRun:
+    """Train a residual CNN baseline and select the best epoch by validation NASA score."""
+
+    if num_blocks < 1:
+        raise ValueError("num_blocks must be at least 1")
+
+    def model_factory(feature_count: int, sequence_length: int) -> nn.Module:
+        return CmapssResidualCnnRegressor(
+            feature_count=feature_count,
+            hidden_channels=hidden_channels,
+            num_blocks=num_blocks,
+            kernel_size=kernel_size,
+            dropout=dropout,
+        )
+
+    result, selected_epoch, history, predictions, validation_selection_predictions = (
+        _run_sequence_baseline_run(
+            sequence_dir,
+            subset,
+            epochs=epochs,
+            batch_size=batch_size,
+            learning_rate=learning_rate,
+            training_loss=training_loss,
+            checkpoint_policy=checkpoint_policy,
+            random_state=random_state,
+            device=device,
+            model_factory=model_factory,
+            model_name_base_factory=lambda metadata: (
+                f"rescnn_w{metadata['window_size']}_e{epochs}_c{hidden_channels}"
+                f"_b{num_blocks}_k{kernel_size}"
             ),
         )
     )
@@ -1501,6 +1630,22 @@ def _run_deep_comparison_candidate_runs(
             random_state=random_state,
             device=device,
         )
+    if model_name == "rescnn":
+        return run_all_cmapss_residual_cnn_baseline_runs(
+            sequence_dir,
+            subsets=subsets,
+            epochs=epochs,
+            batch_size=batch_size,
+            learning_rate=learning_rate,
+            training_loss=training_loss,
+            hidden_channels=hidden_size,
+            num_blocks=tcn_levels,
+            kernel_size=kernel_size,
+            dropout=dropout,
+            checkpoint_policy=checkpoint_policy,
+            random_state=random_state,
+            device=device,
+        )
     if model_name in {"lstm", "bilstm"}:
         return run_all_cmapss_lstm_baseline_runs(
             sequence_dir,
@@ -1610,6 +1755,44 @@ def run_all_cmapss_cnn_baseline_runs(
             learning_rate=learning_rate,
             training_loss=training_loss,
             hidden_channels=hidden_channels,
+            kernel_size=kernel_size,
+            dropout=dropout,
+            checkpoint_policy=checkpoint_policy,
+            random_state=random_state,
+            device=device,
+        )
+        for subset in subsets
+    ]
+
+
+def run_all_cmapss_residual_cnn_baseline_runs(
+    sequence_dir: str | Path,
+    *,
+    subsets: tuple[str, ...],
+    epochs: int = 5,
+    batch_size: int = 256,
+    learning_rate: float = 1e-3,
+    training_loss: str = "mse",
+    hidden_channels: int = 32,
+    num_blocks: int = 3,
+    kernel_size: int = 3,
+    dropout: float = 0.1,
+    checkpoint_policy: str = "validation_nasa",
+    random_state: int = 42,
+    device: str = "cpu",
+) -> list[CmapssCnnBaselineRun]:
+    """Train full residual CNN baseline runs for the requested C-MAPSS subsets."""
+
+    return [
+        run_cmapss_residual_cnn_baseline_run(
+            sequence_dir,
+            subset,
+            epochs=epochs,
+            batch_size=batch_size,
+            learning_rate=learning_rate,
+            training_loss=training_loss,
+            hidden_channels=hidden_channels,
+            num_blocks=num_blocks,
             kernel_size=kernel_size,
             dropout=dropout,
             checkpoint_policy=checkpoint_policy,

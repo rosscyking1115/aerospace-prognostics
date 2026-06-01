@@ -8,6 +8,7 @@ import torch
 from aerospace_prognostics.experiments.cmapss_deep_baseline import (
     CmapssLstmRegressor,
     CmapssOneDimensionalCnn,
+    CmapssResidualCnnRegressor,
     CmapssTemporalConvolutionalRegressor,
     CmapssTransformerRegressor,
     _deep_training_loss,
@@ -21,6 +22,7 @@ from aerospace_prognostics.experiments.cmapss_deep_baseline import (
     run_cmapss_deep_baseline_comparison_runs,
     run_cmapss_lstm_baseline,
     run_cmapss_lstm_baseline_run,
+    run_cmapss_residual_cnn_baseline_run,
     run_cmapss_tcn_baseline,
     run_cmapss_tcn_baseline_run,
     run_cmapss_transformer_baseline,
@@ -33,6 +35,18 @@ from tests.cmapss_fixtures import write_all_tiny_cmapss_subsets, write_tiny_cmap
 
 def test_cmapss_1d_cnn_forward_returns_batch_predictions() -> None:
     model = CmapssOneDimensionalCnn(feature_count=3, hidden_channels=4)
+
+    predictions = model(torch.zeros((2, 5, 3), dtype=torch.float32))
+
+    assert predictions.shape == (2,)
+
+
+def test_cmapss_residual_cnn_forward_returns_batch_predictions() -> None:
+    model = CmapssResidualCnnRegressor(
+        feature_count=3,
+        hidden_channels=4,
+        num_blocks=2,
+    )
 
     predictions = model(torch.zeros((2, 5, 3), dtype=torch.float32))
 
@@ -264,6 +278,32 @@ def test_run_cmapss_cnn_baseline_run_tracks_history_and_selected_epoch(tmp_path)
     assert all(
         prediction.absolute_error >= 0 for prediction in run.validation_selection_predictions
     )
+
+
+def test_run_cmapss_residual_cnn_baseline_run_tracks_history(tmp_path) -> None:
+    write_tiny_cmapss_subset(tmp_path)
+    sequence_dir = tmp_path / "sequences"
+    export_cmapss_sequence_splits(
+        tmp_path,
+        sequence_dir,
+        "FD001",
+        window_size=2,
+        validation_fraction=0.5,
+        validation_horizon=1,
+    )
+
+    run = run_cmapss_residual_cnn_baseline_run(
+        sequence_dir,
+        "FD001",
+        epochs=1,
+        batch_size=2,
+        hidden_channels=4,
+        num_blocks=2,
+    )
+
+    assert len(run.history) == 1
+    assert run.result.model_name.startswith("rescnn_w2_e1_c4_b2_k3")
+    assert len(run.predictions) == run.result.test_rul_values
 
 
 def test_run_cmapss_cnn_baseline_run_supports_nasa_surrogate_loss(tmp_path) -> None:
@@ -626,7 +666,7 @@ def test_run_cmapss_deep_baseline_comparison_labels_candidates(tmp_path) -> None
     results = run_cmapss_deep_baseline_comparison(
         sequence_dir,
         subsets=("FD001",),
-        models=("cnn", "tcn", "transformer"),
+        models=("cnn", "rescnn", "tcn", "transformer"),
         epochs=1,
         batch_size=2,
         learning_rates=(1e-3,),
@@ -636,10 +676,11 @@ def test_run_cmapss_deep_baseline_comparison_labels_candidates(tmp_path) -> None
         transformer_dim_feedforward=8,
     )
 
-    assert len(results) == 3
+    assert len(results) == 4
     assert {result.subset for result in results} == {"FD001"}
     assert all(result.model_name.startswith("compare_") for result in results)
     assert any("compare_cnn_h4_lr0p001" in result.model_name for result in results)
+    assert any("compare_rescnn_h4_lr0p001" in result.model_name for result in results)
     assert any("compare_tcn_h4_lr0p001" in result.model_name for result in results)
     assert any(
         "compare_transformer_h4_lr0p001" in result.model_name for result in results
