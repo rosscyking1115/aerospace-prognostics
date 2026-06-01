@@ -234,6 +234,25 @@ uv run aerospace-prognostics phase2-cmapss-verify-manifest --manifest artifacts/
 
 The residual CNN adds same-length temporal convolution blocks with skip connections behind the shared Phase 2 sequence-training path. The manifest verified with `status=ok` across 21 checked artifacts. This first 20-epoch FD001 smoke run selected epoch 7 and landed between the simple CNN and the Transformer: official-test RMSE 21.711146 and NASA score 2003.639663. It is a useful architecture candidate for future sweeps, but not a promotion candidate yet; the 40-epoch Transformer remains the strongest deep model so far, and the Phase 1 HGB policy remains the overall FD001 leader.
 
+Transformer RUL-cap sensitivity check:
+
+```powershell
+uv run aerospace-prognostics phase2-cmapss --data-dir data/raw/cmapss --artifact-dir artifacts/phase2_fd001_transformer_h32_40e_rulcap100 --subsets FD001 --models transformer --epochs 40 --batch-size 256 --hidden-sizes 32 --learning-rates 0.001 --validation-horizon 30 --checkpoint-policy validation_nasa --rul-cap 100
+uv run aerospace-prognostics phase2-cmapss --data-dir data/raw/cmapss --artifact-dir artifacts/phase2_fd001_transformer_h32_40e_rulcap150 --subsets FD001 --models transformer --epochs 40 --batch-size 256 --hidden-sizes 32 --learning-rates 0.001 --validation-horizon 30 --checkpoint-policy validation_nasa --rul-cap 150
+uv run aerospace-prognostics phase2-cmapss-verify-manifest --manifest artifacts/phase2_fd001_transformer_h32_40e_rulcap100/phase2_run_manifest.json --output-markdown artifacts/phase2_fd001_transformer_h32_40e_rulcap100/phase2_manifest_audit.md
+uv run aerospace-prognostics phase2-cmapss-verify-manifest --manifest artifacts/phase2_fd001_transformer_h32_40e_rulcap150/phase2_run_manifest.json --output-markdown artifacts/phase2_fd001_transformer_h32_40e_rulcap150/phase2_manifest_audit.md
+```
+
+Both manifests verified with `status=ok` across 21 checked artifacts. The target cap is a real modelling lever, but this small sweep did not beat the standard cap-125 Transformer. Cap 100 made the model safer against late predictions but compressed the high-RUL tail too hard; cap 150 reduced that tail compression but shifted the model late enough to hurt the asymmetric NASA score.
+
+| RUL Cap | Selected Epoch | Validation RMSE | Validation NASA Score | Official Test RMSE | Official Test NASA Score | Mean Error | Late Rate |
+|---:|---:|---:|---:|---:|---:|---:|---:|
+| 100 | 31 | 9.650666 | 4431.123146 | 17.736904 | 397.619796 | -8.647011 | 0.340000 |
+| 125 | 39 | 15.026410 | 11200.658784 | 14.339589 | 299.978246 | -2.515066 | 0.430000 |
+| 150 | 35 | 20.662572 | 26347.826368 | 16.157872 | 626.009164 | 2.417123 | 0.530000 |
+
+The result keeps cap 125 as the current default for FD001. More importantly, it rules out a simple "raise the cap to fix high-RUL compression" story: cap 150 improves the 121+ bin bias but creates too much mid-RUL and overall late risk, while cap 100 protects NASA score better than cap 150 at the cost of severe high-RUL underprediction. Future target-shaping work should be local or asymmetric rather than a single global cap change.
+
 ## FD001 First Result
 
 | Checkpoint | Model | Selected Epoch | Validation RMSE | Validation NASA Score | Official Test RMSE | Official Test NASA Score |
@@ -251,6 +270,8 @@ The residual CNN adds same-length temporal convolution blocks with skip connecti
 | Phase 2 predicted-bin residual diagnostic | `compare_transformer_h32_lr0p001_transformer_w30_e40_d32_h4_l1_ff64_best_e39_predicted_bin_residual` | 39 | 15.026410 | 11200.658784 | 14.224681 | 341.716670 |
 | Phase 2 40-epoch blended-loss check | `compare_transformer_h32_lr0p001_transformer_w30_e40_d32_h4_l1_ff64_loss_mse_nasa_blend_w0p001_best_e39` | 39 | 15.025851 | 11195.969932 | 14.339186 | 299.946394 |
 | Phase 2 40-epoch blended-loss check | `compare_transformer_h32_lr0p001_transformer_w30_e40_d32_h4_l1_ff64_loss_mse_nasa_blend_w0p0001_best_e39` | 39 | 15.026353 | 11200.184598 | 14.339547 | 299.974989 |
+| Phase 2 RUL-cap sensitivity | `compare_transformer_h32_lr0p001_transformer_w30_e40_d32_h4_l1_ff64_best_e31` | 31 | 9.650666 | 4431.123146 | 17.736904 | 397.619796 |
+| Phase 2 RUL-cap sensitivity | `compare_transformer_h32_lr0p001_transformer_w30_e40_d32_h4_l1_ff64_best_e35` | 35 | 20.662572 | 26347.826368 | 16.157872 | 626.009164 |
 | Phase 2 residual CNN smoke | `compare_rescnn_h32_lr0p001_rescnn_w30_e20_c32_b3_k3_best_e7` | 7 | 25.695627 | 52381.612522 | 21.711146 | 2003.639663 |
 | Phase 2 10-epoch loss smoke | `compare_transformer_h32_lr0p001_transformer_w30_e10_d32_h4_l1_ff64_best_e10` | 10 | 54.524260 | 421709.482281 | 45.047094 | 10736.524843 |
 | Phase 2 10-epoch loss smoke | `compare_transformer_h32_lr0p001_transformer_w30_e10_d32_h4_l1_ff64_loss_mse_nasa_blend_w0p0001_best_e10` | 10 | 54.526576 | 421800.208048 | 45.049205 | 10738.845270 |
@@ -275,6 +296,7 @@ The Phase 2 pipeline is now real: exported sequence windows feed torch models, C
 The next deep-learning work should focus on model quality rather than plumbing:
 
 - Continue FD001 with focused Transformer architecture, regularization, and validation diagnostics before expanding to FD002-FD004.
+- Keep RUL cap 125 as the current FD001 default; cap 100 and cap 150 both worsened the best Transformer NASA score, so future target shaping should be local or asymmetric rather than a single global cap move.
 - Use the workflow parameters for wider/deeper CNNs, residual or TCN-style blocks, attention heads, regularization, and learning-rate sweeps.
 - Use `cmapss_deep_prediction_diagnostics.md`, `cmapss_deep_predictions.csv`, and the validation-selection diagnostic artifacts to inspect late-prediction clusters, high-absolute-error units, and validation-vs-test mismatch before adding broader grids.
 - Use validation-selection errors by unit, end cycle, and RUL range as the first decision surface for calibration and tail-sensitive modelling before rechecking official-test behavior; the first affine and predicted-bin residual checks improved RMSE but failed the NASA-score tradeoff.
