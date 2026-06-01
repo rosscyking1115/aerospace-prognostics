@@ -73,6 +73,21 @@ def test_cmapss_tcn_forward_returns_batch_predictions() -> None:
     assert predictions.shape == (2,)
 
 
+def test_cmapss_tcn_forward_supports_enhanced_temporal_options() -> None:
+    model = CmapssTemporalConvolutionalRegressor(
+        feature_count=3,
+        hidden_channels=4,
+        num_levels=2,
+        normalization="layer_norm",
+        use_weight_norm=True,
+        pooling="mean",
+    )
+
+    predictions = model(torch.zeros((2, 5, 3), dtype=torch.float32))
+
+    assert predictions.shape == (2,)
+
+
 def test_cmapss_transformer_forward_returns_batch_predictions() -> None:
     model = CmapssTransformerRegressor(
         feature_count=3,
@@ -427,6 +442,34 @@ def test_run_cmapss_tcn_baseline_run_tracks_history_and_selected_epoch(tmp_path)
     assert run.selected_epoch in {1, 2}
     assert run.result.model_name.startswith("tcn_w2_e2_c4_l1_k3")
     assert f"_best_e{run.selected_epoch}_" in run.result.model_name
+
+
+def test_run_cmapss_tcn_baseline_run_records_enhanced_options(tmp_path) -> None:
+    write_tiny_cmapss_subset(tmp_path)
+    sequence_dir = tmp_path / "sequences"
+    export_cmapss_sequence_splits(
+        tmp_path,
+        sequence_dir,
+        "FD001",
+        window_size=2,
+        validation_fraction=0.5,
+        validation_horizon=1,
+    )
+
+    run = run_cmapss_tcn_baseline_run(
+        sequence_dir,
+        "FD001",
+        epochs=1,
+        batch_size=2,
+        hidden_channels=4,
+        num_levels=1,
+        normalization="layer_norm",
+        use_weight_norm=True,
+        pooling="mean",
+    )
+
+    assert run.result.model_name.startswith("tcn_w2_e1_c4_l1_k3_normlayer_norm_wn_poolmean")
+    assert len(run.predictions) == run.result.test_rul_values
 
 
 def test_run_cmapss_transformer_baseline_run_tracks_history_and_selected_epoch(

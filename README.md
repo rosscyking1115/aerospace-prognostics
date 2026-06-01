@@ -31,7 +31,7 @@ The working plan is tracked in [Aerospace_Prognostics_Project_Plan.md](Aerospace
 - `aerospace-prognostics cmapss-lstm-baseline` CLI for Phase 2 LSTM/BiLSTM sequence baselines.
 - `aerospace-prognostics cmapss-tcn-baseline` CLI for Phase 2 temporal convolution sequence baselines.
 - `aerospace-prognostics cmapss-transformer-baseline` CLI for Phase 2 attention-based sequence baselines.
-- `aerospace-prognostics cmapss-deep-baseline-compare` CLI for compact Phase 2 architecture and learning-rate sweeps, including residual CNN candidates.
+- `aerospace-prognostics cmapss-deep-baseline-compare` CLI for compact Phase 2 architecture and learning-rate sweeps, including residual CNN candidates and enhanced TCN knobs.
 - `aerospace-prognostics cmapss-calibrate-deep-predictions` CLI for validation-fitted affine, predicted-bin residual, and tunable NASA-shift calibration diagnostics.
 - `aerospace-prognostics cmapss-compare-rul-results` CLI for Phase 1 vs Phase 2 ranked model-comparison reports, including prediction-derived calibrated candidates.
 - `aerospace-prognostics telemetry-robust-zscore-baseline` CLI for the Phase 2 spacecraft anomaly-detection baseline plumbing.
@@ -103,6 +103,7 @@ uv run aerospace-prognostics cmapss-lstm-baseline --sequence-dir artifacts/seque
 uv run aerospace-prognostics cmapss-tcn-baseline --sequence-dir artifacts/sequences/cmapss --subsets FD001 --epochs 50 --hidden-channels 64 --num-levels 3 --output-json artifacts/results/cmapss_tcn_fd001_baseline.json --output-csv artifacts/results/cmapss_tcn_fd001_baseline.csv --history-json artifacts/results/cmapss_tcn_fd001_history.json
 uv run aerospace-prognostics cmapss-transformer-baseline --sequence-dir artifacts/sequences/cmapss --subsets FD001 --epochs 50 --d-model 64 --num-heads 4 --num-layers 2 --dim-feedforward 128 --output-json artifacts/results/cmapss_transformer_fd001_baseline.json --output-csv artifacts/results/cmapss_transformer_fd001_baseline.csv --history-json artifacts/results/cmapss_transformer_fd001_history.json
 uv run aerospace-prognostics cmapss-deep-baseline-compare --sequence-dir artifacts/sequences/cmapss --subsets FD001 --models cnn rescnn bilstm tcn transformer --epochs 50 --hidden-sizes 32 64 --learning-rates 0.001 0.0003 --output-json artifacts/results/cmapss_deep_compare_fd001.json --output-csv artifacts/results/cmapss_deep_compare_fd001.csv
+uv run aerospace-prognostics cmapss-deep-baseline-compare --sequence-dir artifacts/sequences/cmapss --subsets FD001 --models tcn --epochs 50 --hidden-sizes 32 64 --learning-rates 0.001 0.0003 --tcn-levels 4 --tcn-normalization layer_norm --tcn-weight-norm --tcn-pooling mean --output-json artifacts/results/cmapss_tcn_enhanced_fd001.json --output-csv artifacts/results/cmapss_tcn_enhanced_fd001.csv
 uv run aerospace-prognostics cmapss-compare-rul-results --baseline-csv artifacts/results/cmapss_hgb_policy_baseline.csv --candidate-csv artifacts/results/cmapss_deep_compare_fd001.csv --output-csv artifacts/results/cmapss_phase2_model_comparison.csv --output-markdown artifacts/results/cmapss_phase2_model_comparison.md
 uv run aerospace-prognostics smap-msl-download --output-dir data/raw/smap_msl --archive-path data/raw/downloads/smap_msl_telemanom.zip
 uv run aerospace-prognostics smap-msl-summary --data-dir data/raw/smap_msl

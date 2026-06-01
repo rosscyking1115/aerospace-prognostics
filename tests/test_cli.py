@@ -894,6 +894,11 @@ def test_cmapss_deep_baseline_compare_command_writes_result_tables(
             "4",
             "--tcn-levels",
             "1",
+            "--tcn-normalization",
+            "layer_norm",
+            "--tcn-weight-norm",
+            "--tcn-pooling",
+            "mean",
             "--transformer-heads",
             "2",
             "--transformer-dim-feedforward",
@@ -907,8 +912,12 @@ def test_cmapss_deep_baseline_compare_command_writes_result_tables(
     assert exit_code == 0
     assert "models=cnn,tcn,transformer" in output
     assert "hidden_sizes=4" in output
+    assert "tcn_normalization=layer_norm" in output
+    assert "tcn_weight_norm=True" in output
+    assert "tcn_pooling=mean" in output
     assert "compare_cnn_h4_lr0p001" in output
     assert "compare_tcn_h4_lr0p001" in output
+    assert "normlayer_norm_wn_poolmean" in output
     assert "compare_transformer_h4_lr0p001" in output
     assert "selected_by_nasa=FD001:" in output
     assert output_csv.exists()

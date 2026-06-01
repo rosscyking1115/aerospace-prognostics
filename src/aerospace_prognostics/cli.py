@@ -481,6 +481,13 @@ def _build_parser() -> argparse.ArgumentParser:
     phase2.add_argument("--hidden-sizes", nargs="+", type=int, default=[32])
     phase2.add_argument("--num-layers", type=int, default=1)
     phase2.add_argument("--tcn-levels", type=int, default=3)
+    phase2.add_argument(
+        "--tcn-normalization",
+        choices=["none", "layer_norm"],
+        default="none",
+    )
+    phase2.add_argument("--tcn-weight-norm", action="store_true")
+    phase2.add_argument("--tcn-pooling", choices=["last", "mean"], default="last")
     phase2.add_argument("--transformer-heads", type=int, default=4)
     phase2.add_argument("--transformer-dim-feedforward", type=int)
     phase2.add_argument("--kernel-size", type=int, default=3)
@@ -745,6 +752,13 @@ def _build_parser() -> argparse.ArgumentParser:
     deep_compare.add_argument("--hidden-sizes", nargs="+", type=int, default=[32])
     deep_compare.add_argument("--num-layers", type=int, default=1)
     deep_compare.add_argument("--tcn-levels", type=int, default=3)
+    deep_compare.add_argument(
+        "--tcn-normalization",
+        choices=["none", "layer_norm"],
+        default="none",
+    )
+    deep_compare.add_argument("--tcn-weight-norm", action="store_true")
+    deep_compare.add_argument("--tcn-pooling", choices=["last", "mean"], default="last")
     deep_compare.add_argument("--transformer-heads", type=int, default=4)
     deep_compare.add_argument("--transformer-dim-feedforward", type=int)
     deep_compare.add_argument("--kernel-size", type=int, default=3)
@@ -1540,6 +1554,9 @@ def main(argv: list[str] | None = None) -> int:
             hidden_sizes=tuple(args.hidden_sizes),
             num_layers=args.num_layers,
             tcn_levels=args.tcn_levels,
+            tcn_normalization=args.tcn_normalization,
+            tcn_weight_norm=args.tcn_weight_norm,
+            tcn_pooling=args.tcn_pooling,
             transformer_heads=args.transformer_heads,
             transformer_dim_feedforward=args.transformer_dim_feedforward,
             kernel_size=args.kernel_size,
@@ -1883,6 +1900,9 @@ def main(argv: list[str] | None = None) -> int:
             hidden_sizes=tuple(args.hidden_sizes),
             num_layers=args.num_layers,
             tcn_levels=args.tcn_levels,
+            tcn_normalization=args.tcn_normalization,
+            tcn_weight_norm=args.tcn_weight_norm,
+            tcn_pooling=args.tcn_pooling,
             transformer_heads=args.transformer_heads,
             transformer_dim_feedforward=args.transformer_dim_feedforward,
             kernel_size=args.kernel_size,
@@ -1902,6 +1922,9 @@ def main(argv: list[str] | None = None) -> int:
         print(f"hidden_sizes={','.join(str(value) for value in args.hidden_sizes)}")
         print(f"num_layers={args.num_layers}")
         print(f"tcn_levels={args.tcn_levels}")
+        print(f"tcn_normalization={args.tcn_normalization}")
+        print(f"tcn_weight_norm={args.tcn_weight_norm}")
+        print(f"tcn_pooling={args.tcn_pooling}")
         print(f"transformer_heads={args.transformer_heads}")
         print(f"transformer_dim_feedforward={args.transformer_dim_feedforward}")
         print(f"kernel_size={args.kernel_size}")

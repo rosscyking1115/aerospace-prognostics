@@ -320,6 +320,46 @@ class _CausalChomp1d(nn.Module):
         return values[:, :, : -self.chomp_size]
 
 
+class _TemporalChannelLayerNorm(nn.Module):
+    """Apply LayerNorm across channels for each temporal step."""
+
+    def __init__(self, channels: int) -> None:
+        super().__init__()
+        self.normalization = nn.LayerNorm(channels)
+
+    def forward(self, values: torch.Tensor) -> torch.Tensor:
+        return self.normalization(values.transpose(1, 2)).transpose(1, 2)
+
+
+def _tcn_normalization_layer(normalization: str, channels: int) -> nn.Module:
+    if normalization == "none":
+        return nn.Identity()
+    if normalization == "layer_norm":
+        return _TemporalChannelLayerNorm(channels)
+    raise ValueError("normalization must be 'none' or 'layer_norm'")
+
+
+def _tcn_conv1d(
+    *,
+    input_channels: int,
+    output_channels: int,
+    kernel_size: int,
+    padding: int = 0,
+    dilation: int = 1,
+    use_weight_norm: bool = False,
+) -> nn.Module:
+    convolution = nn.Conv1d(
+        input_channels,
+        output_channels,
+        kernel_size,
+        padding=padding,
+        dilation=dilation,
+    )
+    if use_weight_norm:
+        return nn.utils.parametrizations.weight_norm(convolution)
+    return convolution
+
+
 class _TcnResidualBlock(nn.Module):
     """Two-layer dilated causal convolution block with a residual path."""
 
@@ -331,35 +371,46 @@ class _TcnResidualBlock(nn.Module):
         kernel_size: int,
         dilation: int,
         dropout: float,
+        normalization: str,
+        use_weight_norm: bool,
     ) -> None:
         super().__init__()
         padding = (kernel_size - 1) * dilation
         self.network = nn.Sequential(
-            nn.Conv1d(
-                input_channels,
-                output_channels,
-                kernel_size,
+            _tcn_conv1d(
+                input_channels=input_channels,
+                output_channels=output_channels,
+                kernel_size=kernel_size,
                 padding=padding,
                 dilation=dilation,
+                use_weight_norm=use_weight_norm,
             ),
             _CausalChomp1d(padding),
+            _tcn_normalization_layer(normalization, output_channels),
             nn.ReLU(),
             nn.Dropout(dropout),
-            nn.Conv1d(
-                output_channels,
-                output_channels,
-                kernel_size,
+            _tcn_conv1d(
+                input_channels=output_channels,
+                output_channels=output_channels,
+                kernel_size=kernel_size,
                 padding=padding,
                 dilation=dilation,
+                use_weight_norm=use_weight_norm,
             ),
             _CausalChomp1d(padding),
+            _tcn_normalization_layer(normalization, output_channels),
             nn.ReLU(),
             nn.Dropout(dropout),
         )
         self.residual = (
             nn.Identity()
             if input_channels == output_channels
-            else nn.Conv1d(input_channels, output_channels, kernel_size=1)
+            else _tcn_conv1d(
+                input_channels=input_channels,
+                output_channels=output_channels,
+                kernel_size=1,
+                use_weight_norm=use_weight_norm,
+            )
         )
         self.activation = nn.ReLU()
 
@@ -378,6 +429,9 @@ class CmapssTemporalConvolutionalRegressor(nn.Module):
         num_levels: int = 3,
         kernel_size: int = 3,
         dropout: float = 0.1,
+        normalization: str = "none",
+        use_weight_norm: bool = False,
+        pooling: str = "last",
     ) -> None:
         super().__init__()
         if hidden_channels < 1:
@@ -386,6 +440,11 @@ class CmapssTemporalConvolutionalRegressor(nn.Module):
             raise ValueError("num_levels must be at least 1")
         if kernel_size < 1:
             raise ValueError("kernel_size must be at least 1")
+        if normalization not in {"none", "layer_norm"}:
+            raise ValueError("normalization must be 'none' or 'layer_norm'")
+        if pooling not in {"last", "mean"}:
+            raise ValueError("pooling must be 'last' or 'mean'")
+        self.pooling = pooling
         blocks: list[nn.Module] = []
         input_channels = feature_count
         for level in range(num_levels):
@@ -396,6 +455,8 @@ class CmapssTemporalConvolutionalRegressor(nn.Module):
                     kernel_size=kernel_size,
                     dilation=2**level,
                     dropout=dropout,
+                    normalization=normalization,
+                    use_weight_norm=use_weight_norm,
                 )
             )
             input_channels = hidden_channels
@@ -406,7 +467,8 @@ class CmapssTemporalConvolutionalRegressor(nn.Module):
         """Predict RUL from `(batch, timesteps, features)` windows."""
 
         features = self.network(windows.transpose(1, 2))
-        return self.head(features[:, :, -1]).squeeze(-1)
+        pooled = features.mean(dim=-1) if self.pooling == "mean" else features[:, :, -1]
+        return self.head(pooled).squeeze(-1)
 
 
 class CmapssTransformerRegressor(nn.Module):
@@ -733,6 +795,9 @@ def run_cmapss_tcn_baseline(
     num_levels: int = 3,
     kernel_size: int = 3,
     dropout: float = 0.1,
+    normalization: str = "none",
+    use_weight_norm: bool = False,
+    pooling: str = "last",
     checkpoint_policy: str = "validation_nasa",
     random_state: int = 42,
     device: str = "cpu",
@@ -750,6 +815,9 @@ def run_cmapss_tcn_baseline(
         num_levels=num_levels,
         kernel_size=kernel_size,
         dropout=dropout,
+        normalization=normalization,
+        use_weight_norm=use_weight_norm,
+        pooling=pooling,
         checkpoint_policy=checkpoint_policy,
         random_state=random_state,
         device=device,
@@ -768,6 +836,9 @@ def run_cmapss_tcn_baseline_run(
     num_levels: int = 3,
     kernel_size: int = 3,
     dropout: float = 0.1,
+    normalization: str = "none",
+    use_weight_norm: bool = False,
+    pooling: str = "last",
     checkpoint_policy: str = "validation_nasa",
     random_state: int = 42,
     device: str = "cpu",
@@ -780,6 +851,10 @@ def run_cmapss_tcn_baseline_run(
         raise ValueError("num_levels must be at least 1")
     if kernel_size < 1:
         raise ValueError("kernel_size must be at least 1")
+    if normalization not in {"none", "layer_norm"}:
+        raise ValueError("normalization must be 'none' or 'layer_norm'")
+    if pooling not in {"last", "mean"}:
+        raise ValueError("pooling must be 'last' or 'mean'")
 
     def model_factory(feature_count: int, sequence_length: int) -> nn.Module:
         return CmapssTemporalConvolutionalRegressor(
@@ -788,8 +863,14 @@ def run_cmapss_tcn_baseline_run(
             num_levels=num_levels,
             kernel_size=kernel_size,
             dropout=dropout,
+            normalization=normalization,
+            use_weight_norm=use_weight_norm,
+            pooling=pooling,
         )
 
+    normalization_label = "" if normalization == "none" else f"_norm{normalization}"
+    weight_norm_label = "_wn" if use_weight_norm else ""
+    pooling_label = "" if pooling == "last" else f"_pool{pooling}"
     result, selected_epoch, history, predictions, validation_selection_predictions = (
         _run_sequence_baseline_run(
             sequence_dir,
@@ -805,6 +886,7 @@ def run_cmapss_tcn_baseline_run(
             model_name_base_factory=lambda metadata: (
                 f"tcn_w{metadata['window_size']}_e{epochs}_c{hidden_channels}"
                 f"_l{num_levels}_k{kernel_size}"
+                f"{normalization_label}{weight_norm_label}{pooling_label}"
             ),
         )
     )
@@ -1294,6 +1376,9 @@ def run_all_cmapss_tcn_baselines(
     num_levels: int = 3,
     kernel_size: int = 3,
     dropout: float = 0.1,
+    normalization: str = "none",
+    use_weight_norm: bool = False,
+    pooling: str = "last",
     checkpoint_policy: str = "validation_nasa",
     random_state: int = 42,
     device: str = "cpu",
@@ -1313,6 +1398,9 @@ def run_all_cmapss_tcn_baselines(
             num_levels=num_levels,
             kernel_size=kernel_size,
             dropout=dropout,
+            normalization=normalization,
+            use_weight_norm=use_weight_norm,
+            pooling=pooling,
             checkpoint_policy=checkpoint_policy,
             random_state=random_state,
             device=device,
@@ -1412,6 +1500,9 @@ def run_all_cmapss_tcn_baseline_runs(
     num_levels: int = 3,
     kernel_size: int = 3,
     dropout: float = 0.1,
+    normalization: str = "none",
+    use_weight_norm: bool = False,
+    pooling: str = "last",
     checkpoint_policy: str = "validation_nasa",
     random_state: int = 42,
     device: str = "cpu",
@@ -1430,6 +1521,9 @@ def run_all_cmapss_tcn_baseline_runs(
             num_levels=num_levels,
             kernel_size=kernel_size,
             dropout=dropout,
+            normalization=normalization,
+            use_weight_norm=use_weight_norm,
+            pooling=pooling,
             checkpoint_policy=checkpoint_policy,
             random_state=random_state,
             device=device,
@@ -1450,6 +1544,9 @@ def run_cmapss_deep_baseline_comparison(
     hidden_sizes: tuple[int, ...] = (32,),
     num_layers: int = 1,
     tcn_levels: int = 3,
+    tcn_normalization: str = "none",
+    tcn_weight_norm: bool = False,
+    tcn_pooling: str = "last",
     transformer_heads: int = 4,
     transformer_dim_feedforward: int | None = None,
     kernel_size: int = 3,
@@ -1473,6 +1570,9 @@ def run_cmapss_deep_baseline_comparison(
             hidden_sizes=hidden_sizes,
             num_layers=num_layers,
             tcn_levels=tcn_levels,
+            tcn_normalization=tcn_normalization,
+            tcn_weight_norm=tcn_weight_norm,
+            tcn_pooling=tcn_pooling,
             transformer_heads=transformer_heads,
             transformer_dim_feedforward=transformer_dim_feedforward,
             kernel_size=kernel_size,
@@ -1496,6 +1596,9 @@ def run_cmapss_deep_baseline_comparison_runs(
     hidden_sizes: tuple[int, ...] = (32,),
     num_layers: int = 1,
     tcn_levels: int = 3,
+    tcn_normalization: str = "none",
+    tcn_weight_norm: bool = False,
+    tcn_pooling: str = "last",
     transformer_heads: int = 4,
     transformer_dim_feedforward: int | None = None,
     kernel_size: int = 3,
@@ -1527,6 +1630,9 @@ def run_cmapss_deep_baseline_comparison_runs(
                     hidden_size=hidden_size,
                     num_layers=num_layers,
                     tcn_levels=tcn_levels,
+                    tcn_normalization=tcn_normalization,
+                    tcn_weight_norm=tcn_weight_norm,
+                    tcn_pooling=tcn_pooling,
                     transformer_heads=transformer_heads,
                     transformer_dim_feedforward=transformer_dim_feedforward,
                     kernel_size=kernel_size,
@@ -1633,6 +1739,9 @@ def _run_deep_comparison_candidate_runs(
     hidden_size: int,
     num_layers: int,
     tcn_levels: int,
+    tcn_normalization: str,
+    tcn_weight_norm: bool,
+    tcn_pooling: str,
     transformer_heads: int,
     transformer_dim_feedforward: int | None,
     kernel_size: int,
@@ -1700,6 +1809,9 @@ def _run_deep_comparison_candidate_runs(
             num_levels=tcn_levels,
             kernel_size=kernel_size,
             dropout=dropout,
+            normalization=tcn_normalization,
+            use_weight_norm=tcn_weight_norm,
+            pooling=tcn_pooling,
             checkpoint_policy=checkpoint_policy,
             random_state=random_state,
             device=device,
