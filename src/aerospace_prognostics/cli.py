@@ -47,6 +47,7 @@ from aerospace_prognostics.deployment.artifacts import (
     save_cmapss_model_artifact,
     train_cmapss_hgb_policy_artifact,
     validate_cmapss_model_artifact,
+    write_cmapss_model_card_markdown,
 )
 from aerospace_prognostics.deployment.sbom import build_uv_lock_cyclonedx_sbom
 from aerospace_prognostics.evaluation import (
@@ -1018,6 +1019,7 @@ def _build_parser() -> argparse.ArgumentParser:
     package_hgb.add_argument("--subset", choices=CMAPSS_SUBSETS, required=True)
     package_hgb.add_argument("--output-path", type=Path, required=True)
     package_hgb.add_argument("--metadata-json", type=Path)
+    package_hgb.add_argument("--model-card-markdown", type=Path)
     package_hgb.add_argument("--rul-cap", type=int, default=125)
     package_hgb.add_argument("--random-state", type=int, default=42)
     package_hgb.add_argument("--n-regimes", type=int, default=6)
@@ -2362,6 +2364,13 @@ def main(argv: list[str] | None = None) -> int:
                 },
                 args.metadata_json,
             )
+        if args.model_card_markdown is not None:
+            model_card_path = write_cmapss_model_card_markdown(
+                packaged.artifact,
+                packaged.result,
+                args.model_card_markdown,
+            )
+            print(f"model_card_markdown={model_card_path}")
         return 0
 
     if args.command == "cmapss-predict-artifact":

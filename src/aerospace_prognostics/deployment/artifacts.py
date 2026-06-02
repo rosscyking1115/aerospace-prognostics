@@ -426,6 +426,122 @@ def validate_cmapss_model_artifact(
     )
 
 
+def render_cmapss_model_card_markdown(
+    artifact: CmapssHgbPolicyModelArtifact,
+    result: RegressionRunResult,
+) -> str:
+    """Render a human-readable model card for a packaged C-MAPSS artifact."""
+
+    promotion = artifact.promotion_metadata
+    identity = promotion.get("identity", {})
+    rollback = promotion.get("rollback", {})
+    reference_column_count = len(artifact.reference_stats)
+    lines = [
+        "# C-MAPSS Deployment Model Card",
+        "",
+        "## Overview",
+        "",
+        f"- Dataset: `{_markdown_inline(artifact.dataset)}`",
+        f"- Subset: `{_markdown_inline(artifact.subset)}`",
+        f"- Model: `{_markdown_inline(artifact.model_name)}`",
+        f"- Artifact ID: `{_markdown_inline(promotion.get('artifact_id'))}`",
+        f"- Stage: `{_markdown_inline(promotion.get('stage'))}`",
+        f"- Schema version: `{_markdown_inline(artifact.schema_version)}`",
+        f"- Created at UTC: `{_markdown_inline(promotion.get('created_at_utc'))}`",
+        "",
+        "## Intended Use",
+        "",
+        (
+            "This artifact predicts capped Remaining Useful Life for NASA C-MAPSS "
+            "turbofan telemetry. It is a portfolio deployment candidate for local "
+            "batch inference and FastAPI serving, not a certified aviation system."
+        ),
+        "",
+        "## Performance",
+        "",
+        "| Metric | Value |",
+        "|---|---:|",
+        f"| Official-test RMSE | {result.rmse:.6f} |",
+        f"| Official-test NASA score | {result.nasa_score:.6f} |",
+        f"| Train rows | {result.train_rows} |",
+        f"| Train units | {result.train_units} |",
+        f"| Test rows | {result.test_rows} |",
+        f"| Test units | {result.test_units} |",
+        "",
+        "## Model And Feature Policy",
+        "",
+        "| Field | Value |",
+        "|---|---|",
+        f"| Feature policy | `{_markdown_cell(artifact.feature_policy)}` |",
+        f"| HGB policy | `{_markdown_cell(artifact.hgb_policy)}` |",
+        f"| Rolling window | {artifact.rolling_window} |",
+        f"| RUL cap | {artifact.rul_cap} |",
+        f"| Standardized | {artifact.standardize} |",
+        f"| Random state | {artifact.random_state} |",
+        "",
+        "## Inference Contract",
+        "",
+        (
+            "`POST /predict` expects raw C-MAPSS rows with the packaged artifact input "
+            "schema. Rows are grouped by `unit_number`, and one prediction is returned "
+            "per unit using that unit's latest `time_in_cycles` row."
+        ),
+        "",
+        f"- Input columns: {len(artifact.input_columns)}",
+        f"- Feature columns after preprocessing: {len(artifact.feature_columns)}",
+        f"- Prediction bounds: `[0, {artifact.rul_cap}]`",
+        f"- Required first columns: `{_markdown_inline(', '.join(artifact.input_columns[:5]))}`",
+        "",
+        "## Monitoring",
+        "",
+        (
+            "Serving responses include telemetry mean-shift drift summaries and "
+            "prediction-distribution summaries. The artifact stores train-fit reference "
+            f"statistics for {reference_column_count} telemetry columns."
+        ),
+        "",
+        "## Promotion",
+        "",
+        f"- Selection source: `{_markdown_inline(promotion.get('selection_source'))}`",
+        f"- Promotion gate: `{_markdown_inline(promotion.get('promotion_gate'))}`",
+        f"- Identity official-test RMSE: `{_markdown_inline(identity.get('official_test_rmse'))}`",
+        (
+            "- Identity official-test NASA score: "
+            f"`{_markdown_inline(identity.get('official_test_nasa_score'))}`"
+        ),
+        "",
+        "## Limitations",
+        "",
+        "- C-MAPSS is simulated benchmark telemetry, not operational fleet data.",
+        "- RUL is capped for training and serving, so early-life absolute RUL is compressed.",
+        "- This artifact does not provide prediction intervals or certification evidence.",
+        "- Public deployment still requires TLS termination, secret rotation, and audit logging.",
+        "",
+        "## Rollback",
+        "",
+        f"- Strategy: `{_markdown_inline(rollback.get('strategy'))}`",
+        f"- Requires retraining: `{_markdown_inline(rollback.get('requires_retraining'))}`",
+        "",
+    ]
+    return "\n".join(lines)
+
+
+def write_cmapss_model_card_markdown(
+    artifact: CmapssHgbPolicyModelArtifact,
+    result: RegressionRunResult,
+    output_markdown: str | Path,
+) -> Path:
+    """Write a model-card markdown artifact for a packaged C-MAPSS model."""
+
+    output_path = Path(output_markdown)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    output_path.write_text(
+        render_cmapss_model_card_markdown(artifact, result),
+        encoding="utf-8",
+    )
+    return output_path
+
+
 def _validate_inference_frame(frame: pd.DataFrame, input_columns: tuple[str, ...]) -> None:
     if frame.empty:
         raise ValueError("telemetry frame must contain at least one row")
@@ -611,3 +727,13 @@ def _promotion_metadata(
 
 def _hgb_params_by_label() -> dict[str, dict[str, float | int | str]]:
     return {str(params["label"]): params for params in CMAPSS_HGB_PARAM_GRID}
+
+
+def _markdown_inline(value: object, *, default: str = "unknown") -> str:
+    if value is None:
+        return default
+    return str(value).replace("`", "'")
+
+
+def _markdown_cell(value: object) -> str:
+    return _markdown_inline(value, default="").replace("|", "\\|")

@@ -6,6 +6,7 @@ from aerospace_prognostics.data.cmapss import load_cmapss_subset
 from aerospace_prognostics.deployment.artifacts import (
     ARTIFACT_SCHEMA_VERSION,
     load_cmapss_model_artifact,
+    render_cmapss_model_card_markdown,
     save_cmapss_model_artifact,
     train_cmapss_hgb_policy_artifact,
     validate_cmapss_model_artifact,
@@ -61,6 +62,22 @@ def test_cmapss_hgb_policy_artifact_rejects_missing_columns(tmp_path) -> None:
         assert "missing columns" in str(exc)
     else:
         raise AssertionError("expected missing-column validation error")
+
+
+def test_render_cmapss_model_card_markdown_summarizes_deployment_context(tmp_path) -> None:
+    write_tiny_cmapss_subset(tmp_path)
+    packaged = train_cmapss_hgb_policy_artifact(tmp_path, "FD001", n_regimes=1)
+
+    markdown = render_cmapss_model_card_markdown(packaged.artifact, packaged.result)
+
+    assert "# C-MAPSS Deployment Model Card" in markdown
+    assert "## Intended Use" in markdown
+    assert "## Performance" in markdown
+    assert f"| Official-test RMSE | {packaged.result.rmse:.6f} |" in markdown
+    assert "## Inference Contract" in markdown
+    assert "## Monitoring" in markdown
+    assert "## Limitations" in markdown
+    assert "Requires retraining: `False`" in markdown
 
 
 def test_validate_cmapss_model_artifact_checks_metadata_and_prediction_smoke(

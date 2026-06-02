@@ -1672,6 +1672,7 @@ def test_cmapss_package_and_predict_artifact_commands(tmp_path, capsys) -> None:
     write_tiny_cmapss_subset(tmp_path)
     artifact_path = tmp_path / "models" / "fd001.joblib"
     metadata_json = tmp_path / "models" / "fd001_metadata.json"
+    model_card_markdown = tmp_path / "models" / "fd001_model_card.md"
     prediction_json = tmp_path / "predictions" / "fd001.json"
     input_csv = tmp_path / "test_input.csv"
     read_cmapss_frame(tmp_path / "test_FD001.txt").to_csv(input_csv, index=False)
@@ -1687,6 +1688,8 @@ def test_cmapss_package_and_predict_artifact_commands(tmp_path, capsys) -> None:
             str(artifact_path),
             "--metadata-json",
             str(metadata_json),
+            "--model-card-markdown",
+            str(model_card_markdown),
             "--n-regimes",
             "1",
         ]
@@ -1696,11 +1699,16 @@ def test_cmapss_package_and_predict_artifact_commands(tmp_path, capsys) -> None:
     assert package_exit_code == 0
     assert "model=hist_gradient_boosting_regime_engineered_w10_r1_default" in package_output
     assert "artifact_id=fd001-" in package_output
+    assert "model_card_markdown=" in package_output
     assert artifact_path.exists()
     assert metadata_json.exists()
+    assert model_card_markdown.exists()
     metadata = json.loads(metadata_json.read_text(encoding="utf-8"))
     assert metadata["artifact"]["promotion"]["stage"] == "candidate"
     assert metadata["artifact"]["promotion"]["rollback"]["requires_retraining"] is False
+    model_card = model_card_markdown.read_text(encoding="utf-8")
+    assert "# C-MAPSS Deployment Model Card" in model_card
+    assert "## Limitations" in model_card
 
     predict_exit_code = main(
         [
