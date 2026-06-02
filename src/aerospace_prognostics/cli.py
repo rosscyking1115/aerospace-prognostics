@@ -1072,6 +1072,7 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Serve a packaged model artifact with FastAPI",
     )
     serve_api.add_argument("--model-artifact", type=Path, required=True)
+    serve_api.add_argument("--model-sha256")
     serve_api.add_argument("--host", default="127.0.0.1")
     serve_api.add_argument("--port", type=int, default=8000)
 
@@ -2489,7 +2490,11 @@ def main(argv: list[str] | None = None) -> int:
 
         from aerospace_prognostics.serving.api import create_app
 
-        uvicorn.run(create_app(args.model_artifact), host=args.host, port=args.port)
+        uvicorn.run(
+            create_app(args.model_artifact, expected_artifact_sha256=args.model_sha256),
+            host=args.host,
+            port=args.port,
+        )
         return 0
 
     if args.command == "generate-sbom":

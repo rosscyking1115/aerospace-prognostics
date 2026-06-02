@@ -32,6 +32,7 @@ Run the image with an explicit model mount and environment variable when serving
 docker run --rm -p 8000:8000 `
   -v ${PWD}/artifacts/models:/models `
   -e AEROSPACE_PROGNOSTICS_MODEL_PATH=/models/cmapss_fd001_hgb_policy.joblib `
+  -e AEROSPACE_PROGNOSTICS_MODEL_SHA256=<expected-artifact-sha256> `
   -e AEROSPACE_PROGNOSTICS_API_KEY=<set-a-secret-value> `
   -e AEROSPACE_PROGNOSTICS_RATE_LIMIT_PER_MINUTE=60 `
   aerospace-prognostics:ci
@@ -53,6 +54,8 @@ The API exposes:
 Every API request receives `x-request-id` and `x-process-time-ms` response headers. If the caller sends `x-request-id`, the service preserves it; otherwise it generates one. Requests are logged as one-line JSON records with method, route, status code, request ID, and latency. `GET /metrics` exposes lightweight Prometheus-style counters and latency summaries for local container smoke checks and basic deployment monitoring.
 
 Prediction responses include a `monitoring` block. It compares request telemetry means against train-fit artifact reference statistics with standardized mean-shift scores, lists columns above the drift threshold, and summarizes the request's prediction distribution. The same compact monitoring summary is emitted as structured JSON logs for downstream alerting.
+
+Set `AEROSPACE_PROGNOSTICS_MODEL_SHA256` or pass `--model-sha256` to `serve-api` to require an exact artifact digest at startup. The service hashes the mounted joblib before loading it and fails startup if the digest does not match, which protects promotion pointers and container mounts from silently serving the wrong binary artifact.
 
 ## Authentication And Rate Limiting
 
@@ -121,6 +124,7 @@ Current scope:
 - Structured JSON request logs, request IDs, latency headers, and scrapeable serving metrics.
 - Request telemetry drift summaries and prediction-distribution monitoring.
 - Promotion metadata with stable artifact IDs and rollback runbook.
+- Optional serving startup SHA-256 verification for mounted model artifacts.
 - Optional API-key authentication and per-client serving rate limits.
 - Lockfile-derived CycloneDX-style SBOM generation in CI.
 - CI release-evidence smoke test for the validation, benchmark, SBOM, and promotion-report path.

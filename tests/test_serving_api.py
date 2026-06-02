@@ -6,6 +6,7 @@ import logging
 from fastapi.testclient import TestClient
 
 from aerospace_prognostics.data.cmapss import load_cmapss_subset
+from aerospace_prognostics.data.integrity import file_sha256
 from aerospace_prognostics.deployment.artifacts import (
     save_cmapss_model_artifact,
     train_cmapss_hgb_policy_artifact,
@@ -105,6 +106,34 @@ def test_serving_api_exposes_model_specific_inference_schema(tmp_path) -> None:
             "maximum": float(artifact.rul_cap),
         },
     ]
+
+
+def test_serving_api_verifies_expected_model_sha256(tmp_path) -> None:
+    write_tiny_cmapss_subset(tmp_path)
+    artifact = train_cmapss_hgb_policy_artifact(tmp_path, "FD001", n_regimes=1).artifact
+    artifact_path = save_cmapss_model_artifact(artifact, tmp_path / "fd001.joblib")
+
+    client = TestClient(
+        create_app(
+            artifact_path,
+            expected_artifact_sha256=file_sha256(artifact_path),
+        )
+    )
+
+    assert client.get("/health").json() == {"status": "ok", "model_loaded": True}
+
+
+def test_serving_api_rejects_unexpected_model_sha256(tmp_path) -> None:
+    write_tiny_cmapss_subset(tmp_path)
+    artifact = train_cmapss_hgb_policy_artifact(tmp_path, "FD001", n_regimes=1).artifact
+    artifact_path = save_cmapss_model_artifact(artifact, tmp_path / "fd001.joblib")
+
+    try:
+        create_app(artifact_path, expected_artifact_sha256="0" * 64)
+    except ValueError as exc:
+        assert "model artifact sha256 mismatch" in str(exc)
+    else:
+        raise AssertionError("expected serving startup to reject mismatched sha256")
 
 
 def test_serving_api_reports_validation_errors(tmp_path) -> None:

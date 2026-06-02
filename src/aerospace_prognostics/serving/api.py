@@ -18,6 +18,7 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse, PlainTextResponse
 from pydantic import BaseModel, Field
 
+from aerospace_prognostics.data.integrity import file_sha256
 from aerospace_prognostics.deployment.artifacts import (
     CmapssHgbPolicyModelArtifact,
     load_cmapss_model_artifact,
@@ -26,6 +27,7 @@ from aerospace_prognostics.deployment.artifacts import (
 LOGGER = logging.getLogger("aerospace_prognostics.serving")
 API_KEY_ENV = "AEROSPACE_PROGNOSTICS_API_KEY"
 RATE_LIMIT_ENV = "AEROSPACE_PROGNOSTICS_RATE_LIMIT_PER_MINUTE"
+MODEL_SHA256_ENV = "AEROSPACE_PROGNOSTICS_MODEL_SHA256"
 
 
 class PredictRequest(BaseModel):
@@ -149,6 +151,7 @@ def create_app(
     *,
     api_key: str | None = None,
     rate_limit_per_minute: int | None = None,
+    expected_artifact_sha256: str | None = None,
 ) -> FastAPI:
     """Create a FastAPI app, optionally loading a model artifact at startup."""
 
@@ -158,6 +161,13 @@ def create_app(
         description="Deployment API for C-MAPSS remaining useful life prediction.",
     )
     configured_path = artifact_path or os.getenv("AEROSPACE_PROGNOSTICS_MODEL_PATH")
+    configured_sha256 = (
+        expected_artifact_sha256
+        if expected_artifact_sha256 is not None
+        else os.getenv(MODEL_SHA256_ENV)
+    )
+    if configured_path is not None and str(configured_path) and configured_sha256:
+        _verify_model_artifact_sha256(configured_path, configured_sha256)
     artifact = (
         load_cmapss_model_artifact(configured_path)
         if configured_path is not None and str(configured_path)
@@ -263,6 +273,18 @@ def create_app(
         return app.state.metrics.prometheus_text()
 
     return app
+
+
+def _verify_model_artifact_sha256(path: str | Path, expected_sha256: str) -> None:
+    expected = expected_sha256.strip().lower()
+    if len(expected) != 64 or any(character not in "0123456789abcdef" for character in expected):
+        raise ValueError(f"{MODEL_SHA256_ENV} must be a 64-character hex SHA-256 digest")
+    actual = file_sha256(path)
+    if actual != expected:
+        raise ValueError(
+            "model artifact sha256 mismatch: "
+            f"expected {expected}, got {actual} for {Path(path)}"
+        )
 
 
 def _configured_rate_limit(rate_limit_per_minute: int | None) -> int:

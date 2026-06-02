@@ -68,9 +68,11 @@ jobs:
 
       - name: Smoke serving image with mounted model
         run: |
+          artifact_sha256=$(sha256sum artifacts/ci_release_evidence/models/fd001.joblib | cut -d ' ' -f1)
           container_id=$(docker run --detach --publish 8001:8000 \
             --volume "$PWD/artifacts/ci_release_evidence/models:/models:ro" \
             --env AEROSPACE_PROGNOSTICS_MODEL_PATH=/models/fd001.joblib \
+            --env AEROSPACE_PROGNOSTICS_MODEL_SHA256="$artifact_sha256" \
             --env AEROSPACE_PROGNOSTICS_API_KEY=ci-secret \
             aerospace-prognostics:ci)
           trap 'docker rm --force "$container_id"' EXIT
