@@ -184,6 +184,49 @@ def test_target_weighted_mse_mid_high_loss_emphasizes_mid_and_high_rul_targets()
     assert float(loss) == pytest.approx((100.0 + (81.0 * 1.5) + (100.0 * 1.5)) / 3.0)
 
 
+def test_mse_monotonic_loss_penalizes_same_unit_rul_increases() -> None:
+    predictions = torch.tensor([82.0, 79.0, 80.0, 88.0])
+    targets = predictions.clone()
+    unit_numbers = torch.tensor([1, 1, 1, 2])
+    end_cycles = torch.tensor([11, 12, 10, 5])
+
+    loss = _deep_training_loss(
+        predictions,
+        targets,
+        training_loss="mse_monotonic_w0p1",
+        unit_numbers=unit_numbers,
+        end_cycles=end_cycles,
+    )
+
+    assert float(loss) == pytest.approx(0.2)
+
+
+def test_asymmetric_monotonic_loss_combines_base_and_temporal_penalties() -> None:
+    predictions = torch.tensor([82.0, 79.0, 80.0])
+    targets = torch.tensor([80.0, 79.0, 80.0])
+    unit_numbers = torch.tensor([1, 1, 1])
+    end_cycles = torch.tensor([11, 12, 10])
+
+    loss = _deep_training_loss(
+        predictions,
+        targets,
+        training_loss="asymmetric_mse_late_w1p5_monotonic_w0p1",
+        unit_numbers=unit_numbers,
+        end_cycles=end_cycles,
+    )
+
+    assert float(loss) == pytest.approx(2.0 + 0.2)
+
+
+def test_monotonic_training_loss_requires_unit_metadata() -> None:
+    with pytest.raises(ValueError, match="unit_numbers and end_cycles"):
+        _deep_training_loss(
+            torch.tensor([80.0, 82.0]),
+            torch.tensor([80.0, 82.0]),
+            training_loss="mse_monotonic_w0p1",
+        )
+
+
 def test_run_cmapss_cnn_baseline_returns_structured_result(tmp_path) -> None:
     write_tiny_cmapss_subset(tmp_path)
     sequence_dir = tmp_path / "sequences"
@@ -436,6 +479,31 @@ def test_run_cmapss_cnn_baseline_run_supports_target_weighted_mse_loss(tmp_path)
     )
 
     assert "_loss_target_weighted_mse_high_w2_" in run.result.model_name
+    assert run.history[0].train_loss >= 0
+
+
+def test_run_cmapss_cnn_baseline_run_supports_monotonic_loss(tmp_path) -> None:
+    write_tiny_cmapss_subset(tmp_path)
+    sequence_dir = tmp_path / "sequences"
+    export_cmapss_sequence_splits(
+        tmp_path,
+        sequence_dir,
+        "FD001",
+        window_size=2,
+        validation_fraction=0.5,
+        validation_horizon=1,
+    )
+
+    run = run_cmapss_cnn_baseline_run(
+        sequence_dir,
+        "FD001",
+        epochs=1,
+        batch_size=2,
+        training_loss="mse_monotonic_w0p1",
+        hidden_channels=4,
+    )
+
+    assert "_loss_mse_monotonic_w0p1_" in run.result.model_name
     assert run.history[0].train_loss >= 0
 
 

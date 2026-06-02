@@ -29,6 +29,8 @@ CMAPSS_DEEP_TRAINING_LOSSES = (
     "asymmetric_mse_late_w3",
     "target_weighted_mse_high_w2",
     "target_weighted_mse_mid_high_w1p5",
+    "mse_monotonic_w0p1",
+    "asymmetric_mse_late_w1p5_monotonic_w0p1",
 )
 
 
@@ -1053,6 +1055,8 @@ def _run_sequence_baseline_run(
         TensorDataset(
             torch.as_tensor(train_payload["windows"], dtype=torch.float32),
             torch.as_tensor(train_payload["targets"], dtype=torch.float32),
+            torch.as_tensor(train_payload["unit_numbers"], dtype=torch.int64),
+            torch.as_tensor(train_payload["end_cycles"], dtype=torch.int64),
         ),
         batch_size=batch_size,
         shuffle=True,
@@ -1066,14 +1070,18 @@ def _run_sequence_baseline_run(
         model.train()
         loss_total = 0.0
         sample_count = 0
-        for batch_windows, batch_targets in loader:
+        for batch_windows, batch_targets, batch_unit_numbers, batch_end_cycles in loader:
             batch_windows = batch_windows.to(torch_device)
             batch_targets = batch_targets.to(torch_device)
+            batch_unit_numbers = batch_unit_numbers.to(torch_device)
+            batch_end_cycles = batch_end_cycles.to(torch_device)
             optimizer.zero_grad()
             loss = _deep_training_loss(
                 model(batch_windows),
                 batch_targets,
                 training_loss=training_loss,
+                unit_numbers=batch_unit_numbers,
+                end_cycles=batch_end_cycles,
             )
             loss.backward()
             optimizer.step()
@@ -1197,11 +1205,23 @@ def _deep_training_loss(
     targets: torch.Tensor,
     *,
     training_loss: str,
+    unit_numbers: torch.Tensor | None = None,
+    end_cycles: torch.Tensor | None = None,
 ) -> torch.Tensor:
     if training_loss == "mse":
         return nn.functional.mse_loss(predictions, targets)
     if training_loss == "nasa_surrogate":
         return _nasa_surrogate_loss(predictions, targets)
+    monotonic_weight = _monotonic_loss_weight(training_loss)
+    if monotonic_weight is not None:
+        base_loss_name = _monotonic_base_loss_name(training_loss)
+        if unit_numbers is None or end_cycles is None:
+            raise ValueError("monotonic training losses require unit_numbers and end_cycles")
+        return _deep_training_loss(
+            predictions,
+            targets,
+            training_loss=base_loss_name,
+        ) + (monotonic_weight * _monotonic_rul_penalty(predictions, unit_numbers, end_cycles))
     late_weight = _asymmetric_mse_late_weight(training_loss)
     if late_weight is not None:
         return _asymmetric_mse_loss(predictions, targets, late_weight=late_weight)
@@ -1214,6 +1234,30 @@ def _deep_training_loss(
             blend_weight * _nasa_surrogate_loss(predictions, targets)
         )
     raise ValueError(f"unknown training_loss: {training_loss}")
+
+
+def _monotonic_rul_penalty(
+    predictions: torch.Tensor,
+    unit_numbers: torch.Tensor,
+    end_cycles: torch.Tensor,
+) -> torch.Tensor:
+    """Penalize same-unit predicted RUL increases at later end cycles."""
+
+    violation_terms: list[torch.Tensor] = []
+    for unit_number in torch.unique(unit_numbers):
+        unit_positions = torch.nonzero(unit_numbers == unit_number, as_tuple=True)[0]
+        if len(unit_positions) < 2:
+            continue
+        unit_end_cycles = end_cycles[unit_positions]
+        ordered_positions = unit_positions[torch.argsort(unit_end_cycles)]
+        ordered_predictions = predictions[ordered_positions]
+        violation_terms.append(
+            torch.relu(ordered_predictions[1:] - ordered_predictions[:-1])
+        )
+    if not violation_terms:
+        return predictions.new_tensor(0.0)
+    violations = torch.cat(violation_terms)
+    return torch.mean(violations.pow(2))
 
 
 def _nasa_surrogate_loss(predictions: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
@@ -1268,6 +1312,22 @@ def _target_weighted_mse_weights(
         ),
     }
     return weights.get(training_loss)
+
+
+def _monotonic_loss_weight(training_loss: str) -> float | None:
+    weights = {
+        "mse_monotonic_w0p1": 0.1,
+        "asymmetric_mse_late_w1p5_monotonic_w0p1": 0.1,
+    }
+    return weights.get(training_loss)
+
+
+def _monotonic_base_loss_name(training_loss: str) -> str:
+    base_losses = {
+        "mse_monotonic_w0p1": "mse",
+        "asymmetric_mse_late_w1p5_monotonic_w0p1": "asymmetric_mse_late_w1p5",
+    }
+    return base_losses[training_loss]
 
 
 def _nasa_surrogate_blend_weight(training_loss: str) -> float | None:
