@@ -68,6 +68,8 @@ For public deployment, run the API behind a managed gateway, load balancer, or i
 
 CI also runs `scripts/ci_release_evidence_smoke.py`. The script uses tiny fixture telemetry to build a candidate package and then exercises the validation, benchmark, SBOM, and promotion-report CLIs end to end. This is a plumbing smoke test rather than production model evidence, but it protects the release-gate workflow from silently breaking.
 
+After the Docker image build, CI runs two serving smoke checks. The first starts the image without a model and confirms liveness plus not-ready behavior. The second mounts the tiny CI artifact into the container, enables API-key authentication, checks readiness and schema discovery, posts a prediction request, and confirms metrics are exposed through the authenticated path.
+
 ## Promotion And Rollback
 
 Every packaged artifact includes a `promotion` metadata block with:
@@ -126,3 +128,4 @@ Current scope:
 - Dockerfile scaffold for containerized serving.
 - CI Docker image build check.
 - CI container startup smoke test against `GET /health`.
+- CI mounted-model container smoke test for authenticated schema, prediction, readiness, and metrics.

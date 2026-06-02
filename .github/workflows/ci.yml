@@ -65,3 +65,16 @@ jobs:
           cat /tmp/ready.json
           test "$ready_status" = "503"
           READY_RESPONSE="$(cat /tmp/ready.json)" python -c "import json, os; payload = json.loads(os.environ['READY_RESPONSE']); assert payload == {'status': 'missing_model', 'model_loaded': False}"
+
+      - name: Smoke serving image with mounted model
+        run: |
+          container_id=$(docker run --detach --publish 8001:8000 \
+            --volume "$PWD/artifacts/ci_release_evidence/models:/models:ro" \
+            --env AEROSPACE_PROGNOSTICS_MODEL_PATH=/models/fd001.joblib \
+            --env AEROSPACE_PROGNOSTICS_API_KEY=ci-secret \
+            aerospace-prognostics:ci)
+          trap 'docker rm --force "$container_id"' EXIT
+          uv run python scripts/ci_serving_loaded_smoke.py \
+            --base-url http://127.0.0.1:8001 \
+            --input-csv artifacts/ci_release_evidence/predictions/fd001_input.csv \
+            --api-key ci-secret
