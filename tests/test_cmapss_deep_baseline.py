@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import csv
 
+import numpy as np
 import pytest
 import torch
 
@@ -12,6 +13,7 @@ from aerospace_prognostics.experiments.cmapss_deep_baseline import (
     CmapssTemporalConvolutionalRegressor,
     CmapssTransformerRegressor,
     _deep_training_loss,
+    _unit_sequence_batch_indices,
     run_all_cmapss_cnn_baselines,
     run_all_cmapss_lstm_baselines,
     run_all_cmapss_tcn_baselines,
@@ -225,6 +227,24 @@ def test_monotonic_training_loss_requires_unit_metadata() -> None:
             torch.tensor([80.0, 82.0]),
             training_loss="mse_monotonic_w0p1",
         )
+
+
+def test_unit_sequence_batch_indices_group_and_sort_engine_trajectories() -> None:
+    unit_numbers = np.array([2, 1, 1, 2, 1])
+    end_cycles = np.array([5, 3, 2, 4, 4])
+
+    batches = _unit_sequence_batch_indices(
+        unit_numbers,
+        end_cycles,
+        random_state=7,
+    )
+
+    assert sorted(batches) == [[2, 1, 4], [3, 0]]
+    for batch in batches:
+        batch_unit_numbers = {unit_numbers[index] for index in batch}
+        batch_end_cycles = [end_cycles[index] for index in batch]
+        assert len(batch_unit_numbers) == 1
+        assert batch_end_cycles == sorted(batch_end_cycles)
 
 
 def test_run_cmapss_cnn_baseline_returns_structured_result(tmp_path) -> None:
@@ -504,6 +524,31 @@ def test_run_cmapss_cnn_baseline_run_supports_monotonic_loss(tmp_path) -> None:
     )
 
     assert "_loss_mse_monotonic_w0p1_" in run.result.model_name
+    assert run.history[0].train_loss >= 0
+
+
+def test_run_cmapss_cnn_baseline_run_supports_unit_monotonic_loss(tmp_path) -> None:
+    write_tiny_cmapss_subset(tmp_path)
+    sequence_dir = tmp_path / "sequences"
+    export_cmapss_sequence_splits(
+        tmp_path,
+        sequence_dir,
+        "FD001",
+        window_size=2,
+        validation_fraction=0.5,
+        validation_horizon=1,
+    )
+
+    run = run_cmapss_cnn_baseline_run(
+        sequence_dir,
+        "FD001",
+        epochs=1,
+        batch_size=2,
+        training_loss="asymmetric_mse_late_w1p5_unit_monotonic_w0p1",
+        hidden_channels=4,
+    )
+
+    assert "_loss_asymmetric_mse_late_w1p5_unit_monotonic_w0p1_" in run.result.model_name
     assert run.history[0].train_loss >= 0
 
 

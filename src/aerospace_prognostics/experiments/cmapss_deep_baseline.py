@@ -31,6 +31,8 @@ CMAPSS_DEEP_TRAINING_LOSSES = (
     "target_weighted_mse_mid_high_w1p5",
     "mse_monotonic_w0p1",
     "asymmetric_mse_late_w1p5_monotonic_w0p1",
+    "mse_unit_monotonic_w0p1",
+    "asymmetric_mse_late_w1p5_unit_monotonic_w0p1",
 )
 
 
@@ -1051,17 +1053,28 @@ def _run_sequence_baseline_run(
         int(train_payload["windows"].shape[1]),
     ).to(torch_device)
     optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
-    loader = DataLoader(
-        TensorDataset(
-            torch.as_tensor(train_payload["windows"], dtype=torch.float32),
-            torch.as_tensor(train_payload["targets"], dtype=torch.float32),
-            torch.as_tensor(train_payload["unit_numbers"], dtype=torch.int64),
-            torch.as_tensor(train_payload["end_cycles"], dtype=torch.int64),
-        ),
-        batch_size=batch_size,
-        shuffle=True,
-        generator=torch.Generator().manual_seed(random_state),
+    train_dataset = TensorDataset(
+        torch.as_tensor(train_payload["windows"], dtype=torch.float32),
+        torch.as_tensor(train_payload["targets"], dtype=torch.float32),
+        torch.as_tensor(train_payload["unit_numbers"], dtype=torch.int64),
+        torch.as_tensor(train_payload["end_cycles"], dtype=torch.int64),
     )
+    if _uses_unit_monotonic_batches(training_loss):
+        loader = DataLoader(
+            train_dataset,
+            batch_sampler=_unit_sequence_batch_indices(
+                train_payload["unit_numbers"],
+                train_payload["end_cycles"],
+                random_state=random_state,
+            ),
+        )
+    else:
+        loader = DataLoader(
+            train_dataset,
+            batch_size=batch_size,
+            shuffle=True,
+            generator=torch.Generator().manual_seed(random_state),
+        )
 
     history: list[CmapssCnnTrainingEpoch] = []
     best_state: dict[str, torch.Tensor] | None = None
@@ -1260,6 +1273,34 @@ def _monotonic_rul_penalty(
     return torch.mean(violations.pow(2))
 
 
+def _unit_sequence_batch_indices(
+    unit_numbers: np.ndarray,
+    end_cycles: np.ndarray,
+    *,
+    random_state: int,
+) -> list[list[int]]:
+    """Build one sorted training batch per engine unit."""
+
+    grouped_indices: dict[int, list[int]] = {}
+    for index, unit_number in enumerate(unit_numbers):
+        grouped_indices.setdefault(int(unit_number), []).append(index)
+
+    units = sorted(grouped_indices)
+    rng = random.Random(random_state)
+    rng.shuffle(units)
+
+    batches: list[list[int]] = []
+    for unit_number in units:
+        unit_indices = grouped_indices[unit_number]
+        batches.append(
+            sorted(
+                unit_indices,
+                key=lambda index: (int(end_cycles[index]), index),
+            )
+        )
+    return batches
+
+
 def _nasa_surrogate_loss(predictions: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
     errors = predictions - targets
     late_terms = torch.expm1(torch.clamp(errors / 10.0, min=0.0, max=20.0))
@@ -1318,6 +1359,8 @@ def _monotonic_loss_weight(training_loss: str) -> float | None:
     weights = {
         "mse_monotonic_w0p1": 0.1,
         "asymmetric_mse_late_w1p5_monotonic_w0p1": 0.1,
+        "mse_unit_monotonic_w0p1": 0.1,
+        "asymmetric_mse_late_w1p5_unit_monotonic_w0p1": 0.1,
     }
     return weights.get(training_loss)
 
@@ -1326,8 +1369,17 @@ def _monotonic_base_loss_name(training_loss: str) -> str:
     base_losses = {
         "mse_monotonic_w0p1": "mse",
         "asymmetric_mse_late_w1p5_monotonic_w0p1": "asymmetric_mse_late_w1p5",
+        "mse_unit_monotonic_w0p1": "mse",
+        "asymmetric_mse_late_w1p5_unit_monotonic_w0p1": "asymmetric_mse_late_w1p5",
     }
     return base_losses[training_loss]
+
+
+def _uses_unit_monotonic_batches(training_loss: str) -> bool:
+    return training_loss in {
+        "mse_unit_monotonic_w0p1",
+        "asymmetric_mse_late_w1p5_unit_monotonic_w0p1",
+    }
 
 
 def _nasa_surrogate_blend_weight(training_loss: str) -> float | None:
