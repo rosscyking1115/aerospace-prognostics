@@ -38,6 +38,9 @@ jobs:
       - name: Generate SBOM
         run: uv run aerospace-prognostics generate-sbom --lockfile uv.lock --output-json artifacts/sbom/cyclonedx.json
 
+      - name: Smoke release evidence
+        run: uv run python scripts/ci_release_evidence_smoke.py
+
       - name: Build serving image
         run: docker build --tag aerospace-prognostics:ci .
 

@@ -66,6 +66,8 @@ For public deployment, run the API behind a managed gateway, load balancer, or i
 
 `generate-sbom` reads the locked `uv.lock` environment and writes a CycloneDX-style JSON software bill of materials. The CI workflow runs this command after `pip-audit`, so every pushed commit proves both that dependencies are vulnerability-checked and that the dependency inventory remains generatable from the lockfile.
 
+CI also runs `scripts/ci_release_evidence_smoke.py`. The script uses tiny fixture telemetry to build a candidate package and then exercises the validation, benchmark, SBOM, and promotion-report CLIs end to end. This is a plumbing smoke test rather than production model evidence, but it protects the release-gate workflow from silently breaking.
+
 ## Promotion And Rollback
 
 Every packaged artifact includes a `promotion` metadata block with:
@@ -119,6 +121,7 @@ Current scope:
 - Promotion metadata with stable artifact IDs and rollback runbook.
 - Optional API-key authentication and per-client serving rate limits.
 - Lockfile-derived CycloneDX-style SBOM generation in CI.
+- CI release-evidence smoke test for the validation, benchmark, SBOM, and promotion-report path.
 - Tests for artifact round-trip and API prediction behavior.
 - Dockerfile scaffold for containerized serving.
 - CI Docker image build check.
