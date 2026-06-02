@@ -949,6 +949,7 @@ def test_cmapss_calibrate_deep_predictions_command_writes_reports(
     output_calibration_csv = tmp_path / "reports" / "calibration.csv"
     output_diagnostics_csv = tmp_path / "reports" / "diagnostics.csv"
     output_rul_bins_csv = tmp_path / "reports" / "diagnostics_by_rul_bin.csv"
+    output_unit_diagnostics_csv = tmp_path / "reports" / "diagnostics_by_unit.csv"
     output_markdown = tmp_path / "reports" / "diagnostics.md"
     _write_cli_predictions(
         calibration_csv,
@@ -979,6 +980,8 @@ def test_cmapss_calibrate_deep_predictions_command_writes_reports(
             str(output_diagnostics_csv),
             "--output-rul-bins-csv",
             str(output_rul_bins_csv),
+            "--output-unit-diagnostics-csv",
+            str(output_unit_diagnostics_csv),
             "--output-markdown",
             str(output_markdown),
         ]
@@ -991,11 +994,13 @@ def test_cmapss_calibrate_deep_predictions_command_writes_reports(
     assert "calibrated_prediction_rows=1" in output
     assert "calibration=FD001:transformer:rows=2:intercept=0:slope=2" in output
     assert "calibration_csv=" in output
+    assert "unit_diagnostics_csv=" in output
     assert rows[0]["calibration_method"] == "validation_affine"
     assert float(rows[0]["predicted_rul"]) == 16.0
     assert output_calibration_csv.exists()
     assert output_diagnostics_csv.exists()
     assert output_rul_bins_csv.exists()
+    assert output_unit_diagnostics_csv.exists()
     assert output_markdown.exists()
 
 

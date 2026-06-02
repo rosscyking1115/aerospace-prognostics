@@ -12,12 +12,15 @@ from aerospace_prognostics.metrics import nasa_rul_score
 from aerospace_prognostics.reports.cmapss_prediction_diagnostics import (
     CmapssPredictionDiagnosticRow,
     CmapssPredictionRulBinDiagnosticRow,
+    CmapssPredictionUnitDiagnosticRow,
     build_cmapss_prediction_diagnostics,
     build_cmapss_prediction_rul_bin_diagnostics,
+    build_cmapss_prediction_unit_diagnostics,
     select_cmapss_high_error_predictions,
     write_cmapss_prediction_diagnostics_csv,
     write_cmapss_prediction_diagnostics_markdown,
     write_cmapss_prediction_rul_bin_diagnostics_csv,
+    write_cmapss_prediction_unit_diagnostics_csv,
 )
 
 
@@ -81,9 +84,11 @@ class CmapssPredictionCalibrationResult:
     calibration_csv_path: Path | None = None
     diagnostics_csv_path: Path | None = None
     rul_bins_csv_path: Path | None = None
+    unit_diagnostics_csv_path: Path | None = None
     diagnostics_markdown_path: Path | None = None
     diagnostics: tuple[CmapssPredictionDiagnosticRow, ...] = ()
     rul_bin_diagnostics: tuple[CmapssPredictionRulBinDiagnosticRow, ...] = ()
+    unit_diagnostics: tuple[CmapssPredictionUnitDiagnosticRow, ...] = ()
 
 
 def fit_cmapss_affine_prediction_calibrations(
@@ -292,6 +297,7 @@ def calibrate_cmapss_deep_predictions(
     output_calibration_csv: str | Path | None = None,
     output_diagnostics_csv: str | Path | None = None,
     output_rul_bins_csv: str | Path | None = None,
+    output_unit_diagnostics_csv: str | Path | None = None,
     output_markdown: str | Path | None = None,
     top_n: int = 10,
     clip_min: float = 0.0,
@@ -342,12 +348,15 @@ def calibrate_cmapss_deep_predictions(
 
     diagnostics: tuple[CmapssPredictionDiagnosticRow, ...] = ()
     rul_bin_diagnostics: tuple[CmapssPredictionRulBinDiagnosticRow, ...] = ()
+    unit_diagnostics: tuple[CmapssPredictionUnitDiagnosticRow, ...] = ()
     if output_diagnostics_csv is not None or output_markdown is not None:
         diagnostics = tuple(build_cmapss_prediction_diagnostics(output_csv))
     if output_rul_bins_csv is not None or output_markdown is not None:
         rul_bin_diagnostics = tuple(
             build_cmapss_prediction_rul_bin_diagnostics(output_csv)
         )
+    if output_unit_diagnostics_csv is not None or output_markdown is not None:
+        unit_diagnostics = tuple(build_cmapss_prediction_unit_diagnostics(output_csv))
 
     diagnostics_csv_path = Path(output_diagnostics_csv) if output_diagnostics_csv else None
     if diagnostics_csv_path is not None:
@@ -360,6 +369,15 @@ def calibrate_cmapss_deep_predictions(
             rul_bins_csv_path,
         )
 
+    unit_diagnostics_csv_path = (
+        Path(output_unit_diagnostics_csv) if output_unit_diagnostics_csv else None
+    )
+    if unit_diagnostics_csv_path is not None:
+        write_cmapss_prediction_unit_diagnostics_csv(
+            list(unit_diagnostics),
+            unit_diagnostics_csv_path,
+        )
+
     diagnostics_markdown_path = Path(output_markdown) if output_markdown else None
     if diagnostics_markdown_path is not None:
         write_cmapss_prediction_diagnostics_markdown(
@@ -367,6 +385,7 @@ def calibrate_cmapss_deep_predictions(
             select_cmapss_high_error_predictions(output_csv, top_n=top_n),
             diagnostics_markdown_path,
             rul_bin_diagnostics=list(rul_bin_diagnostics),
+            unit_diagnostics=list(unit_diagnostics),
         )
 
     return CmapssPredictionCalibrationResult(
@@ -376,9 +395,11 @@ def calibrate_cmapss_deep_predictions(
         calibration_csv_path=calibration_csv_path,
         diagnostics_csv_path=diagnostics_csv_path,
         rul_bins_csv_path=rul_bins_csv_path,
+        unit_diagnostics_csv_path=unit_diagnostics_csv_path,
         diagnostics_markdown_path=diagnostics_markdown_path,
         diagnostics=diagnostics,
         rul_bin_diagnostics=rul_bin_diagnostics,
+        unit_diagnostics=unit_diagnostics,
     )
 
 

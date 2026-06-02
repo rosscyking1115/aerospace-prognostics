@@ -801,6 +801,7 @@ def _build_parser() -> argparse.ArgumentParser:
     calibrate_deep_predictions.add_argument("--output-calibration-csv", type=Path)
     calibrate_deep_predictions.add_argument("--output-diagnostics-csv", type=Path)
     calibrate_deep_predictions.add_argument("--output-rul-bins-csv", type=Path)
+    calibrate_deep_predictions.add_argument("--output-unit-diagnostics-csv", type=Path)
     calibrate_deep_predictions.add_argument("--output-markdown", type=Path)
     calibrate_deep_predictions.add_argument("--top-n", type=int, default=10)
     calibrate_deep_predictions.add_argument("--clip-min", type=float, default=0.0)
@@ -1970,6 +1971,7 @@ def main(argv: list[str] | None = None) -> int:
             output_calibration_csv=args.output_calibration_csv,
             output_diagnostics_csv=args.output_diagnostics_csv,
             output_rul_bins_csv=args.output_rul_bins_csv,
+            output_unit_diagnostics_csv=args.output_unit_diagnostics_csv,
             output_markdown=args.output_markdown,
             top_n=args.top_n,
             clip_min=args.clip_min,
@@ -2004,6 +2006,8 @@ def main(argv: list[str] | None = None) -> int:
             print(f"diagnostics_csv={result.diagnostics_csv_path}")
         if result.rul_bins_csv_path is not None:
             print(f"rul_bins_csv={result.rul_bins_csv_path}")
+        if result.unit_diagnostics_csv_path is not None:
+            print(f"unit_diagnostics_csv={result.unit_diagnostics_csv_path}")
         if result.diagnostics_markdown_path is not None:
             print(f"diagnostics_markdown={result.diagnostics_markdown_path}")
         return 0

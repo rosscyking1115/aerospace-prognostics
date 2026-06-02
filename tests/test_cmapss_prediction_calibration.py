@@ -47,6 +47,7 @@ def test_calibrate_cmapss_deep_predictions_writes_recomputed_reports(tmp_path) -
     output_calibration_csv = tmp_path / "reports" / "calibration.csv"
     output_diagnostics_csv = tmp_path / "reports" / "diagnostics.csv"
     output_rul_bins_csv = tmp_path / "reports" / "diagnostics_by_rul_bin.csv"
+    output_unit_diagnostics_csv = tmp_path / "reports" / "diagnostics_by_unit.csv"
     output_markdown = tmp_path / "reports" / "diagnostics.md"
     _write_predictions(
         calibration_csv,
@@ -69,6 +70,7 @@ def test_calibrate_cmapss_deep_predictions_writes_recomputed_reports(tmp_path) -
         output_calibration_csv=output_calibration_csv,
         output_diagnostics_csv=output_diagnostics_csv,
         output_rul_bins_csv=output_rul_bins_csv,
+        output_unit_diagnostics_csv=output_unit_diagnostics_csv,
         output_markdown=output_markdown,
     )
 
@@ -76,6 +78,7 @@ def test_calibrate_cmapss_deep_predictions_writes_recomputed_reports(tmp_path) -
     assert result.calibrated_prediction_count == 1
     assert result.calibration_csv_path == output_calibration_csv
     assert result.diagnostics_csv_path == output_diagnostics_csv
+    assert result.unit_diagnostics_csv_path == output_unit_diagnostics_csv
     assert rows[0]["calibration_method"] == "validation_affine"
     assert float(rows[0]["raw_predicted_rul"]) == pytest.approx(8.0)
     assert float(rows[0]["predicted_rul"]) == pytest.approx(16.0)
@@ -86,9 +89,11 @@ def test_calibrate_cmapss_deep_predictions_writes_recomputed_reports(tmp_path) -
     assert output_calibration_csv.exists()
     assert output_diagnostics_csv.exists()
     assert output_rul_bins_csv.exists()
-    assert "# C-MAPSS Deep Prediction Diagnostics" in output_markdown.read_text(
-        encoding="utf-8"
-    )
+    assert output_unit_diagnostics_csv.exists()
+    assert result.unit_diagnostics
+    markdown = output_markdown.read_text(encoding="utf-8")
+    assert "# C-MAPSS Deep Prediction Diagnostics" in markdown
+    assert "## Highest-Error Units" in markdown
 
 
 def test_predicted_rul_bin_residual_calibration_applies_inference_safe_bins(
