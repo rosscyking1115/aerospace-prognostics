@@ -37,14 +37,17 @@ from aerospace_prognostics.reports.cmapss_prediction_diagnostics import (
     CmapssPredictionDiagnosticRow,
     CmapssPredictionMonotonicityDiagnosticRow,
     CmapssPredictionRulBinDiagnosticRow,
+    CmapssPredictionUnitDiagnosticRow,
     build_cmapss_prediction_diagnostics,
     build_cmapss_prediction_monotonicity_diagnostics,
     build_cmapss_prediction_rul_bin_diagnostics,
+    build_cmapss_prediction_unit_diagnostics,
     select_cmapss_high_error_predictions,
     write_cmapss_prediction_diagnostics_csv,
     write_cmapss_prediction_diagnostics_markdown,
     write_cmapss_prediction_monotonicity_diagnostics_csv,
     write_cmapss_prediction_rul_bin_diagnostics_csv,
+    write_cmapss_prediction_unit_diagnostics_csv,
 )
 from aerospace_prognostics.sequence_exports import (
     CmapssSequenceExportResult,
@@ -70,6 +73,8 @@ class Phase2WorkflowResult:
     deep_validation_selection_prediction_rul_bin_diagnostics_csv_path: Path
     deep_prediction_monotonicity_diagnostics_csv_path: Path
     deep_validation_selection_prediction_monotonicity_diagnostics_csv_path: Path
+    deep_prediction_unit_diagnostics_csv_path: Path
+    deep_validation_selection_prediction_unit_diagnostics_csv_path: Path
     deep_prediction_diagnostics_markdown_path: Path
     deep_validation_selection_prediction_diagnostics_markdown_path: Path
     comparison_csv_path: Path
@@ -224,6 +229,12 @@ def run_phase2_cmapss_workflow(
             deep_validation_selection_predictions_csv_path
         )
     )
+    deep_prediction_unit_diagnostics = build_cmapss_prediction_unit_diagnostics(
+        deep_predictions_csv_path
+    )
+    deep_validation_selection_prediction_unit_diagnostics = (
+        build_cmapss_prediction_unit_diagnostics(deep_validation_selection_predictions_csv_path)
+    )
     deep_prediction_outliers = select_cmapss_high_error_predictions(
         deep_predictions_csv_path,
         top_n=10,
@@ -247,6 +258,12 @@ def run_phase2_cmapss_workflow(
     )
     deep_validation_selection_prediction_monotonicity_diagnostics_csv_path = (
         results_dir / "cmapss_deep_validation_selection_prediction_monotonicity.csv"
+    )
+    deep_prediction_unit_diagnostics_csv_path = (
+        results_dir / "cmapss_deep_prediction_unit_diagnostics.csv"
+    )
+    deep_validation_selection_prediction_unit_diagnostics_csv_path = (
+        results_dir / "cmapss_deep_validation_selection_prediction_unit_diagnostics.csv"
     )
     deep_prediction_diagnostics_markdown_path = (
         results_dir / "cmapss_deep_prediction_diagnostics.md"
@@ -278,12 +295,21 @@ def run_phase2_cmapss_workflow(
         deep_validation_selection_prediction_monotonicity_diagnostics,
         deep_validation_selection_prediction_monotonicity_diagnostics_csv_path,
     )
+    write_cmapss_prediction_unit_diagnostics_csv(
+        deep_prediction_unit_diagnostics,
+        deep_prediction_unit_diagnostics_csv_path,
+    )
+    write_cmapss_prediction_unit_diagnostics_csv(
+        deep_validation_selection_prediction_unit_diagnostics,
+        deep_validation_selection_prediction_unit_diagnostics_csv_path,
+    )
     write_cmapss_prediction_diagnostics_markdown(
         deep_prediction_diagnostics,
         deep_prediction_outliers,
         deep_prediction_diagnostics_markdown_path,
         rul_bin_diagnostics=deep_prediction_rul_bin_diagnostics,
         monotonicity_diagnostics=deep_prediction_monotonicity_diagnostics,
+        unit_diagnostics=deep_prediction_unit_diagnostics,
     )
     write_cmapss_prediction_diagnostics_markdown(
         deep_validation_selection_prediction_diagnostics,
@@ -291,6 +317,7 @@ def run_phase2_cmapss_workflow(
         deep_validation_selection_prediction_diagnostics_markdown_path,
         rul_bin_diagnostics=deep_validation_selection_prediction_rul_bin_diagnostics,
         monotonicity_diagnostics=deep_validation_selection_prediction_monotonicity_diagnostics,
+        unit_diagnostics=deep_validation_selection_prediction_unit_diagnostics,
     )
 
     comparison_rows = build_cmapss_model_comparison(
@@ -334,6 +361,10 @@ def run_phase2_cmapss_workflow(
         deep_validation_selection_prediction_monotonicity_diagnostics=tuple(
             deep_validation_selection_prediction_monotonicity_diagnostics
         ),
+        deep_prediction_unit_diagnostics=tuple(deep_prediction_unit_diagnostics),
+        deep_validation_selection_prediction_unit_diagnostics=tuple(
+            deep_validation_selection_prediction_unit_diagnostics
+        ),
         comparison_rows=tuple(comparison_rows),
         training_loss=training_loss,
     )
@@ -361,6 +392,12 @@ def run_phase2_cmapss_workflow(
         ),
         "deep_validation_selection_prediction_monotonicity_diagnostics_csv": _path_as_posix(
             deep_validation_selection_prediction_monotonicity_diagnostics_csv_path
+        ),
+        "deep_prediction_unit_diagnostics_csv": _path_as_posix(
+            deep_prediction_unit_diagnostics_csv_path
+        ),
+        "deep_validation_selection_prediction_unit_diagnostics_csv": _path_as_posix(
+            deep_validation_selection_prediction_unit_diagnostics_csv_path
         ),
         "deep_prediction_diagnostics_markdown": _path_as_posix(
             deep_prediction_diagnostics_markdown_path
@@ -434,6 +471,10 @@ def run_phase2_cmapss_workflow(
                 "deep_validation_selection_prediction_monotonicity_diagnostics": len(
                     deep_validation_selection_prediction_monotonicity_diagnostics
                 ),
+                "deep_prediction_unit_diagnostics": len(deep_prediction_unit_diagnostics),
+                "deep_validation_selection_prediction_unit_diagnostics": len(
+                    deep_validation_selection_prediction_unit_diagnostics
+                ),
                 "comparison_rows": len(comparison_rows),
             },
         },
@@ -463,6 +504,10 @@ def run_phase2_cmapss_workflow(
         ),
         deep_validation_selection_prediction_monotonicity_diagnostics_csv_path=(
             deep_validation_selection_prediction_monotonicity_diagnostics_csv_path
+        ),
+        deep_prediction_unit_diagnostics_csv_path=deep_prediction_unit_diagnostics_csv_path,
+        deep_validation_selection_prediction_unit_diagnostics_csv_path=(
+            deep_validation_selection_prediction_unit_diagnostics_csv_path
         ),
         deep_prediction_diagnostics_markdown_path=deep_prediction_diagnostics_markdown_path,
         deep_validation_selection_prediction_diagnostics_markdown_path=(
@@ -672,6 +717,10 @@ def _write_phase2_summary(
     deep_validation_selection_prediction_monotonicity_diagnostics: tuple[
         CmapssPredictionMonotonicityDiagnosticRow, ...
     ],
+    deep_prediction_unit_diagnostics: tuple[CmapssPredictionUnitDiagnosticRow, ...],
+    deep_validation_selection_prediction_unit_diagnostics: tuple[
+        CmapssPredictionUnitDiagnosticRow, ...
+    ],
     comparison_rows: tuple[CmapssModelComparisonRow, ...],
     training_loss: str,
 ) -> None:
@@ -761,6 +810,34 @@ def _write_phase2_summary(
     lines.extend(
         [
             "",
+            "## Deep Prediction Highest-Error Units",
+            "",
+            (
+                "| Subset | Model | Unit | Rows | Mean Error | Mean Abs Error | "
+                "Max Abs Error | Late Rate |"
+            ),
+            "|---|---|---:|---:|---:|---:|---:|---:|",
+        ]
+    )
+    for row in sorted(
+        deep_prediction_unit_diagnostics,
+        key=lambda item: (
+            -item.max_absolute_error,
+            -item.mean_absolute_error,
+            item.subset,
+            item.model_name,
+            item.unit_number,
+        ),
+    )[:10]:
+        lines.append(
+            f"| {row.subset} | `{row.model_name}` | {row.unit_number} | "
+            f"{row.prediction_count} | {row.mean_error:.6f} | "
+            f"{row.mean_absolute_error:.6f} | {row.max_absolute_error:.6f} | "
+            f"{row.late_prediction_rate:.6f} |"
+        )
+    lines.extend(
+        [
+            "",
             "## Validation Selection Prediction Diagnostics",
             "",
             "| Subset | Model | Rows | Mean Error | Mean Abs Error | Max Abs Error | Late Rate |",
@@ -805,6 +882,34 @@ def _write_phase2_summary(
             f"| {row.subset} | `{row.model_name}` | {row.unit_count} | "
             f"{row.transition_count} | {row.violation_count} | "
             f"{row.violation_rate:.6f} | {row.max_violation_magnitude:.6f} |"
+        )
+    lines.extend(
+        [
+            "",
+            "## Validation Selection Highest-Error Units",
+            "",
+            (
+                "| Subset | Model | Unit | Rows | Mean Error | Mean Abs Error | "
+                "Max Abs Error | Late Rate | Violation Rate |"
+            ),
+            "|---|---|---:|---:|---:|---:|---:|---:|---:|",
+        ]
+    )
+    for row in sorted(
+        deep_validation_selection_prediction_unit_diagnostics,
+        key=lambda item: (
+            -item.max_absolute_error,
+            -item.mean_absolute_error,
+            item.subset,
+            item.model_name,
+            item.unit_number,
+        ),
+    )[:10]:
+        lines.append(
+            f"| {row.subset} | `{row.model_name}` | {row.unit_number} | "
+            f"{row.prediction_count} | {row.mean_error:.6f} | "
+            f"{row.mean_absolute_error:.6f} | {row.max_absolute_error:.6f} | "
+            f"{row.late_prediction_rate:.6f} | {row.violation_rate:.6f} |"
         )
     lines.extend(
         [
@@ -941,6 +1046,10 @@ def _verify_manifest_csv_counts(
         ),
         "deep_validation_selection_prediction_monotonicity_diagnostics_csv": (
             "deep_validation_selection_prediction_monotonicity_diagnostics"
+        ),
+        "deep_prediction_unit_diagnostics_csv": "deep_prediction_unit_diagnostics",
+        "deep_validation_selection_prediction_unit_diagnostics_csv": (
+            "deep_validation_selection_prediction_unit_diagnostics"
         ),
         "comparison_csv": "comparison_rows",
     }

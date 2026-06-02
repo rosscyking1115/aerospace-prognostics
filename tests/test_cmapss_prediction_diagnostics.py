@@ -6,12 +6,14 @@ from aerospace_prognostics.reports.cmapss_prediction_diagnostics import (
     build_cmapss_prediction_diagnostics,
     build_cmapss_prediction_monotonicity_diagnostics,
     build_cmapss_prediction_rul_bin_diagnostics,
+    build_cmapss_prediction_unit_diagnostics,
     render_cmapss_prediction_diagnostics_markdown,
     select_cmapss_high_error_predictions,
     write_cmapss_prediction_diagnostics_csv,
     write_cmapss_prediction_diagnostics_markdown,
     write_cmapss_prediction_monotonicity_diagnostics_csv,
     write_cmapss_prediction_rul_bin_diagnostics_csv,
+    write_cmapss_prediction_unit_diagnostics_csv,
 )
 
 
@@ -50,6 +52,7 @@ def test_cmapss_prediction_diagnostics_outputs_csv_and_markdown(tmp_path) -> Non
     output_csv = tmp_path / "reports" / "diagnostics.csv"
     output_bins_csv = tmp_path / "reports" / "diagnostics_by_rul_bin.csv"
     output_monotonicity_csv = tmp_path / "reports" / "diagnostics_monotonicity.csv"
+    output_unit_csv = tmp_path / "reports" / "diagnostics_by_unit.csv"
     output_markdown = tmp_path / "reports" / "diagnostics.md"
     _write_predictions(
         predictions_csv,
@@ -62,6 +65,7 @@ def test_cmapss_prediction_diagnostics_outputs_csv_and_markdown(tmp_path) -> Non
     diagnostics = build_cmapss_prediction_diagnostics(predictions_csv)
     rul_bin_diagnostics = build_cmapss_prediction_rul_bin_diagnostics(predictions_csv)
     monotonicity_diagnostics = build_cmapss_prediction_monotonicity_diagnostics(predictions_csv)
+    unit_diagnostics = build_cmapss_prediction_unit_diagnostics(predictions_csv)
     outliers = select_cmapss_high_error_predictions(predictions_csv, top_n=1)
 
     write_cmapss_prediction_diagnostics_csv(diagnostics, output_csv)
@@ -70,12 +74,14 @@ def test_cmapss_prediction_diagnostics_outputs_csv_and_markdown(tmp_path) -> Non
         monotonicity_diagnostics,
         output_monotonicity_csv,
     )
+    write_cmapss_prediction_unit_diagnostics_csv(unit_diagnostics, output_unit_csv)
     write_cmapss_prediction_diagnostics_markdown(
         diagnostics,
         outliers,
         output_markdown,
         rul_bin_diagnostics=rul_bin_diagnostics,
         monotonicity_diagnostics=monotonicity_diagnostics,
+        unit_diagnostics=unit_diagnostics,
     )
 
     csv_rows = list(csv.DictReader(output_csv.open("r", encoding="utf-8", newline="")))
@@ -85,14 +91,17 @@ def test_cmapss_prediction_diagnostics_outputs_csv_and_markdown(tmp_path) -> Non
     monotonicity_rows = list(
         csv.DictReader(output_monotonicity_csv.open("r", encoding="utf-8", newline=""))
     )
+    unit_rows = list(csv.DictReader(output_unit_csv.open("r", encoding="utf-8", newline="")))
     markdown = output_markdown.read_text(encoding="utf-8")
     assert csv_rows[0]["model_name"] == "cnn"
     assert bin_rows[0]["actual_rul_bin"] == "91-120"
     assert monotonicity_rows[0]["violation_count"] == "1"
+    assert unit_rows[0]["unit_number"] == "2"
     assert "# C-MAPSS Deep Prediction Diagnostics" in markdown
     assert "## Error By Actual RUL Bin" in markdown
     assert "## Prediction Monotonicity" in markdown
     assert "## Highest Absolute Errors" in markdown
+    assert "## Highest-Error Units" in markdown
     assert "`tcn`" in markdown
 
 
@@ -160,6 +169,44 @@ def test_build_cmapss_prediction_monotonicity_diagnostics_tracks_unit_steps(
     assert tcn_row.transition_count == 0
     assert tcn_row.violation_count == 0
     assert tcn_row.violation_rate == 0.0
+
+
+def test_build_cmapss_prediction_unit_diagnostics_ranks_unit_failure_modes(
+    tmp_path,
+) -> None:
+    predictions_csv = tmp_path / "predictions.csv"
+    _write_predictions(
+        predictions_csv,
+        [
+            _prediction("FD001", "cnn", 1, 100.0, 95.0, end_cycle=10),
+            _prediction("FD001", "cnn", 1, 99.0, 105.0, end_cycle=11),
+            _prediction("FD001", "cnn", 1, 98.0, 90.0, end_cycle=12),
+            _prediction("FD001", "cnn", 2, 80.0, 40.0, end_cycle=7),
+            _prediction("FD001", "tcn", 3, 90.0, 88.0, end_cycle=9),
+        ],
+    )
+
+    rows = build_cmapss_prediction_unit_diagnostics(predictions_csv)
+
+    assert [(row.model_name, row.unit_number) for row in rows] == [
+        ("cnn", 2),
+        ("cnn", 1),
+        ("tcn", 3),
+    ]
+    cnn_unit_1 = rows[1]
+    assert cnn_unit_1.prediction_count == 3
+    assert cnn_unit_1.first_end_cycle == 10
+    assert cnn_unit_1.last_end_cycle == 12
+    assert cnn_unit_1.mean_error == -7 / 3
+    assert cnn_unit_1.mean_absolute_error == 19 / 3
+    assert cnn_unit_1.max_absolute_error == 8.0
+    assert cnn_unit_1.late_prediction_rate == 1 / 3
+    assert cnn_unit_1.transition_count == 2
+    assert cnn_unit_1.violation_count == 1
+    assert cnn_unit_1.violation_rate == 0.5
+    assert cnn_unit_1.mean_step_change == -2.5
+    assert cnn_unit_1.mean_violation_magnitude == 10.0
+    assert cnn_unit_1.max_violation_magnitude == 10.0
 
 
 def test_select_cmapss_high_error_predictions_ranks_by_absolute_error(tmp_path) -> None:

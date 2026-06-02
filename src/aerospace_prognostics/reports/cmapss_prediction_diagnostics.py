@@ -97,6 +97,38 @@ class CmapssPredictionMonotonicityDiagnosticRow:
         return asdict(self)
 
 
+@dataclass(frozen=True)
+class CmapssPredictionUnitDiagnosticRow:
+    """Per-unit prediction diagnostics for one subset/model pair."""
+
+    subset: str
+    model_name: str
+    unit_number: int
+    prediction_count: int
+    first_end_cycle: int
+    last_end_cycle: int
+    mean_actual_rul: float
+    mean_predicted_rul: float
+    mean_error: float
+    mean_absolute_error: float
+    max_absolute_error: float
+    mean_late_error: float
+    late_prediction_rate: float
+    mean_early_error: float
+    early_prediction_rate: float
+    transition_count: int
+    violation_count: int
+    violation_rate: float
+    mean_step_change: float
+    mean_violation_magnitude: float
+    max_violation_magnitude: float
+
+    def to_dict(self) -> dict[str, str | int | float]:
+        """Return a flat serialisable row."""
+
+        return asdict(self)
+
+
 def build_cmapss_prediction_diagnostics(
     predictions_csv: str | Path,
 ) -> list[CmapssPredictionDiagnosticRow]:
@@ -212,6 +244,59 @@ def build_cmapss_prediction_monotonicity_diagnostics(
     return diagnostics
 
 
+def build_cmapss_prediction_unit_diagnostics(
+    predictions_csv: str | Path,
+) -> list[CmapssPredictionUnitDiagnosticRow]:
+    """Build per-unit error and temporal diagnostics from a prediction CSV."""
+
+    rows = _read_prediction_rows(predictions_csv, required_columns=("end_cycle",))
+    grouped_units: dict[tuple[str, str, int], list[tuple[int, dict[str, str]]]] = {}
+    for index, row in enumerate(rows):
+        key = (row["subset"], row["model_name"], int(row["unit_number"]))
+        grouped_units.setdefault(key, []).append((index, row))
+
+    diagnostics: list[CmapssPredictionUnitDiagnosticRow] = []
+    for subset, model_name, unit_number in sorted(grouped_units):
+        unit_rows = sorted(
+            grouped_units[(subset, model_name, unit_number)],
+            key=lambda item: (int(item[1]["end_cycle"]), item[0]),
+        )
+        row_values = [row for _index, row in unit_rows]
+        step_changes: list[float] = []
+        violations: list[float] = []
+        for (_previous_index, previous_row), (_next_index, next_row) in zip(
+            unit_rows,
+            unit_rows[1:],
+            strict=False,
+        ):
+            step_change = _float(next_row["predicted_rul"]) - _float(
+                previous_row["predicted_rul"]
+            )
+            step_changes.append(step_change)
+            if step_change > 0.0:
+                violations.append(step_change)
+        diagnostics.append(
+            _unit_prediction_diagnostic_row(
+                subset,
+                model_name,
+                unit_number,
+                row_values,
+                step_changes=step_changes,
+                violations=violations,
+            )
+        )
+    return sorted(
+        diagnostics,
+        key=lambda row: (
+            -row.max_absolute_error,
+            -row.mean_absolute_error,
+            row.subset,
+            row.model_name,
+            row.unit_number,
+        ),
+    )
+
+
 def select_cmapss_high_error_predictions(
     predictions_csv: str | Path,
     *,
@@ -292,6 +377,21 @@ def write_cmapss_prediction_monotonicity_diagnostics_csv(
         writer.writerows(row.to_dict() for row in rows)
 
 
+def write_cmapss_prediction_unit_diagnostics_csv(
+    rows: list[CmapssPredictionUnitDiagnosticRow],
+    path: str | Path,
+) -> None:
+    """Write per-unit diagnostics rows as CSV."""
+
+    if not rows:
+        raise ValueError("rows must contain at least one item")
+    output_path = _prepare_output_path(path)
+    with output_path.open("w", encoding="utf-8", newline="") as file:
+        writer = csv.DictWriter(file, fieldnames=list(rows[0].to_dict()))
+        writer.writeheader()
+        writer.writerows(row.to_dict() for row in rows)
+
+
 def write_cmapss_prediction_diagnostics_markdown(
     diagnostics: list[CmapssPredictionDiagnosticRow],
     outliers: list[CmapssPredictionOutlierRow],
@@ -299,6 +399,7 @@ def write_cmapss_prediction_diagnostics_markdown(
     *,
     rul_bin_diagnostics: list[CmapssPredictionRulBinDiagnosticRow] | None = None,
     monotonicity_diagnostics: list[CmapssPredictionMonotonicityDiagnosticRow] | None = None,
+    unit_diagnostics: list[CmapssPredictionUnitDiagnosticRow] | None = None,
 ) -> None:
     """Write prediction diagnostics as a compact Markdown report."""
 
@@ -309,6 +410,7 @@ def write_cmapss_prediction_diagnostics_markdown(
             outliers,
             rul_bin_diagnostics=rul_bin_diagnostics,
             monotonicity_diagnostics=monotonicity_diagnostics,
+            unit_diagnostics=unit_diagnostics,
         ),
         encoding="utf-8",
     )
@@ -320,6 +422,7 @@ def render_cmapss_prediction_diagnostics_markdown(
     *,
     rul_bin_diagnostics: list[CmapssPredictionRulBinDiagnosticRow] | None = None,
     monotonicity_diagnostics: list[CmapssPredictionMonotonicityDiagnosticRow] | None = None,
+    unit_diagnostics: list[CmapssPredictionUnitDiagnosticRow] | None = None,
 ) -> str:
     """Render prediction diagnostics as Markdown tables."""
 
@@ -429,6 +532,44 @@ def render_cmapss_prediction_diagnostics_markdown(
                 f"{row.late_error:.6f} | "
                 f"{row.early_error:.6f} |"
             )
+    if unit_diagnostics:
+        lines.extend(
+            [
+                "",
+                "## Highest-Error Units",
+                "",
+                (
+                    "| Subset | Model | Unit | Rows | End Cycles | Mean Error | "
+                    "Mean Abs Error | Max Abs Error | Late Rate | Violation Rate | "
+                    "Max Violation |"
+                ),
+                "|---|---|---:|---:|---|---:|---:|---:|---:|---:|---:|",
+            ]
+        )
+        for row in sorted(
+            unit_diagnostics,
+            key=lambda item: (
+                -item.max_absolute_error,
+                -item.mean_absolute_error,
+                item.subset,
+                item.model_name,
+                item.unit_number,
+            ),
+        )[:10]:
+            lines.append(
+                "| "
+                f"{row.subset} | "
+                f"`{row.model_name}` | "
+                f"{row.unit_number} | "
+                f"{row.prediction_count} | "
+                f"{row.first_end_cycle}-{row.last_end_cycle} | "
+                f"{row.mean_error:.6f} | "
+                f"{row.mean_absolute_error:.6f} | "
+                f"{row.max_absolute_error:.6f} | "
+                f"{row.late_prediction_rate:.6f} | "
+                f"{row.violation_rate:.6f} | "
+                f"{row.max_violation_magnitude:.6f} |"
+            )
     return "\n".join(lines) + "\n"
 
 
@@ -483,6 +624,45 @@ def _prediction_diagnostic_row(
         late_prediction_rate=_rate(value > 0 for value in late_errors),
         mean_early_error=_mean(early_errors),
         early_prediction_rate=_rate(value > 0 for value in early_errors),
+    )
+
+
+def _unit_prediction_diagnostic_row(
+    subset: str,
+    model_name: str,
+    unit_number: int,
+    rows: list[dict[str, str]],
+    *,
+    step_changes: list[float],
+    violations: list[float],
+) -> CmapssPredictionUnitDiagnosticRow:
+    absolute_errors = [_float(row["absolute_error"]) for row in rows]
+    late_errors = [_float(row["late_error"]) for row in rows]
+    early_errors = [_float(row["early_error"]) for row in rows]
+    transition_count = len(step_changes)
+    violation_count = len(violations)
+    return CmapssPredictionUnitDiagnosticRow(
+        subset=subset,
+        model_name=model_name,
+        unit_number=unit_number,
+        prediction_count=len(rows),
+        first_end_cycle=min(int(row["end_cycle"]) for row in rows),
+        last_end_cycle=max(int(row["end_cycle"]) for row in rows),
+        mean_actual_rul=_mean(_float(row["actual_rul"]) for row in rows),
+        mean_predicted_rul=_mean(_float(row["predicted_rul"]) for row in rows),
+        mean_error=_mean(_float(row["error"]) for row in rows),
+        mean_absolute_error=_mean(absolute_errors),
+        max_absolute_error=max(absolute_errors),
+        mean_late_error=_mean(late_errors),
+        late_prediction_rate=_rate(value > 0 for value in late_errors),
+        mean_early_error=_mean(early_errors),
+        early_prediction_rate=_rate(value > 0 for value in early_errors),
+        transition_count=transition_count,
+        violation_count=violation_count,
+        violation_rate=violation_count / transition_count if transition_count else 0.0,
+        mean_step_change=_mean(step_changes) if step_changes else 0.0,
+        mean_violation_magnitude=_mean(violations) if violations else 0.0,
+        max_violation_magnitude=max(violations) if violations else 0.0,
     )
 
 

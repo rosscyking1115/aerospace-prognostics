@@ -544,6 +544,8 @@ def test_phase2_cmapss_command_runs_sequence_model_workflow(tmp_path, capsys) ->
     assert "deep_validation_selection_prediction_rul_bin_diagnostics_csv=" in output
     assert "deep_prediction_monotonicity_diagnostics_csv=" in output
     assert "deep_validation_selection_prediction_monotonicity_diagnostics_csv=" in output
+    assert "deep_prediction_unit_diagnostics_csv=" in output
+    assert "deep_validation_selection_prediction_unit_diagnostics_csv=" in output
     assert "deep_prediction_diagnostics_markdown=" in output
     assert "deep_validation_selection_prediction_diagnostics_markdown=" in output
     assert "run_manifest=" in output
@@ -563,6 +565,14 @@ def test_phase2_cmapss_command_runs_sequence_model_workflow(tmp_path, capsys) ->
     assert (artifact_dir / "results" / "cmapss_deep_prediction_monotonicity.csv").exists()
     assert (
         artifact_dir / "results" / "cmapss_deep_validation_selection_prediction_monotonicity.csv"
+    ).exists()
+    assert (
+        artifact_dir / "results" / "cmapss_deep_prediction_unit_diagnostics.csv"
+    ).exists()
+    assert (
+        artifact_dir
+        / "results"
+        / "cmapss_deep_validation_selection_prediction_unit_diagnostics.csv"
     ).exists()
     assert (artifact_dir / "results" / "cmapss_deep_prediction_diagnostics.md").exists()
     assert (
@@ -590,7 +600,7 @@ def test_phase2_cmapss_command_runs_sequence_model_workflow(tmp_path, capsys) ->
     assert verify_exit_code == 0
     assert "audit_markdown=" in verify_output
     assert "status=ok" in verify_output
-    assert "artifacts_checked=23" in verify_output
+    assert "artifacts_checked=25" in verify_output
     audit_markdown = (artifact_dir / "phase2_manifest_audit.md").read_text(encoding="utf-8")
     assert "# Phase 2 C-MAPSS Manifest Audit" in audit_markdown
     assert "- Status: ok" in audit_markdown

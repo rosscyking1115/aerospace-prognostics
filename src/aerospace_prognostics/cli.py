@@ -1597,6 +1597,14 @@ def main(argv: list[str] | None = None) -> int:
             f"{result.deep_validation_selection_prediction_monotonicity_diagnostics_csv_path}"
         )
         print(
+            "deep_prediction_unit_diagnostics_csv="
+            f"{result.deep_prediction_unit_diagnostics_csv_path}"
+        )
+        print(
+            "deep_validation_selection_prediction_unit_diagnostics_csv="
+            f"{result.deep_validation_selection_prediction_unit_diagnostics_csv_path}"
+        )
+        print(
             "deep_prediction_diagnostics_markdown="
             f"{result.deep_prediction_diagnostics_markdown_path}"
         )
