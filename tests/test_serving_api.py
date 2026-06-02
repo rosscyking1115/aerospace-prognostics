@@ -64,6 +64,49 @@ def test_serving_api_health_version_and_predict(tmp_path) -> None:
     ) in metrics.text
 
 
+def test_serving_api_exposes_model_specific_inference_schema(tmp_path) -> None:
+    write_tiny_cmapss_subset(tmp_path)
+    artifact = train_cmapss_hgb_policy_artifact(tmp_path, "FD001", n_regimes=1).artifact
+    artifact_path = save_cmapss_model_artifact(artifact, tmp_path / "fd001.joblib")
+    client = TestClient(create_app(artifact_path))
+
+    response = client.get("/schema")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["dataset"] == "C-MAPSS"
+    assert payload["subset"] == "FD001"
+    assert payload["artifact_id"] == artifact.promotion_metadata["artifact_id"]
+    assert payload["request"]["body_field"] == "telemetry"
+    assert payload["request"]["min_rows"] == 1
+    assert payload["request"]["max_rows"] == 10000
+    assert [column["name"] for column in payload["request"]["row_columns"]] == list(
+        artifact.input_columns
+    )
+    assert payload["request"]["row_columns"][0] == {
+        "name": "unit_number",
+        "type": "integer",
+        "required": True,
+        "nullable": False,
+    }
+    assert payload["request"]["row_columns"][1] == {
+        "name": "time_in_cycles",
+        "type": "integer",
+        "required": True,
+        "nullable": False,
+        "minimum": 1,
+    }
+    assert payload["response"]["prediction_fields"] == [
+        {"name": "unit_number", "type": "integer"},
+        {
+            "name": "predicted_rul",
+            "type": "number",
+            "minimum": 0.0,
+            "maximum": float(artifact.rul_cap),
+        },
+    ]
+
+
 def test_serving_api_reports_validation_errors(tmp_path) -> None:
     write_tiny_cmapss_subset(tmp_path)
     artifact = train_cmapss_hgb_policy_artifact(tmp_path, "FD001", n_regimes=1).artifact
@@ -89,7 +132,9 @@ def test_serving_api_enforces_optional_api_key(tmp_path) -> None:
     ready = client.get("/ready")
     missing_key = client.get("/version")
     bad_key = client.get("/metrics", headers={"x-api-key": "wrong"})
+    schema_missing_key = client.get("/schema")
     valid_key = client.get("/version", headers={"authorization": "Bearer test-secret"})
+    schema_valid_key = client.get("/schema", headers={"x-api-key": "test-secret"})
 
     assert health.status_code == 200
     assert ready.status_code == 200
@@ -98,8 +143,11 @@ def test_serving_api_enforces_optional_api_key(tmp_path) -> None:
     assert missing_key.status_code == 401
     assert missing_key.headers["www-authenticate"] == "ApiKey"
     assert bad_key.status_code == 401
+    assert schema_missing_key.status_code == 401
     assert valid_key.status_code == 200
     assert valid_key.json()["subset"] == "FD001"
+    assert schema_valid_key.status_code == 200
+    assert schema_valid_key.json()["artifact_id"] == artifact.promotion_metadata["artifact_id"]
 
 
 def test_serving_api_enforces_optional_rate_limit(tmp_path) -> None:

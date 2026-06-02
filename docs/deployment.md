@@ -33,10 +33,13 @@ The API exposes:
 - `GET /health`
 - `GET /ready`
 - `GET /version`
+- `GET /schema`
 - `GET /metrics`
 - `POST /predict`
 
 `POST /predict` accepts raw C-MAPSS telemetry rows with the canonical columns: `unit_number`, `time_in_cycles`, three operating settings, and 21 sensor values. The service groups rows by unit and returns one capped RUL prediction per unit using each unit's latest observed cycle.
+
+`GET /schema` returns the loaded artifact's concrete inference contract: required telemetry columns, row limits, grouping behavior, prediction fields, output RUL bounds, and monitoring block names. This makes the deployed model contract discoverable by clients and smoke-test jobs without exposing the binary artifact.
 
 Every API request receives `x-request-id` and `x-process-time-ms` response headers. If the caller sends `x-request-id`, the service preserves it; otherwise it generates one. Requests are logged as one-line JSON records with method, route, status code, request ID, and latency. `GET /metrics` exposes lightweight Prometheus-style counters and latency summaries for local container smoke checks and basic deployment monitoring.
 
@@ -44,7 +47,7 @@ Prediction responses include a `monitoring` block. It compares request telemetry
 
 ## Authentication And Rate Limiting
 
-`GET /health` and `GET /ready` are intentionally unauthenticated so container orchestrators can check liveness and readiness without a secret. `GET /version`, `GET /metrics`, and `POST /predict` enforce optional API-key authentication when `AEROSPACE_PROGNOSTICS_API_KEY` is set. Clients may send the key with either `x-api-key: <key>` or `Authorization: Bearer <key>`.
+`GET /health` and `GET /ready` are intentionally unauthenticated so container orchestrators can check liveness and readiness without a secret. `GET /version`, `GET /schema`, `GET /metrics`, and `POST /predict` enforce optional API-key authentication when `AEROSPACE_PROGNOSTICS_API_KEY` is set. Clients may send the key with either `x-api-key: <key>` or `Authorization: Bearer <key>`.
 
 Set `AEROSPACE_PROGNOSTICS_RATE_LIMIT_PER_MINUTE` to a positive integer to enable an in-memory fixed-window rate limit for protected endpoints. Requests are bucketed by authenticated API key when authentication is enabled, otherwise by client host. The default value is `0`, which disables rate limiting for local development and CI smoke checks.
 
@@ -91,6 +94,7 @@ Current scope:
 - Batch inference from CSV.
 - Artifact validation command for promotion checks and prediction smoke tests.
 - FastAPI inference surface with request validation, liveness, readiness, and version endpoints.
+- Model-specific inference schema endpoint for client contract discovery.
 - Public readiness identity for loaded artifacts without exposing full version metadata.
 - Structured JSON request logs, request IDs, latency headers, and scrapeable serving metrics.
 - Request telemetry drift summaries and prediction-distribution monitoring.

@@ -212,6 +212,12 @@ def create_app(
         model = _require_artifact(app.state.artifact)
         return model.metadata()
 
+    @app.get("/schema")
+    def schema(request: Request) -> dict[str, Any]:
+        app.state.security.enforce(request)
+        model = _require_artifact(app.state.artifact)
+        return _inference_schema_payload(model)
+
     @app.post("/predict", response_model=PredictResponse)
     def predict(payload: PredictRequest, request: Request) -> PredictResponse:
         app.state.security.enforce(request)
@@ -302,6 +308,52 @@ def _readiness_payload(
             "stage": artifact.promotion_metadata.get("stage"),
         }
     return payload
+
+
+def _inference_schema_payload(model: CmapssHgbPolicyModelArtifact) -> dict[str, Any]:
+    return {
+        "dataset": model.dataset,
+        "subset": model.subset,
+        "model_name": model.model_name,
+        "artifact_id": model.promotion_metadata.get("artifact_id"),
+        "request": {
+            "content_type": "application/json",
+            "body_field": "telemetry",
+            "min_rows": 1,
+            "max_rows": 10000,
+            "row_columns": [
+                _inference_column_schema(column) for column in model.input_columns
+            ],
+            "unit_grouping": (
+                "rows are grouped by unit_number; one prediction is returned per unit "
+                "using the latest time_in_cycles row"
+            ),
+        },
+        "response": {
+            "prediction_fields": [
+                {"name": "unit_number", "type": "integer"},
+                {
+                    "name": "predicted_rul",
+                    "type": "number",
+                    "minimum": 0.0,
+                    "maximum": float(model.rul_cap),
+                },
+            ],
+            "monitoring_fields": ["telemetry", "predictions"],
+        },
+    }
+
+
+def _inference_column_schema(column: str) -> dict[str, Any]:
+    schema: dict[str, Any] = {
+        "name": column,
+        "type": "integer" if column in {"unit_number", "time_in_cycles"} else "number",
+        "required": True,
+        "nullable": False,
+    }
+    if column == "time_in_cycles":
+        schema["minimum"] = 1
+    return schema
 
 
 def _route_path(request: Request) -> str:
