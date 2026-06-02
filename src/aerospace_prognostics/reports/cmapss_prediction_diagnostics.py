@@ -77,6 +77,26 @@ class CmapssPredictionRulBinDiagnosticRow:
         return asdict(self)
 
 
+@dataclass(frozen=True)
+class CmapssPredictionMonotonicityDiagnosticRow:
+    """Temporal consistency diagnostics for one subset/model pair."""
+
+    subset: str
+    model_name: str
+    unit_count: int
+    transition_count: int
+    violation_count: int
+    violation_rate: float
+    mean_step_change: float
+    mean_violation_magnitude: float
+    max_violation_magnitude: float
+
+    def to_dict(self) -> dict[str, str | int | float]:
+        """Return a flat serialisable row."""
+
+        return asdict(self)
+
+
 def build_cmapss_prediction_diagnostics(
     predictions_csv: str | Path,
 ) -> list[CmapssPredictionDiagnosticRow]:
@@ -127,6 +147,66 @@ def build_cmapss_prediction_rul_bin_diagnostics(
                 late_prediction_rate=row.late_prediction_rate,
                 mean_early_error=row.mean_early_error,
                 early_prediction_rate=row.early_prediction_rate,
+            )
+        )
+    return diagnostics
+
+
+def build_cmapss_prediction_monotonicity_diagnostics(
+    predictions_csv: str | Path,
+) -> list[CmapssPredictionMonotonicityDiagnosticRow]:
+    """Build temporal monotonicity diagnostics from a deep prediction CSV."""
+
+    rows = _read_prediction_rows(predictions_csv, required_columns=("end_cycle",))
+    grouped_units: dict[tuple[str, str, int], list[tuple[int, dict[str, str]]]] = {}
+    for index, row in enumerate(rows):
+        key = (row["subset"], row["model_name"], int(row["unit_number"]))
+        grouped_units.setdefault(key, []).append((index, row))
+
+    unit_counts: dict[tuple[str, str], int] = {}
+    step_changes_by_model: dict[tuple[str, str], list[float]] = {}
+    violations_by_model: dict[tuple[str, str], list[float]] = {}
+    for subset, model_name, _unit_number in sorted(grouped_units):
+        model_key = (subset, model_name)
+        unit_counts[model_key] = unit_counts.get(model_key, 0) + 1
+        step_changes = step_changes_by_model.setdefault(model_key, [])
+        violations = violations_by_model.setdefault(model_key, [])
+        unit_rows = sorted(
+            grouped_units[(subset, model_name, _unit_number)],
+            key=lambda item: (int(item[1]["end_cycle"]), item[0]),
+        )
+        for (_previous_index, previous_row), (_next_index, next_row) in zip(
+            unit_rows,
+            unit_rows[1:],
+            strict=False,
+        ):
+            step_change = _float(next_row["predicted_rul"]) - _float(
+                previous_row["predicted_rul"]
+            )
+            step_changes.append(step_change)
+            if step_change > 0.0:
+                violations.append(step_change)
+
+    diagnostics: list[CmapssPredictionMonotonicityDiagnosticRow] = []
+    for subset, model_name in sorted(unit_counts):
+        model_key = (subset, model_name)
+        step_changes = step_changes_by_model.get(model_key, [])
+        violations = violations_by_model.get(model_key, [])
+        transition_count = len(step_changes)
+        violation_count = len(violations)
+        diagnostics.append(
+            CmapssPredictionMonotonicityDiagnosticRow(
+                subset=subset,
+                model_name=model_name,
+                unit_count=unit_counts[model_key],
+                transition_count=transition_count,
+                violation_count=violation_count,
+                violation_rate=violation_count / transition_count
+                if transition_count
+                else 0.0,
+                mean_step_change=_mean(step_changes) if step_changes else 0.0,
+                mean_violation_magnitude=_mean(violations) if violations else 0.0,
+                max_violation_magnitude=max(violations) if violations else 0.0,
             )
         )
     return diagnostics
@@ -197,12 +277,28 @@ def write_cmapss_prediction_rul_bin_diagnostics_csv(
         writer.writerows(row.to_dict() for row in rows)
 
 
+def write_cmapss_prediction_monotonicity_diagnostics_csv(
+    rows: list[CmapssPredictionMonotonicityDiagnosticRow],
+    path: str | Path,
+) -> None:
+    """Write temporal monotonicity diagnostics rows as CSV."""
+
+    if not rows:
+        raise ValueError("rows must contain at least one item")
+    output_path = _prepare_output_path(path)
+    with output_path.open("w", encoding="utf-8", newline="") as file:
+        writer = csv.DictWriter(file, fieldnames=list(rows[0].to_dict()))
+        writer.writeheader()
+        writer.writerows(row.to_dict() for row in rows)
+
+
 def write_cmapss_prediction_diagnostics_markdown(
     diagnostics: list[CmapssPredictionDiagnosticRow],
     outliers: list[CmapssPredictionOutlierRow],
     path: str | Path,
     *,
     rul_bin_diagnostics: list[CmapssPredictionRulBinDiagnosticRow] | None = None,
+    monotonicity_diagnostics: list[CmapssPredictionMonotonicityDiagnosticRow] | None = None,
 ) -> None:
     """Write prediction diagnostics as a compact Markdown report."""
 
@@ -212,6 +308,7 @@ def write_cmapss_prediction_diagnostics_markdown(
             diagnostics,
             outliers,
             rul_bin_diagnostics=rul_bin_diagnostics,
+            monotonicity_diagnostics=monotonicity_diagnostics,
         ),
         encoding="utf-8",
     )
@@ -222,6 +319,7 @@ def render_cmapss_prediction_diagnostics_markdown(
     outliers: list[CmapssPredictionOutlierRow],
     *,
     rul_bin_diagnostics: list[CmapssPredictionRulBinDiagnosticRow] | None = None,
+    monotonicity_diagnostics: list[CmapssPredictionMonotonicityDiagnosticRow] | None = None,
 ) -> str:
     """Render prediction diagnostics as Markdown tables."""
 
@@ -278,6 +376,32 @@ def render_cmapss_prediction_diagnostics_markdown(
                 f"{row.late_prediction_rate:.6f} | "
                 f"{row.early_prediction_rate:.6f} |"
             )
+    if monotonicity_diagnostics:
+        lines.extend(
+            [
+                "",
+                "## Prediction Monotonicity",
+                "",
+                (
+                    "| Subset | Model | Units | Transitions | Violations | Violation Rate | "
+                    "Mean Step Change | Mean Violation | Max Violation |"
+                ),
+                "|---|---|---:|---:|---:|---:|---:|---:|---:|",
+            ]
+        )
+        for row in monotonicity_diagnostics:
+            lines.append(
+                "| "
+                f"{row.subset} | "
+                f"`{row.model_name}` | "
+                f"{row.unit_count} | "
+                f"{row.transition_count} | "
+                f"{row.violation_count} | "
+                f"{row.violation_rate:.6f} | "
+                f"{row.mean_step_change:.6f} | "
+                f"{row.mean_violation_magnitude:.6f} | "
+                f"{row.max_violation_magnitude:.6f} |"
+            )
     if outliers:
         lines.extend(
             [
@@ -308,7 +432,11 @@ def render_cmapss_prediction_diagnostics_markdown(
     return "\n".join(lines) + "\n"
 
 
-def _read_prediction_rows(path: str | Path) -> list[dict[str, str]]:
+def _read_prediction_rows(
+    path: str | Path,
+    *,
+    required_columns: Iterable[str] = (),
+) -> list[dict[str, str]]:
     prediction_path = Path(path)
     if not prediction_path.exists():
         raise FileNotFoundError(f"missing prediction CSV: {prediction_path}")
@@ -316,7 +444,7 @@ def _read_prediction_rows(path: str | Path) -> list[dict[str, str]]:
         rows = list(csv.DictReader(file))
     if not rows:
         raise ValueError(f"prediction CSV has no rows: {prediction_path}")
-    required_columns = {
+    base_required_columns = {
         "subset",
         "model_name",
         "unit_number",
@@ -327,7 +455,7 @@ def _read_prediction_rows(path: str | Path) -> list[dict[str, str]]:
         "late_error",
         "early_error",
     }
-    missing_columns = required_columns - set(rows[0])
+    missing_columns = (base_required_columns | set(required_columns)) - set(rows[0])
     if missing_columns:
         missing = ", ".join(sorted(missing_columns))
         raise ValueError(f"prediction CSV is missing required columns: {missing}")
