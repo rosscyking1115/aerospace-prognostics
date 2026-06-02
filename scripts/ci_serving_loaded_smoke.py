@@ -66,7 +66,7 @@ def _wait_for_json(base_url: str, path: str) -> dict[str, object]:
     for _ in range(30):
         try:
             return _get_json(base_url, path)
-        except (HTTPError, URLError, TimeoutError) as exc:
+        except (HTTPError, OSError, TimeoutError, URLError) as exc:
             last_error = exc
             time.sleep(1)
     raise RuntimeError(f"endpoint did not become available: {path}") from last_error
