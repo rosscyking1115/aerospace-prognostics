@@ -166,8 +166,13 @@ def create_app(
         if expected_artifact_sha256 is not None
         else os.getenv(MODEL_SHA256_ENV)
     )
-    if configured_path is not None and str(configured_path) and configured_sha256:
-        _verify_model_artifact_sha256(configured_path, configured_sha256)
+    artifact_sha256 = None
+    if configured_path is not None and str(configured_path):
+        artifact_sha256 = (
+            _verify_model_artifact_sha256(configured_path, configured_sha256)
+            if configured_sha256
+            else file_sha256(configured_path)
+        )
     artifact = (
         load_cmapss_model_artifact(configured_path)
         if configured_path is not None and str(configured_path)
@@ -175,6 +180,7 @@ def create_app(
     )
     app.state.artifact = artifact
     app.state.artifact_path = str(configured_path) if configured_path is not None else None
+    app.state.artifact_sha256 = artifact_sha256
     app.state.metrics = ServingMetrics()
     app.state.security = ServingSecurity(
         api_key=api_key if api_key is not None else os.getenv(API_KEY_ENV),
@@ -211,7 +217,7 @@ def create_app(
 
     @app.get("/ready", response_model=None)
     def ready() -> dict[str, bool | str] | JSONResponse:
-        payload = _readiness_payload(app.state.artifact)
+        payload = _readiness_payload(app.state.artifact, app.state.artifact_sha256)
         if app.state.artifact is None:
             return JSONResponse(status_code=503, content=payload)
         return payload
@@ -226,7 +232,7 @@ def create_app(
     def schema(request: Request) -> dict[str, Any]:
         app.state.security.enforce(request)
         model = _require_artifact(app.state.artifact)
-        return _inference_schema_payload(model)
+        return _inference_schema_payload(model, app.state.artifact_sha256)
 
     @app.post("/predict", response_model=PredictResponse)
     def predict(payload: PredictRequest, request: Request) -> PredictResponse:
@@ -275,7 +281,7 @@ def create_app(
     return app
 
 
-def _verify_model_artifact_sha256(path: str | Path, expected_sha256: str) -> None:
+def _verify_model_artifact_sha256(path: str | Path, expected_sha256: str) -> str:
     expected = expected_sha256.strip().lower()
     if len(expected) != 64 or any(character not in "0123456789abcdef" for character in expected):
         raise ValueError(f"{MODEL_SHA256_ENV} must be a 64-character hex SHA-256 digest")
@@ -285,6 +291,7 @@ def _verify_model_artifact_sha256(path: str | Path, expected_sha256: str) -> Non
             "model artifact sha256 mismatch: "
             f"expected {expected}, got {actual} for {Path(path)}"
         )
+    return actual
 
 
 def _configured_rate_limit(rate_limit_per_minute: int | None) -> int:
@@ -314,6 +321,7 @@ def _api_key_from_request(request: Request) -> str | None:
 
 def _readiness_payload(
     artifact: CmapssHgbPolicyModelArtifact | None,
+    artifact_sha256: str | None,
 ) -> dict[str, Any]:
     loaded = artifact is not None
     payload: dict[str, Any] = {
@@ -327,17 +335,22 @@ def _readiness_payload(
             "subset": artifact.subset,
             "model_name": artifact.model_name,
             "artifact_id": artifact.promotion_metadata.get("artifact_id"),
+            "artifact_sha256": artifact_sha256,
             "stage": artifact.promotion_metadata.get("stage"),
         }
     return payload
 
 
-def _inference_schema_payload(model: CmapssHgbPolicyModelArtifact) -> dict[str, Any]:
+def _inference_schema_payload(
+    model: CmapssHgbPolicyModelArtifact,
+    artifact_sha256: str | None,
+) -> dict[str, Any]:
     return {
         "dataset": model.dataset,
         "subset": model.subset,
         "model_name": model.model_name,
         "artifact_id": model.promotion_metadata.get("artifact_id"),
+        "artifact_sha256": artifact_sha256,
         "request": {
             "content_type": "application/json",
             "body_field": "telemetry",

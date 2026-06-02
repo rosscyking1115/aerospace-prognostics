@@ -38,6 +38,8 @@ def run(argv: list[str] | None = None) -> int:
     schema = _get_json(args.base_url, "/schema", headers=headers)
     if schema["artifact_id"] != ready["model"]["artifact_id"]:
         raise RuntimeError("schema artifact_id does not match readiness artifact_id")
+    if schema["artifact_sha256"] != ready["model"]["artifact_sha256"]:
+        raise RuntimeError("schema artifact_sha256 does not match readiness artifact_sha256")
 
     telemetry = json.loads(pd.read_csv(args.input_csv).to_json(orient="records"))
     prediction = _post_json(
@@ -56,6 +58,7 @@ def run(argv: list[str] | None = None) -> int:
         raise RuntimeError(f"metrics payload is missing request counter: {metrics!r}")
 
     print(f"artifact_id={ready['model']['artifact_id']}")
+    print(f"artifact_sha256={ready['model']['artifact_sha256']}")
     print(f"predictions={len(prediction['predictions'])}")
     print("loaded_container_smoke=ok")
     return 0

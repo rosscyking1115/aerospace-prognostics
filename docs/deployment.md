@@ -24,7 +24,7 @@ The packaging command can also write a markdown model card. The card summarizes 
 
 ## Container Serving
 
-The serving image does not bundle a model artifact. A clean container starts and reports `missing_model` from `GET /health`, which lets CI validate the image without committing generated artifacts. `GET /ready` returns HTTP 503 until a model artifact is loaded, so orchestrators can distinguish a live container from one that is ready for prediction traffic. When ready, the endpoint returns a minimal artifact identity with schema version, dataset, subset, model name, artifact ID, and stage; full metadata remains behind authenticated `GET /version`.
+The serving image does not bundle a model artifact. A clean container starts and reports `missing_model` from `GET /health`, which lets CI validate the image without committing generated artifacts. `GET /ready` returns HTTP 503 until a model artifact is loaded, so orchestrators can distinguish a live container from one that is ready for prediction traffic. When ready, the endpoint returns a minimal artifact identity with schema version, dataset, subset, model name, artifact ID, artifact SHA-256, and stage; full metadata remains behind authenticated `GET /version`.
 
 Run the image with an explicit model mount and environment variable when serving predictions:
 
@@ -49,13 +49,13 @@ The API exposes:
 
 `POST /predict` accepts raw C-MAPSS telemetry rows with the canonical columns: `unit_number`, `time_in_cycles`, three operating settings, and 21 sensor values. The service groups rows by unit and returns one capped RUL prediction per unit using each unit's latest observed cycle.
 
-`GET /schema` returns the loaded artifact's concrete inference contract: required telemetry columns, row limits, grouping behavior, prediction fields, output RUL bounds, and monitoring block names. This makes the deployed model contract discoverable by clients and smoke-test jobs without exposing the binary artifact.
+`GET /schema` returns the loaded artifact's concrete inference contract: required telemetry columns, row limits, grouping behavior, prediction fields, output RUL bounds, monitoring block names, artifact ID, and artifact SHA-256. This makes the deployed model contract discoverable by clients and smoke-test jobs without exposing the binary artifact.
 
 Every API request receives `x-request-id` and `x-process-time-ms` response headers. If the caller sends `x-request-id`, the service preserves it; otherwise it generates one. Requests are logged as one-line JSON records with method, route, status code, request ID, and latency. `GET /metrics` exposes lightweight Prometheus-style counters and latency summaries for local container smoke checks and basic deployment monitoring.
 
 Prediction responses include a `monitoring` block. It compares request telemetry means against train-fit artifact reference statistics with standardized mean-shift scores, lists columns above the drift threshold, and summarizes the request's prediction distribution. The same compact monitoring summary is emitted as structured JSON logs for downstream alerting.
 
-Set `AEROSPACE_PROGNOSTICS_MODEL_SHA256` or pass `--model-sha256` to `serve-api` to require an exact artifact digest at startup. The service hashes the mounted joblib before loading it and fails startup if the digest does not match, which protects promotion pointers and container mounts from silently serving the wrong binary artifact.
+Set `AEROSPACE_PROGNOSTICS_MODEL_SHA256` or pass `--model-sha256` to `serve-api` to require an exact artifact digest at startup. The service hashes the mounted joblib before loading it and fails startup if the digest does not match, which protects promotion pointers and container mounts from silently serving the wrong binary artifact. The same digest is reported from readiness and schema responses so operators can confirm runtime artifact identity after deployment.
 
 ## Authentication And Rate Limiting
 
@@ -121,6 +121,7 @@ Current scope:
 - FastAPI inference surface with request validation, liveness, readiness, and version endpoints.
 - Model-specific inference schema endpoint for client contract discovery.
 - Public readiness identity for loaded artifacts without exposing full version metadata.
+- Runtime artifact SHA-256 identity in readiness and schema responses.
 - Structured JSON request logs, request IDs, latency headers, and scrapeable serving metrics.
 - Request telemetry drift summaries and prediction-distribution monitoring.
 - Promotion metadata with stable artifact IDs and rollback runbook.

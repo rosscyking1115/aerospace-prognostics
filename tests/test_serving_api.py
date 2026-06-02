@@ -19,6 +19,7 @@ def test_serving_api_health_version_and_predict(tmp_path) -> None:
     write_tiny_cmapss_subset(tmp_path)
     artifact = train_cmapss_hgb_policy_artifact(tmp_path, "FD001", n_regimes=1).artifact
     artifact_path = save_cmapss_model_artifact(artifact, tmp_path / "fd001.joblib")
+    artifact_sha256 = file_sha256(artifact_path)
     client = TestClient(create_app(artifact_path))
     bundle = load_cmapss_subset(tmp_path, "FD001")
     telemetry = json.loads(bundle.test.to_json(orient="records"))
@@ -45,6 +46,7 @@ def test_serving_api_health_version_and_predict(tmp_path) -> None:
         "subset": "FD001",
         "model_name": artifact.model_name,
         "artifact_id": artifact.promotion_metadata["artifact_id"],
+        "artifact_sha256": artifact_sha256,
         "stage": "candidate",
     }
     assert version.status_code == 200
@@ -69,6 +71,7 @@ def test_serving_api_exposes_model_specific_inference_schema(tmp_path) -> None:
     write_tiny_cmapss_subset(tmp_path)
     artifact = train_cmapss_hgb_policy_artifact(tmp_path, "FD001", n_regimes=1).artifact
     artifact_path = save_cmapss_model_artifact(artifact, tmp_path / "fd001.joblib")
+    artifact_sha256 = file_sha256(artifact_path)
     client = TestClient(create_app(artifact_path))
 
     response = client.get("/schema")
@@ -78,6 +81,7 @@ def test_serving_api_exposes_model_specific_inference_schema(tmp_path) -> None:
     assert payload["dataset"] == "C-MAPSS"
     assert payload["subset"] == "FD001"
     assert payload["artifact_id"] == artifact.promotion_metadata["artifact_id"]
+    assert payload["artifact_sha256"] == artifact_sha256
     assert payload["request"]["body_field"] == "telemetry"
     assert payload["request"]["min_rows"] == 1
     assert payload["request"]["max_rows"] == 10000
