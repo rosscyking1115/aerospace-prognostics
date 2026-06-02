@@ -44,12 +44,13 @@ The working plan is tracked in [Aerospace_Prognostics_Project_Plan.md](Aerospace
 - `aerospace-prognostics phase2-smap-msl-verify-manifest` CLI for checking the Phase 2 SMAP/MSL artifact bundle against its run manifest and writing an optional markdown audit report.
 - `aerospace-prognostics phase2-cmapss` run manifests with artifact checksums, runtime provenance, Git state, verifier/audit reports, and optional NASA-surrogate, asymmetric, blended, target-weighted, mini-batch monotonic, and unit-batch monotonic training losses for Track A experiment bundles.
 - Phase 2 C-MAPSS deep prediction diagnostics for official-test and validation-selection per-window actual RUL, predicted RUL, signed error, absolute error, early/late error split, aggregate error summaries, RUL-bin calibration views, monotonicity checks, per-unit high-error trajectory reports, and validation-fitted calibration checks.
-- `aerospace-prognostics cmapss-package-hgb-policy`, `cmapss-predict-artifact`, `cmapss-validate-artifact`, `cmapss-benchmark-artifact`, and `serve-api` CLIs for the production-ML deployment track.
+- `aerospace-prognostics cmapss-package-hgb-policy`, `cmapss-predict-artifact`, `cmapss-validate-artifact`, `cmapss-benchmark-artifact`, `cmapss-promotion-report`, and `serve-api` CLIs for the production-ML deployment track.
 - FastAPI serving observability with `/health` liveness, `/ready` readiness plus artifact identity, `/schema` inference-contract discovery, request IDs, latency headers, JSON request logs, and `/metrics` counters.
 - Serving-time telemetry drift summaries and prediction distribution monitoring.
 - Candidate artifact promotion metadata with stable IDs and rollback guidance.
 - Deployment-candidate model cards with intended use, metrics, inference contract, limitations, monitoring, and rollback notes.
 - Artifact latency benchmark reports with optional p95 promotion gates.
+- Promotion evidence reports that combine validation, benchmark, model-card, and SBOM gates.
 - Optional API-key authentication and serving rate limits for protected inference endpoints.
 - `aerospace-prognostics generate-sbom` CLI for lockfile-derived CycloneDX-style dependency inventory generation.
 - CI scaffold with linting, tests, and dependency audit.
@@ -122,6 +123,7 @@ uv run aerospace-prognostics phase2-smap-msl-verify-manifest --manifest artifact
 uv run aerospace-prognostics cmapss-package-hgb-policy --data-dir data/raw/cmapss --subset FD001 --output-path artifacts/models/cmapss_fd001_hgb_policy.joblib --metadata-json artifacts/models/cmapss_fd001_hgb_policy_metadata.json --model-card-markdown artifacts/models/cmapss_fd001_hgb_policy_model_card.md
 uv run aerospace-prognostics cmapss-validate-artifact --model-artifact artifacts/models/cmapss_fd001_hgb_policy.joblib --metadata-json artifacts/models/cmapss_fd001_hgb_policy_metadata.json --input-csv artifacts/examples/fd001_telemetry.csv --output-json artifacts/models/cmapss_fd001_hgb_policy_validation.json
 uv run aerospace-prognostics cmapss-benchmark-artifact --model-artifact artifacts/models/cmapss_fd001_hgb_policy.joblib --input-csv artifacts/examples/fd001_telemetry.csv --max-p95-latency-ms 100 --output-json artifacts/models/cmapss_fd001_hgb_policy_benchmark.json
+uv run aerospace-prognostics cmapss-promotion-report --validation-json artifacts/models/cmapss_fd001_hgb_policy_validation.json --benchmark-json artifacts/models/cmapss_fd001_hgb_policy_benchmark.json --model-card-markdown artifacts/models/cmapss_fd001_hgb_policy_model_card.md --sbom-json artifacts/sbom/cyclonedx.json --output-json artifacts/models/cmapss_fd001_hgb_policy_promotion.json --output-markdown artifacts/models/cmapss_fd001_hgb_policy_promotion.md
 uv run aerospace-prognostics serve-api --model-artifact artifacts/models/cmapss_fd001_hgb_policy.joblib --host 127.0.0.1 --port 8000
 uv run aerospace-prognostics phase1-cmapss --data-dir data/raw/cmapss --artifact-dir artifacts/phase1
 uv run aerospace-prognostics phase2-cmapss --data-dir data/raw/cmapss --artifact-dir artifacts/phase2 --subsets FD001 --models cnn rescnn bilstm tcn transformer --epochs 50 --hidden-sizes 32 64 --learning-rates 0.001 0.0003 --training-loss mse

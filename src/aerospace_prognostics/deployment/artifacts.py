@@ -103,6 +103,36 @@ class CmapssArtifactBenchmark:
 
 
 @dataclass(frozen=True)
+class CmapssPromotionReport:
+    """Promotion-gate evidence report for a packaged C-MAPSS artifact."""
+
+    validation_json_path: str
+    benchmark_json_path: str
+    status: str
+    gates: dict[str, bool]
+    problems: list[str]
+    artifact_identity: dict[str, Any] = field(default_factory=dict)
+    evidence: dict[str, Any] = field(default_factory=dict)
+    model_card_markdown_path: str | None = None
+    sbom_json_path: str | None = None
+
+    def to_dict(self) -> dict[str, Any]:
+        """Return a JSON-serialisable promotion report."""
+
+        return {
+            "validation_json_path": self.validation_json_path,
+            "benchmark_json_path": self.benchmark_json_path,
+            "model_card_markdown_path": self.model_card_markdown_path,
+            "sbom_json_path": self.sbom_json_path,
+            "status": self.status,
+            "gates": self.gates,
+            "problems": self.problems,
+            "artifact_identity": self.artifact_identity,
+            "evidence": self.evidence,
+        }
+
+
+@dataclass(frozen=True)
 class CmapssPrediction:
     """One deployed C-MAPSS RUL prediction."""
 
@@ -519,6 +549,195 @@ def benchmark_cmapss_model_artifact(
     )
 
 
+def build_cmapss_promotion_report(
+    validation_json: str | Path,
+    benchmark_json: str | Path,
+    *,
+    model_card_markdown: str | Path | None = None,
+    sbom_json: str | Path | None = None,
+) -> CmapssPromotionReport:
+    """Combine deployment evidence into a promotion-gate report."""
+
+    validation_file = Path(validation_json)
+    benchmark_file = Path(benchmark_json)
+    model_card_file = Path(model_card_markdown) if model_card_markdown is not None else None
+    sbom_file = Path(sbom_json) if sbom_json is not None else None
+
+    validation = _read_json_object(validation_file, "validation report")
+    benchmark = _read_json_object(benchmark_file, "benchmark report")
+
+    validation_problems = _string_list(validation.get("problems"))
+    benchmark_problems = _string_list(benchmark.get("problems"))
+    gates = {
+        "artifact_validation": validation.get("status") == "ok",
+        "latency_benchmark": benchmark.get("status") == "ok",
+    }
+    problems: list[str] = []
+    if not gates["artifact_validation"]:
+        problems.append("artifact validation gate failed")
+    if validation_problems:
+        problems.extend(f"validation: {problem}" for problem in validation_problems)
+    if not gates["latency_benchmark"]:
+        problems.append("latency benchmark gate failed")
+    if benchmark_problems:
+        problems.extend(f"benchmark: {problem}" for problem in benchmark_problems)
+
+    validation_identity = _dict_or_empty(validation.get("artifact_identity"))
+    benchmark_identity = _dict_or_empty(benchmark.get("artifact_identity"))
+    artifact_identity = validation_identity or benchmark_identity
+    validation_artifact_id = _artifact_id(validation_identity)
+    benchmark_artifact_id = _artifact_id(benchmark_identity)
+    gates["artifact_identity_match"] = (
+        validation_artifact_id is not None and validation_artifact_id == benchmark_artifact_id
+    )
+    if not gates["artifact_identity_match"]:
+        problems.append(
+            "artifact identity mismatch between validation and benchmark evidence: "
+            f"{validation_artifact_id!r} != {benchmark_artifact_id!r}"
+        )
+
+    evidence: dict[str, Any] = {
+        "validation": {
+            "status": validation.get("status"),
+            "checks": _dict_or_empty(validation.get("checks")),
+            "prediction_count": validation.get("prediction_count"),
+        },
+        "benchmark": {
+            "status": benchmark.get("status"),
+            "runs": benchmark.get("runs"),
+            "warmup_runs": benchmark.get("warmup_runs"),
+            "model_size_bytes": benchmark.get("model_size_bytes"),
+            "prediction_count": benchmark.get("prediction_count"),
+            "latency_ms": _dict_or_empty(benchmark.get("latency_ms")),
+            "max_p95_latency_ms": benchmark.get("max_p95_latency_ms"),
+        },
+    }
+
+    if model_card_file is not None:
+        gates["model_card_present"] = model_card_file.exists()
+        if gates["model_card_present"]:
+            model_card_text = model_card_file.read_text(encoding="utf-8")
+            gates["model_card_has_required_sections"] = all(
+                section in model_card_text
+                for section in (
+                    "# C-MAPSS Deployment Model Card",
+                    "## Intended Use",
+                    "## Performance",
+                    "## Inference Contract",
+                    "## Monitoring",
+                    "## Limitations",
+                    "## Rollback",
+                )
+            )
+            evidence["model_card"] = {
+                "path": str(model_card_file),
+                "bytes": model_card_file.stat().st_size,
+            }
+            if not gates["model_card_has_required_sections"]:
+                problems.append("model card is missing required deployment sections")
+        else:
+            gates["model_card_has_required_sections"] = False
+            problems.append(f"model card markdown does not exist: {model_card_file}")
+
+    if sbom_file is not None:
+        gates["sbom_present"] = sbom_file.exists()
+        if gates["sbom_present"]:
+            sbom = _read_json_object(sbom_file, "SBOM")
+            components = sbom.get("components", [])
+            component_count = len(components) if isinstance(components, list) else 0
+            gates["sbom_cyclonedx"] = sbom.get("bomFormat") == "CycloneDX"
+            gates["sbom_has_components"] = component_count > 0
+            evidence["sbom"] = {
+                "path": str(sbom_file),
+                "bom_format": sbom.get("bomFormat"),
+                "spec_version": sbom.get("specVersion"),
+                "component_count": component_count,
+            }
+            if not gates["sbom_cyclonedx"]:
+                problems.append("SBOM is not CycloneDX formatted")
+            if not gates["sbom_has_components"]:
+                problems.append("SBOM contains no dependency components")
+        else:
+            gates["sbom_cyclonedx"] = False
+            gates["sbom_has_components"] = False
+            problems.append(f"SBOM JSON does not exist: {sbom_file}")
+
+    return CmapssPromotionReport(
+        validation_json_path=str(validation_file),
+        benchmark_json_path=str(benchmark_file),
+        model_card_markdown_path=str(model_card_file) if model_card_file is not None else None,
+        sbom_json_path=str(sbom_file) if sbom_file is not None else None,
+        status="ok" if not problems and all(gates.values()) else "failed",
+        gates=gates,
+        problems=problems,
+        artifact_identity=artifact_identity,
+        evidence=evidence,
+    )
+
+
+def render_cmapss_promotion_report_markdown(report: CmapssPromotionReport) -> str:
+    """Render a markdown promotion-gate report."""
+
+    identity = report.artifact_identity
+    benchmark = report.evidence.get("benchmark", {})
+    latency = benchmark.get("latency_ms", {}) if isinstance(benchmark, dict) else {}
+    lines = [
+        "# C-MAPSS Promotion Report",
+        "",
+        f"- Status: `{_markdown_inline(report.status)}`",
+        f"- Artifact ID: `{_markdown_inline(identity.get('artifact_id'))}`",
+        f"- Dataset: `{_markdown_inline(identity.get('dataset'))}`",
+        f"- Subset: `{_markdown_inline(identity.get('subset'))}`",
+        f"- Stage: `{_markdown_inline(identity.get('stage'))}`",
+        "",
+        "## Gates",
+        "",
+        "| Gate | Passed |",
+        "|---|---:|",
+    ]
+    lines.extend(
+        f"| `{_markdown_cell(name)}` | {passed} |"
+        for name, passed in sorted(report.gates.items())
+    )
+    lines.extend(
+        [
+            "",
+            "## Evidence",
+            "",
+            f"- Validation JSON: `{_markdown_inline(report.validation_json_path)}`",
+            f"- Benchmark JSON: `{_markdown_inline(report.benchmark_json_path)}`",
+            f"- Model card: `{_markdown_inline(report.model_card_markdown_path)}`",
+            f"- SBOM JSON: `{_markdown_inline(report.sbom_json_path)}`",
+            f"- Benchmark p95 latency ms: `{_markdown_inline(latency.get('p95'))}`",
+            (
+                "- Benchmark model size bytes: "
+                f"`{_markdown_inline(benchmark.get('model_size_bytes'))}`"
+            ),
+            "",
+            "## Problems",
+            "",
+        ]
+    )
+    if report.problems:
+        lines.extend(f"- {problem}" for problem in report.problems)
+    else:
+        lines.append("- None")
+    lines.append("")
+    return "\n".join(lines)
+
+
+def write_cmapss_promotion_report_markdown(
+    report: CmapssPromotionReport,
+    output_markdown: str | Path,
+) -> Path:
+    """Write a markdown promotion-gate report."""
+
+    output_path = Path(output_markdown)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    output_path.write_text(render_cmapss_promotion_report_markdown(report), encoding="utf-8")
+    return output_path
+
+
 def render_cmapss_model_card_markdown(
     artifact: CmapssHgbPolicyModelArtifact,
     result: RegressionRunResult,
@@ -730,6 +949,33 @@ def _latency_distribution(values: list[float]) -> dict[str, float]:
 def _nearest_rank_percentile(sorted_values: list[float], percentile: float) -> float:
     index = max(0, min(len(sorted_values) - 1, int(percentile * len(sorted_values) + 0.999) - 1))
     return sorted_values[index]
+
+
+def _read_json_object(path: Path, label: str) -> dict[str, Any]:
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except OSError as exc:
+        raise ValueError(f"{label} could not be read: {path}") from exc
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"{label} is not valid JSON: {path}") from exc
+    if not isinstance(payload, dict):
+        raise ValueError(f"{label} root must be a JSON object: {path}")
+    return payload
+
+
+def _dict_or_empty(value: Any) -> dict[str, Any]:
+    return value if isinstance(value, dict) else {}
+
+
+def _string_list(value: Any) -> list[str]:
+    if not isinstance(value, list):
+        return []
+    return [str(item) for item in value]
+
+
+def _artifact_id(identity: dict[str, Any]) -> str | None:
+    value = identity.get("artifact_id")
+    return str(value) if value is not None else None
 
 
 def _has_required_promotion_metadata(artifact: CmapssHgbPolicyModelArtifact) -> bool:

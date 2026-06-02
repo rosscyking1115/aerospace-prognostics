@@ -44,11 +44,13 @@ from aerospace_prognostics.data.smap_msl import (
 from aerospace_prognostics.data.summary import summarise_cmapss_frame
 from aerospace_prognostics.deployment.artifacts import (
     benchmark_cmapss_model_artifact,
+    build_cmapss_promotion_report,
     load_cmapss_model_artifact,
     save_cmapss_model_artifact,
     train_cmapss_hgb_policy_artifact,
     validate_cmapss_model_artifact,
     write_cmapss_model_card_markdown,
+    write_cmapss_promotion_report_markdown,
 )
 from aerospace_prognostics.deployment.sbom import build_uv_lock_cyclonedx_sbom
 from aerospace_prognostics.evaluation import (
@@ -1053,6 +1055,17 @@ def _build_parser() -> argparse.ArgumentParser:
     validate_artifact.add_argument("--metadata-json", type=Path)
     validate_artifact.add_argument("--input-csv", type=Path)
     validate_artifact.add_argument("--output-json", type=Path)
+
+    promotion_report = subparsers.add_parser(
+        "cmapss-promotion-report",
+        help="Compose deployment gate evidence for C-MAPSS artifact promotion",
+    )
+    promotion_report.add_argument("--validation-json", type=Path, required=True)
+    promotion_report.add_argument("--benchmark-json", type=Path, required=True)
+    promotion_report.add_argument("--model-card-markdown", type=Path)
+    promotion_report.add_argument("--sbom-json", type=Path)
+    promotion_report.add_argument("--output-json", type=Path, required=True)
+    promotion_report.add_argument("--output-markdown", type=Path)
 
     serve_api = subparsers.add_parser(
         "serve-api",
@@ -2446,6 +2459,30 @@ def main(argv: list[str] | None = None) -> int:
         if args.output_json is not None:
             _write_json_payload(validation.to_dict(), args.output_json)
         return 0 if validation.status == "ok" else 1
+
+    if args.command == "cmapss-promotion-report":
+        report = build_cmapss_promotion_report(
+            args.validation_json,
+            args.benchmark_json,
+            model_card_markdown=args.model_card_markdown,
+            sbom_json=args.sbom_json,
+        )
+        print(f"status={report.status}")
+        artifact_id = report.artifact_identity.get("artifact_id")
+        if artifact_id:
+            print(f"artifact_id={artifact_id}")
+        print(f"gates_passed={sum(report.gates.values())}")
+        print(f"gates_total={len(report.gates)}")
+        for problem in report.problems:
+            print(f"problem={problem}")
+        _write_json_payload(report.to_dict(), args.output_json)
+        if args.output_markdown is not None:
+            markdown_path = write_cmapss_promotion_report_markdown(
+                report,
+                args.output_markdown,
+            )
+            print(f"output_markdown={markdown_path}")
+        return 0 if report.status == "ok" else 1
 
     if args.command == "serve-api":
         import uvicorn

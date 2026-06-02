@@ -6,11 +6,14 @@ from aerospace_prognostics.data.cmapss import load_cmapss_subset
 from aerospace_prognostics.deployment.artifacts import (
     ARTIFACT_SCHEMA_VERSION,
     benchmark_cmapss_model_artifact,
+    build_cmapss_promotion_report,
     load_cmapss_model_artifact,
     render_cmapss_model_card_markdown,
     save_cmapss_model_artifact,
     train_cmapss_hgb_policy_artifact,
     validate_cmapss_model_artifact,
+    write_cmapss_model_card_markdown,
+    write_cmapss_promotion_report_markdown,
 )
 from tests.cmapss_fixtures import write_tiny_cmapss_subset
 
@@ -150,6 +153,113 @@ def test_validate_cmapss_model_artifact_checks_metadata_and_prediction_smoke(
         "artifact_id"
     ]
     assert validation.prediction_count == 2
+
+
+def test_build_cmapss_promotion_report_combines_gate_evidence(tmp_path) -> None:
+    write_tiny_cmapss_subset(tmp_path)
+    packaged = train_cmapss_hgb_policy_artifact(tmp_path, "FD001", n_regimes=1)
+    artifact_path = save_cmapss_model_artifact(
+        packaged.artifact,
+        tmp_path / "models" / "fd001.joblib",
+    )
+    metadata_json = tmp_path / "models" / "fd001_metadata.json"
+    validation_json = tmp_path / "models" / "fd001_validation.json"
+    benchmark_json = tmp_path / "models" / "fd001_benchmark.json"
+    model_card_markdown = tmp_path / "models" / "fd001_model_card.md"
+    promotion_markdown = tmp_path / "models" / "fd001_promotion.md"
+    sbom_json = tmp_path / "sbom" / "cyclonedx.json"
+    input_csv = tmp_path / "fd001_input.csv"
+    metadata_json.write_text(
+        json.dumps(
+            {
+                "artifact": packaged.artifact.metadata(),
+                "result": packaged.result.to_dict(),
+            },
+            indent=2,
+            sort_keys=True,
+        ),
+        encoding="utf-8",
+    )
+    load_cmapss_subset(tmp_path, "FD001").test.to_csv(input_csv, index=False)
+    validation = validate_cmapss_model_artifact(
+        artifact_path,
+        metadata_json=metadata_json,
+        input_csv=input_csv,
+    )
+    benchmark = benchmark_cmapss_model_artifact(
+        artifact_path,
+        input_csv,
+        runs=2,
+        warmup_runs=1,
+        max_p95_latency_ms=10_000.0,
+    )
+    validation_json.write_text(json.dumps(validation.to_dict()), encoding="utf-8")
+    benchmark_json.write_text(json.dumps(benchmark.to_dict()), encoding="utf-8")
+    write_cmapss_model_card_markdown(packaged.artifact, packaged.result, model_card_markdown)
+    sbom_json.parent.mkdir(parents=True)
+    sbom_json.write_text(
+        json.dumps(
+            {
+                "bomFormat": "CycloneDX",
+                "specVersion": "1.6",
+                "components": [{"type": "library", "name": "numpy", "version": "1.0.0"}],
+            },
+        ),
+        encoding="utf-8",
+    )
+
+    report = build_cmapss_promotion_report(
+        validation_json,
+        benchmark_json,
+        model_card_markdown=model_card_markdown,
+        sbom_json=sbom_json,
+    )
+    markdown_path = write_cmapss_promotion_report_markdown(report, promotion_markdown)
+
+    assert report.status == "ok"
+    assert all(report.gates.values())
+    assert report.problems == []
+    assert report.artifact_identity["artifact_id"] == packaged.artifact.promotion_metadata[
+        "artifact_id"
+    ]
+    assert report.evidence["sbom"]["component_count"] == 1
+    assert "# C-MAPSS Promotion Report" in markdown_path.read_text(encoding="utf-8")
+
+
+def test_build_cmapss_promotion_report_keeps_failed_gate_visible(tmp_path) -> None:
+    artifact_id = "fd001-example"
+    validation_json = tmp_path / "validation.json"
+    benchmark_json = tmp_path / "benchmark.json"
+    validation_json.write_text(
+        json.dumps(
+            {
+                "status": "ok",
+                "checks": {"artifact_loads": True},
+                "problems": [],
+                "artifact_identity": {"artifact_id": artifact_id},
+            },
+        ),
+        encoding="utf-8",
+    )
+    benchmark_json.write_text(
+        json.dumps(
+            {
+                "status": "failed",
+                "problems": ["p95 latency exceeded budget"],
+                "artifact_identity": {"artifact_id": artifact_id},
+                "latency_ms": {"p95": 120.0},
+            },
+        ),
+        encoding="utf-8",
+    )
+
+    report = build_cmapss_promotion_report(validation_json, benchmark_json)
+
+    assert report.status == "failed"
+    assert report.gates["artifact_validation"] is True
+    assert report.gates["latency_benchmark"] is False
+    assert "latency benchmark gate failed" in report.problems
+    assert "benchmark: p95 latency exceeded budget" in report.problems
 
 
 def test_validate_cmapss_model_artifact_reports_metadata_mismatch(tmp_path) -> None:

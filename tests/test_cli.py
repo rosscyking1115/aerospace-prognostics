@@ -1675,6 +1675,9 @@ def test_cmapss_package_and_predict_artifact_commands(tmp_path, capsys) -> None:
     model_card_markdown = tmp_path / "models" / "fd001_model_card.md"
     prediction_json = tmp_path / "predictions" / "fd001.json"
     benchmark_json = tmp_path / "models" / "fd001_benchmark.json"
+    promotion_json = tmp_path / "models" / "fd001_promotion.json"
+    promotion_markdown = tmp_path / "models" / "fd001_promotion.md"
+    sbom_json = tmp_path / "sbom" / "cyclonedx.json"
     input_csv = tmp_path / "test_input.csv"
     read_cmapss_frame(tmp_path / "test_FD001.txt").to_csv(input_csv, index=False)
 
@@ -1780,6 +1783,45 @@ def test_cmapss_package_and_predict_artifact_commands(tmp_path, capsys) -> None:
     assert validation["status"] == "ok"
     assert validation["checks"]["metadata_json_matches"] is True
     assert validation["checks"]["prediction_smoke"] is True
+
+    sbom_json.parent.mkdir(parents=True)
+    sbom_json.write_text(
+        json.dumps(
+            {
+                "bomFormat": "CycloneDX",
+                "specVersion": "1.6",
+                "components": [{"type": "library", "name": "numpy", "version": "1.0.0"}],
+            },
+        ),
+        encoding="utf-8",
+    )
+    promotion_exit_code = main(
+        [
+            "cmapss-promotion-report",
+            "--validation-json",
+            str(validation_json),
+            "--benchmark-json",
+            str(benchmark_json),
+            "--model-card-markdown",
+            str(model_card_markdown),
+            "--sbom-json",
+            str(sbom_json),
+            "--output-json",
+            str(promotion_json),
+            "--output-markdown",
+            str(promotion_markdown),
+        ]
+    )
+    promotion_output = capsys.readouterr().out
+
+    assert promotion_exit_code == 0
+    assert "status=ok" in promotion_output
+    assert "artifact_id=fd001-" in promotion_output
+    assert "gates_passed=8" in promotion_output
+    promotion = json.loads(promotion_json.read_text(encoding="utf-8"))
+    assert promotion["status"] == "ok"
+    assert promotion["gates"]["sbom_cyclonedx"] is True
+    assert "# C-MAPSS Promotion Report" in promotion_markdown.read_text(encoding="utf-8")
 
 
 def test_cmapss_download_command_extracts_archive(tmp_path, capsys) -> None:
