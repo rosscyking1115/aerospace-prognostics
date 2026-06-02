@@ -27,6 +27,8 @@ CMAPSS_DEEP_TRAINING_LOSSES = (
     "asymmetric_mse_late_w1p5",
     "asymmetric_mse_late_w2",
     "asymmetric_mse_late_w3",
+    "target_weighted_mse_high_w2",
+    "target_weighted_mse_mid_high_w1p5",
 )
 
 
@@ -1203,6 +1205,9 @@ def _deep_training_loss(
     late_weight = _asymmetric_mse_late_weight(training_loss)
     if late_weight is not None:
         return _asymmetric_mse_loss(predictions, targets, late_weight=late_weight)
+    target_weights = _target_weighted_mse_weights(training_loss)
+    if target_weights is not None:
+        return _target_weighted_mse_loss(predictions, targets, target_weights=target_weights)
     blend_weight = _nasa_surrogate_blend_weight(training_loss)
     if blend_weight is not None:
         return nn.functional.mse_loss(predictions, targets) + (
@@ -1229,11 +1234,38 @@ def _asymmetric_mse_loss(
     return torch.mean(weights * errors.pow(2))
 
 
+def _target_weighted_mse_loss(
+    predictions: torch.Tensor,
+    targets: torch.Tensor,
+    *,
+    target_weights: tuple[tuple[float, float, float], ...],
+) -> torch.Tensor:
+    errors = predictions - targets
+    weights = torch.ones_like(targets)
+    for lower_bound, upper_bound, weight in target_weights:
+        in_bin = (targets >= lower_bound) & (targets < upper_bound)
+        weights = torch.where(in_bin, weight, weights)
+    return torch.mean(weights * errors.pow(2))
+
+
 def _asymmetric_mse_late_weight(training_loss: str) -> float | None:
     weights = {
         "asymmetric_mse_late_w1p5": 1.5,
         "asymmetric_mse_late_w2": 2.0,
         "asymmetric_mse_late_w3": 3.0,
+    }
+    return weights.get(training_loss)
+
+
+def _target_weighted_mse_weights(
+    training_loss: str,
+) -> tuple[tuple[float, float, float], ...] | None:
+    weights = {
+        "target_weighted_mse_high_w2": ((100.0, float("inf"), 2.0),),
+        "target_weighted_mse_mid_high_w1p5": (
+            (61.0, 91.0, 1.5),
+            (100.0, float("inf"), 1.5),
+        ),
     }
     return weights.get(training_loss)
 

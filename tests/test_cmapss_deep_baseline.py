@@ -158,6 +158,32 @@ def test_asymmetric_mse_training_loss_penalizes_late_errors_with_mse_scale() -> 
     assert float(early_loss) == pytest.approx(100.0)
 
 
+def test_target_weighted_mse_high_loss_emphasizes_high_rul_targets() -> None:
+    predictions = torch.tensor([10.0, 110.0])
+    targets = torch.tensor([0.0, 100.0])
+
+    loss = _deep_training_loss(
+        predictions,
+        targets,
+        training_loss="target_weighted_mse_high_w2",
+    )
+
+    assert float(loss) == pytest.approx((100.0 + 200.0) / 2.0)
+
+
+def test_target_weighted_mse_mid_high_loss_emphasizes_mid_and_high_rul_targets() -> None:
+    predictions = torch.tensor([40.0, 70.0, 110.0])
+    targets = torch.tensor([30.0, 61.0, 100.0])
+
+    loss = _deep_training_loss(
+        predictions,
+        targets,
+        training_loss="target_weighted_mse_mid_high_w1p5",
+    )
+
+    assert float(loss) == pytest.approx((100.0 + (81.0 * 1.5) + (100.0 * 1.5)) / 3.0)
+
+
 def test_run_cmapss_cnn_baseline_returns_structured_result(tmp_path) -> None:
     write_tiny_cmapss_subset(tmp_path)
     sequence_dir = tmp_path / "sequences"
@@ -385,6 +411,31 @@ def test_run_cmapss_cnn_baseline_run_supports_mse_nasa_blend_loss(tmp_path) -> N
     )
 
     assert "_loss_mse_nasa_blend_w0p001_" in run.result.model_name
+    assert run.history[0].train_loss >= 0
+
+
+def test_run_cmapss_cnn_baseline_run_supports_target_weighted_mse_loss(tmp_path) -> None:
+    write_tiny_cmapss_subset(tmp_path)
+    sequence_dir = tmp_path / "sequences"
+    export_cmapss_sequence_splits(
+        tmp_path,
+        sequence_dir,
+        "FD001",
+        window_size=2,
+        validation_fraction=0.5,
+        validation_horizon=1,
+    )
+
+    run = run_cmapss_cnn_baseline_run(
+        sequence_dir,
+        "FD001",
+        epochs=1,
+        batch_size=2,
+        training_loss="target_weighted_mse_high_w2",
+        hidden_channels=4,
+    )
+
+    assert "_loss_target_weighted_mse_high_w2_" in run.result.model_name
     assert run.history[0].train_loss >= 0
 
 
