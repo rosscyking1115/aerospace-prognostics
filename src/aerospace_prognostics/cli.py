@@ -48,6 +48,7 @@ from aerospace_prognostics.deployment.artifacts import (
     train_cmapss_hgb_policy_artifact,
     validate_cmapss_model_artifact,
 )
+from aerospace_prognostics.deployment.sbom import build_uv_lock_cyclonedx_sbom
 from aerospace_prognostics.evaluation import (
     RegressionRunResult,
     write_results_csv,
@@ -1046,6 +1047,13 @@ def _build_parser() -> argparse.ArgumentParser:
     serve_api.add_argument("--model-artifact", type=Path, required=True)
     serve_api.add_argument("--host", default="127.0.0.1")
     serve_api.add_argument("--port", type=int, default=8000)
+
+    sbom = subparsers.add_parser(
+        "generate-sbom",
+        help="Generate a CycloneDX-style SBOM from uv.lock",
+    )
+    sbom.add_argument("--lockfile", type=Path, default=Path("uv.lock"))
+    sbom.add_argument("--output-json", type=Path, required=True)
 
     return parser
 
@@ -2404,6 +2412,14 @@ def main(argv: list[str] | None = None) -> int:
         from aerospace_prognostics.serving.api import create_app
 
         uvicorn.run(create_app(args.model_artifact), host=args.host, port=args.port)
+        return 0
+
+    if args.command == "generate-sbom":
+        sbom = build_uv_lock_cyclonedx_sbom(args.lockfile)
+        _write_json_payload(sbom, args.output_json)
+        print(f"sbom_json={args.output_json}")
+        print(f"spec_version={sbom['specVersion']}")
+        print(f"component_count={len(sbom['components'])}")
         return 0
 
     parser.error(f"unknown command: {args.command}")

@@ -49,6 +49,7 @@ The working plan is tracked in [Aerospace_Prognostics_Project_Plan.md](Aerospace
 - Serving-time telemetry drift summaries and prediction distribution monitoring.
 - Candidate artifact promotion metadata with stable IDs and rollback guidance.
 - Optional API-key authentication and serving rate limits for protected inference endpoints.
+- `aerospace-prognostics generate-sbom` CLI for lockfile-derived CycloneDX-style dependency inventory generation.
 - CI scaffold with linting, tests, and dependency audit.
 
 ## Phase 1 Artifacts

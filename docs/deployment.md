@@ -8,6 +8,7 @@ This track turns the research pipeline into a deployable ML system. The first pr
 uv run aerospace-prognostics cmapss-package-hgb-policy --data-dir data/raw/cmapss --subset FD001 --output-path artifacts/models/cmapss_fd001_hgb_policy.joblib --metadata-json artifacts/models/cmapss_fd001_hgb_policy_metadata.json
 uv run aerospace-prognostics cmapss-predict-artifact --model-artifact artifacts/models/cmapss_fd001_hgb_policy.joblib --input-csv artifacts/examples/fd001_telemetry.csv --output-json artifacts/predictions/fd001_predictions.json
 uv run aerospace-prognostics cmapss-validate-artifact --model-artifact artifacts/models/cmapss_fd001_hgb_policy.joblib --metadata-json artifacts/models/cmapss_fd001_hgb_policy_metadata.json --input-csv artifacts/examples/fd001_telemetry.csv --output-json artifacts/models/cmapss_fd001_hgb_policy_validation.json
+uv run aerospace-prognostics generate-sbom --lockfile uv.lock --output-json artifacts/sbom/cyclonedx.json
 uv run aerospace-prognostics serve-api --model-artifact artifacts/models/cmapss_fd001_hgb_policy.joblib --host 127.0.0.1 --port 8000
 ```
 
@@ -52,6 +53,10 @@ Prediction responses include a `monitoring` block. It compares request telemetry
 Set `AEROSPACE_PROGNOSTICS_RATE_LIMIT_PER_MINUTE` to a positive integer to enable an in-memory fixed-window rate limit for protected endpoints. Requests are bucketed by authenticated API key when authentication is enabled, otherwise by client host. The default value is `0`, which disables rate limiting for local development and CI smoke checks.
 
 For public deployment, run the API behind a managed gateway, load balancer, or ingress layer that provides TLS termination, secret rotation, centralized rate limiting, request size limits, and audit logs. The built-in controls are a local safety layer and testable serving contract, not a replacement for platform perimeter controls.
+
+## Supply Chain Evidence
+
+`generate-sbom` reads the locked `uv.lock` environment and writes a CycloneDX-style JSON software bill of materials. The CI workflow runs this command after `pip-audit`, so every pushed commit proves both that dependencies are vulnerability-checked and that the dependency inventory remains generatable from the lockfile.
 
 ## Promotion And Rollback
 
@@ -100,6 +105,7 @@ Current scope:
 - Request telemetry drift summaries and prediction-distribution monitoring.
 - Promotion metadata with stable artifact IDs and rollback runbook.
 - Optional API-key authentication and per-client serving rate limits.
+- Lockfile-derived CycloneDX-style SBOM generation in CI.
 - Tests for artifact round-trip and API prediction behavior.
 - Dockerfile scaffold for containerized serving.
 - CI Docker image build check.
