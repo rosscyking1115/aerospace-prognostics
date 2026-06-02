@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import time
 from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
@@ -62,6 +63,42 @@ class CmapssArtifactValidation:
             "problems": self.problems,
             "artifact_identity": self.artifact_identity,
             "prediction_count": self.prediction_count,
+        }
+
+
+@dataclass(frozen=True)
+class CmapssArtifactBenchmark:
+    """Inference benchmark report for a packaged C-MAPSS artifact."""
+
+    artifact_path: str
+    input_csv_path: str
+    status: str
+    runs: int
+    warmup_runs: int
+    input_rows: int
+    prediction_count: int
+    model_size_bytes: int
+    latency_ms: dict[str, float]
+    max_p95_latency_ms: float | None = None
+    problems: list[str] = field(default_factory=list)
+    artifact_identity: dict[str, Any] = field(default_factory=dict)
+
+    def to_dict(self) -> dict[str, Any]:
+        """Return a JSON-serialisable benchmark report."""
+
+        return {
+            "artifact_path": self.artifact_path,
+            "input_csv_path": self.input_csv_path,
+            "status": self.status,
+            "runs": self.runs,
+            "warmup_runs": self.warmup_runs,
+            "input_rows": self.input_rows,
+            "prediction_count": self.prediction_count,
+            "model_size_bytes": self.model_size_bytes,
+            "latency_ms": self.latency_ms,
+            "max_p95_latency_ms": self.max_p95_latency_ms,
+            "problems": self.problems,
+            "artifact_identity": self.artifact_identity,
         }
 
 
@@ -426,6 +463,62 @@ def validate_cmapss_model_artifact(
     )
 
 
+def benchmark_cmapss_model_artifact(
+    artifact_path: str | Path,
+    input_csv: str | Path,
+    *,
+    runs: int = 20,
+    warmup_runs: int = 3,
+    max_p95_latency_ms: float | None = None,
+) -> CmapssArtifactBenchmark:
+    """Benchmark batch inference latency for a packaged C-MAPSS artifact."""
+
+    if runs < 1:
+        raise ValueError("runs must be at least 1")
+    if warmup_runs < 0:
+        raise ValueError("warmup_runs must be greater than or equal to 0")
+    if max_p95_latency_ms is not None and max_p95_latency_ms <= 0:
+        raise ValueError("max_p95_latency_ms must be positive when provided")
+
+    artifact_file = Path(artifact_path)
+    input_file = Path(input_csv)
+    artifact = load_cmapss_model_artifact(artifact_file)
+    telemetry = pd.read_csv(input_file)
+
+    predictions: list[CmapssPrediction] = []
+    for _ in range(warmup_runs):
+        predictions = artifact.predict_from_frame(telemetry)
+
+    latencies_ms: list[float] = []
+    for _ in range(runs):
+        started = time.perf_counter()
+        predictions = artifact.predict_from_frame(telemetry)
+        latencies_ms.append((time.perf_counter() - started) * 1000.0)
+
+    latency_summary = _latency_distribution(latencies_ms)
+    problems: list[str] = []
+    if max_p95_latency_ms is not None and latency_summary["p95"] > max_p95_latency_ms:
+        problems.append(
+            "p95 latency exceeded budget: "
+            f"{latency_summary['p95']:.6f} ms > {max_p95_latency_ms:.6f} ms"
+        )
+
+    return CmapssArtifactBenchmark(
+        artifact_path=str(artifact_file),
+        input_csv_path=str(input_file),
+        status="ok" if not problems else "failed",
+        runs=runs,
+        warmup_runs=warmup_runs,
+        input_rows=len(telemetry),
+        prediction_count=len(predictions),
+        model_size_bytes=artifact_file.stat().st_size,
+        latency_ms=latency_summary,
+        max_p95_latency_ms=max_p95_latency_ms,
+        problems=problems,
+        artifact_identity=_artifact_identity(artifact),
+    )
+
+
 def render_cmapss_model_card_markdown(
     artifact: CmapssHgbPolicyModelArtifact,
     result: RegressionRunResult,
@@ -619,6 +712,24 @@ def _numeric_distribution(values: list[float]) -> dict[str, float | int | None]:
         "min": float(series.min()),
         "max": float(series.max()),
     }
+
+
+def _latency_distribution(values: list[float]) -> dict[str, float]:
+    if not values:
+        raise ValueError("values must contain at least one latency")
+    sorted_values = sorted(values)
+    return {
+        "min": float(sorted_values[0]),
+        "mean": float(sum(sorted_values) / len(sorted_values)),
+        "p50": float(_nearest_rank_percentile(sorted_values, 0.50)),
+        "p95": float(_nearest_rank_percentile(sorted_values, 0.95)),
+        "max": float(sorted_values[-1]),
+    }
+
+
+def _nearest_rank_percentile(sorted_values: list[float], percentile: float) -> float:
+    index = max(0, min(len(sorted_values) - 1, int(percentile * len(sorted_values) + 0.999) - 1))
+    return sorted_values[index]
 
 
 def _has_required_promotion_metadata(artifact: CmapssHgbPolicyModelArtifact) -> bool:

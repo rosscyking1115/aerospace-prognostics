@@ -43,6 +43,7 @@ from aerospace_prognostics.data.smap_msl import (
 )
 from aerospace_prognostics.data.summary import summarise_cmapss_frame
 from aerospace_prognostics.deployment.artifacts import (
+    benchmark_cmapss_model_artifact,
     load_cmapss_model_artifact,
     save_cmapss_model_artifact,
     train_cmapss_hgb_policy_artifact,
@@ -1032,6 +1033,17 @@ def _build_parser() -> argparse.ArgumentParser:
     predict_artifact.add_argument("--model-artifact", type=Path, required=True)
     predict_artifact.add_argument("--input-csv", type=Path, required=True)
     predict_artifact.add_argument("--output-json", type=Path)
+
+    benchmark_artifact = subparsers.add_parser(
+        "cmapss-benchmark-artifact",
+        help="Benchmark packaged C-MAPSS artifact inference latency",
+    )
+    benchmark_artifact.add_argument("--model-artifact", type=Path, required=True)
+    benchmark_artifact.add_argument("--input-csv", type=Path, required=True)
+    benchmark_artifact.add_argument("--runs", type=int, default=20)
+    benchmark_artifact.add_argument("--warmup-runs", type=int, default=3)
+    benchmark_artifact.add_argument("--max-p95-latency-ms", type=float)
+    benchmark_artifact.add_argument("--output-json", type=Path)
 
     validate_artifact = subparsers.add_parser(
         "cmapss-validate-artifact",
@@ -2396,6 +2408,26 @@ def main(argv: list[str] | None = None) -> int:
         if args.output_json is not None:
             _write_json_payload(payload, args.output_json)
         return 0
+
+    if args.command == "cmapss-benchmark-artifact":
+        benchmark = benchmark_cmapss_model_artifact(
+            args.model_artifact,
+            args.input_csv,
+            runs=args.runs,
+            warmup_runs=args.warmup_runs,
+            max_p95_latency_ms=args.max_p95_latency_ms,
+        )
+        print(f"status={benchmark.status}")
+        print(f"model_size_bytes={benchmark.model_size_bytes}")
+        print(f"input_rows={benchmark.input_rows}")
+        print(f"prediction_count={benchmark.prediction_count}")
+        print(f"latency_p50_ms={benchmark.latency_ms['p50']:.6f}")
+        print(f"latency_p95_ms={benchmark.latency_ms['p95']:.6f}")
+        for problem in benchmark.problems:
+            print(f"problem={problem}")
+        if args.output_json is not None:
+            _write_json_payload(benchmark.to_dict(), args.output_json)
+        return 0 if benchmark.status == "ok" else 1
 
     if args.command == "cmapss-validate-artifact":
         validation = validate_cmapss_model_artifact(

@@ -8,11 +8,14 @@ This track turns the research pipeline into a deployable ML system. The first pr
 uv run aerospace-prognostics cmapss-package-hgb-policy --data-dir data/raw/cmapss --subset FD001 --output-path artifacts/models/cmapss_fd001_hgb_policy.joblib --metadata-json artifacts/models/cmapss_fd001_hgb_policy_metadata.json --model-card-markdown artifacts/models/cmapss_fd001_hgb_policy_model_card.md
 uv run aerospace-prognostics cmapss-predict-artifact --model-artifact artifacts/models/cmapss_fd001_hgb_policy.joblib --input-csv artifacts/examples/fd001_telemetry.csv --output-json artifacts/predictions/fd001_predictions.json
 uv run aerospace-prognostics cmapss-validate-artifact --model-artifact artifacts/models/cmapss_fd001_hgb_policy.joblib --metadata-json artifacts/models/cmapss_fd001_hgb_policy_metadata.json --input-csv artifacts/examples/fd001_telemetry.csv --output-json artifacts/models/cmapss_fd001_hgb_policy_validation.json
+uv run aerospace-prognostics cmapss-benchmark-artifact --model-artifact artifacts/models/cmapss_fd001_hgb_policy.joblib --input-csv artifacts/examples/fd001_telemetry.csv --max-p95-latency-ms 100 --output-json artifacts/models/cmapss_fd001_hgb_policy_benchmark.json
 uv run aerospace-prognostics generate-sbom --lockfile uv.lock --output-json artifacts/sbom/cyclonedx.json
 uv run aerospace-prognostics serve-api --model-artifact artifacts/models/cmapss_fd001_hgb_policy.joblib --host 127.0.0.1 --port 8000
 ```
 
 Run `cmapss-validate-artifact` before promotion. It verifies that the joblib artifact exists, loads with a supported schema version, carries required promotion metadata, optionally matches the exported metadata JSON, and optionally produces at least one prediction from a telemetry CSV. The command exits non-zero when any validation check fails.
+
+Run `cmapss-benchmark-artifact` with a representative telemetry CSV before promotion. It records artifact size, input rows, prediction count, and repeated inference latency summaries, and it exits non-zero if `--max-p95-latency-ms` is supplied and the p95 latency exceeds that budget.
 
 The packaging command can also write a markdown model card. The card summarizes intended use, official-test metrics, feature policy, inference contract, serving monitoring, limitations, promotion gate, and rollback strategy so candidate-review evidence is readable without opening the binary artifact.
 
@@ -74,9 +77,10 @@ Promotion procedure:
 1. Build a candidate artifact, metadata JSON, and model card with `cmapss-package-hgb-policy`.
 2. Confirm the metadata JSON matches the intended subset, model policy, metrics, and `artifact_id`.
 3. Run `cmapss-validate-artifact` against the candidate artifact, metadata JSON, and a representative telemetry CSV.
-4. Run local or CI smoke checks against the serving container with the candidate mounted through `AEROSPACE_PROGNOSTICS_MODEL_PATH`.
-5. Promote by updating the deployment artifact pointer, secret, mounted path, or model registry entry to the candidate artifact.
-6. Keep the previously promoted artifact available until the new model has passed telemetry drift, prediction-distribution, latency, and error-rate checks.
+4. Run the benchmark command against representative telemetry and confirm the p95 latency budget passes.
+5. Run local or CI smoke checks against the serving container with the candidate mounted through `AEROSPACE_PROGNOSTICS_MODEL_PATH`.
+6. Promote by updating the deployment artifact pointer, secret, mounted path, or model registry entry to the candidate artifact.
+7. Keep the previously promoted artifact available until the new model has passed telemetry drift, prediction-distribution, latency, and error-rate checks.
 
 Rollback procedure:
 
@@ -101,6 +105,7 @@ Current scope:
 - Markdown model cards for deployment-candidate review.
 - Batch inference from CSV.
 - Artifact validation command for promotion checks and prediction smoke tests.
+- Artifact benchmark command for model size and inference-latency promotion gates.
 - FastAPI inference surface with request validation, liveness, readiness, and version endpoints.
 - Model-specific inference schema endpoint for client contract discovery.
 - Public readiness identity for loaded artifacts without exposing full version metadata.

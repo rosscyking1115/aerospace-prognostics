@@ -1674,6 +1674,7 @@ def test_cmapss_package_and_predict_artifact_commands(tmp_path, capsys) -> None:
     metadata_json = tmp_path / "models" / "fd001_metadata.json"
     model_card_markdown = tmp_path / "models" / "fd001_model_card.md"
     prediction_json = tmp_path / "predictions" / "fd001.json"
+    benchmark_json = tmp_path / "models" / "fd001_benchmark.json"
     input_csv = tmp_path / "test_input.csv"
     read_cmapss_frame(tmp_path / "test_FD001.txt").to_csv(input_csv, index=False)
 
@@ -1726,6 +1727,34 @@ def test_cmapss_package_and_predict_artifact_commands(tmp_path, capsys) -> None:
     assert predict_exit_code == 0
     assert "predictions=2" in predict_output
     assert prediction_json.exists()
+
+    benchmark_exit_code = main(
+        [
+            "cmapss-benchmark-artifact",
+            "--model-artifact",
+            str(artifact_path),
+            "--input-csv",
+            str(input_csv),
+            "--runs",
+            "2",
+            "--warmup-runs",
+            "1",
+            "--max-p95-latency-ms",
+            "10000",
+            "--output-json",
+            str(benchmark_json),
+        ]
+    )
+    benchmark_output = capsys.readouterr().out
+
+    assert benchmark_exit_code == 0
+    assert "status=ok" in benchmark_output
+    assert "model_size_bytes=" in benchmark_output
+    assert "latency_p95_ms=" in benchmark_output
+    benchmark = json.loads(benchmark_json.read_text(encoding="utf-8"))
+    assert benchmark["status"] == "ok"
+    assert benchmark["prediction_count"] == 2
+    assert benchmark["latency_ms"]["p95"] >= 0.0
 
     validation_json = tmp_path / "models" / "fd001_validation.json"
     validate_exit_code = main(

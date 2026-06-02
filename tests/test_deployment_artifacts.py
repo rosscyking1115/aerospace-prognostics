@@ -5,6 +5,7 @@ import json
 from aerospace_prognostics.data.cmapss import load_cmapss_subset
 from aerospace_prognostics.deployment.artifacts import (
     ARTIFACT_SCHEMA_VERSION,
+    benchmark_cmapss_model_artifact,
     load_cmapss_model_artifact,
     render_cmapss_model_card_markdown,
     save_cmapss_model_artifact,
@@ -78,6 +79,38 @@ def test_render_cmapss_model_card_markdown_summarizes_deployment_context(tmp_pat
     assert "## Monitoring" in markdown
     assert "## Limitations" in markdown
     assert "Requires retraining: `False`" in markdown
+
+
+def test_benchmark_cmapss_model_artifact_reports_latency_and_size(tmp_path) -> None:
+    write_tiny_cmapss_subset(tmp_path)
+    packaged = train_cmapss_hgb_policy_artifact(tmp_path, "FD001", n_regimes=1)
+    artifact_path = save_cmapss_model_artifact(
+        packaged.artifact,
+        tmp_path / "models" / "fd001.joblib",
+    )
+    input_csv = tmp_path / "fd001_input.csv"
+    load_cmapss_subset(tmp_path, "FD001").test.to_csv(input_csv, index=False)
+
+    benchmark = benchmark_cmapss_model_artifact(
+        artifact_path,
+        input_csv,
+        runs=2,
+        warmup_runs=1,
+        max_p95_latency_ms=10_000.0,
+    )
+
+    assert benchmark.status == "ok"
+    assert benchmark.runs == 2
+    assert benchmark.warmup_runs == 1
+    assert benchmark.input_rows == 4
+    assert benchmark.prediction_count == 2
+    assert benchmark.model_size_bytes == artifact_path.stat().st_size
+    assert benchmark.latency_ms["min"] >= 0.0
+    assert benchmark.latency_ms["p95"] >= benchmark.latency_ms["p50"]
+    assert benchmark.artifact_identity["artifact_id"] == packaged.artifact.promotion_metadata[
+        "artifact_id"
+    ]
+    assert benchmark.to_dict()["status"] == "ok"
 
 
 def test_validate_cmapss_model_artifact_checks_metadata_and_prediction_smoke(
