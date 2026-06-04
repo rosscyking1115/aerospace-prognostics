@@ -51,7 +51,7 @@ The API exposes:
 
 `GET /schema` returns the loaded artifact's concrete inference contract: required telemetry columns, row limits, grouping behavior, prediction fields, output RUL bounds, monitoring block names, artifact ID, and artifact SHA-256. This makes the deployed model contract discoverable by clients and smoke-test jobs without exposing the binary artifact.
 
-Every API request receives `x-request-id` and `x-process-time-ms` response headers. If the caller sends `x-request-id`, the service preserves it; otherwise it generates one. Requests are logged as one-line JSON records with method, route, status code, request ID, and latency. `GET /metrics` exposes lightweight Prometheus-style counters and latency summaries for local container smoke checks and basic deployment monitoring.
+Every API request receives `x-request-id` and `x-process-time-ms` response headers. If the caller sends `x-request-id`, the service preserves it; otherwise it generates one. Requests are logged as one-line JSON records with method, route, status code, request ID, and latency. `GET /metrics` exposes lightweight Prometheus-style counters and gauges for local container smoke checks and basic deployment monitoring, including request totals, response totals by route/status, latency summaries, prediction volume, prediction RUL distribution, telemetry drift alert requests, drift alert columns, and maximum observed standardized mean shift.
 
 Prediction responses include a `monitoring` block. It compares request telemetry means against train-fit artifact reference statistics with standardized mean-shift scores, lists columns above the drift threshold, and summarizes the request's prediction distribution. The same compact monitoring summary is emitted as structured JSON logs for downstream alerting.
 
@@ -123,6 +123,7 @@ Current scope:
 - Public readiness identity for loaded artifacts without exposing full version metadata.
 - Runtime artifact SHA-256 identity in readiness and schema responses.
 - Structured JSON request logs, request IDs, latency headers, and scrapeable serving metrics.
+- Prometheus-style prediction and telemetry-drift serving metrics.
 - Request telemetry drift summaries and prediction-distribution monitoring.
 - Promotion metadata with stable artifact IDs and rollback runbook.
 - Optional serving startup SHA-256 verification for mounted model artifacts.

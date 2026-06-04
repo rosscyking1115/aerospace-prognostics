@@ -61,6 +61,9 @@ def test_serving_api_health_version_and_predict(tmp_path) -> None:
     assert "sensor_1" in payload["monitoring"]["telemetry"]["columns"]
     assert metrics.status_code == 200
     assert "aerospace_prognostics_requests_total 4" in metrics.text
+    assert "aerospace_prognostics_prediction_requests_total 1" in metrics.text
+    assert "aerospace_prognostics_predictions_total 2" in metrics.text
+    assert "aerospace_prognostics_prediction_rul_mean" in metrics.text
     assert (
         'aerospace_prognostics_http_responses_total{method="POST",path="/predict",'
         'status_code="200"} 1'
@@ -245,10 +248,21 @@ def test_serving_api_logs_prediction_monitoring_summary(tmp_path, caplog) -> Non
             "/predict",
             json={"telemetry": json.loads(telemetry.to_json(orient="records"))},
         )
+        metrics = client.get("/metrics")
 
     assert response.status_code == 200
     monitoring = response.json()["monitoring"]
+    alert_column_count = monitoring["telemetry"]["alert_column_count"]
     assert monitoring["telemetry"]["alert_column_count"] >= 21
+    assert "aerospace_prognostics_telemetry_drift_alert_requests_total 1" in metrics.text
+    assert (
+        "aerospace_prognostics_telemetry_drift_alert_columns_total "
+        f"{alert_column_count}"
+    ) in metrics.text
+    assert (
+        "aerospace_prognostics_telemetry_drift_max_standardized_abs_mean_shift"
+        in metrics.text
+    )
     payloads = [json.loads(record.message) for record in caplog.records]
     prediction_logs = [
         payload for payload in payloads if payload.get("event") == "prediction_monitoring"

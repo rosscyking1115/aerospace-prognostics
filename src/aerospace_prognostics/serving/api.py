@@ -56,6 +56,14 @@ class ServingMetrics:
         self._latency_seconds_sum = 0.0
         self._latency_seconds_max = 0.0
         self._status_counts: dict[tuple[str, str, int], int] = defaultdict(int)
+        self._prediction_request_count = 0
+        self._prediction_count = 0
+        self._prediction_rul_sum = 0.0
+        self._prediction_rul_min: float | None = None
+        self._prediction_rul_max: float | None = None
+        self._drift_alert_request_count = 0
+        self._drift_alert_column_count = 0
+        self._drift_max_standardized_abs_mean_shift = 0.0
 
     def record(self, method: str, path: str, status_code: int, latency_seconds: float) -> None:
         with self._lock:
@@ -64,8 +72,50 @@ class ServingMetrics:
             self._latency_seconds_max = max(self._latency_seconds_max, latency_seconds)
             self._status_counts[(method, path, status_code)] += 1
 
+    def record_prediction(self, monitoring: dict[str, Any]) -> None:
+        prediction_summary = _dict_value(monitoring, "predictions")
+        telemetry_summary = _dict_value(monitoring, "telemetry")
+        prediction_count = _int_metric_value(prediction_summary.get("count"))
+        prediction_mean = _float_metric_value(prediction_summary.get("mean"))
+        prediction_min = _float_metric_value(prediction_summary.get("min"))
+        prediction_max = _float_metric_value(prediction_summary.get("max"))
+        alert_column_count = _int_metric_value(telemetry_summary.get("alert_column_count"))
+        max_shift = _float_metric_value(
+            telemetry_summary.get("max_standardized_abs_mean_shift")
+        )
+        with self._lock:
+            self._prediction_request_count += 1
+            self._prediction_count += prediction_count
+            if prediction_count and prediction_mean is not None:
+                self._prediction_rul_sum += prediction_mean * prediction_count
+            if prediction_min is not None:
+                self._prediction_rul_min = (
+                    prediction_min
+                    if self._prediction_rul_min is None
+                    else min(self._prediction_rul_min, prediction_min)
+                )
+            if prediction_max is not None:
+                self._prediction_rul_max = (
+                    prediction_max
+                    if self._prediction_rul_max is None
+                    else max(self._prediction_rul_max, prediction_max)
+                )
+            if alert_column_count:
+                self._drift_alert_request_count += 1
+                self._drift_alert_column_count += alert_column_count
+            if max_shift is not None:
+                self._drift_max_standardized_abs_mean_shift = max(
+                    self._drift_max_standardized_abs_mean_shift,
+                    max_shift,
+                )
+
     def prometheus_text(self) -> str:
         with self._lock:
+            prediction_mean = (
+                self._prediction_rul_sum / self._prediction_count
+                if self._prediction_count
+                else 0.0
+            )
             lines = [
                 "# HELP aerospace_prognostics_requests_total Total HTTP requests served.",
                 "# TYPE aerospace_prognostics_requests_total counter",
@@ -92,6 +142,64 @@ class ServingMetrics:
                     "aerospace_prognostics_http_responses_total"
                     f'{{method="{method}",path="{path}",status_code="{status_code}"}} {count}'
                 )
+            lines.extend(
+                [
+                    "# HELP aerospace_prognostics_prediction_requests_total "
+                    "Prediction requests served.",
+                    "# TYPE aerospace_prognostics_prediction_requests_total counter",
+                    (
+                        "aerospace_prognostics_prediction_requests_total "
+                        f"{self._prediction_request_count}"
+                    ),
+                    "# HELP aerospace_prognostics_predictions_total "
+                    "Individual RUL predictions returned.",
+                    "# TYPE aerospace_prognostics_predictions_total counter",
+                    f"aerospace_prognostics_predictions_total {self._prediction_count}",
+                    "# HELP aerospace_prognostics_prediction_rul_mean "
+                    "Mean predicted RUL across served predictions.",
+                    "# TYPE aerospace_prognostics_prediction_rul_mean gauge",
+                    f"aerospace_prognostics_prediction_rul_mean {prediction_mean:.9f}",
+                    "# HELP aerospace_prognostics_prediction_rul_min "
+                    "Minimum predicted RUL observed.",
+                    "# TYPE aerospace_prognostics_prediction_rul_min gauge",
+                    (
+                        "aerospace_prognostics_prediction_rul_min "
+                        f"{(self._prediction_rul_min or 0.0):.9f}"
+                    ),
+                    "# HELP aerospace_prognostics_prediction_rul_max "
+                    "Maximum predicted RUL observed.",
+                    "# TYPE aerospace_prognostics_prediction_rul_max gauge",
+                    (
+                        "aerospace_prognostics_prediction_rul_max "
+                        f"{(self._prediction_rul_max or 0.0):.9f}"
+                    ),
+                    "# HELP aerospace_prognostics_telemetry_drift_alert_requests_total "
+                    "Prediction requests with at least one telemetry drift alert column.",
+                    "# TYPE aerospace_prognostics_telemetry_drift_alert_requests_total counter",
+                    (
+                        "aerospace_prognostics_telemetry_drift_alert_requests_total "
+                        f"{self._drift_alert_request_count}"
+                    ),
+                    "# HELP aerospace_prognostics_telemetry_drift_alert_columns_total "
+                    "Telemetry drift alert columns observed across prediction requests.",
+                    "# TYPE aerospace_prognostics_telemetry_drift_alert_columns_total counter",
+                    (
+                        "aerospace_prognostics_telemetry_drift_alert_columns_total "
+                        f"{self._drift_alert_column_count}"
+                    ),
+                    "# HELP aerospace_prognostics_telemetry_drift_max_standardized_abs_mean_shift "
+                    "Maximum telemetry standardized absolute mean shift observed.",
+                    (
+                        "# TYPE "
+                        "aerospace_prognostics_telemetry_drift_max_standardized_abs_mean_shift "
+                        "gauge"
+                    ),
+                    (
+                        "aerospace_prognostics_telemetry_drift_max_standardized_abs_mean_shift "
+                        f"{self._drift_max_standardized_abs_mean_shift:.9f}"
+                    ),
+                ]
+            )
             return "\n".join(lines) + "\n"
 
 
@@ -244,6 +352,7 @@ def create_app(
         except ValueError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
         monitoring = model.monitoring_summary(frame, predictions)
+        app.state.metrics.record_prediction(monitoring)
         LOGGER.info(
             json.dumps(
                 {
@@ -389,6 +498,29 @@ def _inference_column_schema(column: str) -> dict[str, Any]:
     if column == "time_in_cycles":
         schema["minimum"] = 1
     return schema
+
+
+def _dict_value(payload: dict[str, Any], key: str) -> dict[str, Any]:
+    value = payload.get(key)
+    return value if isinstance(value, dict) else {}
+
+
+def _int_metric_value(value: Any) -> int:
+    if isinstance(value, bool) or value is None:
+        return 0
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return 0
+
+
+def _float_metric_value(value: Any) -> float | None:
+    if isinstance(value, bool) or value is None:
+        return None
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
 
 
 def _route_path(request: Request) -> str:

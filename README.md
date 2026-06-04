@@ -45,7 +45,7 @@ The working plan is tracked in [Aerospace_Prognostics_Project_Plan.md](Aerospace
 - `aerospace-prognostics phase2-cmapss` run manifests with artifact checksums, runtime provenance, Git state, verifier/audit reports, and optional NASA-surrogate, asymmetric, blended, target-weighted, mini-batch monotonic, and unit-batch monotonic training losses for Track A experiment bundles.
 - Phase 2 C-MAPSS deep prediction diagnostics for official-test and validation-selection per-window actual RUL, predicted RUL, signed error, absolute error, early/late error split, aggregate error summaries, RUL-bin calibration views, monotonicity checks, per-unit high-error trajectory reports, and validation-fitted calibration checks.
 - `aerospace-prognostics cmapss-package-hgb-policy`, `cmapss-predict-artifact`, `cmapss-validate-artifact`, `cmapss-benchmark-artifact`, `cmapss-promotion-report`, and `serve-api` CLIs for the production-ML deployment track.
-- FastAPI serving observability with `/health` liveness, `/ready` readiness plus artifact identity, `/schema` inference-contract discovery, request IDs, latency headers, JSON request logs, and `/metrics` counters.
+- FastAPI serving observability with `/health` liveness, `/ready` readiness plus artifact identity, `/schema` inference-contract discovery, request IDs, latency headers, JSON request logs, and `/metrics` request, prediction, and drift counters/gauges.
 - Serving-time telemetry drift summaries and prediction distribution monitoring.
 - Candidate artifact promotion metadata with stable IDs and rollback guidance.
 - Deployment-candidate model cards with intended use, metrics, inference contract, limitations, monitoring, and rollback notes.

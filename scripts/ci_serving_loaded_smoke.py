@@ -56,6 +56,10 @@ def run(argv: list[str] | None = None) -> int:
     metrics = _get_text(args.base_url, "/metrics", headers=headers)
     if "aerospace_prognostics_requests_total" not in metrics:
         raise RuntimeError(f"metrics payload is missing request counter: {metrics!r}")
+    if "aerospace_prognostics_predictions_total 2" not in metrics:
+        raise RuntimeError(f"metrics payload is missing prediction counter: {metrics!r}")
+    if "aerospace_prognostics_prediction_rul_mean" not in metrics:
+        raise RuntimeError(f"metrics payload is missing prediction RUL gauge: {metrics!r}")
 
     print(f"artifact_id={ready['model']['artifact_id']}")
     print(f"artifact_sha256={ready['model']['artifact_sha256']}")
