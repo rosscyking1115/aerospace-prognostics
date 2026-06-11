@@ -123,6 +123,10 @@ from aerospace_prognostics.reports.cmapss_model_comparison import (
 from aerospace_prognostics.reports.cmapss_prediction_calibration import (
     calibrate_cmapss_deep_predictions,
 )
+from aerospace_prognostics.reports.dashboard import (
+    build_fleet_dashboard_payload,
+    write_fleet_dashboard_payload_json,
+)
 from aerospace_prognostics.sequence_exports import export_cmapss_sequence_splits
 from aerospace_prognostics.workflows.phase1 import run_phase1_cmapss_workflow
 
@@ -1033,6 +1037,16 @@ def _build_parser() -> argparse.ArgumentParser:
     predict_artifact.add_argument("--model-artifact", type=Path, required=True)
     predict_artifact.add_argument("--input-csv", type=Path, required=True)
     predict_artifact.add_argument("--output-json", type=Path)
+
+    dashboard_payload = subparsers.add_parser(
+        "dashboard-fleet-payload",
+        help="Build dashboard-ready fleet JSON from prediction and release evidence",
+    )
+    dashboard_payload.add_argument("--prediction-json", type=Path, required=True)
+    dashboard_payload.add_argument("--promotion-json", type=Path)
+    dashboard_payload.add_argument("--release-bundle-json", type=Path)
+    dashboard_payload.add_argument("--title", default="Aerospace PHM Fleet View")
+    dashboard_payload.add_argument("--output-json", type=Path, required=True)
 
     benchmark_artifact = subparsers.add_parser(
         "cmapss-benchmark-artifact",
@@ -2487,6 +2501,29 @@ def main(argv: list[str] | None = None) -> int:
             )
         if args.output_json is not None:
             _write_json_payload(payload, args.output_json)
+        return 0
+
+    if args.command == "dashboard-fleet-payload":
+        payload = build_fleet_dashboard_payload(
+            args.prediction_json,
+            title=args.title,
+            promotion_json=args.promotion_json,
+            release_bundle_json=args.release_bundle_json,
+        )
+        output_path = write_fleet_dashboard_payload_json(payload, args.output_json)
+        payload_dict = payload.to_dict()
+        summary = payload_dict["summary"]
+        risk_counts = summary["risk_counts"]
+        print(f"schema_version={payload.schema_version}")
+        print(f"assets={summary['asset_count']}")
+        print(
+            "risk_counts="
+            f"critical:{risk_counts['critical']},"
+            f"watch:{risk_counts['watch']},"
+            f"nominal:{risk_counts['nominal']},"
+            f"unknown:{risk_counts['unknown']}"
+        )
+        print(f"output_json={output_path}")
         return 0
 
     if args.command == "cmapss-benchmark-artifact":

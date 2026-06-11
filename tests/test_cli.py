@@ -1885,6 +1885,75 @@ def test_cmapss_package_and_predict_artifact_commands(tmp_path, capsys) -> None:
     assert "# C-MAPSS Release Bundle" in release_bundle_markdown.read_text(encoding="utf-8")
 
 
+def test_dashboard_fleet_payload_command_writes_contract(tmp_path, capsys) -> None:
+    prediction_json = tmp_path / "predictions" / "fd001.json"
+    promotion_json = tmp_path / "models" / "fd001_promotion.json"
+    release_bundle_json = tmp_path / "release" / "fd001_bundle.json"
+    output_json = tmp_path / "dashboard" / "fleet.json"
+    prediction_json.parent.mkdir(parents=True)
+    promotion_json.parent.mkdir(parents=True)
+    release_bundle_json.parent.mkdir(parents=True)
+    prediction_json.write_text(
+        json.dumps(
+            {
+                "dataset": "C-MAPSS",
+                "subset": "FD001",
+                "model_name": "hist_gradient_boosting",
+                "rul_cap": 125,
+                "predictions": [
+                    {"unit_number": 1, "predicted_rul": 10.0},
+                    {"unit_number": 2, "predicted_rul": 75.0},
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    promotion_json.write_text(
+        json.dumps(
+            {
+                "status": "ok",
+                "gates": {"validation": True, "latency": True},
+                "artifact_identity": {"artifact_id": "fd001-demo"},
+            }
+        ),
+        encoding="utf-8",
+    )
+    release_bundle_json.write_text(
+        json.dumps(
+            {
+                "status": "ok",
+                "release_name": "fd001-demo",
+                "artifact_identity": {"artifact_id": "fd001-demo"},
+                "evidence": {"model_artifact": {}},
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    exit_code = main(
+        [
+            "dashboard-fleet-payload",
+            "--prediction-json",
+            str(prediction_json),
+            "--promotion-json",
+            str(promotion_json),
+            "--release-bundle-json",
+            str(release_bundle_json),
+            "--output-json",
+            str(output_json),
+        ]
+    )
+    output = capsys.readouterr().out
+    payload = json.loads(output_json.read_text(encoding="utf-8"))
+
+    assert exit_code == 0
+    assert "schema_version=aerospace-prognostics/fleet-dashboard/v1" in output
+    assert "assets=2" in output
+    assert "risk_counts=critical:1,watch:0,nominal:1,unknown:0" in output
+    assert payload["summary"]["asset_count"] == 2
+    assert payload["evidence"]["promotion"]["gates_passed"] == 2
+
+
 def test_cmapss_download_command_extracts_archive(tmp_path, capsys) -> None:
     source_zip = tmp_path / "source.zip"
     with zipfile.ZipFile(source_zip, "w") as archive:
