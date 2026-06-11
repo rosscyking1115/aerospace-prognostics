@@ -93,6 +93,27 @@ jobs:
             --output-json artifacts/release/cmapss_fd001_provenance.json \
             --output-markdown artifacts/release/cmapss_fd001_provenance.md
 
+      - name: Upload release evidence artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ci-fd001-release-evidence
+          if-no-files-found: error
+          retention-days: 14
+          path: |
+            artifacts/release/cmapss_fd001_release_bundle.json
+            artifacts/release/cmapss_fd001_release_bundle.md
+            artifacts/release/cmapss_fd001_provenance.json
+            artifacts/release/cmapss_fd001_provenance.md
+            artifacts/ci_release_evidence/dashboard/fleet_payload.json
+            artifacts/ci_release_evidence/dashboard/fleet_dashboard.html
+            artifacts/ci_release_evidence/models/fd001_promotion.json
+            artifacts/ci_release_evidence/models/fd001_promotion.md
+            artifacts/ci_release_evidence/models/fd001_validation.json
+            artifacts/ci_release_evidence/models/fd001_benchmark.json
+            artifacts/ci_release_evidence/models/fd001_model_card.md
+            artifacts/ci_release_evidence/sbom/cyclonedx.json
+            artifacts/container/serving_image_manifest.json
+
       - name: Smoke serving image
         run: |
           container_id=$(docker run --detach --publish 8000:8000 aerospace-prognostics:ci)

@@ -83,7 +83,7 @@ CI also runs `scripts/ci_release_evidence_smoke.py`. The script uses tiny fixtur
 
 After the Docker image build, CI runs two serving smoke checks. The first starts the image without a model and confirms liveness plus not-ready behavior. The second mounts the tiny CI artifact into the container, enables API-key authentication, checks readiness and schema discovery, posts a prediction request, and confirms metrics are exposed through the authenticated path.
 
-CI writes a serving-image manifest before container smoke checks. The manifest records image ID, repo tags, selected OCI labels, Docker healthcheck settings, whether `torch` was present in the runtime image, and validation booleans for required labels, healthcheck presence, revision matching, and dependency-surface expectations. CI then builds `artifacts/release/cmapss_fd001_release_bundle.json`, which links the model promotion evidence, dashboard payload, static dashboard HTML, and exact serving-image manifest, and `artifacts/release/cmapss_fd001_provenance.json`, which records source and workflow provenance for that release bundle.
+CI writes a serving-image manifest before container smoke checks. The manifest records image ID, repo tags, selected OCI labels, Docker healthcheck settings, whether `torch` was present in the runtime image, and validation booleans for required labels, healthcheck presence, revision matching, and dependency-surface expectations. CI then builds `artifacts/release/cmapss_fd001_release_bundle.json`, which links the model promotion evidence, dashboard payload, static dashboard HTML, and exact serving-image manifest, and `artifacts/release/cmapss_fd001_provenance.json`, which records source and workflow provenance for that release bundle. The workflow uploads a `ci-fd001-release-evidence` artifact containing reviewable JSON, Markdown, dashboard HTML, SBOM, and container manifest evidence, while leaving raw telemetry and the generated joblib model binary out of the upload.
 
 ## Container Publishing
 
@@ -158,6 +158,7 @@ Current scope:
 - CI serving image manifest generation from Docker inspect metadata.
 - CI release-candidate bundle tying model artifact evidence, SBOM, promotion gates, file digests, and serving image metadata into one reviewable record.
 - CI release provenance statement using in-toto statement shape and SLSA provenance predicate metadata.
+- CI upload of reviewable release evidence without raw telemetry or model binaries.
 - CI container startup smoke test against `GET /health`.
 - CI mounted-model container smoke test for authenticated schema, prediction, readiness, and metrics.
 - Private GHCR serving-image publishing for intentional release tags.
