@@ -77,6 +77,12 @@ After the Docker image build, CI runs two serving smoke checks. The first starts
 
 CI writes a serving-image manifest before container smoke checks. The manifest records image ID, repo tags, selected OCI labels, Docker healthcheck settings, whether `torch` was present in the runtime image, and validation booleans for required labels, healthcheck presence, revision matching, and dependency-surface expectations.
 
+## Container Publishing
+
+The `Publish Container` workflow builds and pushes the serving image to GitHub Container Registry only for deliberate release events: `v*` Git tags or a manually dispatched workflow, optionally with an explicit image tag. Normal pushes to `main` validate the image in CI but do not publish it. Published image references use the private package path `ghcr.io/<owner>/<repo>/serving`, which inherits repository/package access controls while the repository remains private.
+
+Each publish run tags the image with an immutable `sha-<12-char-git-sha>` reference and, when present, a human release tag such as `v0.1.0-rc1`. The workflow recomputes the serving-image manifest against the exact image reference that will be pushed, checks that training-only `torch` is absent, and logs in to GHCR with the scoped GitHub Actions token.
+
 ## Promotion And Rollback
 
 Every packaged artifact includes a `promotion` metadata block with:
@@ -144,3 +150,4 @@ Current scope:
 - CI serving image manifest generation from Docker inspect metadata.
 - CI container startup smoke test against `GET /health`.
 - CI mounted-model container smoke test for authenticated schema, prediction, readiness, and metrics.
+- Private GHCR serving-image publishing for intentional release tags.
