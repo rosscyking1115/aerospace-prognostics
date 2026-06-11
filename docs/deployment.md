@@ -83,7 +83,7 @@ CI also runs `scripts/ci_release_evidence_smoke.py`. The script uses tiny fixtur
 
 After the Docker image build, CI runs two serving smoke checks. The first starts the image without a model and confirms liveness plus not-ready behavior. The second mounts the tiny CI artifact into the container, enables API-key authentication, checks readiness and schema discovery, posts a prediction request, and confirms metrics are exposed through the authenticated path.
 
-CI writes a serving-image manifest before container smoke checks. The manifest records image ID, repo tags, selected OCI labels, Docker healthcheck settings, whether `torch` was present in the runtime image, and validation booleans for required labels, healthcheck presence, revision matching, and dependency-surface expectations. CI then builds `artifacts/release/cmapss_fd001_release_bundle.json`, which links the model promotion evidence to that exact serving-image manifest, and `artifacts/release/cmapss_fd001_provenance.json`, which records source and workflow provenance for that release bundle.
+CI writes a serving-image manifest before container smoke checks. The manifest records image ID, repo tags, selected OCI labels, Docker healthcheck settings, whether `torch` was present in the runtime image, and validation booleans for required labels, healthcheck presence, revision matching, and dependency-surface expectations. CI then builds `artifacts/release/cmapss_fd001_release_bundle.json`, which links the model promotion evidence, dashboard payload, static dashboard HTML, and exact serving-image manifest, and `artifacts/release/cmapss_fd001_provenance.json`, which records source and workflow provenance for that release bundle.
 
 ## Container Publishing
 

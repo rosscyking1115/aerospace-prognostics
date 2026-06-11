@@ -79,6 +79,8 @@ jobs:
             --model-card-markdown artifacts/ci_release_evidence/models/fd001_model_card.md \
             --promotion-json artifacts/ci_release_evidence/models/fd001_promotion.json \
             --sbom-json artifacts/ci_release_evidence/sbom/cyclonedx.json \
+            --dashboard-payload-json artifacts/ci_release_evidence/dashboard/fleet_payload.json \
+            --dashboard-html artifacts/ci_release_evidence/dashboard/fleet_dashboard.html \
             --container-manifest-json artifacts/container/serving_image_manifest.json \
             --container-image-ref aerospace-prognostics:ci \
             --output-json artifacts/release/cmapss_fd001_release_bundle.json \
