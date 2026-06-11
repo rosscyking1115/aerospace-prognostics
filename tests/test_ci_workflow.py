@@ -24,7 +24,7 @@ def test_ci_uploads_reviewable_release_evidence_without_model_binary() -> None:
         1
     ].split("- name: Smoke serving image", maxsplit=1)[0]
 
-    assert "actions/upload-artifact@v4" in upload_step
+    assert "actions/upload-artifact@v7" in upload_step
     assert "if-no-files-found: error" in upload_step
     assert "ci-fd001-release-evidence" in upload_step
     assert "artifacts/release/cmapss_fd001_release_bundle.json" in upload_step
