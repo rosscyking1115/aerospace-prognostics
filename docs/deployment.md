@@ -26,7 +26,7 @@ Run `generate-release-provenance` after the release bundle. It emits an in-toto 
 
 The packaging command can also write a markdown model card. The card summarizes intended use, official-test metrics, feature policy, inference contract, serving monitoring, limitations, promotion gate, and rollback strategy so candidate-review evidence is readable without opening the binary artifact.
 
-Run `dashboard-fleet-payload` after batch prediction and promotion/release evidence generation when preparing demo assets. It writes a stable `aerospace-prognostics/fleet-dashboard/v1` JSON contract with fleet assets, RUL risk levels, summary counts, prediction provenance, and optional promotion/release evidence. This keeps the future dashboard UI decoupled from model internals and lets public demos run against fixture or sample outputs before the Phase 3 models are final.
+Run `dashboard-fleet-payload` after batch prediction and promotion/release evidence generation when preparing fleet triage or demo assets. It writes a stable `aerospace-prognostics/fleet-dashboard/v1` JSON contract with fleet assets, interval-aware RUL risk levels, priority ranks, attention reasons, summary counts, prediction provenance, and optional promotion/release evidence. This keeps future dashboard and automation clients decoupled from model internals while letting fixture, sample, or real batch outputs drive the same operator-facing contract.
 
 Run `dashboard-render-html` against that payload to create a standalone static dashboard artifact. The HTML is self-contained and dependency-free, so it can be opened locally, attached to release evidence, or used as the first public demo surface before the project graduates to Streamlit or a Next.js/FastAPI product interface.
 

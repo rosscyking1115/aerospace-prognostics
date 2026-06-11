@@ -49,7 +49,9 @@ def build_fleet_dashboard_payload(
     prediction_path = Path(prediction_json)
     predictions = _read_json_object(prediction_path, "prediction JSON")
     prediction_rows = _list_of_objects(predictions.get("predictions"), "predictions")
-    assets = [_asset_from_prediction(predictions, row) for row in prediction_rows]
+    assets = _rank_assets(
+        [_asset_from_prediction(predictions, row) for row in prediction_rows]
+    )
     summary = _fleet_summary(assets)
 
     evidence: dict[str, Any] = {
@@ -308,12 +310,15 @@ def render_fleet_dashboard_html(payload: FleetDashboardPayload | dict[str, Any])
         <table>
           <thead>
             <tr>
+              <th>Priority</th>
               <th>Asset</th>
               <th>Subset</th>
               <th>Model</th>
               <th>RUL</th>
+              <th>Interval</th>
               <th>Risk</th>
               <th>Status</th>
+              <th>Attention</th>
             </tr>
           </thead>
           <tbody>
@@ -352,7 +357,14 @@ def _asset_from_prediction(
     unit_number = _required_int(prediction, "unit_number")
     predicted_rul = _required_float(prediction, "predicted_rul")
     rul_cap = _optional_float(prediction_document.get("rul_cap"))
-    risk_level = _rul_risk_level(predicted_rul, rul_cap)
+    rul_interval = _prediction_interval(prediction)
+    risk_level = _rul_risk_level(predicted_rul, rul_cap, rul_interval=rul_interval)
+    attention_reasons = _attention_reasons(
+        predicted_rul=predicted_rul,
+        risk_level=risk_level,
+        rul_cap=rul_cap,
+        rul_interval=rul_interval,
+    )
     return {
         "asset_id": f"{prediction_document.get('subset', 'unknown')}-unit-{unit_number}",
         "asset_type": "turbofan_engine",
@@ -362,8 +374,11 @@ def _asset_from_prediction(
         "model_name": prediction_document.get("model_name"),
         "predicted_rul": predicted_rul,
         "rul_cap": rul_cap,
+        "rul_interval": rul_interval,
         "risk_level": risk_level,
+        "risk_score": _risk_score(risk_level, predicted_rul, rul_interval),
         "status": _status_for_risk(risk_level),
+        "attention_reasons": attention_reasons,
     }
 
 
@@ -377,11 +392,28 @@ def _fleet_summary(assets: list[dict[str, Any]]) -> dict[str, Any]:
         for asset in assets
         if isinstance(asset.get("predicted_rul"), int | float)
     ]
+    attention_required = [
+        asset
+        for asset in assets
+        if str(asset.get("risk_level")) in {"critical", "watch"}
+        or bool(asset.get("attention_reasons"))
+    ]
     return {
         "asset_count": len(assets),
         "risk_counts": risk_counts,
         "min_predicted_rul": min(predicted_ruls) if predicted_ruls else None,
         "max_predicted_rul": max(predicted_ruls) if predicted_ruls else None,
+        "attention_required_count": len(attention_required),
+        "top_attention_assets": [
+            {
+                "asset_id": asset.get("asset_id"),
+                "priority_rank": asset.get("priority_rank"),
+                "risk_level": asset.get("risk_level"),
+                "predicted_rul": asset.get("predicted_rul"),
+                "attention_reasons": asset.get("attention_reasons", []),
+            }
+            for asset in attention_required[:5]
+        ],
     }
 
 
@@ -409,14 +441,74 @@ def _release_bundle_evidence(path: Path, release_bundle: dict[str, Any]) -> dict
     }
 
 
-def _rul_risk_level(predicted_rul: float, rul_cap: float | None) -> str:
-    if predicted_rul <= 20:
+def _rank_assets(assets: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    ranked = sorted(
+        assets,
+        key=lambda asset: (
+            -float(asset.get("risk_score") or 0.0),
+            float(asset.get("predicted_rul") or 0.0),
+            str(asset.get("asset_id") or ""),
+        ),
+    )
+    for index, asset in enumerate(ranked, start=1):
+        asset["priority_rank"] = index
+    return ranked
+
+
+def _rul_risk_level(
+    predicted_rul: float,
+    rul_cap: float | None,
+    *,
+    rul_interval: dict[str, float] | None = None,
+) -> str:
+    lower_bound = rul_interval.get("lower") if rul_interval else None
+    risk_floor = min(predicted_rul, lower_bound) if lower_bound is not None else predicted_rul
+    if risk_floor <= 20:
         return "critical"
-    if predicted_rul <= 50:
+    if risk_floor <= 50:
         return "watch"
     if rul_cap is not None and predicted_rul >= rul_cap * 0.95:
         return "nominal"
     return "nominal"
+
+
+def _risk_score(
+    risk_level: str,
+    predicted_rul: float,
+    rul_interval: dict[str, float] | None,
+) -> float:
+    base = {"critical": 300.0, "watch": 200.0, "nominal": 100.0}.get(risk_level, 0.0)
+    lower_bound = rul_interval.get("lower") if rul_interval else predicted_rul
+    interval_width = (
+        (rul_interval["upper"] - rul_interval["lower"])
+        if rul_interval is not None
+        else 0.0
+    )
+    return base + max(0.0, 125.0 - lower_bound) + min(50.0, max(0.0, interval_width))
+
+
+def _attention_reasons(
+    *,
+    predicted_rul: float,
+    risk_level: str,
+    rul_cap: float | None,
+    rul_interval: dict[str, float] | None,
+) -> list[str]:
+    reasons: list[str] = []
+    if risk_level == "critical":
+        reasons.append("RUL at or below critical threshold")
+    elif risk_level == "watch":
+        reasons.append("RUL inside watch threshold")
+    if rul_interval is not None:
+        lower = rul_interval["lower"]
+        upper = rul_interval["upper"]
+        if lower <= 20 < predicted_rul:
+            reasons.append("Interval lower bound crosses critical threshold")
+        if upper - lower >= 30:
+            reasons.append("Wide RUL interval")
+    if rul_cap is not None and predicted_rul >= rul_cap * 0.95:
+        reasons.append("Prediction near configured RUL cap")
+    return reasons
 
 
 def _status_for_risk(risk_level: str) -> str:
@@ -441,8 +533,10 @@ def _asset_row(asset: dict[str, Any]) -> str:
     predicted_rul = _optional_float(asset.get("predicted_rul"))
     rul_cap = _optional_float(asset.get("rul_cap"))
     width = _rul_width(predicted_rul, rul_cap)
+    reasons = asset.get("attention_reasons")
     return (
         "<tr>"
+        f"<td>{_html(asset.get('priority_rank'))}</td>"
         f"<td>{_html(asset.get('asset_id'))}</td>"
         f"<td>{_html(asset.get('subset'))}</td>"
         f"<td>{_html(asset.get('model_name'))}</td>"
@@ -454,9 +548,11 @@ def _asset_row(asset: dict[str, Any]) -> str:
         "</div>"
         "</div>"
         "</td>"
+        f"<td>{_html(_format_interval(asset.get('rul_interval')))}</td>"
         f'<td><span class="risk risk-{_html(_risk_class(risk_level))}">'
         f"{_html(risk_level)}</span></td>"
         f"<td>{_html(asset.get('status'))}</td>"
+        f"<td>{_html(_reason_summary(reasons))}</td>"
         "</tr>"
     )
 
@@ -501,6 +597,49 @@ def _rul_width(predicted_rul: float | None, rul_cap: float | None) -> float:
     if rul_cap is None or rul_cap <= 0:
         return 100.0
     return max(0.0, min(100.0, (predicted_rul / rul_cap) * 100.0))
+
+
+def _prediction_interval(prediction: dict[str, Any]) -> dict[str, float] | None:
+    interval = prediction.get("rul_interval")
+    if isinstance(interval, dict):
+        lower = _optional_float(interval.get("lower"))
+        upper = _optional_float(interval.get("upper"))
+    else:
+        lower = _first_optional_float(
+            prediction,
+            ("predicted_rul_lower", "rul_lower", "rul_lower_bound"),
+        )
+        upper = _first_optional_float(
+            prediction,
+            ("predicted_rul_upper", "rul_upper", "rul_upper_bound"),
+        )
+    if lower is None or upper is None:
+        return None
+    return {"lower": min(lower, upper), "upper": max(lower, upper)}
+
+
+def _first_optional_float(payload: dict[str, Any], field_names: tuple[str, ...]) -> float | None:
+    for field_name in field_names:
+        value = _optional_float(payload.get(field_name))
+        if value is not None:
+            return value
+    return None
+
+
+def _format_interval(interval: Any) -> str:
+    if not isinstance(interval, dict):
+        return "n/a"
+    lower = _optional_float(interval.get("lower"))
+    upper = _optional_float(interval.get("upper"))
+    if lower is None or upper is None:
+        return "n/a"
+    return f"{_format_number(lower)}-{_format_number(upper)}"
+
+
+def _reason_summary(reasons: Any) -> str:
+    if not isinstance(reasons, list) or not reasons:
+        return "none"
+    return "; ".join(str(reason) for reason in reasons[:2])
 
 
 def _risk_class(risk_level: str) -> str:

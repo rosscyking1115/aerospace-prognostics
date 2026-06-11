@@ -67,10 +67,52 @@ def test_build_fleet_dashboard_payload_summarizes_predictions_and_evidence(tmp_p
         "nominal": 1,
         "unknown": 0,
     }
+    assert payload["summary"]["attention_required_count"] == 2
     assert payload["assets"][0]["asset_id"] == "FD001-unit-1"
+    assert payload["assets"][0]["priority_rank"] == 1
     assert payload["assets"][0]["status"] == "maintenance_review"
+    assert payload["assets"][0]["attention_reasons"] == [
+        "RUL at or below critical threshold"
+    ]
     assert payload["evidence"]["promotion"]["gates_passed"] == 2
     assert payload["evidence"]["release_bundle"]["evidence_count"] == 2
+
+
+def test_build_fleet_dashboard_payload_prioritizes_interval_risk(tmp_path) -> None:
+    prediction_json = tmp_path / "predictions.json"
+    prediction_json.write_text(
+        json.dumps(
+            {
+                "dataset": "C-MAPSS",
+                "subset": "FD001",
+                "model_name": "hist_gradient_boosting",
+                "rul_cap": 125,
+                "predictions": [
+                    {
+                        "unit_number": 1,
+                        "predicted_rul": 65.0,
+                        "rul_interval": {"lower": 15.0, "upper": 95.0},
+                    },
+                    {"unit_number": 2, "predicted_rul": 18.0},
+                    {"unit_number": 3, "predicted_rul": 80.0},
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    payload = build_fleet_dashboard_payload(prediction_json).to_dict()
+
+    assert [asset["unit_number"] for asset in payload["assets"]] == [1, 2, 3]
+    assert payload["assets"][0]["risk_level"] == "critical"
+    assert payload["assets"][0]["priority_rank"] == 1
+    assert payload["assets"][0]["rul_interval"] == {"lower": 15.0, "upper": 95.0}
+    assert payload["assets"][0]["attention_reasons"] == [
+        "RUL at or below critical threshold",
+        "Interval lower bound crosses critical threshold",
+        "Wide RUL interval",
+    ]
+    assert payload["summary"]["top_attention_assets"][0]["asset_id"] == "FD001-unit-1"
 
 
 def test_build_fleet_dashboard_payload_rejects_missing_prediction_rows(tmp_path) -> None:
@@ -115,5 +157,8 @@ def test_render_fleet_dashboard_html_outputs_standalone_dashboard(tmp_path) -> N
     assert "FD001-unit-1" in html
     assert "maintenance_review" in html
     assert "model &lt;candidate&gt;" in html
+    assert "<th>Priority</th>" in html
+    assert "<th>Interval</th>" in html
+    assert "<th>Attention</th>" in html
     assert "risk-critical" in html
     assert "risk-nominal" in html

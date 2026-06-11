@@ -2526,6 +2526,7 @@ def main(argv: list[str] | None = None) -> int:
         risk_counts = summary["risk_counts"]
         print(f"schema_version={payload.schema_version}")
         print(f"assets={summary['asset_count']}")
+        print(f"attention_required={summary['attention_required_count']}")
         print(
             "risk_counts="
             f"critical:{risk_counts['critical']},"

@@ -1971,8 +1971,10 @@ def test_dashboard_fleet_payload_command_writes_contract(tmp_path, capsys) -> No
     assert exit_code == 0
     assert "schema_version=aerospace-prognostics/fleet-dashboard/v1" in output
     assert "assets=2" in output
+    assert "attention_required=1" in output
     assert "risk_counts=critical:1,watch:0,nominal:1,unknown:0" in output
     assert payload["summary"]["asset_count"] == 2
+    assert payload["summary"]["attention_required_count"] == 1
     assert payload["evidence"]["promotion"]["gates_passed"] == 2
 
 
