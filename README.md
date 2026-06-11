@@ -72,6 +72,7 @@ The working plan is tracked in [Aerospace_Prognostics_Project_Plan.md](Aerospace
 ## Deployment Artifacts
 
 - Production ML deployment notes: [docs/deployment.md](docs/deployment.md)
+- Repository public-launch strategy: [docs/repo_launch_strategy.md](docs/repo_launch_strategy.md)
 
 ## Developer Quickstart
 
