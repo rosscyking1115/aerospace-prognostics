@@ -243,6 +243,8 @@ def test_build_cmapss_release_bundle_ties_model_supply_chain_and_container_evide
     model_card_markdown = tmp_path / "models" / "fd001_model_card.md"
     promotion_json = tmp_path / "models" / "fd001_promotion.json"
     sbom_json = tmp_path / "sbom" / "cyclonedx.json"
+    dashboard_payload_json = tmp_path / "dashboard" / "fleet_payload.json"
+    dashboard_html = tmp_path / "dashboard" / "fleet_dashboard.html"
     container_manifest_json = tmp_path / "container" / "serving_image_manifest.json"
     input_csv = tmp_path / "fd001_input.csv"
     metadata_json.write_text(
@@ -290,6 +292,20 @@ def test_build_cmapss_release_bundle_ties_model_supply_chain_and_container_evide
         sbom_json=sbom_json,
     )
     promotion_json.write_text(json.dumps(report.to_dict()), encoding="utf-8")
+    dashboard_payload_json.parent.mkdir(parents=True)
+    dashboard_payload_json.write_text(
+        json.dumps(
+            {
+                "schema_version": "aerospace-prognostics/fleet-dashboard/v1",
+                "title": "FD001 fleet",
+                "generated_at_utc": "2026-06-11T16:00:00+00:00",
+                "summary": {"asset_count": 1},
+                "assets": [{"asset_id": "FD001-unit-1", "risk_level": "nominal"}],
+            },
+        ),
+        encoding="utf-8",
+    )
+    dashboard_html.write_text("<!doctype html><title>FD001 fleet</title>", encoding="utf-8")
     container_manifest_json.parent.mkdir(parents=True)
     container_manifest_json.write_text(
         json.dumps(
@@ -316,6 +332,8 @@ def test_build_cmapss_release_bundle_ties_model_supply_chain_and_container_evide
         model_card_markdown=model_card_markdown,
         promotion_json=promotion_json,
         sbom_json=sbom_json,
+        dashboard_payload_json=dashboard_payload_json,
+        dashboard_html=dashboard_html,
         container_manifest_json=container_manifest_json,
         container_image_ref="aerospace-prognostics:ci",
     )
@@ -327,10 +345,16 @@ def test_build_cmapss_release_bundle_ties_model_supply_chain_and_container_evide
         "artifact_id"
     ]
     assert bundle.evidence["model_artifact"]["sha256"]
+    assert bundle.evidence["dashboard_payload"]["sha256"]
+    assert bundle.evidence["dashboard_html"]["sha256"]
+    assert bundle.gates["dashboard_payload_schema"] is True
+    assert bundle.gates["dashboard_html_present"] is True
     assert bundle.evidence["container"]["image_id"] == "sha256:image"
     assert bundle.to_dict()["schema_version"] == "aerospace-prognostics/cmapss-release-bundle/v1"
     assert "# C-MAPSS Release Bundle" in markdown
     assert "Model artifact SHA-256" in markdown
+    assert "Dashboard payload" in markdown
+    assert "Dashboard HTML" in markdown
 
 
 def test_build_cmapss_release_bundle_fails_on_identity_mismatch(tmp_path) -> None:

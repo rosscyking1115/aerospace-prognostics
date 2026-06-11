@@ -20,7 +20,7 @@ Run `cmapss-benchmark-artifact` with a representative telemetry CSV before promo
 
 Run `cmapss-promotion-report` after validation, benchmarking, model-card generation, and SBOM generation. It composes a JSON and optional markdown release-gate report, checks that validation and benchmark evidence refer to the same artifact ID, and exits non-zero when any supplied gate fails.
 
-Run `cmapss-release-bundle` after promotion evidence and, for containerized candidates, after the serving-image manifest is generated. It composes a production-grade release candidate record with SHA-256 digests for the exact model and evidence files, artifact identity checks between metadata and promotion evidence, SBOM/model-card gates, promotion-gate status, and optional serving-container manifest validation. This is the final bundle a reviewer can inspect before publishing a private GHCR image or promoting a mounted model pointer.
+Run `cmapss-release-bundle` after promotion evidence and, for containerized candidates, after the serving-image manifest is generated. It composes a production-grade release candidate record with SHA-256 digests for the exact model and evidence files, artifact identity checks between metadata and promotion evidence, SBOM/model-card gates, promotion-gate status, optional dashboard payload/HTML evidence, and optional serving-container manifest validation. This is the final bundle a reviewer can inspect before publishing a private GHCR image or promoting a mounted model pointer.
 
 Run `generate-release-provenance` after the release bundle. It emits an in-toto statement with a SLSA provenance predicate, binding the release bundle subjects to the source repository, Git SHA, Git ref, workflow name, run ID, and builder identity. CI writes `artifacts/release/cmapss_fd001_provenance.json` on every push. GitHub-native artifact attestations are the preferred hosted attestation layer when available, but GitHub currently limits private-repository artifact attestations on Free/Pro/Team plans; keep this internal provenance path active while the project remains private.
 
@@ -79,7 +79,7 @@ For public deployment, run the API behind a managed gateway, load balancer, or i
 
 The dependency audit intentionally ignores only `CVE-2025-3000` for `torch` while `pip-audit` reports no fixed release. Fixable findings should be resolved in `uv.lock`; for example, the current lockfile pins `pip` to `26.1.2` after the audit reported a fixed version. The serving image now uses the lighter default runtime dependency set and does not install `torch`; keep the explicit audit ignore only for the development and Phase 2 deep-learning environment until PyTorch publishes a patched package that is compatible with the project.
 
-CI also runs `scripts/ci_release_evidence_smoke.py`. The script uses tiny fixture telemetry to build a candidate package and then exercises the validation, benchmark, SBOM, and promotion-report CLIs end to end. This is a plumbing smoke test rather than production model evidence, but it protects the release-gate workflow from silently breaking.
+CI also runs `scripts/ci_release_evidence_smoke.py`. The script uses tiny fixture telemetry to build a candidate package and then exercises prediction, validation, benchmark, SBOM, promotion-report, dashboard payload, dashboard HTML, release-bundle, and provenance CLIs end to end. This is a plumbing smoke test rather than production model evidence, but it protects the release-gate workflow from silently breaking.
 
 After the Docker image build, CI runs two serving smoke checks. The first starts the image without a model and confirms liveness plus not-ready behavior. The second mounts the tiny CI artifact into the container, enables API-key authentication, checks readiness and schema discovery, posts a prediction request, and confirms metrics are exposed through the authenticated path.
 
@@ -147,7 +147,7 @@ Current scope:
 - Optional serving startup SHA-256 verification for mounted model artifacts.
 - Optional API-key authentication and per-client serving rate limits.
 - Lockfile-derived CycloneDX-style SBOM generation in CI.
-- CI release-evidence smoke test for the validation, benchmark, SBOM, and promotion-report path.
+- CI release-evidence smoke test for the prediction, validation, benchmark, SBOM, promotion-report, dashboard, release-bundle, and provenance path.
 - Tests for artifact round-trip and API prediction behavior.
 - Dockerfile scaffold for containerized serving.
 - Docker liveness healthcheck backed by the serving `/health` endpoint.

@@ -1097,6 +1097,8 @@ def _build_parser() -> argparse.ArgumentParser:
     release_bundle.add_argument("--model-card-markdown", type=Path, required=True)
     release_bundle.add_argument("--promotion-json", type=Path, required=True)
     release_bundle.add_argument("--sbom-json", type=Path, required=True)
+    release_bundle.add_argument("--dashboard-payload-json", type=Path)
+    release_bundle.add_argument("--dashboard-html", type=Path)
     release_bundle.add_argument("--container-manifest-json", type=Path)
     release_bundle.add_argument("--container-image-ref")
     release_bundle.add_argument("--output-json", type=Path, required=True)
@@ -2613,6 +2615,8 @@ def main(argv: list[str] | None = None) -> int:
             model_card_markdown=args.model_card_markdown,
             promotion_json=args.promotion_json,
             sbom_json=args.sbom_json,
+            dashboard_payload_json=args.dashboard_payload_json,
+            dashboard_html=args.dashboard_html,
             container_manifest_json=args.container_manifest_json,
             container_image_ref=args.container_image_ref,
         )

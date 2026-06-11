@@ -773,6 +773,8 @@ def build_cmapss_release_bundle(
     model_card_markdown: str | Path,
     promotion_json: str | Path,
     sbom_json: str | Path,
+    dashboard_payload_json: str | Path | None = None,
+    dashboard_html: str | Path | None = None,
     container_manifest_json: str | Path | None = None,
     container_image_ref: str | None = None,
 ) -> CmapssReleaseBundle:
@@ -783,6 +785,10 @@ def build_cmapss_release_bundle(
     model_card_file = Path(model_card_markdown)
     promotion_file = Path(promotion_json)
     sbom_file = Path(sbom_json)
+    dashboard_payload_file = (
+        Path(dashboard_payload_json) if dashboard_payload_json is not None else None
+    )
+    dashboard_html_file = Path(dashboard_html) if dashboard_html is not None else None
     container_manifest_file = (
         Path(container_manifest_json) if container_manifest_json is not None else None
     )
@@ -838,6 +844,34 @@ def build_cmapss_release_bundle(
         "sbom": _json_file_evidence(sbom_file, sbom),
         "promotion_gates": promotion_gates,
     }
+
+    if dashboard_payload_file is not None:
+        gates["dashboard_payload_present"] = dashboard_payload_file.exists()
+        if gates["dashboard_payload_present"]:
+            dashboard_payload = _read_json_object(
+                dashboard_payload_file,
+                "dashboard payload",
+            )
+            gates["dashboard_payload_schema"] = (
+                dashboard_payload.get("schema_version")
+                == "aerospace-prognostics/fleet-dashboard/v1"
+            )
+            evidence["dashboard_payload"] = _json_file_evidence(
+                dashboard_payload_file,
+                dashboard_payload,
+            )
+            if not gates["dashboard_payload_schema"]:
+                problems.append("dashboard payload schema version is not supported")
+        else:
+            gates["dashboard_payload_schema"] = False
+            problems.append(f"dashboard payload JSON does not exist: {dashboard_payload_file}")
+
+    if dashboard_html_file is not None:
+        gates["dashboard_html_present"] = dashboard_html_file.exists()
+        if gates["dashboard_html_present"]:
+            evidence["dashboard_html"] = _file_evidence(dashboard_html_file)
+        else:
+            problems.append(f"dashboard HTML does not exist: {dashboard_html_file}")
 
     if container_manifest_file is not None:
         gates["container_manifest_present"] = container_manifest_file.exists()
@@ -932,6 +966,14 @@ def render_cmapss_release_bundle_markdown(bundle: CmapssReleaseBundle) -> str:
             (
                 "- Container manifest: "
                 f"`{_markdown_inline(_evidence_path(evidence, 'container_manifest'))}`"
+            ),
+            (
+                "- Dashboard payload: "
+                f"`{_markdown_inline(_evidence_path(evidence, 'dashboard_payload'))}`"
+            ),
+            (
+                "- Dashboard HTML: "
+                f"`{_markdown_inline(_evidence_path(evidence, 'dashboard_html'))}`"
             ),
             "",
             "## Problems",

@@ -22,6 +22,7 @@ def run() -> int:
     data_dir = root / "data"
     model_dir = root / "models"
     prediction_dir = root / "predictions"
+    dashboard_dir = root / "dashboard"
     sbom_dir = root / "sbom"
     artifact_path = model_dir / "fd001.joblib"
     metadata_json = model_dir / "fd001_metadata.json"
@@ -36,6 +37,9 @@ def run() -> int:
     provenance_markdown = root / "release" / "fd001_provenance.md"
     sbom_json = sbom_dir / "cyclonedx.json"
     input_csv = prediction_dir / "fd001_input.csv"
+    prediction_json = prediction_dir / "fd001_predictions.json"
+    dashboard_payload_json = dashboard_dir / "fleet_payload.json"
+    dashboard_html = dashboard_dir / "fleet_dashboard.html"
 
     data_dir.mkdir(parents=True, exist_ok=True)
     write_tiny_cmapss_subset(data_dir)
@@ -57,6 +61,18 @@ def run() -> int:
             str(model_card_markdown),
             "--n-regimes",
             "1",
+        ],
+        main,
+    )
+    _run_cli(
+        [
+            "cmapss-predict-artifact",
+            "--model-artifact",
+            str(artifact_path),
+            "--input-csv",
+            str(input_csv),
+            "--output-json",
+            str(prediction_json),
         ],
         main,
     )
@@ -116,6 +132,28 @@ def run() -> int:
     )
     _run_cli(
         [
+            "dashboard-fleet-payload",
+            "--prediction-json",
+            str(prediction_json),
+            "--promotion-json",
+            str(promotion_json),
+            "--output-json",
+            str(dashboard_payload_json),
+        ],
+        main,
+    )
+    _run_cli(
+        [
+            "dashboard-render-html",
+            "--payload-json",
+            str(dashboard_payload_json),
+            "--output-html",
+            str(dashboard_html),
+        ],
+        main,
+    )
+    _run_cli(
+        [
             "cmapss-release-bundle",
             "--release-name",
             "ci-fd001-candidate",
@@ -129,6 +167,10 @@ def run() -> int:
             str(promotion_json),
             "--sbom-json",
             str(sbom_json),
+            "--dashboard-payload-json",
+            str(dashboard_payload_json),
+            "--dashboard-html",
+            str(dashboard_html),
             "--output-json",
             str(release_bundle_json),
             "--output-markdown",
@@ -162,13 +204,31 @@ def run() -> int:
     promotion = json.loads(promotion_json.read_text(encoding="utf-8"))
     if promotion["status"] != "ok" or not all(promotion["gates"].values()):
         raise RuntimeError(f"promotion evidence smoke failed: {promotion!r}")
+    dashboard_payload = json.loads(dashboard_payload_json.read_text(encoding="utf-8"))
+    if (
+        dashboard_payload["schema_version"] != "aerospace-prognostics/fleet-dashboard/v1"
+        or dashboard_payload["summary"]["asset_count"] == 0
+    ):
+        raise RuntimeError(f"dashboard payload smoke failed: {dashboard_payload!r}")
+    dashboard_markup = dashboard_html.read_text(encoding="utf-8")
+    if (
+        not dashboard_markup.startswith("<!doctype html>")
+        or "Aerospace PHM Fleet View" not in dashboard_markup
+    ):
+        raise RuntimeError(f"dashboard HTML smoke failed: {dashboard_html}")
     release_bundle = json.loads(release_bundle_json.read_text(encoding="utf-8"))
     if release_bundle["status"] != "ok" or not all(release_bundle["gates"].values()):
         raise RuntimeError(f"release bundle smoke failed: {release_bundle!r}")
+    if "dashboard_payload" not in release_bundle["evidence"]:
+        raise RuntimeError("release bundle is missing dashboard payload evidence")
+    if "dashboard_html" not in release_bundle["evidence"]:
+        raise RuntimeError("release bundle is missing dashboard HTML evidence")
     provenance = json.loads(provenance_json.read_text(encoding="utf-8"))
     if provenance["status"] != "ok":
         raise RuntimeError(f"release provenance smoke failed: {provenance!r}")
     print(f"promotion_report={promotion_json}")
+    print(f"dashboard_payload={dashboard_payload_json}")
+    print(f"dashboard_html={dashboard_html}")
     print(f"release_bundle={release_bundle_json}")
     print(f"release_provenance={provenance_json}")
     print(f"artifact_id={promotion['artifact_identity']['artifact_id']}")

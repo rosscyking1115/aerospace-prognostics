@@ -1705,6 +1705,8 @@ def test_cmapss_package_and_predict_artifact_commands(tmp_path, capsys) -> None:
     promotion_markdown = tmp_path / "models" / "fd001_promotion.md"
     release_bundle_json = tmp_path / "release" / "fd001_bundle.json"
     release_bundle_markdown = tmp_path / "release" / "fd001_bundle.md"
+    dashboard_payload_json = tmp_path / "dashboard" / "fleet_payload.json"
+    dashboard_html = tmp_path / "dashboard" / "fleet_dashboard.html"
     sbom_json = tmp_path / "sbom" / "cyclonedx.json"
     input_csv = tmp_path / "test_input.csv"
     read_cmapss_frame(tmp_path / "test_FD001.txt").to_csv(input_csv, index=False)
@@ -1850,6 +1852,20 @@ def test_cmapss_package_and_predict_artifact_commands(tmp_path, capsys) -> None:
     assert promotion["status"] == "ok"
     assert promotion["gates"]["sbom_cyclonedx"] is True
     assert "# C-MAPSS Promotion Report" in promotion_markdown.read_text(encoding="utf-8")
+    dashboard_payload_json.parent.mkdir(parents=True)
+    dashboard_payload_json.write_text(
+        json.dumps(
+            {
+                "schema_version": "aerospace-prognostics/fleet-dashboard/v1",
+                "title": "FD001 fleet",
+                "generated_at_utc": "2026-06-11T16:00:00+00:00",
+                "summary": {"asset_count": 2},
+                "assets": [{"asset_id": "FD001-unit-1", "risk_level": "watch"}],
+            },
+        ),
+        encoding="utf-8",
+    )
+    dashboard_html.write_text("<!doctype html><title>FD001 fleet</title>", encoding="utf-8")
 
     release_exit_code = main(
         [
@@ -1866,6 +1882,10 @@ def test_cmapss_package_and_predict_artifact_commands(tmp_path, capsys) -> None:
             str(promotion_json),
             "--sbom-json",
             str(sbom_json),
+            "--dashboard-payload-json",
+            str(dashboard_payload_json),
+            "--dashboard-html",
+            str(dashboard_html),
             "--output-json",
             str(release_bundle_json),
             "--output-markdown",
@@ -1882,6 +1902,8 @@ def test_cmapss_package_and_predict_artifact_commands(tmp_path, capsys) -> None:
     assert release_bundle["schema_version"] == "aerospace-prognostics/cmapss-release-bundle/v1"
     assert release_bundle["status"] == "ok"
     assert release_bundle["evidence"]["model_artifact"]["sha256"]
+    assert release_bundle["evidence"]["dashboard_payload"]["sha256"]
+    assert release_bundle["evidence"]["dashboard_html"]["sha256"]
     assert "# C-MAPSS Release Bundle" in release_bundle_markdown.read_text(encoding="utf-8")
 
 

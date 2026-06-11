@@ -79,6 +79,8 @@ def build_release_provenance(
         ("model_card", "model_card"),
         ("promotion_report", "promotion_report"),
         ("sbom", "sbom"),
+        ("dashboard_payload", "dashboard_payload"),
+        ("dashboard_html", "dashboard_html"),
         ("container_manifest", "container_manifest"),
     ):
         subject = _subject_from_evidence(evidence, evidence_key, name=subject_name)

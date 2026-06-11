@@ -30,11 +30,17 @@ def test_build_release_provenance_uses_release_bundle_subjects(tmp_path) -> None
     assert provenance.problems == []
     assert provenance.statement["_type"] == "https://in-toto.io/Statement/v1"
     assert provenance.statement["predicateType"] == SLSA_PROVENANCE_V1
-    assert provenance.summary["subject_count"] == 3
+    assert provenance.summary["subject_count"] == 5
     assert provenance.statement["predicate"]["buildDefinition"]["externalParameters"][
         "git_sha"
     ] == "0123456789abcdef0123456789abcdef01234567"
     assert "model_artifact:artifacts/models/fd001.joblib" in {
+        subject["name"] for subject in provenance.statement["subject"]
+    }
+    assert "dashboard_payload:artifacts/dashboard/fleet_payload.json" in {
+        subject["name"] for subject in provenance.statement["subject"]
+    }
+    assert "dashboard_html:artifacts/dashboard/fleet_dashboard.html" in {
         subject["name"] for subject in provenance.statement["subject"]
     }
     assert "# Release Provenance" in markdown
@@ -86,7 +92,7 @@ def test_generate_release_provenance_cli_writes_json_and_markdown(tmp_path, caps
 
     assert exit_code == 0
     assert "status=ok" in output
-    assert "subject_count=3" in output
+    assert "subject_count=5" in output
     payload = json.loads(output_json.read_text(encoding="utf-8"))
     assert payload["schema_version"] == "aerospace-prognostics/release-provenance/v1"
     assert payload["statement"]["predicateType"] == SLSA_PROVENANCE_V1
@@ -119,6 +125,14 @@ def _write_release_bundle(tmp_path) -> object:
                     "sbom": {
                         "path": "artifacts/sbom/cyclonedx.json",
                         "sha256": "2" * 64,
+                    },
+                    "dashboard_payload": {
+                        "path": "artifacts/dashboard/fleet_payload.json",
+                        "sha256": "3" * 64,
+                    },
+                    "dashboard_html": {
+                        "path": "artifacts/dashboard/fleet_dashboard.html",
+                        "sha256": "4" * 64,
                     },
                 },
             },
