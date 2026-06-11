@@ -16,9 +16,14 @@ RUN useradd --create-home --shell /usr/sbin/nologin appuser \
     && chown -R appuser:appuser /app /models
 
 ENV PATH="/app/.venv/bin:${PATH}"
+ENV AEROSPACE_PROGNOSTICS_HEALTHCHECK_URL="http://127.0.0.1:8000/health"
+ENV AEROSPACE_PROGNOSTICS_HEALTHCHECK_TIMEOUT_SECONDS=2
 
 USER appuser
 
 EXPOSE 8000
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+    CMD python -m aerospace_prognostics.serving.healthcheck
 
 CMD ["uvicorn", "aerospace_prognostics.serving.api:app", "--host", "0.0.0.0", "--port", "8000"]

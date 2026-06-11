@@ -24,7 +24,7 @@ The packaging command can also write a markdown model card. The card summarizes 
 
 ## Container Serving
 
-The serving image does not bundle a model artifact. A clean container starts and reports `missing_model` from `GET /health`, which lets CI validate the image without committing generated artifacts. `GET /ready` returns HTTP 503 until a model artifact is loaded, so orchestrators can distinguish a live container from one that is ready for prediction traffic. When ready, the endpoint returns a minimal artifact identity with schema version, dataset, subset, model name, artifact ID, artifact SHA-256, and stage; full metadata remains behind authenticated `GET /version`.
+The serving image does not bundle a model artifact. A clean container starts and reports `missing_model` from `GET /health`, which lets CI validate the image without committing generated artifacts. The Docker image includes a `HEALTHCHECK` that probes `GET /health` through a small stdlib Python helper, so the slim image does not depend on curl or wget for liveness. `GET /ready` returns HTTP 503 until a model artifact is loaded, so orchestrators can distinguish a live container from one that is ready for prediction traffic. When ready, the endpoint returns a minimal artifact identity with schema version, dataset, subset, model name, artifact ID, artifact SHA-256, and stage; full metadata remains behind authenticated `GET /version`.
 
 Run the image with an explicit model mount and environment variable when serving predictions:
 
@@ -132,6 +132,8 @@ Current scope:
 - CI release-evidence smoke test for the validation, benchmark, SBOM, and promotion-report path.
 - Tests for artifact round-trip and API prediction behavior.
 - Dockerfile scaffold for containerized serving.
+- Docker liveness healthcheck backed by the serving `/health` endpoint.
 - CI Docker image build check.
+- CI serving image healthcheck metadata check.
 - CI container startup smoke test against `GET /health`.
 - CI mounted-model container smoke test for authenticated schema, prediction, readiness, and metrics.

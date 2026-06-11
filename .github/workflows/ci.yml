@@ -44,6 +44,12 @@ jobs:
       - name: Build serving image
         run: docker build --tag aerospace-prognostics:ci .
 
+      - name: Verify serving image healthcheck
+        run: |
+          healthcheck="$(docker image inspect aerospace-prognostics:ci --format '{{json .Config.Healthcheck.Test}}')"
+          echo "$healthcheck"
+          echo "$healthcheck" | grep aerospace_prognostics.serving.healthcheck
+
       - name: Smoke serving image
         run: |
           container_id=$(docker run --detach --publish 8000:8000 aerospace-prognostics:ci)
