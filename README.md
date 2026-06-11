@@ -79,6 +79,8 @@ uv run pytest
 uv run ruff check .
 ```
 
+`uv sync --dev` installs the deep-learning dependencies used by Phase 2 PyTorch experiments. The default runtime dependency set is intentionally lighter so the serving image can run the classical deployment artifact without installing training-only libraries.
+
 Raw telemetry and trained artifacts are intentionally ignored by Git. Keep datasets under `data/` or another documented local path, and record source URLs/checksums when adding download scripts.
 
 Once C-MAPSS files are available locally:

@@ -15,10 +15,6 @@ from aerospace_prognostics.anomaly.baselines import (
     run_classical_anomaly_baselines,
     run_robust_zscore_baseline,
 )
-from aerospace_prognostics.anomaly.forecasting import (
-    LSTM_FORECAST_THRESHOLD_METHODS,
-    DynamicThresholdConfig,
-)
 from aerospace_prognostics.data.cmapss import CMAPSS_SUBSETS, load_cmapss_subset
 from aerospace_prognostics.data.downloads import (
     NASA_CMAPSS_URL,
@@ -79,20 +75,8 @@ from aerospace_prognostics.experiments.cmapss_baseline import (
     run_cmapss_validation_selected_hgb_grid,
     run_cmapss_validation_sensor_filter_comparison,
 )
-from aerospace_prognostics.experiments.cmapss_deep_baseline import (
-    CMAPSS_DEEP_COMPARISON_MODELS,
-    CMAPSS_DEEP_TRAINING_LOSSES,
-    CmapssCnnBaselineRun,
-    CmapssLstmBaselineRun,
-    CmapssTcnBaselineRun,
-    CmapssTransformerBaselineRun,
-    run_all_cmapss_cnn_baseline_runs,
-    run_all_cmapss_lstm_baseline_runs,
-    run_all_cmapss_tcn_baseline_runs,
-    run_all_cmapss_transformer_baseline_runs,
-    run_cmapss_deep_baseline_comparison,
-)
 from aerospace_prognostics.experiments.smap_msl_anomaly import (
+    LSTM_FORECAST_THRESHOLD_METHODS,
     SmapMslClassicalBaselineRun,
     SmapMslLstmForecastBaselineRun,
     SmapMslRobustThresholdOperatingPoint,
@@ -134,15 +118,22 @@ from aerospace_prognostics.reports.cmapss_prediction_calibration import (
 )
 from aerospace_prognostics.sequence_exports import export_cmapss_sequence_splits
 from aerospace_prognostics.workflows.phase1 import run_phase1_cmapss_workflow
-from aerospace_prognostics.workflows.phase2 import (
-    run_phase2_cmapss_workflow,
-    verify_phase2_cmapss_run_manifest,
-    write_phase2_cmapss_manifest_audit_markdown,
-)
-from aerospace_prognostics.workflows.phase2_smap_msl import (
-    run_phase2_smap_msl_workflow,
-    verify_phase2_smap_msl_run_manifest,
-    write_phase2_smap_msl_manifest_audit_markdown,
+
+CMAPSS_DEEP_COMPARISON_MODELS = ("cnn", "rescnn", "lstm", "bilstm", "tcn", "transformer")
+CMAPSS_DEEP_TRAINING_LOSSES = (
+    "mse",
+    "nasa_surrogate",
+    "mse_nasa_blend_w0p001",
+    "mse_nasa_blend_w0p0001",
+    "asymmetric_mse_late_w1p5",
+    "asymmetric_mse_late_w2",
+    "asymmetric_mse_late_w3",
+    "target_weighted_mse_high_w2",
+    "target_weighted_mse_mid_high_w1p5",
+    "mse_monotonic_w0p1",
+    "asymmetric_mse_late_w1p5_monotonic_w0p1",
+    "mse_unit_monotonic_w0p1",
+    "asymmetric_mse_late_w1p5_unit_monotonic_w0p1",
 )
 
 
@@ -1571,6 +1562,8 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     if args.command == "phase2-cmapss":
+        from aerospace_prognostics.workflows.phase2 import run_phase2_cmapss_workflow
+
         result = run_phase2_cmapss_workflow(
             args.data_dir,
             args.artifact_dir,
@@ -1659,6 +1652,11 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     if args.command == "phase2-cmapss-verify-manifest":
+        from aerospace_prognostics.workflows.phase2 import (
+            verify_phase2_cmapss_run_manifest,
+            write_phase2_cmapss_manifest_audit_markdown,
+        )
+
         result = verify_phase2_cmapss_run_manifest(args.manifest, root=args.root)
         if args.output_markdown is not None:
             audit_path = write_phase2_cmapss_manifest_audit_markdown(
@@ -1674,6 +1672,9 @@ def main(argv: list[str] | None = None) -> int:
         return 0 if result.ok else 1
 
     if args.command == "phase2-smap-msl":
+        from aerospace_prognostics.anomaly.forecasting import DynamicThresholdConfig
+        from aerospace_prognostics.workflows.phase2_smap_msl import run_phase2_smap_msl_workflow
+
         result = run_phase2_smap_msl_workflow(
             args.data_dir,
             args.artifact_dir,
@@ -1734,6 +1735,11 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     if args.command == "phase2-smap-msl-verify-manifest":
+        from aerospace_prognostics.workflows.phase2_smap_msl import (
+            verify_phase2_smap_msl_run_manifest,
+            write_phase2_smap_msl_manifest_audit_markdown,
+        )
+
         result = verify_phase2_smap_msl_run_manifest(args.manifest, root=args.root)
         if args.output_markdown is not None:
             audit_path = write_phase2_smap_msl_manifest_audit_markdown(
@@ -1782,6 +1788,10 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     if args.command == "cmapss-cnn-baseline":
+        from aerospace_prognostics.experiments.cmapss_deep_baseline import (
+            run_all_cmapss_cnn_baseline_runs,
+        )
+
         runs = run_all_cmapss_cnn_baseline_runs(
             args.sequence_dir,
             subsets=tuple(args.subsets),
@@ -1820,6 +1830,10 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     if args.command == "cmapss-lstm-baseline":
+        from aerospace_prognostics.experiments.cmapss_deep_baseline import (
+            run_all_cmapss_lstm_baseline_runs,
+        )
+
         runs = run_all_cmapss_lstm_baseline_runs(
             args.sequence_dir,
             subsets=tuple(args.subsets),
@@ -1860,6 +1874,10 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     if args.command == "cmapss-tcn-baseline":
+        from aerospace_prognostics.experiments.cmapss_deep_baseline import (
+            run_all_cmapss_tcn_baseline_runs,
+        )
+
         runs = run_all_cmapss_tcn_baseline_runs(
             args.sequence_dir,
             subsets=tuple(args.subsets),
@@ -1900,6 +1918,10 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     if args.command == "cmapss-transformer-baseline":
+        from aerospace_prognostics.experiments.cmapss_deep_baseline import (
+            run_all_cmapss_transformer_baseline_runs,
+        )
+
         runs = run_all_cmapss_transformer_baseline_runs(
             args.sequence_dir,
             subsets=tuple(args.subsets),
@@ -1942,6 +1964,10 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     if args.command == "cmapss-deep-baseline-compare":
+        from aerospace_prognostics.experiments.cmapss_deep_baseline import (
+            run_cmapss_deep_baseline_comparison,
+        )
+
         results = run_cmapss_deep_baseline_comparison(
             args.sequence_dir,
             subsets=tuple(args.subsets),
@@ -2315,6 +2341,8 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     if args.command == "smap-msl-lstm-forecast-baseline":
+        from aerospace_prognostics.anomaly.forecasting import DynamicThresholdConfig
+
         runs = run_smap_msl_lstm_forecast_baseline(
             args.data_dir,
             channels=tuple(args.channels) if args.channels is not None else None,
@@ -2860,10 +2888,7 @@ def _write_validation_aggregate_csv(
 
 
 def _write_deep_history_json(
-    results: list[CmapssCnnBaselineRun]
-    | list[CmapssLstmBaselineRun]
-    | list[CmapssTcnBaselineRun]
-    | list[CmapssTransformerBaselineRun],
+    results: list[object],
     path: Path,
 ) -> None:
     output_path = _prepare_output_path(path)

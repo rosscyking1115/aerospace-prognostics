@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import csv
 import json
+import subprocess
+import sys
 import zipfile
 from io import BytesIO
 
@@ -11,6 +13,30 @@ from aerospace_prognostics.cli import main
 from aerospace_prognostics.data.cmapss import read_cmapss_frame
 from aerospace_prognostics.evaluation import RegressionRunResult, write_results_csv
 from tests.cmapss_fixtures import write_all_tiny_cmapss_subsets, write_tiny_cmapss_subset
+
+
+def test_cli_import_does_not_require_torch() -> None:
+    code = """
+import builtins
+original_import = builtins.__import__
+
+def guarded_import(name, *args, **kwargs):
+    if name == "torch" or name.startswith("torch."):
+        raise ImportError("blocked torch")
+    return original_import(name, *args, **kwargs)
+
+builtins.__import__ = guarded_import
+import aerospace_prognostics.cli
+"""
+
+    completed = subprocess.run(
+        [sys.executable, "-c", code],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+    assert completed.returncode == 0, completed.stderr
 
 
 def test_cmapss_summary_command_prints_dataset_shape(tmp_path, capsys) -> None:

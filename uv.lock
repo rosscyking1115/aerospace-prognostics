@@ -20,8 +20,12 @@ dependencies = [
     { name = "numpy" },
     { name = "pandas" },
     { name = "scikit-learn" },
-    { name = "torch" },
     { name = "uvicorn", extra = ["standard"] },
+]
+
+[package.optional-dependencies]
+deep = [
+    { name = "torch" },
 ]
 
 [package.dev-dependencies]
@@ -30,6 +34,7 @@ dev = [
     { name = "pip-audit" },
     { name = "pytest" },
     { name = "ruff" },
+    { name = "torch" },
 ]
 
 [package.metadata]
@@ -39,9 +44,10 @@ requires-dist = [
     { name = "numpy", specifier = ">=1.26" },
     { name = "pandas", specifier = ">=2.2" },
     { name = "scikit-learn", specifier = ">=1.5" },
-    { name = "torch", specifier = ">=2.3" },
+    { name = "torch", marker = "extra == 'deep'", specifier = ">=2.3" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.30" },
 ]
+provides-extras = ["deep"]
 
 [package.metadata.requires-dev]
 dev = [
@@ -49,6 +55,7 @@ dev = [
     { name = "pip-audit", specifier = ">=2.7" },
     { name = "pytest", specifier = ">=8.0" },
     { name = "ruff", specifier = ">=0.8" },
+    { name = "torch", specifier = ">=2.3" },
 ]
 
 [[package]]

@@ -10,8 +10,12 @@ dependencies = [
     "numpy>=1.26",
     "pandas>=2.2",
     "scikit-learn>=1.5",
-    "torch>=2.3",
     "uvicorn[standard]>=0.30",
+]
+
+[project.optional-dependencies]
+deep = [
+    "torch>=2.3",
 ]
 
 [project.scripts]
@@ -30,6 +34,7 @@ dev = [
     "pip-audit>=2.7",
     "pytest>=8.0",
     "ruff>=0.8",
+    "torch>=2.3",
 ]
 
 [tool.ruff]

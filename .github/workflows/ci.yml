@@ -50,6 +50,9 @@ jobs:
           echo "$healthcheck"
           echo "$healthcheck" | grep aerospace_prognostics.serving.healthcheck
 
+      - name: Verify serving image dependency surface
+        run: docker run --rm aerospace-prognostics:ci python -c "import importlib.util; assert importlib.util.find_spec('torch') is None"
+
       - name: Smoke serving image
         run: |
           container_id=$(docker run --detach --publish 8000:8000 aerospace-prognostics:ci)

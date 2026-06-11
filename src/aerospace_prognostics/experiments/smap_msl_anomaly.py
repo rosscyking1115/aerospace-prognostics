@@ -13,13 +13,10 @@ from aerospace_prognostics.anomaly.baselines import (
     run_classical_anomaly_baselines,
     run_robust_zscore_baseline,
 )
-from aerospace_prognostics.anomaly.forecasting import (
-    DynamicThresholdConfig,
-    LstmForecastTrainingEpoch,
-    run_lstm_forecast_anomaly_baseline,
-)
 from aerospace_prognostics.anomaly.metrics import AnomalyDetectionMetrics
 from aerospace_prognostics.data.smap_msl import load_smap_msl_channel, read_smap_msl_labels
+
+LSTM_FORECAST_THRESHOLD_METHODS = ("robust", "dynamic")
 
 
 @dataclass(frozen=True)
@@ -69,7 +66,7 @@ class SmapMslLstmForecastBaselineRun:
     model_config: dict[str, object]
     metrics: AnomalyDetectionMetrics
     point_adjusted_metrics: AnomalyDetectionMetrics
-    history: tuple[LstmForecastTrainingEpoch, ...]
+    history: tuple[object, ...]
 
     def to_dict(self) -> dict[str, object]:
         return {
@@ -418,13 +415,15 @@ def run_smap_msl_lstm_forecast_baseline(
     learning_rate: float = 1e-3,
     threshold_sigma: float = 3.0,
     threshold_method: str = "robust",
-    dynamic_threshold_config: DynamicThresholdConfig | None = None,
+    dynamic_threshold_config: object | None = None,
     random_state: int = 42,
     device: str = "cpu",
 ) -> tuple[SmapMslLstmForecastBaselineRun, ...]:
     """Run an LSTM next-step forecasting anomaly baseline on SMAP/MSL channels."""
 
     channel_ids = _selected_channel_ids(data_dir, channels=channels, max_channels=max_channels)
+    from aerospace_prognostics.anomaly.forecasting import run_lstm_forecast_anomaly_baseline
+
     runs: list[SmapMslLstmForecastBaselineRun] = []
     for channel_id in channel_ids:
         channel = load_smap_msl_channel(data_dir, channel_id)

@@ -24,7 +24,7 @@ The packaging command can also write a markdown model card. The card summarizes 
 
 ## Container Serving
 
-The serving image does not bundle a model artifact. A clean container starts and reports `missing_model` from `GET /health`, which lets CI validate the image without committing generated artifacts. The Docker image includes a `HEALTHCHECK` that probes `GET /health` through a small stdlib Python helper, so the slim image does not depend on curl or wget for liveness. `GET /ready` returns HTTP 503 until a model artifact is loaded, so orchestrators can distinguish a live container from one that is ready for prediction traffic. When ready, the endpoint returns a minimal artifact identity with schema version, dataset, subset, model name, artifact ID, artifact SHA-256, and stage; full metadata remains behind authenticated `GET /version`.
+The serving image does not bundle a model artifact. A clean container starts and reports `missing_model` from `GET /health`, which lets CI validate the image without committing generated artifacts. The Docker image includes a `HEALTHCHECK` that probes `GET /health` through a small stdlib Python helper, so the slim image does not depend on curl or wget for liveness. The image installs only the default runtime dependency set and intentionally excludes the Phase 2 PyTorch training dependency; CI checks that `torch` is absent from the built image. `GET /ready` returns HTTP 503 until a model artifact is loaded, so orchestrators can distinguish a live container from one that is ready for prediction traffic. When ready, the endpoint returns a minimal artifact identity with schema version, dataset, subset, model name, artifact ID, artifact SHA-256, and stage; full metadata remains behind authenticated `GET /version`.
 
 Run the image with an explicit model mount and environment variable when serving predictions:
 
@@ -69,7 +69,7 @@ For public deployment, run the API behind a managed gateway, load balancer, or i
 
 `generate-sbom` reads the locked `uv.lock` environment and writes a CycloneDX-style JSON software bill of materials. The CI workflow runs this command after `pip-audit`, so every pushed commit proves both that dependencies are vulnerability-checked and that the dependency inventory remains generatable from the lockfile.
 
-The dependency audit intentionally ignores only `CVE-2025-3000` for `torch` while `pip-audit` reports no fixed release. Fixable findings should be resolved in `uv.lock`; for example, the current lockfile pins `pip` to `26.1.2` after the audit reported a fixed version. Remove the explicit `torch` ignore as soon as PyTorch publishes a patched package that is compatible with the project, or after the serving image is split onto a lighter dependency set that does not install training-only deep-learning libraries.
+The dependency audit intentionally ignores only `CVE-2025-3000` for `torch` while `pip-audit` reports no fixed release. Fixable findings should be resolved in `uv.lock`; for example, the current lockfile pins `pip` to `26.1.2` after the audit reported a fixed version. The serving image now uses the lighter default runtime dependency set and does not install `torch`; keep the explicit audit ignore only for the development and Phase 2 deep-learning environment until PyTorch publishes a patched package that is compatible with the project.
 
 CI also runs `scripts/ci_release_evidence_smoke.py`. The script uses tiny fixture telemetry to build a candidate package and then exercises the validation, benchmark, SBOM, and promotion-report CLIs end to end. This is a plumbing smoke test rather than production model evidence, but it protects the release-gate workflow from silently breaking.
 
@@ -137,5 +137,6 @@ Current scope:
 - Docker liveness healthcheck backed by the serving `/health` endpoint.
 - CI Docker image build check.
 - CI serving image healthcheck metadata check.
+- CI serving image dependency-surface check that excludes training-only `torch`.
 - CI container startup smoke test against `GET /health`.
 - CI mounted-model container smoke test for authenticated schema, prediction, readiness, and metrics.
