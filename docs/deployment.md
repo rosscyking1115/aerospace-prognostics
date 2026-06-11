@@ -24,7 +24,7 @@ The packaging command can also write a markdown model card. The card summarizes 
 
 ## Container Serving
 
-The serving image does not bundle a model artifact. A clean container starts and reports `missing_model` from `GET /health`, which lets CI validate the image without committing generated artifacts. The Docker image includes a `HEALTHCHECK` that probes `GET /health` through a small stdlib Python helper, so the slim image does not depend on curl or wget for liveness. The image installs only the default runtime dependency set and intentionally excludes the Phase 2 PyTorch training dependency; CI checks that `torch` is absent from the built image. `GET /ready` returns HTTP 503 until a model artifact is loaded, so orchestrators can distinguish a live container from one that is ready for prediction traffic. When ready, the endpoint returns a minimal artifact identity with schema version, dataset, subset, model name, artifact ID, artifact SHA-256, and stage; full metadata remains behind authenticated `GET /version`.
+The serving image does not bundle a model artifact. A clean container starts and reports `missing_model` from `GET /health`, which lets CI validate the image without committing generated artifacts. The Docker image includes a `HEALTHCHECK` that probes `GET /health` through a small stdlib Python helper, so the slim image does not depend on curl or wget for liveness. The image installs only the default runtime dependency set and intentionally excludes the Phase 2 PyTorch training dependency; CI checks that `torch` is absent from the built image. CI also stamps OCI labels for source repository, Git revision, build time, version, title, description, and license, then writes `artifacts/container/serving_image_manifest.json` from `docker image inspect` so the image can be traced back to Git and release evidence. `GET /ready` returns HTTP 503 until a model artifact is loaded, so orchestrators can distinguish a live container from one that is ready for prediction traffic. When ready, the endpoint returns a minimal artifact identity with schema version, dataset, subset, model name, artifact ID, artifact SHA-256, and stage; full metadata remains behind authenticated `GET /version`.
 
 Run the image with an explicit model mount and environment variable when serving predictions:
 
@@ -74,6 +74,8 @@ The dependency audit intentionally ignores only `CVE-2025-3000` for `torch` whil
 CI also runs `scripts/ci_release_evidence_smoke.py`. The script uses tiny fixture telemetry to build a candidate package and then exercises the validation, benchmark, SBOM, and promotion-report CLIs end to end. This is a plumbing smoke test rather than production model evidence, but it protects the release-gate workflow from silently breaking.
 
 After the Docker image build, CI runs two serving smoke checks. The first starts the image without a model and confirms liveness plus not-ready behavior. The second mounts the tiny CI artifact into the container, enables API-key authentication, checks readiness and schema discovery, posts a prediction request, and confirms metrics are exposed through the authenticated path.
+
+CI writes a serving-image manifest before container smoke checks. The manifest records image ID, repo tags, selected OCI labels, Docker healthcheck settings, whether `torch` was present in the runtime image, and validation booleans for required labels, healthcheck presence, revision matching, and dependency-surface expectations.
 
 ## Promotion And Rollback
 
@@ -135,8 +137,10 @@ Current scope:
 - Tests for artifact round-trip and API prediction behavior.
 - Dockerfile scaffold for containerized serving.
 - Docker liveness healthcheck backed by the serving `/health` endpoint.
+- OCI image labels for source, Git revision, build time, version, title, description, and license.
 - CI Docker image build check.
 - CI serving image healthcheck metadata check.
 - CI serving image dependency-surface check that excludes training-only `torch`.
+- CI serving image manifest generation from Docker inspect metadata.
 - CI container startup smoke test against `GET /health`.
 - CI mounted-model container smoke test for authenticated schema, prediction, readiness, and metrics.

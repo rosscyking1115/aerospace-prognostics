@@ -47,7 +47,7 @@ The working plan is tracked in [Aerospace_Prognostics_Project_Plan.md](Aerospace
 - `aerospace-prognostics cmapss-package-hgb-policy`, `cmapss-predict-artifact`, `cmapss-validate-artifact`, `cmapss-benchmark-artifact`, `cmapss-promotion-report`, and `serve-api` CLIs for the production-ML deployment track.
 - FastAPI serving observability with `/health` liveness, `/ready` readiness plus artifact identity, `/schema` inference-contract discovery, request IDs, latency headers, JSON request logs, and `/metrics` request, prediction, and drift counters/gauges.
 - Serving-time telemetry drift summaries and prediction distribution monitoring.
-- Docker serving image with non-root runtime, liveness healthcheck, and mounted-model smoke checks.
+- Docker serving image with non-root runtime, liveness healthcheck, OCI traceability labels, runtime dependency-surface checks, and mounted-model smoke checks.
 - Candidate artifact promotion metadata with stable IDs and rollback guidance.
 - Deployment-candidate model cards with intended use, metrics, inference contract, limitations, monitoring, and rollback notes.
 - Artifact latency benchmark reports with optional p95 promotion gates.

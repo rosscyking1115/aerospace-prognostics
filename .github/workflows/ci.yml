@@ -42,7 +42,16 @@ jobs:
         run: uv run python scripts/ci_release_evidence_smoke.py
 
       - name: Build serving image
-        run: docker build --tag aerospace-prognostics:ci .
+        run: |
+          build_date="$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+          version="$(uv run python -c "import tomllib; print(tomllib.load(open('pyproject.toml', 'rb'))['project']['version'])")"
+          docker build \
+            --tag aerospace-prognostics:ci \
+            --build-arg BUILD_DATE="$build_date" \
+            --build-arg SOURCE="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY" \
+            --build-arg VERSION="$version" \
+            --build-arg VCS_REF="$GITHUB_SHA" \
+            .
 
       - name: Verify serving image healthcheck
         run: |
@@ -52,6 +61,14 @@ jobs:
 
       - name: Verify serving image dependency surface
         run: docker run --rm aerospace-prognostics:ci python -c "import importlib.util; assert importlib.util.find_spec('torch') is None"
+
+      - name: Generate serving image manifest
+        run: |
+          uv run python scripts/ci_serving_image_manifest.py \
+            --image aerospace-prognostics:ci \
+            --output-json artifacts/container/serving_image_manifest.json \
+            --expected-revision "$GITHUB_SHA" \
+            --check-torch-absent
 
       - name: Smoke serving image
         run: |

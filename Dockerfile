@@ -1,5 +1,18 @@
 FROM python:3.12-slim
 
+ARG BUILD_DATE="unknown"
+ARG SOURCE="https://github.com/rosscyking1115/aerospace-prognostics"
+ARG VERSION="0.1.0"
+ARG VCS_REF="unknown"
+
+LABEL org.opencontainers.image.created="${BUILD_DATE}" \
+    org.opencontainers.image.description="Serving image for the Aerospace Prognostics FastAPI inference service." \
+    org.opencontainers.image.licenses="UNLICENSED" \
+    org.opencontainers.image.revision="${VCS_REF}" \
+    org.opencontainers.image.source="${SOURCE}" \
+    org.opencontainers.image.title="aerospace-prognostics-serving" \
+    org.opencontainers.image.version="${VERSION}"
+
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 
