@@ -33,7 +33,7 @@ jobs:
         run: uv run pytest
 
       - name: Dependency audit
-        run: uv run pip-audit
+        run: uv run pip-audit --ignore-vuln CVE-2025-3000
 
       - name: Generate SBOM
         run: uv run aerospace-prognostics generate-sbom --lockfile uv.lock --output-json artifacts/sbom/cyclonedx.json

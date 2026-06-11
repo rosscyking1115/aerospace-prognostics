@@ -69,6 +69,8 @@ For public deployment, run the API behind a managed gateway, load balancer, or i
 
 `generate-sbom` reads the locked `uv.lock` environment and writes a CycloneDX-style JSON software bill of materials. The CI workflow runs this command after `pip-audit`, so every pushed commit proves both that dependencies are vulnerability-checked and that the dependency inventory remains generatable from the lockfile.
 
+The dependency audit intentionally ignores only `CVE-2025-3000` for `torch` while `pip-audit` reports no fixed release. Fixable findings should be resolved in `uv.lock`; for example, the current lockfile pins `pip` to `26.1.2` after the audit reported a fixed version. Remove the explicit `torch` ignore as soon as PyTorch publishes a patched package that is compatible with the project, or after the serving image is split onto a lighter dependency set that does not install training-only deep-learning libraries.
+
 CI also runs `scripts/ci_release_evidence_smoke.py`. The script uses tiny fixture telemetry to build a candidate package and then exercises the validation, benchmark, SBOM, and promotion-report CLIs end to end. This is a plumbing smoke test rather than production model evidence, but it protects the release-gate workflow from silently breaking.
 
 After the Docker image build, CI runs two serving smoke checks. The first starts the image without a model and confirms liveness plus not-ready behavior. The second mounts the tiny CI artifact into the container, enables API-key authentication, checks readiness and schema discovery, posts a prediction request, and confirms metrics are exposed through the authenticated path.
