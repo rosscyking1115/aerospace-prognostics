@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
+from html import escape
 from pathlib import Path
 from typing import Any
 
@@ -90,6 +91,260 @@ def write_fleet_dashboard_payload_json(
     return output_path
 
 
+def render_fleet_dashboard_html(payload: FleetDashboardPayload | dict[str, Any]) -> str:
+    """Render a standalone fleet dashboard HTML document."""
+
+    payload_dict = payload.to_dict() if isinstance(payload, FleetDashboardPayload) else payload
+    title = str(payload_dict.get("title") or "Aerospace PHM Fleet View")
+    summary = payload_dict.get("summary") if isinstance(payload_dict.get("summary"), dict) else {}
+    assets = _list_of_objects(payload_dict.get("assets"), "assets")
+    evidence = (
+        payload_dict.get("evidence")
+        if isinstance(payload_dict.get("evidence"), dict)
+        else {}
+    )
+    risk_counts = (
+        summary.get("risk_counts")
+        if isinstance(summary.get("risk_counts"), dict)
+        else {"critical": 0, "watch": 0, "nominal": 0, "unknown": 0}
+    )
+    html = f"""<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{_html(title)}</title>
+  <style>
+    :root {{
+      color-scheme: light;
+      --bg: #f6f7f8;
+      --panel: #ffffff;
+      --ink: #172026;
+      --muted: #64727d;
+      --line: #d9e0e5;
+      --critical: #b42318;
+      --watch: #a15c07;
+      --nominal: #16724d;
+      --accent: #1f5d7a;
+      --track: #edf1f4;
+    }}
+    * {{ box-sizing: border-box; }}
+    body {{
+      margin: 0;
+      background: var(--bg);
+      color: var(--ink);
+      font-family: Arial, Helvetica, sans-serif;
+      line-height: 1.45;
+    }}
+    .shell {{
+      max-width: 1180px;
+      margin: 0 auto;
+      padding: 28px 18px 36px;
+    }}
+    header {{
+      display: flex;
+      align-items: flex-end;
+      justify-content: space-between;
+      gap: 18px;
+      margin-bottom: 20px;
+      border-bottom: 1px solid var(--line);
+      padding-bottom: 16px;
+    }}
+    h1 {{
+      margin: 0;
+      font-size: 28px;
+      font-weight: 700;
+      letter-spacing: 0;
+    }}
+    .meta {{
+      color: var(--muted);
+      font-size: 13px;
+      text-align: right;
+    }}
+    .metrics {{
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 12px;
+      margin-bottom: 18px;
+    }}
+    .metric, .evidence, .table-wrap {{
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+    }}
+    .metric {{
+      padding: 14px;
+      min-height: 84px;
+    }}
+    .metric span {{
+      display: block;
+      color: var(--muted);
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0;
+    }}
+    .metric strong {{
+      display: block;
+      margin-top: 6px;
+      font-size: 26px;
+    }}
+    .layout {{
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 300px;
+      gap: 14px;
+      align-items: start;
+    }}
+    .table-wrap {{
+      overflow-x: auto;
+    }}
+    table {{
+      width: 100%;
+      border-collapse: collapse;
+      min-width: 780px;
+    }}
+    th, td {{
+      padding: 12px 14px;
+      border-bottom: 1px solid var(--line);
+      text-align: left;
+      vertical-align: middle;
+      font-size: 14px;
+      white-space: nowrap;
+    }}
+    th {{
+      color: var(--muted);
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0;
+      background: #fbfcfd;
+    }}
+    tr:last-child td {{ border-bottom: 0; }}
+    .risk {{
+      display: inline-flex;
+      align-items: center;
+      min-width: 92px;
+      justify-content: center;
+      padding: 4px 8px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0;
+    }}
+    .risk-critical {{ color: #fff; background: var(--critical); }}
+    .risk-watch {{ color: #fff; background: var(--watch); }}
+    .risk-nominal {{ color: #fff; background: var(--nominal); }}
+    .risk-unknown {{ color: var(--ink); background: var(--track); }}
+    .rul {{
+      display: grid;
+      grid-template-columns: 64px minmax(120px, 1fr);
+      align-items: center;
+      gap: 10px;
+    }}
+    .bar {{
+      height: 10px;
+      border-radius: 999px;
+      background: var(--track);
+      overflow: hidden;
+    }}
+    .fill {{
+      height: 100%;
+      border-radius: inherit;
+      background: var(--accent);
+    }}
+    .evidence {{
+      padding: 14px;
+    }}
+    .evidence h2 {{
+      margin: 0 0 10px;
+      font-size: 16px;
+      letter-spacing: 0;
+    }}
+    .kv {{
+      display: grid;
+      grid-template-columns: 118px minmax(0, 1fr);
+      gap: 8px 10px;
+      font-size: 13px;
+      margin-bottom: 14px;
+    }}
+    .kv dt {{
+      color: var(--muted);
+      margin: 0;
+    }}
+    .kv dd {{
+      margin: 0;
+      overflow-wrap: anywhere;
+    }}
+    @media (max-width: 820px) {{
+      header {{
+        display: block;
+      }}
+      .meta {{
+        margin-top: 8px;
+        text-align: left;
+      }}
+      .metrics {{
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }}
+      .layout {{
+        grid-template-columns: 1fr;
+      }}
+    }}
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <header>
+      <h1>{_html(title)}</h1>
+      <div class="meta">{_html(str(payload_dict.get("generated_at_utc", "")))}</div>
+    </header>
+    <section class="metrics" aria-label="Fleet summary">
+      {_metric("Assets", summary.get("asset_count"))}
+      {_metric("Critical", risk_counts.get("critical"))}
+      {_metric("Watch", risk_counts.get("watch"))}
+      {_metric("Nominal", risk_counts.get("nominal"))}
+    </section>
+    <section class="layout">
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Asset</th>
+              <th>Subset</th>
+              <th>Model</th>
+              <th>RUL</th>
+              <th>Risk</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            {''.join(_asset_row(asset) for asset in assets)}
+          </tbody>
+        </table>
+      </div>
+      <aside class="evidence">
+        <h2>Evidence</h2>
+        {_evidence_block(evidence)}
+      </aside>
+    </section>
+  </main>
+</body>
+</html>
+"""
+    return html
+
+
+def write_fleet_dashboard_html(
+    payload: FleetDashboardPayload | dict[str, Any],
+    output_html: str | Path,
+) -> Path:
+    """Write a standalone fleet dashboard HTML document."""
+
+    output_path = Path(output_html)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    output_path.write_text(render_fleet_dashboard_html(payload), encoding="utf-8")
+    return output_path
+
+
 def _asset_from_prediction(
     prediction_document: dict[str, Any],
     prediction: dict[str, Any],
@@ -170,6 +425,104 @@ def _status_for_risk(risk_level: str) -> str:
         "watch": "monitor",
         "nominal": "nominal",
     }.get(risk_level, "unknown")
+
+
+def _metric(label: str, value: Any) -> str:
+    return (
+        '<div class="metric">'
+        f"<span>{_html(label)}</span>"
+        f"<strong>{_html(_display_value(value))}</strong>"
+        "</div>"
+    )
+
+
+def _asset_row(asset: dict[str, Any]) -> str:
+    risk_level = str(asset.get("risk_level") or "unknown")
+    predicted_rul = _optional_float(asset.get("predicted_rul"))
+    rul_cap = _optional_float(asset.get("rul_cap"))
+    width = _rul_width(predicted_rul, rul_cap)
+    return (
+        "<tr>"
+        f"<td>{_html(asset.get('asset_id'))}</td>"
+        f"<td>{_html(asset.get('subset'))}</td>"
+        f"<td>{_html(asset.get('model_name'))}</td>"
+        "<td>"
+        '<div class="rul">'
+        f"<span>{_html(_format_number(predicted_rul))}</span>"
+        '<div class="bar">'
+        f'<div class="fill" style="width: {width:.2f}%"></div>'
+        "</div>"
+        "</div>"
+        "</td>"
+        f'<td><span class="risk risk-{_html(_risk_class(risk_level))}">'
+        f"{_html(risk_level)}</span></td>"
+        f"<td>{_html(asset.get('status'))}</td>"
+        "</tr>"
+    )
+
+
+def _evidence_block(evidence: dict[str, Any]) -> str:
+    prediction_source = evidence.get("prediction_source")
+    promotion = evidence.get("promotion")
+    release_bundle = evidence.get("release_bundle")
+    rows: list[tuple[str, Any]] = []
+    if isinstance(prediction_source, dict):
+        rows.extend(
+            [
+                ("Dataset", prediction_source.get("dataset")),
+                ("Subset", prediction_source.get("subset")),
+                ("Model", prediction_source.get("model_name")),
+            ]
+        )
+    if isinstance(promotion, dict):
+        rows.extend(
+            [
+                ("Promotion", promotion.get("status")),
+                ("Gates", f"{promotion.get('gates_passed')}/{promotion.get('gate_count')}"),
+            ]
+        )
+    if isinstance(release_bundle, dict):
+        rows.extend(
+            [
+                ("Release", release_bundle.get("status")),
+                ("Evidence", release_bundle.get("evidence_count")),
+            ]
+        )
+    if not rows:
+        rows.append(("Source", evidence.get("prediction_json_path")))
+    return "<dl class=\"kv\">" + "".join(
+        f"<dt>{_html(label)}</dt><dd>{_html(_display_value(value))}</dd>" for label, value in rows
+    ) + "</dl>"
+
+
+def _rul_width(predicted_rul: float | None, rul_cap: float | None) -> float:
+    if predicted_rul is None:
+        return 0.0
+    if rul_cap is None or rul_cap <= 0:
+        return 100.0
+    return max(0.0, min(100.0, (predicted_rul / rul_cap) * 100.0))
+
+
+def _risk_class(risk_level: str) -> str:
+    return risk_level if risk_level in {"critical", "watch", "nominal", "unknown"} else "unknown"
+
+
+def _display_value(value: Any) -> str:
+    if value is None:
+        return "n/a"
+    if isinstance(value, float):
+        return _format_number(value)
+    return str(value)
+
+
+def _format_number(value: float | None) -> str:
+    if value is None:
+        return "n/a"
+    return f"{value:.1f}"
+
+
+def _html(value: Any) -> str:
+    return escape(_display_value(value), quote=True)
 
 
 def _read_json_object(path: Path, label: str) -> dict[str, Any]:

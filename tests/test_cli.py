@@ -1954,6 +1954,68 @@ def test_dashboard_fleet_payload_command_writes_contract(tmp_path, capsys) -> No
     assert payload["evidence"]["promotion"]["gates_passed"] == 2
 
 
+def test_dashboard_render_html_command_writes_static_dashboard(tmp_path, capsys) -> None:
+    payload_json = tmp_path / "dashboard" / "fleet.json"
+    output_html = tmp_path / "dashboard" / "fleet.html"
+    payload_json.parent.mkdir(parents=True)
+    payload_json.write_text(
+        json.dumps(
+            {
+                "schema_version": "aerospace-prognostics/fleet-dashboard/v1",
+                "title": "Aerospace PHM Fleet View",
+                "generated_at_utc": "2026-06-11T00:00:00+00:00",
+                "summary": {
+                    "asset_count": 1,
+                    "risk_counts": {"critical": 1, "watch": 0, "nominal": 0, "unknown": 0},
+                    "min_predicted_rul": 12.0,
+                    "max_predicted_rul": 12.0,
+                },
+                "assets": [
+                    {
+                        "asset_id": "FD001-unit-1",
+                        "asset_type": "turbofan_engine",
+                        "dataset": "C-MAPSS",
+                        "subset": "FD001",
+                        "unit_number": 1,
+                        "model_name": "hist_gradient_boosting",
+                        "predicted_rul": 12.0,
+                        "rul_cap": 125.0,
+                        "risk_level": "critical",
+                        "status": "maintenance_review",
+                    }
+                ],
+                "evidence": {
+                    "prediction_source": {
+                        "dataset": "C-MAPSS",
+                        "subset": "FD001",
+                        "model_name": "hist_gradient_boosting",
+                        "rul_cap": 125,
+                    }
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    exit_code = main(
+        [
+            "dashboard-render-html",
+            "--payload-json",
+            str(payload_json),
+            "--output-html",
+            str(output_html),
+        ]
+    )
+    output = capsys.readouterr().out
+    html = output_html.read_text(encoding="utf-8")
+
+    assert exit_code == 0
+    assert "assets=1" in output
+    assert "<!doctype html>" in html
+    assert "FD001-unit-1" in html
+    assert "risk-critical" in html
+
+
 def test_cmapss_download_command_extracts_archive(tmp_path, capsys) -> None:
     source_zip = tmp_path / "source.zip"
     with zipfile.ZipFile(source_zip, "w") as archive:

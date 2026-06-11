@@ -125,6 +125,7 @@ from aerospace_prognostics.reports.cmapss_prediction_calibration import (
 )
 from aerospace_prognostics.reports.dashboard import (
     build_fleet_dashboard_payload,
+    write_fleet_dashboard_html,
     write_fleet_dashboard_payload_json,
 )
 from aerospace_prognostics.sequence_exports import export_cmapss_sequence_splits
@@ -1047,6 +1048,13 @@ def _build_parser() -> argparse.ArgumentParser:
     dashboard_payload.add_argument("--release-bundle-json", type=Path)
     dashboard_payload.add_argument("--title", default="Aerospace PHM Fleet View")
     dashboard_payload.add_argument("--output-json", type=Path, required=True)
+
+    dashboard_html = subparsers.add_parser(
+        "dashboard-render-html",
+        help="Render standalone HTML from a dashboard fleet payload JSON",
+    )
+    dashboard_html.add_argument("--payload-json", type=Path, required=True)
+    dashboard_html.add_argument("--output-html", type=Path, required=True)
 
     benchmark_artifact = subparsers.add_parser(
         "cmapss-benchmark-artifact",
@@ -2524,6 +2532,15 @@ def main(argv: list[str] | None = None) -> int:
             f"unknown:{risk_counts['unknown']}"
         )
         print(f"output_json={output_path}")
+        return 0
+
+    if args.command == "dashboard-render-html":
+        payload = json.loads(args.payload_json.read_text(encoding="utf-8"))
+        output_path = write_fleet_dashboard_html(payload, args.output_html)
+        assets = len(payload.get("assets", [])) if isinstance(payload, dict) else 0
+        print("schema_version=aerospace-prognostics/fleet-dashboard/v1")
+        print(f"assets={assets}")
+        print(f"output_html={output_path}")
         return 0
 
     if args.command == "cmapss-benchmark-artifact":

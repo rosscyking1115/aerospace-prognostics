@@ -5,6 +5,7 @@ import json
 from aerospace_prognostics.reports.dashboard import (
     DASHBOARD_SCHEMA_VERSION,
     build_fleet_dashboard_payload,
+    render_fleet_dashboard_html,
 )
 
 
@@ -82,3 +83,37 @@ def test_build_fleet_dashboard_payload_rejects_missing_prediction_rows(tmp_path)
         assert "predictions must be a list" in str(exc)
     else:
         raise AssertionError("expected invalid prediction JSON error")
+
+
+def test_render_fleet_dashboard_html_outputs_standalone_dashboard(tmp_path) -> None:
+    prediction_json = tmp_path / "predictions.json"
+    prediction_json.write_text(
+        json.dumps(
+            {
+                "dataset": "C-MAPSS",
+                "subset": "FD001",
+                "model_name": "model <candidate>",
+                "rul_cap": 100,
+                "predictions": [
+                    {"unit_number": 1, "predicted_rul": 18.0},
+                    {"unit_number": 2, "predicted_rul": 63.0},
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    payload = build_fleet_dashboard_payload(
+        prediction_json,
+        title="Fleet <View>",
+        generated_at_utc="2026-06-11T00:00:00+00:00",
+    )
+
+    html = render_fleet_dashboard_html(payload)
+
+    assert "<!doctype html>" in html
+    assert "<title>Fleet &lt;View&gt;</title>" in html
+    assert "FD001-unit-1" in html
+    assert "maintenance_review" in html
+    assert "model &lt;candidate&gt;" in html
+    assert "risk-critical" in html
+    assert "risk-nominal" in html

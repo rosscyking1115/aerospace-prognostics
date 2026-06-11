@@ -54,6 +54,7 @@ The working plan is tracked in [Aerospace_Prognostics_Project_Plan.md](Aerospace
 - Release-candidate evidence bundles with file SHA-256 digests, promotion gates, SBOM, model card, artifact identity checks, and serving-image manifest linkage.
 - In-toto/SLSA-style release provenance statements that bind release bundles to Git commit and CI workflow metadata.
 - Dashboard-ready fleet payloads that combine prediction output with promotion and release evidence for the public demo surface.
+- Standalone static fleet dashboard HTML rendering for release/demo artifacts.
 - Promotion evidence reports that combine validation, benchmark, model-card, and SBOM gates.
 - Optional API-key authentication and serving rate limits for protected inference endpoints.
 - `aerospace-prognostics generate-sbom` CLI for lockfile-derived CycloneDX-style dependency inventory generation.
@@ -132,6 +133,7 @@ uv run aerospace-prognostics cmapss-validate-artifact --model-artifact artifacts
 uv run aerospace-prognostics cmapss-benchmark-artifact --model-artifact artifacts/models/cmapss_fd001_hgb_policy.joblib --input-csv artifacts/examples/fd001_telemetry.csv --max-p95-latency-ms 100 --output-json artifacts/models/cmapss_fd001_hgb_policy_benchmark.json
 uv run aerospace-prognostics cmapss-promotion-report --validation-json artifacts/models/cmapss_fd001_hgb_policy_validation.json --benchmark-json artifacts/models/cmapss_fd001_hgb_policy_benchmark.json --model-card-markdown artifacts/models/cmapss_fd001_hgb_policy_model_card.md --sbom-json artifacts/sbom/cyclonedx.json --output-json artifacts/models/cmapss_fd001_hgb_policy_promotion.json --output-markdown artifacts/models/cmapss_fd001_hgb_policy_promotion.md
 uv run aerospace-prognostics dashboard-fleet-payload --prediction-json artifacts/predictions/fd001_predictions.json --promotion-json artifacts/models/cmapss_fd001_hgb_policy_promotion.json --release-bundle-json artifacts/release/cmapss_fd001_release_bundle.json --output-json artifacts/dashboard/fleet_payload.json
+uv run aerospace-prognostics dashboard-render-html --payload-json artifacts/dashboard/fleet_payload.json --output-html artifacts/dashboard/fleet_dashboard.html
 uv run aerospace-prognostics serve-api --model-artifact artifacts/models/cmapss_fd001_hgb_policy.joblib --host 127.0.0.1 --port 8000
 uv run aerospace-prognostics phase1-cmapss --data-dir data/raw/cmapss --artifact-dir artifacts/phase1
 uv run aerospace-prognostics phase2-cmapss --data-dir data/raw/cmapss --artifact-dir artifacts/phase2 --subsets FD001 --models cnn rescnn bilstm tcn transformer --epochs 50 --hidden-sizes 32 64 --learning-rates 0.001 0.0003 --training-loss mse
