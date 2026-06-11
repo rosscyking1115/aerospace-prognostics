@@ -86,6 +86,14 @@ uv run ruff check .
 
 `uv sync --dev` installs the deep-learning dependencies used by Phase 2 PyTorch experiments. The default runtime dependency set is intentionally lighter so the serving image can run the classical deployment artifact without installing training-only libraries.
 
+For a no-download deployment demo, run the tiny fixture quickstart:
+
+```powershell
+uv run python scripts/quickstart_cmapss_demo.py
+```
+
+It writes dashboard, release bundle, provenance, model-card, validation, benchmark, and SBOM artifacts under `artifacts/quickstart_cmapss`. See [docs/quickstart.md](docs/quickstart.md).
+
 Raw telemetry and trained artifacts are intentionally ignored by Git. Keep datasets under `data/` or another documented local path, and record source URLs/checksums when adding download scripts.
 
 Once C-MAPSS files are available locally:

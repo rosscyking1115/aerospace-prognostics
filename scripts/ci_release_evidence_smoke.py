@@ -1,4 +1,4 @@
-"""CI smoke test for deployment release-evidence generation."""
+"""Smoke test for deployment release-evidence generation."""
 
 from __future__ import annotations
 
@@ -10,15 +10,24 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
 
-def run() -> int:
+def run(
+    *,
+    root: str | Path = Path("artifacts") / "ci_release_evidence",
+    release_name: str = "ci-fd001-candidate",
+    repository: str = "rosscyking1115/aerospace-prognostics",
+    git_sha: str = "0123456789abcdef0123456789abcdef01234567",
+    git_ref: str = "refs/heads/main",
+    workflow: str = "CI",
+    run_id: str = "1",
+) -> int:
     """Generate a tiny promotion-evidence bundle through the public CLI."""
 
     sys.path.insert(0, str(REPO_ROOT))
     from aerospace_prognostics.cli import main
     from aerospace_prognostics.data.cmapss import read_cmapss_frame
-    from tests.cmapss_fixtures import write_tiny_cmapss_subset
+    from aerospace_prognostics.examples.cmapss_fixture import write_tiny_cmapss_subset
 
-    root = Path("artifacts") / "ci_release_evidence"
+    root = Path(root)
     data_dir = root / "data"
     model_dir = root / "models"
     prediction_dir = root / "predictions"
@@ -156,7 +165,7 @@ def run() -> int:
         [
             "cmapss-release-bundle",
             "--release-name",
-            "ci-fd001-candidate",
+            release_name,
             "--model-artifact",
             str(artifact_path),
             "--metadata-json",
@@ -184,15 +193,15 @@ def run() -> int:
             "--release-bundle-json",
             str(release_bundle_json),
             "--repository",
-            "rosscyking1115/aerospace-prognostics",
+            repository,
             "--git-sha",
-            "0123456789abcdef0123456789abcdef01234567",
+            git_sha,
             "--git-ref",
-            "refs/heads/main",
+            git_ref,
             "--workflow",
-            "CI",
+            workflow,
             "--run-id",
-            "1",
+            run_id,
             "--output-json",
             str(provenance_json),
             "--output-markdown",

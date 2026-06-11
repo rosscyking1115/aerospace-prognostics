@@ -86,7 +86,7 @@ Prioritize these features because they differentiate the project from typical C-
 - [ ] Add a license decision before launch.
 - [ ] Replace the development-heavy README with a public-facing README and move command catalogs into docs.
 - [ ] Add architecture diagram and at least two visual result assets.
-- [ ] Add a tiny fixture-based quickstart that runs without downloading NASA/JPL data.
+- [x] Add a tiny fixture-based quickstart that runs without downloading NASA/JPL data.
 - [x] Publish one release candidate bundle from CI artifacts and document how to inspect it.
 - [ ] Add a dashboard or recorded dashboard demo.
 - [ ] Finish Phase 3 uncertainty and physics-informed reporting before making strong public claims.
