@@ -133,6 +133,33 @@ class CmapssPromotionReport:
 
 
 @dataclass(frozen=True)
+class CmapssReleaseBundle:
+    """Auditable release-candidate bundle for a deployable C-MAPSS artifact."""
+
+    release_name: str
+    status: str
+    gates: dict[str, bool]
+    problems: list[str]
+    artifact_identity: dict[str, Any]
+    evidence: dict[str, Any]
+    container_image_ref: str | None = None
+
+    def to_dict(self) -> dict[str, Any]:
+        """Return a JSON-serialisable release bundle."""
+
+        return {
+            "schema_version": "aerospace-prognostics/cmapss-release-bundle/v1",
+            "release_name": self.release_name,
+            "status": self.status,
+            "container_image_ref": self.container_image_ref,
+            "gates": self.gates,
+            "problems": self.problems,
+            "artifact_identity": self.artifact_identity,
+            "evidence": self.evidence,
+        }
+
+
+@dataclass(frozen=True)
 class CmapssPrediction:
     """One deployed C-MAPSS RUL prediction."""
 
@@ -738,6 +765,199 @@ def write_cmapss_promotion_report_markdown(
     return output_path
 
 
+def build_cmapss_release_bundle(
+    *,
+    release_name: str,
+    model_artifact: str | Path,
+    metadata_json: str | Path,
+    model_card_markdown: str | Path,
+    promotion_json: str | Path,
+    sbom_json: str | Path,
+    container_manifest_json: str | Path | None = None,
+    container_image_ref: str | None = None,
+) -> CmapssReleaseBundle:
+    """Compose final release-candidate evidence for a C-MAPSS deployment."""
+
+    artifact_file = Path(model_artifact)
+    metadata_file = Path(metadata_json)
+    model_card_file = Path(model_card_markdown)
+    promotion_file = Path(promotion_json)
+    sbom_file = Path(sbom_json)
+    container_manifest_file = (
+        Path(container_manifest_json) if container_manifest_json is not None else None
+    )
+
+    promotion = _read_json_object(promotion_file, "promotion report")
+    metadata = _read_json_object(metadata_file, "metadata JSON")
+    sbom = _read_json_object(sbom_file, "SBOM")
+    promotion_identity = _dict_or_empty(promotion.get("artifact_identity"))
+    metadata_identity = _metadata_artifact_identity(metadata)
+    artifact_identity = promotion_identity or metadata_identity
+    promotion_artifact_id = _artifact_id(promotion_identity)
+    metadata_artifact_id = _artifact_id(metadata_identity)
+
+    promotion_gates = _dict_or_empty(promotion.get("gates"))
+    gates = {
+        "promotion_report_ok": promotion.get("status") == "ok",
+        "promotion_gates_passed": bool(promotion_gates) and all(promotion_gates.values()),
+        "model_artifact_present": artifact_file.exists(),
+        "metadata_json_present": metadata_file.exists(),
+        "model_card_present": model_card_file.exists(),
+        "sbom_present": sbom_file.exists(),
+        "sbom_cyclonedx": sbom.get("bomFormat") == "CycloneDX",
+        "artifact_identity_match": (
+            promotion_artifact_id is not None and promotion_artifact_id == metadata_artifact_id
+        ),
+    }
+    problems: list[str] = []
+    if not gates["promotion_report_ok"]:
+        problems.append("promotion report status is not ok")
+    if not gates["promotion_gates_passed"]:
+        problems.append("not all promotion gates passed")
+    for gate_name, file_path in (
+        ("model_artifact_present", artifact_file),
+        ("metadata_json_present", metadata_file),
+        ("model_card_present", model_card_file),
+        ("sbom_present", sbom_file),
+    ):
+        if not gates[gate_name]:
+            problems.append(f"required release evidence is missing: {file_path}")
+    if not gates["sbom_cyclonedx"]:
+        problems.append("SBOM is not CycloneDX formatted")
+    if not gates["artifact_identity_match"]:
+        problems.append(
+            "artifact identity mismatch between promotion report and metadata JSON: "
+            f"{promotion_artifact_id!r} != {metadata_artifact_id!r}"
+        )
+
+    evidence: dict[str, Any] = {
+        "promotion_report": _json_file_evidence(promotion_file, promotion),
+        "model_artifact": _file_evidence(artifact_file),
+        "metadata_json": _json_file_evidence(metadata_file, metadata),
+        "model_card": _file_evidence(model_card_file),
+        "sbom": _json_file_evidence(sbom_file, sbom),
+        "promotion_gates": promotion_gates,
+    }
+
+    if container_manifest_file is not None:
+        gates["container_manifest_present"] = container_manifest_file.exists()
+        if gates["container_manifest_present"]:
+            container_manifest = _read_json_object(
+                container_manifest_file,
+                "serving image manifest",
+            )
+            container_validation = _dict_or_empty(container_manifest.get("validation"))
+            gates["container_manifest_valid"] = bool(container_validation) and all(
+                value is not False for value in container_validation.values()
+            )
+            manifest_image = container_manifest.get("image")
+            gates["container_image_ref_matches"] = (
+                not container_image_ref or manifest_image == container_image_ref
+            )
+            evidence["container_manifest"] = _json_file_evidence(
+                container_manifest_file,
+                container_manifest,
+            )
+            evidence["container"] = {
+                "image": manifest_image,
+                "image_id": container_manifest.get("image_id"),
+                "validation": container_validation,
+                "labels": _dict_or_empty(container_manifest.get("labels")),
+            }
+            if not gates["container_manifest_valid"]:
+                problems.append("serving image manifest validation did not pass")
+            if not gates["container_image_ref_matches"]:
+                problems.append(
+                    "container image ref mismatch between release bundle and manifest: "
+                    f"{container_image_ref!r} != {manifest_image!r}"
+                )
+        else:
+            gates["container_manifest_valid"] = False
+            gates["container_image_ref_matches"] = False
+            problems.append(f"container manifest JSON does not exist: {container_manifest_file}")
+
+    return CmapssReleaseBundle(
+        release_name=release_name,
+        status="ok" if not problems and all(gates.values()) else "failed",
+        gates=gates,
+        problems=problems,
+        artifact_identity=artifact_identity,
+        evidence=evidence,
+        container_image_ref=container_image_ref,
+    )
+
+
+def render_cmapss_release_bundle_markdown(bundle: CmapssReleaseBundle) -> str:
+    """Render a release-candidate bundle as Markdown for human review."""
+
+    identity = bundle.artifact_identity
+    evidence = bundle.evidence
+    artifact = evidence.get("model_artifact", {})
+    container = evidence.get("container", {})
+    lines = [
+        "# C-MAPSS Release Bundle",
+        "",
+        f"- Release: `{_markdown_inline(bundle.release_name)}`",
+        f"- Status: `{_markdown_inline(bundle.status)}`",
+        f"- Artifact ID: `{_markdown_inline(identity.get('artifact_id'))}`",
+        f"- Dataset: `{_markdown_inline(identity.get('dataset'))}`",
+        f"- Subset: `{_markdown_inline(identity.get('subset'))}`",
+        f"- Model: `{_markdown_inline(identity.get('model_name'))}`",
+        f"- Container image: `{_markdown_inline(bundle.container_image_ref)}`",
+        "",
+        "## Gates",
+        "",
+        "| Gate | Passed |",
+        "|---|---:|",
+    ]
+    lines.extend(
+        f"| `{_markdown_cell(name)}` | {passed} |"
+        for name, passed in sorted(bundle.gates.items())
+    )
+    lines.extend(
+        [
+            "",
+            "## Evidence",
+            "",
+            f"- Model artifact: `{_markdown_inline(artifact.get('path'))}`",
+            f"- Model artifact SHA-256: `{_markdown_inline(artifact.get('sha256'))}`",
+            f"- Metadata JSON: `{_markdown_inline(_evidence_path(evidence, 'metadata_json'))}`",
+            f"- Model card: `{_markdown_inline(_evidence_path(evidence, 'model_card'))}`",
+            (
+                "- Promotion report: "
+                f"`{_markdown_inline(_evidence_path(evidence, 'promotion_report'))}`"
+            ),
+            f"- SBOM: `{_markdown_inline(_evidence_path(evidence, 'sbom'))}`",
+            f"- Container image ID: `{_markdown_inline(container.get('image_id'))}`",
+            (
+                "- Container manifest: "
+                f"`{_markdown_inline(_evidence_path(evidence, 'container_manifest'))}`"
+            ),
+            "",
+            "## Problems",
+            "",
+        ]
+    )
+    if bundle.problems:
+        lines.extend(f"- {problem}" for problem in bundle.problems)
+    else:
+        lines.append("- None")
+    lines.append("")
+    return "\n".join(lines)
+
+
+def write_cmapss_release_bundle_markdown(
+    bundle: CmapssReleaseBundle,
+    output_markdown: str | Path,
+) -> Path:
+    """Write a release-candidate bundle Markdown artifact."""
+
+    output_path = Path(output_markdown)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    output_path.write_text(render_cmapss_release_bundle_markdown(bundle), encoding="utf-8")
+    return output_path
+
+
 def render_cmapss_model_card_markdown(
     artifact: CmapssHgbPolicyModelArtifact,
     result: RegressionRunResult,
@@ -961,6 +1181,52 @@ def _read_json_object(path: Path, label: str) -> dict[str, Any]:
     if not isinstance(payload, dict):
         raise ValueError(f"{label} root must be a JSON object: {path}")
     return payload
+
+
+def _file_evidence(path: Path) -> dict[str, Any]:
+    exists = path.exists()
+    evidence: dict[str, Any] = {
+        "path": str(path),
+        "exists": exists,
+        "bytes": path.stat().st_size if exists else None,
+        "sha256": _sha256_file(path) if exists else None,
+    }
+    return evidence
+
+
+def _json_file_evidence(path: Path, payload: dict[str, Any]) -> dict[str, Any]:
+    evidence = _file_evidence(path)
+    evidence["top_level_keys"] = sorted(payload)
+    return evidence
+
+
+def _sha256_file(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as file:
+        for chunk in iter(lambda: file.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def _metadata_artifact_identity(metadata: dict[str, Any]) -> dict[str, Any]:
+    artifact = _dict_or_empty(metadata.get("artifact"))
+    promotion = _dict_or_empty(artifact.get("promotion"))
+    return {
+        "schema_version": artifact.get("schema_version"),
+        "dataset": artifact.get("dataset"),
+        "subset": artifact.get("subset"),
+        "model_name": artifact.get("model_name"),
+        "artifact_id": promotion.get("artifact_id"),
+        "stage": promotion.get("stage"),
+    }
+
+
+def _evidence_path(evidence: dict[str, Any], key: str) -> str | None:
+    value = evidence.get(key)
+    if not isinstance(value, dict):
+        return None
+    path = value.get("path")
+    return str(path) if path is not None else None
 
 
 def _dict_or_empty(value: Any) -> dict[str, Any]:

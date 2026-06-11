@@ -70,6 +70,20 @@ jobs:
             --expected-revision "$GITHUB_SHA" \
             --check-torch-absent
 
+      - name: Build release candidate bundle
+        run: |
+          uv run aerospace-prognostics cmapss-release-bundle \
+            --release-name ci-fd001-serving-candidate \
+            --model-artifact artifacts/ci_release_evidence/models/fd001.joblib \
+            --metadata-json artifacts/ci_release_evidence/models/fd001_metadata.json \
+            --model-card-markdown artifacts/ci_release_evidence/models/fd001_model_card.md \
+            --promotion-json artifacts/ci_release_evidence/models/fd001_promotion.json \
+            --sbom-json artifacts/ci_release_evidence/sbom/cyclonedx.json \
+            --container-manifest-json artifacts/container/serving_image_manifest.json \
+            --container-image-ref aerospace-prognostics:ci \
+            --output-json artifacts/release/cmapss_fd001_release_bundle.json \
+            --output-markdown artifacts/release/cmapss_fd001_release_bundle.md
+
       - name: Smoke serving image
         run: |
           container_id=$(docker run --detach --publish 8000:8000 aerospace-prognostics:ci)

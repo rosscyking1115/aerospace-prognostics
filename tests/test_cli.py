@@ -1703,6 +1703,8 @@ def test_cmapss_package_and_predict_artifact_commands(tmp_path, capsys) -> None:
     benchmark_json = tmp_path / "models" / "fd001_benchmark.json"
     promotion_json = tmp_path / "models" / "fd001_promotion.json"
     promotion_markdown = tmp_path / "models" / "fd001_promotion.md"
+    release_bundle_json = tmp_path / "release" / "fd001_bundle.json"
+    release_bundle_markdown = tmp_path / "release" / "fd001_bundle.md"
     sbom_json = tmp_path / "sbom" / "cyclonedx.json"
     input_csv = tmp_path / "test_input.csv"
     read_cmapss_frame(tmp_path / "test_FD001.txt").to_csv(input_csv, index=False)
@@ -1848,6 +1850,39 @@ def test_cmapss_package_and_predict_artifact_commands(tmp_path, capsys) -> None:
     assert promotion["status"] == "ok"
     assert promotion["gates"]["sbom_cyclonedx"] is True
     assert "# C-MAPSS Promotion Report" in promotion_markdown.read_text(encoding="utf-8")
+
+    release_exit_code = main(
+        [
+            "cmapss-release-bundle",
+            "--release-name",
+            "fd001-cli-candidate",
+            "--model-artifact",
+            str(artifact_path),
+            "--metadata-json",
+            str(metadata_json),
+            "--model-card-markdown",
+            str(model_card_markdown),
+            "--promotion-json",
+            str(promotion_json),
+            "--sbom-json",
+            str(sbom_json),
+            "--output-json",
+            str(release_bundle_json),
+            "--output-markdown",
+            str(release_bundle_markdown),
+        ]
+    )
+    release_output = capsys.readouterr().out
+
+    assert release_exit_code == 0
+    assert "status=ok" in release_output
+    assert "release_name=fd001-cli-candidate" in release_output
+    assert "artifact_id=fd001-" in release_output
+    release_bundle = json.loads(release_bundle_json.read_text(encoding="utf-8"))
+    assert release_bundle["schema_version"] == "aerospace-prognostics/cmapss-release-bundle/v1"
+    assert release_bundle["status"] == "ok"
+    assert release_bundle["evidence"]["model_artifact"]["sha256"]
+    assert "# C-MAPSS Release Bundle" in release_bundle_markdown.read_text(encoding="utf-8")
 
 
 def test_cmapss_download_command_extracts_archive(tmp_path, capsys) -> None:

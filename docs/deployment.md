@@ -20,6 +20,8 @@ Run `cmapss-benchmark-artifact` with a representative telemetry CSV before promo
 
 Run `cmapss-promotion-report` after validation, benchmarking, model-card generation, and SBOM generation. It composes a JSON and optional markdown release-gate report, checks that validation and benchmark evidence refer to the same artifact ID, and exits non-zero when any supplied gate fails.
 
+Run `cmapss-release-bundle` after promotion evidence and, for containerized candidates, after the serving-image manifest is generated. It composes a production-grade release candidate record with SHA-256 digests for the exact model and evidence files, artifact identity checks between metadata and promotion evidence, SBOM/model-card gates, promotion-gate status, and optional serving-container manifest validation. This is the final bundle a reviewer can inspect before publishing a private GHCR image or promoting a mounted model pointer.
+
 The packaging command can also write a markdown model card. The card summarizes intended use, official-test metrics, feature policy, inference contract, serving monitoring, limitations, promotion gate, and rollback strategy so candidate-review evidence is readable without opening the binary artifact.
 
 ## Container Serving
@@ -75,7 +77,7 @@ CI also runs `scripts/ci_release_evidence_smoke.py`. The script uses tiny fixtur
 
 After the Docker image build, CI runs two serving smoke checks. The first starts the image without a model and confirms liveness plus not-ready behavior. The second mounts the tiny CI artifact into the container, enables API-key authentication, checks readiness and schema discovery, posts a prediction request, and confirms metrics are exposed through the authenticated path.
 
-CI writes a serving-image manifest before container smoke checks. The manifest records image ID, repo tags, selected OCI labels, Docker healthcheck settings, whether `torch` was present in the runtime image, and validation booleans for required labels, healthcheck presence, revision matching, and dependency-surface expectations.
+CI writes a serving-image manifest before container smoke checks. The manifest records image ID, repo tags, selected OCI labels, Docker healthcheck settings, whether `torch` was present in the runtime image, and validation booleans for required labels, healthcheck presence, revision matching, and dependency-surface expectations. CI then builds `artifacts/release/cmapss_fd001_release_bundle.json`, which links the model promotion evidence to that exact serving-image manifest.
 
 ## Container Publishing
 
@@ -148,6 +150,7 @@ Current scope:
 - CI serving image healthcheck metadata check.
 - CI serving image dependency-surface check that excludes training-only `torch`.
 - CI serving image manifest generation from Docker inspect metadata.
+- CI release-candidate bundle tying model artifact evidence, SBOM, promotion gates, file digests, and serving image metadata into one reviewable record.
 - CI container startup smoke test against `GET /health`.
 - CI mounted-model container smoke test for authenticated schema, prediction, readiness, and metrics.
 - Private GHCR serving-image publishing for intentional release tags.

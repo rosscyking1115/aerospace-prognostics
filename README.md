@@ -51,6 +51,7 @@ The working plan is tracked in [Aerospace_Prognostics_Project_Plan.md](Aerospace
 - Candidate artifact promotion metadata with stable IDs and rollback guidance.
 - Deployment-candidate model cards with intended use, metrics, inference contract, limitations, monitoring, and rollback notes.
 - Artifact latency benchmark reports with optional p95 promotion gates.
+- Release-candidate evidence bundles with file SHA-256 digests, promotion gates, SBOM, model card, artifact identity checks, and serving-image manifest linkage.
 - Promotion evidence reports that combine validation, benchmark, model-card, and SBOM gates.
 - Optional API-key authentication and serving rate limits for protected inference endpoints.
 - `aerospace-prognostics generate-sbom` CLI for lockfile-derived CycloneDX-style dependency inventory generation.

@@ -41,12 +41,14 @@ from aerospace_prognostics.data.summary import summarise_cmapss_frame
 from aerospace_prognostics.deployment.artifacts import (
     benchmark_cmapss_model_artifact,
     build_cmapss_promotion_report,
+    build_cmapss_release_bundle,
     load_cmapss_model_artifact,
     save_cmapss_model_artifact,
     train_cmapss_hgb_policy_artifact,
     validate_cmapss_model_artifact,
     write_cmapss_model_card_markdown,
     write_cmapss_promotion_report_markdown,
+    write_cmapss_release_bundle_markdown,
 )
 from aerospace_prognostics.deployment.sbom import build_uv_lock_cyclonedx_sbom
 from aerospace_prognostics.evaluation import (
@@ -1057,6 +1059,21 @@ def _build_parser() -> argparse.ArgumentParser:
     promotion_report.add_argument("--sbom-json", type=Path)
     promotion_report.add_argument("--output-json", type=Path, required=True)
     promotion_report.add_argument("--output-markdown", type=Path)
+
+    release_bundle = subparsers.add_parser(
+        "cmapss-release-bundle",
+        help="Compose auditable release-candidate evidence for a C-MAPSS deployment",
+    )
+    release_bundle.add_argument("--release-name", required=True)
+    release_bundle.add_argument("--model-artifact", type=Path, required=True)
+    release_bundle.add_argument("--metadata-json", type=Path, required=True)
+    release_bundle.add_argument("--model-card-markdown", type=Path, required=True)
+    release_bundle.add_argument("--promotion-json", type=Path, required=True)
+    release_bundle.add_argument("--sbom-json", type=Path, required=True)
+    release_bundle.add_argument("--container-manifest-json", type=Path)
+    release_bundle.add_argument("--container-image-ref")
+    release_bundle.add_argument("--output-json", type=Path, required=True)
+    release_bundle.add_argument("--output-markdown", type=Path)
 
     serve_api = subparsers.add_parser(
         "serve-api",
@@ -2512,6 +2529,37 @@ def main(argv: list[str] | None = None) -> int:
             )
             print(f"output_markdown={markdown_path}")
         return 0 if report.status == "ok" else 1
+
+    if args.command == "cmapss-release-bundle":
+        bundle = build_cmapss_release_bundle(
+            release_name=args.release_name,
+            model_artifact=args.model_artifact,
+            metadata_json=args.metadata_json,
+            model_card_markdown=args.model_card_markdown,
+            promotion_json=args.promotion_json,
+            sbom_json=args.sbom_json,
+            container_manifest_json=args.container_manifest_json,
+            container_image_ref=args.container_image_ref,
+        )
+        print(f"status={bundle.status}")
+        print(f"release_name={bundle.release_name}")
+        artifact_id = bundle.artifact_identity.get("artifact_id")
+        if artifact_id:
+            print(f"artifact_id={artifact_id}")
+        if bundle.container_image_ref:
+            print(f"container_image_ref={bundle.container_image_ref}")
+        print(f"gates_passed={sum(bundle.gates.values())}")
+        print(f"gates_total={len(bundle.gates)}")
+        for problem in bundle.problems:
+            print(f"problem={problem}")
+        _write_json_payload(bundle.to_dict(), args.output_json)
+        if args.output_markdown is not None:
+            markdown_path = write_cmapss_release_bundle_markdown(
+                bundle,
+                args.output_markdown,
+            )
+            print(f"output_markdown={markdown_path}")
+        return 0 if bundle.status == "ok" else 1
 
     if args.command == "serve-api":
         import uvicorn

@@ -7,8 +7,10 @@ from aerospace_prognostics.deployment.artifacts import (
     ARTIFACT_SCHEMA_VERSION,
     benchmark_cmapss_model_artifact,
     build_cmapss_promotion_report,
+    build_cmapss_release_bundle,
     load_cmapss_model_artifact,
     render_cmapss_model_card_markdown,
+    render_cmapss_release_bundle_markdown,
     save_cmapss_model_artifact,
     train_cmapss_hgb_policy_artifact,
     validate_cmapss_model_artifact,
@@ -224,6 +226,164 @@ def test_build_cmapss_promotion_report_combines_gate_evidence(tmp_path) -> None:
     ]
     assert report.evidence["sbom"]["component_count"] == 1
     assert "# C-MAPSS Promotion Report" in markdown_path.read_text(encoding="utf-8")
+
+
+def test_build_cmapss_release_bundle_ties_model_supply_chain_and_container_evidence(
+    tmp_path,
+) -> None:
+    write_tiny_cmapss_subset(tmp_path)
+    packaged = train_cmapss_hgb_policy_artifact(tmp_path, "FD001", n_regimes=1)
+    artifact_path = save_cmapss_model_artifact(
+        packaged.artifact,
+        tmp_path / "models" / "fd001.joblib",
+    )
+    metadata_json = tmp_path / "models" / "fd001_metadata.json"
+    validation_json = tmp_path / "models" / "fd001_validation.json"
+    benchmark_json = tmp_path / "models" / "fd001_benchmark.json"
+    model_card_markdown = tmp_path / "models" / "fd001_model_card.md"
+    promotion_json = tmp_path / "models" / "fd001_promotion.json"
+    sbom_json = tmp_path / "sbom" / "cyclonedx.json"
+    container_manifest_json = tmp_path / "container" / "serving_image_manifest.json"
+    input_csv = tmp_path / "fd001_input.csv"
+    metadata_json.write_text(
+        json.dumps(
+            {
+                "artifact": packaged.artifact.metadata(),
+                "result": packaged.result.to_dict(),
+            },
+            indent=2,
+            sort_keys=True,
+        ),
+        encoding="utf-8",
+    )
+    load_cmapss_subset(tmp_path, "FD001").test.to_csv(input_csv, index=False)
+    validation = validate_cmapss_model_artifact(
+        artifact_path,
+        metadata_json=metadata_json,
+        input_csv=input_csv,
+    )
+    benchmark = benchmark_cmapss_model_artifact(
+        artifact_path,
+        input_csv,
+        runs=2,
+        warmup_runs=1,
+        max_p95_latency_ms=10_000.0,
+    )
+    validation_json.write_text(json.dumps(validation.to_dict()), encoding="utf-8")
+    benchmark_json.write_text(json.dumps(benchmark.to_dict()), encoding="utf-8")
+    write_cmapss_model_card_markdown(packaged.artifact, packaged.result, model_card_markdown)
+    sbom_json.parent.mkdir(parents=True)
+    sbom_json.write_text(
+        json.dumps(
+            {
+                "bomFormat": "CycloneDX",
+                "specVersion": "1.6",
+                "components": [{"type": "library", "name": "numpy", "version": "1.0.0"}],
+            },
+        ),
+        encoding="utf-8",
+    )
+    report = build_cmapss_promotion_report(
+        validation_json,
+        benchmark_json,
+        model_card_markdown=model_card_markdown,
+        sbom_json=sbom_json,
+    )
+    promotion_json.write_text(json.dumps(report.to_dict()), encoding="utf-8")
+    container_manifest_json.parent.mkdir(parents=True)
+    container_manifest_json.write_text(
+        json.dumps(
+            {
+                "schema_version": "aerospace-prognostics/serving-image-manifest/v1",
+                "image": "aerospace-prognostics:ci",
+                "image_id": "sha256:image",
+                "labels": {"org.opencontainers.image.revision": "abc123"},
+                "validation": {
+                    "has_oci_labels": True,
+                    "has_healthcheck": True,
+                    "revision_matches_expected": True,
+                    "torch_absent": True,
+                },
+            },
+        ),
+        encoding="utf-8",
+    )
+
+    bundle = build_cmapss_release_bundle(
+        release_name="fd001-ci-candidate",
+        model_artifact=artifact_path,
+        metadata_json=metadata_json,
+        model_card_markdown=model_card_markdown,
+        promotion_json=promotion_json,
+        sbom_json=sbom_json,
+        container_manifest_json=container_manifest_json,
+        container_image_ref="aerospace-prognostics:ci",
+    )
+    markdown = render_cmapss_release_bundle_markdown(bundle)
+
+    assert bundle.status == "ok"
+    assert all(bundle.gates.values())
+    assert bundle.artifact_identity["artifact_id"] == packaged.artifact.promotion_metadata[
+        "artifact_id"
+    ]
+    assert bundle.evidence["model_artifact"]["sha256"]
+    assert bundle.evidence["container"]["image_id"] == "sha256:image"
+    assert bundle.to_dict()["schema_version"] == "aerospace-prognostics/cmapss-release-bundle/v1"
+    assert "# C-MAPSS Release Bundle" in markdown
+    assert "Model artifact SHA-256" in markdown
+
+
+def test_build_cmapss_release_bundle_fails_on_identity_mismatch(tmp_path) -> None:
+    artifact_path = tmp_path / "models" / "fd001.joblib"
+    metadata_json = tmp_path / "models" / "fd001_metadata.json"
+    model_card_markdown = tmp_path / "models" / "fd001_model_card.md"
+    promotion_json = tmp_path / "models" / "fd001_promotion.json"
+    sbom_json = tmp_path / "sbom" / "cyclonedx.json"
+    artifact_path.parent.mkdir(parents=True)
+    artifact_path.write_bytes(b"model")
+    metadata_json.write_text(
+        json.dumps(
+            {
+                "artifact": {
+                    "schema_version": "1.1",
+                    "dataset": "C-MAPSS",
+                    "subset": "FD001",
+                    "model_name": "model",
+                    "promotion": {"artifact_id": "metadata-id", "stage": "candidate"},
+                },
+            },
+        ),
+        encoding="utf-8",
+    )
+    model_card_markdown.write_text("# C-MAPSS Deployment Model Card\n", encoding="utf-8")
+    promotion_json.write_text(
+        json.dumps(
+            {
+                "status": "ok",
+                "gates": {"artifact_validation": True},
+                "artifact_identity": {"artifact_id": "promotion-id"},
+            },
+        ),
+        encoding="utf-8",
+    )
+    sbom_json.parent.mkdir(parents=True)
+    sbom_json.write_text(
+        json.dumps({"bomFormat": "CycloneDX", "components": [{"name": "numpy"}]}),
+        encoding="utf-8",
+    )
+
+    bundle = build_cmapss_release_bundle(
+        release_name="mismatch",
+        model_artifact=artifact_path,
+        metadata_json=metadata_json,
+        model_card_markdown=model_card_markdown,
+        promotion_json=promotion_json,
+        sbom_json=sbom_json,
+    )
+
+    assert bundle.status == "failed"
+    assert bundle.gates["artifact_identity_match"] is False
+    assert "artifact identity mismatch" in bundle.problems[0]
 
 
 def test_build_cmapss_promotion_report_keeps_failed_gate_visible(tmp_path) -> None:

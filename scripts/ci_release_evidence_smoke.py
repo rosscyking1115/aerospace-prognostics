@@ -30,6 +30,8 @@ def run() -> int:
     benchmark_json = model_dir / "fd001_benchmark.json"
     promotion_json = model_dir / "fd001_promotion.json"
     promotion_markdown = model_dir / "fd001_promotion.md"
+    release_bundle_json = root / "release" / "fd001_release_bundle.json"
+    release_bundle_markdown = root / "release" / "fd001_release_bundle.md"
     sbom_json = sbom_dir / "cyclonedx.json"
     input_csv = prediction_dir / "fd001_input.csv"
 
@@ -110,11 +112,37 @@ def run() -> int:
         ],
         main,
     )
+    _run_cli(
+        [
+            "cmapss-release-bundle",
+            "--release-name",
+            "ci-fd001-candidate",
+            "--model-artifact",
+            str(artifact_path),
+            "--metadata-json",
+            str(metadata_json),
+            "--model-card-markdown",
+            str(model_card_markdown),
+            "--promotion-json",
+            str(promotion_json),
+            "--sbom-json",
+            str(sbom_json),
+            "--output-json",
+            str(release_bundle_json),
+            "--output-markdown",
+            str(release_bundle_markdown),
+        ],
+        main,
+    )
 
     promotion = json.loads(promotion_json.read_text(encoding="utf-8"))
     if promotion["status"] != "ok" or not all(promotion["gates"].values()):
         raise RuntimeError(f"promotion evidence smoke failed: {promotion!r}")
+    release_bundle = json.loads(release_bundle_json.read_text(encoding="utf-8"))
+    if release_bundle["status"] != "ok" or not all(release_bundle["gates"].values()):
+        raise RuntimeError(f"release bundle smoke failed: {release_bundle!r}")
     print(f"promotion_report={promotion_json}")
+    print(f"release_bundle={release_bundle_json}")
     print(f"artifact_id={promotion['artifact_identity']['artifact_id']}")
     print(f"gates={len(promotion['gates'])}")
     return 0
