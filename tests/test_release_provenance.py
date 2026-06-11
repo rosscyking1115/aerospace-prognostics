@@ -41,7 +41,12 @@ def test_build_release_provenance_uses_release_bundle_subjects(tmp_path) -> None
     assert "https://slsa.dev/provenance/v1" in markdown
 
 
-def test_build_release_provenance_fails_without_required_source_metadata(tmp_path) -> None:
+def test_build_release_provenance_fails_without_required_source_metadata(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    monkeypatch.delenv("GITHUB_REPOSITORY", raising=False)
+    monkeypatch.delenv("GITHUB_SHA", raising=False)
     bundle_json = _write_release_bundle(tmp_path)
 
     provenance = build_release_provenance(bundle_json)
