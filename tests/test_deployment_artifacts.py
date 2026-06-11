@@ -41,6 +41,9 @@ def test_train_save_load_and_predict_cmapss_hgb_policy_artifact(tmp_path) -> Non
     assert loaded.feature_policy == "regime_engineered"
     assert "sensor_1" in loaded.reference_stats
     assert loaded.reference_stats["sensor_1"]["count"] == 6.0
+    assert loaded.uncertainty_calibration["method"] == "train_residual_absolute_quantile"
+    assert loaded.uncertainty_calibration["confidence"] == 0.9
+    assert loaded.uncertainty_calibration["calibration_count"] == 6
     assert loaded.promotion_metadata["artifact_id"].startswith("fd001-")
     assert loaded.promotion_metadata["stage"] == "candidate"
     assert loaded.promotion_metadata["identity"]["official_test_rmse"] == round(
@@ -54,6 +57,15 @@ def test_train_save_load_and_predict_cmapss_hgb_policy_artifact(tmp_path) -> Non
     assert packaged.result.rmse >= 0
     assert [prediction.unit_number for prediction in predictions] == [1, 2]
     assert all(0 <= prediction.predicted_rul <= loaded.rul_cap for prediction in predictions)
+    assert all(prediction.predicted_rul_lower is not None for prediction in predictions)
+    assert all(prediction.predicted_rul_upper is not None for prediction in predictions)
+    assert all(
+        0 <= prediction.predicted_rul_lower <= prediction.predicted_rul_upper <= loaded.rul_cap
+        for prediction in predictions
+        if prediction.predicted_rul_lower is not None
+        and prediction.predicted_rul_upper is not None
+    )
+    assert predictions[0].to_dict()["interval_method"] == "train_residual_absolute_quantile"
 
 
 def test_cmapss_hgb_policy_artifact_rejects_missing_columns(tmp_path) -> None:
@@ -81,6 +93,8 @@ def test_render_cmapss_model_card_markdown_summarizes_deployment_context(tmp_pat
     assert "## Performance" in markdown
     assert f"| Official-test RMSE | {packaged.result.rmse:.6f} |" in markdown
     assert "## Inference Contract" in markdown
+    assert "Interval method" in markdown
+    assert "train_residual_absolute_quantile" in markdown
     assert "## Monitoring" in markdown
     assert "## Limitations" in markdown
     assert "Requires retraining: `False`" in markdown

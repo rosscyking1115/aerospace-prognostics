@@ -1760,6 +1760,13 @@ def test_cmapss_package_and_predict_artifact_commands(tmp_path, capsys) -> None:
     assert predict_exit_code == 0
     assert "predictions=2" in predict_output
     assert prediction_json.exists()
+    prediction_payload = json.loads(prediction_json.read_text(encoding="utf-8"))
+    assert prediction_payload["predictions"][0]["predicted_rul_lower"] is not None
+    assert prediction_payload["predictions"][0]["predicted_rul_upper"] is not None
+    assert (
+        prediction_payload["predictions"][0]["interval_method"]
+        == "train_residual_absolute_quantile"
+    )
 
     benchmark_exit_code = main(
         [

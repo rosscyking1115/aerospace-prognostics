@@ -24,9 +24,9 @@ Run `cmapss-release-bundle` after promotion evidence and, for containerized cand
 
 Run `generate-release-provenance` after the release bundle. It emits an in-toto statement with a SLSA provenance predicate, binding the release bundle subjects to the source repository, Git SHA, Git ref, workflow name, run ID, and builder identity. CI writes `artifacts/release/cmapss_fd001_provenance.json` on every push. GitHub-native artifact attestations are the preferred hosted attestation layer when available, but GitHub currently limits private-repository artifact attestations on Free/Pro/Team plans; keep this internal provenance path active while the project remains private.
 
-The packaging command can also write a markdown model card. The card summarizes intended use, official-test metrics, feature policy, inference contract, serving monitoring, limitations, promotion gate, and rollback strategy so candidate-review evidence is readable without opening the binary artifact.
+The packaging command can also write a markdown model card. The card summarizes intended use, official-test metrics, feature policy, inference contract, train-residual RUL interval calibration, serving monitoring, limitations, promotion gate, and rollback strategy so candidate-review evidence is readable without opening the binary artifact.
 
-Run `dashboard-fleet-payload` after batch prediction and promotion/release evidence generation when preparing fleet triage or demo assets. It writes a stable `aerospace-prognostics/fleet-dashboard/v1` JSON contract with fleet assets, interval-aware RUL risk levels, priority ranks, attention reasons, summary counts, prediction provenance, and optional promotion/release evidence. This keeps future dashboard and automation clients decoupled from model internals while letting fixture, sample, or real batch outputs drive the same operator-facing contract.
+Run `dashboard-fleet-payload` after batch prediction and promotion/release evidence generation when preparing fleet triage or demo assets. It writes a stable `aerospace-prognostics/fleet-dashboard/v1` JSON contract with fleet assets, interval-aware RUL risk levels, priority ranks, attention reasons, summary counts, prediction provenance, and optional promotion/release evidence. The deployable C-MAPSS artifact now emits lower/upper RUL bounds from a train-residual absolute-error quantile calibration, clipped to the configured `[0, rul_cap]` prediction range. These intervals are operational triage aids, not certification guarantees. This keeps future dashboard and automation clients decoupled from model internals while letting fixture, sample, or real batch outputs drive the same operator-facing contract.
 
 Run `dashboard-render-html` against that payload to create a standalone static dashboard artifact. The HTML is self-contained and dependency-free, so it can be opened locally, attached to release evidence, or used as the first public demo surface before the project graduates to Streamlit or a Next.js/FastAPI product interface.
 
@@ -56,6 +56,8 @@ The API exposes:
 - `POST /predict`
 
 `POST /predict` accepts raw C-MAPSS telemetry rows with the canonical columns: `unit_number`, `time_in_cycles`, three operating settings, and 21 sensor values. The service groups rows by unit and returns one capped RUL prediction per unit using each unit's latest observed cycle.
+
+Prediction responses include `predicted_rul_lower`, `predicted_rul_upper`, `interval_method`, and `interval_confidence` when the loaded artifact carries interval calibration. For the current HGB policy artifact, the interval method is `train_residual_absolute_quantile` with a 0.90 confidence target.
 
 `GET /schema` returns the loaded artifact's concrete inference contract: required telemetry columns, row limits, grouping behavior, prediction fields, output RUL bounds, monitoring block names, artifact ID, and artifact SHA-256. This makes the deployed model contract discoverable by clients and smoke-test jobs without exposing the binary artifact.
 
@@ -120,7 +122,7 @@ Rollback procedure:
 
 ## Production Readiness Notes
 
-The artifact contains the trained scikit-learn model, feature policy, rolling-window configuration, operating-regime transformer when needed, train-fitted standardizer, input schema, feature schema, train-fit telemetry reference statistics, promotion metadata, and run metadata. This makes inference reproducible without refitting preprocessing at request time.
+The artifact contains the trained scikit-learn model, feature policy, rolling-window configuration, operating-regime transformer when needed, train-fitted standardizer, input schema, feature schema, train-fit telemetry reference statistics, train-residual interval calibration, promotion metadata, and run metadata. This makes inference reproducible without refitting preprocessing at request time.
 
 Prediction outputs are bounded to `[0, rul_cap]` at inference time. The first real FD001 package smoke test used the validation-selected HGB policy artifact:
 

@@ -57,6 +57,10 @@ def test_serving_api_health_version_and_predict(tmp_path) -> None:
     payload = response.json()
     assert payload["model_name"] == artifact.model_name
     assert [prediction["unit_number"] for prediction in payload["predictions"]] == [1, 2]
+    assert payload["predictions"][0]["predicted_rul_lower"] is not None
+    assert payload["predictions"][0]["predicted_rul_upper"] is not None
+    assert payload["predictions"][0]["interval_method"] == "train_residual_absolute_quantile"
+    assert payload["predictions"][0]["interval_confidence"] == 0.9
     assert payload["monitoring"]["predictions"]["count"] == 2
     assert "sensor_1" in payload["monitoring"]["telemetry"]["columns"]
     assert metrics.status_code == 200
@@ -112,6 +116,22 @@ def test_serving_api_exposes_model_specific_inference_schema(tmp_path) -> None:
             "minimum": 0.0,
             "maximum": float(artifact.rul_cap),
         },
+        {
+            "name": "predicted_rul_lower",
+            "type": "number",
+            "minimum": 0.0,
+            "maximum": float(artifact.rul_cap),
+            "nullable": True,
+        },
+        {
+            "name": "predicted_rul_upper",
+            "type": "number",
+            "minimum": 0.0,
+            "maximum": float(artifact.rul_cap),
+            "nullable": True,
+        },
+        {"name": "interval_method", "type": "string", "nullable": True},
+        {"name": "interval_confidence", "type": "number", "nullable": True},
     ]
 
 

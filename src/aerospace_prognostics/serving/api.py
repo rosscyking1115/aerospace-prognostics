@@ -43,7 +43,7 @@ class PredictResponse(BaseModel):
     subset: str
     model_name: str
     rul_cap: int
-    predictions: list[dict[str, float | int]]
+    predictions: list[dict[str, Any]]
     monitoring: dict[str, Any]
 
 
@@ -482,6 +482,22 @@ def _inference_schema_payload(
                     "minimum": 0.0,
                     "maximum": float(model.rul_cap),
                 },
+                {
+                    "name": "predicted_rul_lower",
+                    "type": "number",
+                    "minimum": 0.0,
+                    "maximum": float(model.rul_cap),
+                    "nullable": True,
+                },
+                {
+                    "name": "predicted_rul_upper",
+                    "type": "number",
+                    "minimum": 0.0,
+                    "maximum": float(model.rul_cap),
+                    "nullable": True,
+                },
+                {"name": "interval_method", "type": "string", "nullable": True},
+                {"name": "interval_confidence", "type": "number", "nullable": True},
             ],
             "monitoring_fields": ["telemetry", "predictions"],
         },

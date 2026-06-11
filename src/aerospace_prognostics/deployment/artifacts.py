@@ -34,8 +34,8 @@ from aerospace_prognostics.metrics import nasa_rul_score, rmse
 from aerospace_prognostics.models.baselines import hist_gradient_boosting_rul
 from aerospace_prognostics.preprocessing import FeatureStandardizer
 
-ARTIFACT_SCHEMA_VERSION = "1.1"
-SUPPORTED_ARTIFACT_SCHEMA_VERSIONS = {"1.0", ARTIFACT_SCHEMA_VERSION}
+ARTIFACT_SCHEMA_VERSION = "1.2"
+SUPPORTED_ARTIFACT_SCHEMA_VERSIONS = {"1.0", "1.1", ARTIFACT_SCHEMA_VERSION}
 
 
 @dataclass(frozen=True)
@@ -165,8 +165,12 @@ class CmapssPrediction:
 
     unit_number: int
     predicted_rul: float
+    predicted_rul_lower: float | None = None
+    predicted_rul_upper: float | None = None
+    interval_method: str | None = None
+    interval_confidence: float | None = None
 
-    def to_dict(self) -> dict[str, float | int]:
+    def to_dict(self) -> dict[str, float | int | str | None]:
         """Return a JSON-serialisable dictionary."""
 
         return asdict(self)
@@ -192,6 +196,7 @@ class CmapssHgbPolicyModelArtifact:
     standardizer: FeatureStandardizer | None = None
     regime_transformer: OperatingRegimeFeatureTransformer | None = None
     reference_stats: dict[str, dict[str, float]] = field(default_factory=dict)
+    uncertainty_calibration: dict[str, Any] = field(default_factory=dict)
     promotion_metadata: dict[str, Any] = field(default_factory=dict)
 
     def metadata(self) -> dict[str, Any]:
@@ -211,6 +216,7 @@ class CmapssHgbPolicyModelArtifact:
             "input_columns": list(self.input_columns),
             "feature_columns": list(self.feature_columns),
             "reference_stats_columns": sorted(self._reference_stats),
+            "uncertainty": self._uncertainty_calibration,
             "promotion": self._promotion_metadata,
         }
 
@@ -231,7 +237,7 @@ class CmapssHgbPolicyModelArtifact:
             .tolist()
         )
         return [
-            CmapssPrediction(unit_number=unit, predicted_rul=float(prediction))
+            self._prediction_payload(unit_number=unit, predicted_rul=float(prediction))
             for unit, prediction in zip(unit_numbers, predictions, strict=True)
         ]
 
@@ -263,6 +269,25 @@ class CmapssHgbPolicyModelArtifact:
     @property
     def _promotion_metadata(self) -> dict[str, Any]:
         return getattr(self, "promotion_metadata", {})
+
+    @property
+    def _uncertainty_calibration(self) -> dict[str, Any]:
+        return getattr(self, "uncertainty_calibration", {})
+
+    def _prediction_payload(self, *, unit_number: int, predicted_rul: float) -> CmapssPrediction:
+        interval = _rul_prediction_interval(
+            predicted_rul,
+            rul_cap=float(self.rul_cap),
+            calibration=self._uncertainty_calibration,
+        )
+        return CmapssPrediction(
+            unit_number=unit_number,
+            predicted_rul=predicted_rul,
+            predicted_rul_lower=interval.get("lower"),
+            predicted_rul_upper=interval.get("upper"),
+            interval_method=interval.get("method"),
+            interval_confidence=interval.get("confidence"),
+        )
 
     def _build_features(self, frame: pd.DataFrame) -> pd.DataFrame:
         if self.feature_policy == "engineered":
@@ -351,8 +376,14 @@ def train_cmapss_hgb_policy_artifact(
     params = {key: value for key, value in hgb_params.items() if key != "label"}
     model = hist_gradient_boosting_rul(random_state=random_state, **params)
     model.fit(train_features, train_target)
+    train_predictions = np.clip(model.predict(train_features), 0.0, float(rul_cap))
     predictions = np.clip(model.predict(test_features), 0.0, float(rul_cap))
     model_name = f"{model_prefix}_{hgb_policy}"
+    uncertainty_calibration = _fit_rul_interval_calibration(
+        actual=train_target.to_numpy(dtype=float),
+        predicted=train_predictions,
+        rul_cap=float(rul_cap),
+    )
 
     result = RegressionRunResult(
         dataset="C-MAPSS",
@@ -399,6 +430,7 @@ def train_cmapss_hgb_policy_artifact(
         standardizer=standardizer,
         regime_transformer=regime_transformer,
         reference_stats=_reference_stats(bundle.train, tuple(CMAPSS_COLUMNS[1:])),
+        uncertainty_calibration=uncertainty_calibration,
         promotion_metadata=promotion_metadata,
     )
     return PackagedCmapssModel(artifact=artifact, result=result)
@@ -430,6 +462,8 @@ def load_cmapss_model_artifact(path: str | Path) -> CmapssHgbPolicyModelArtifact
         )
     if not hasattr(artifact, "reference_stats"):
         object.__setattr__(artifact, "reference_stats", {})
+    if not hasattr(artifact, "uncertainty_calibration"):
+        object.__setattr__(artifact, "uncertainty_calibration", {})
     if not hasattr(artifact, "promotion_metadata"):
         object.__setattr__(artifact, "promotion_metadata", {})
     return artifact
@@ -1010,6 +1044,7 @@ def render_cmapss_model_card_markdown(
     identity = promotion.get("identity", {})
     rollback = promotion.get("rollback", {})
     reference_column_count = len(artifact.reference_stats)
+    uncertainty = artifact.uncertainty_calibration
     lines = [
         "# C-MAPSS Deployment Model Card",
         "",
@@ -1064,6 +1099,12 @@ def render_cmapss_model_card_markdown(
         f"- Input columns: {len(artifact.input_columns)}",
         f"- Feature columns after preprocessing: {len(artifact.feature_columns)}",
         f"- Prediction bounds: `[0, {artifact.rul_cap}]`",
+        f"- Interval method: `{_markdown_inline(uncertainty.get('method'))}`",
+        f"- Interval confidence target: `{_markdown_inline(uncertainty.get('confidence'))}`",
+        (
+            "- Interval calibration rows: "
+            f"`{_markdown_inline(uncertainty.get('calibration_count'))}`"
+        ),
         f"- Required first columns: `{_markdown_inline(', '.join(artifact.input_columns[:5]))}`",
         "",
         "## Monitoring",
@@ -1088,7 +1129,10 @@ def render_cmapss_model_card_markdown(
         "",
         "- C-MAPSS is simulated benchmark telemetry, not operational fleet data.",
         "- RUL is capped for training and serving, so early-life absolute RUL is compressed.",
-        "- This artifact does not provide prediction intervals or certification evidence.",
+        (
+            "- Prediction intervals are train-residual calibration bands, not formal "
+            "certification evidence."
+        ),
         "- Public deployment still requires TLS termination, secret rotation, and audit logging.",
         "",
         "## Rollback",
@@ -1195,6 +1239,54 @@ def _numeric_distribution(values: list[float]) -> dict[str, float | int | None]:
     }
 
 
+def _fit_rul_interval_calibration(
+    *,
+    actual: np.ndarray,
+    predicted: np.ndarray,
+    rul_cap: float,
+    confidence: float = 0.9,
+) -> dict[str, Any]:
+    if len(actual) == 0 or len(actual) != len(predicted):
+        return {}
+    residuals = np.asarray(actual, dtype=float) - np.asarray(predicted, dtype=float)
+    absolute_residuals = np.abs(residuals)
+    width = float(np.quantile(absolute_residuals, confidence))
+    return {
+        "method": "train_residual_absolute_quantile",
+        "confidence": confidence,
+        "calibration_count": int(len(absolute_residuals)),
+        "absolute_error_quantile": width,
+        "mean_error": float(np.mean(residuals)),
+        "mean_absolute_error": float(np.mean(absolute_residuals)),
+        "rul_cap": rul_cap,
+        "lower_bound": 0.0,
+        "upper_bound": rul_cap,
+    }
+
+
+def _rul_prediction_interval(
+    predicted_rul: float,
+    *,
+    rul_cap: float,
+    calibration: dict[str, Any],
+) -> dict[str, float | str | None]:
+    if not calibration:
+        return {"lower": None, "upper": None, "method": None, "confidence": None}
+    width = _optional_float(calibration.get("absolute_error_quantile"))
+    confidence = _optional_float(calibration.get("confidence"))
+    method = calibration.get("method")
+    if width is None or width < 0:
+        return {"lower": None, "upper": None, "method": None, "confidence": None}
+    lower = max(0.0, predicted_rul - width)
+    upper = min(rul_cap, predicted_rul + width)
+    return {
+        "lower": float(lower),
+        "upper": float(upper),
+        "method": str(method) if method is not None else None,
+        "confidence": confidence,
+    }
+
+
 def _latency_distribution(values: list[float]) -> dict[str, float]:
     if not values:
         raise ValueError("values must contain at least one latency")
@@ -1279,6 +1371,15 @@ def _string_list(value: Any) -> list[str]:
     if not isinstance(value, list):
         return []
     return [str(item) for item in value]
+
+
+def _optional_float(value: Any) -> float | None:
+    if value is None or isinstance(value, bool):
+        return None
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
 
 
 def _artifact_id(identity: dict[str, Any]) -> str | None:

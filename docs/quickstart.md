@@ -28,5 +28,9 @@ Key outputs:
 - `artifacts/quickstart_cmapss/release/fd001_provenance.md`
 - `artifacts/quickstart_cmapss/models/fd001_model_card.md`
 
+The prediction and dashboard payloads include train-residual RUL interval bounds, so
+the quickstart exercises the same uncertainty-aware triage contract used by the
+serving API.
+
 This quickstart is a plumbing demo, not model-quality evidence. The fixture is intentionally
 tiny so reviewers can verify the lifecycle quickly before moving to the real benchmark data.
