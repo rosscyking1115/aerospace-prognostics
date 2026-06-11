@@ -32,6 +32,8 @@ def run() -> int:
     promotion_markdown = model_dir / "fd001_promotion.md"
     release_bundle_json = root / "release" / "fd001_release_bundle.json"
     release_bundle_markdown = root / "release" / "fd001_release_bundle.md"
+    provenance_json = root / "release" / "fd001_provenance.json"
+    provenance_markdown = root / "release" / "fd001_provenance.md"
     sbom_json = sbom_dir / "cyclonedx.json"
     input_csv = prediction_dir / "fd001_input.csv"
 
@@ -134,6 +136,28 @@ def run() -> int:
         ],
         main,
     )
+    _run_cli(
+        [
+            "generate-release-provenance",
+            "--release-bundle-json",
+            str(release_bundle_json),
+            "--repository",
+            "rosscyking1115/aerospace-prognostics",
+            "--git-sha",
+            "0123456789abcdef0123456789abcdef01234567",
+            "--git-ref",
+            "refs/heads/main",
+            "--workflow",
+            "CI",
+            "--run-id",
+            "1",
+            "--output-json",
+            str(provenance_json),
+            "--output-markdown",
+            str(provenance_markdown),
+        ],
+        main,
+    )
 
     promotion = json.loads(promotion_json.read_text(encoding="utf-8"))
     if promotion["status"] != "ok" or not all(promotion["gates"].values()):
@@ -141,8 +165,12 @@ def run() -> int:
     release_bundle = json.loads(release_bundle_json.read_text(encoding="utf-8"))
     if release_bundle["status"] != "ok" or not all(release_bundle["gates"].values()):
         raise RuntimeError(f"release bundle smoke failed: {release_bundle!r}")
+    provenance = json.loads(provenance_json.read_text(encoding="utf-8"))
+    if provenance["status"] != "ok":
+        raise RuntimeError(f"release provenance smoke failed: {provenance!r}")
     print(f"promotion_report={promotion_json}")
     print(f"release_bundle={release_bundle_json}")
+    print(f"release_provenance={provenance_json}")
     print(f"artifact_id={promotion['artifact_identity']['artifact_id']}")
     print(f"gates={len(promotion['gates'])}")
     return 0

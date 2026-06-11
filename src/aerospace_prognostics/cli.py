@@ -50,6 +50,11 @@ from aerospace_prognostics.deployment.artifacts import (
     write_cmapss_promotion_report_markdown,
     write_cmapss_release_bundle_markdown,
 )
+from aerospace_prognostics.deployment.provenance import (
+    build_release_provenance,
+    write_release_provenance_json,
+    write_release_provenance_markdown,
+)
 from aerospace_prognostics.deployment.sbom import build_uv_lock_cyclonedx_sbom
 from aerospace_prognostics.evaluation import (
     RegressionRunResult,
@@ -1074,6 +1079,22 @@ def _build_parser() -> argparse.ArgumentParser:
     release_bundle.add_argument("--container-image-ref")
     release_bundle.add_argument("--output-json", type=Path, required=True)
     release_bundle.add_argument("--output-markdown", type=Path)
+
+    release_provenance = subparsers.add_parser(
+        "generate-release-provenance",
+        help="Generate in-toto/SLSA-style provenance for a release bundle",
+    )
+    release_provenance.add_argument("--release-bundle-json", type=Path, required=True)
+    release_provenance.add_argument("--repository")
+    release_provenance.add_argument("--git-sha")
+    release_provenance.add_argument("--git-ref")
+    release_provenance.add_argument("--workflow")
+    release_provenance.add_argument("--run-id")
+    release_provenance.add_argument("--run-attempt")
+    release_provenance.add_argument("--actor")
+    release_provenance.add_argument("--builder-id")
+    release_provenance.add_argument("--output-json", type=Path, required=True)
+    release_provenance.add_argument("--output-markdown", type=Path)
 
     serve_api = subparsers.add_parser(
         "serve-api",
@@ -2560,6 +2581,36 @@ def main(argv: list[str] | None = None) -> int:
             )
             print(f"output_markdown={markdown_path}")
         return 0 if bundle.status == "ok" else 1
+
+    if args.command == "generate-release-provenance":
+        provenance = build_release_provenance(
+            args.release_bundle_json,
+            repository=args.repository,
+            git_sha=args.git_sha,
+            git_ref=args.git_ref,
+            workflow=args.workflow,
+            run_id=args.run_id,
+            run_attempt=args.run_attempt,
+            actor=args.actor,
+            builder_id=args.builder_id,
+        )
+        print(f"status={provenance.status}")
+        print(f"release_name={provenance.release_name}")
+        print(f"subject_count={provenance.summary['subject_count']}")
+        git_sha = provenance.summary.get("git_sha")
+        if git_sha:
+            print(f"git_sha={git_sha}")
+        for problem in provenance.problems:
+            print(f"problem={problem}")
+        json_path = write_release_provenance_json(provenance, args.output_json)
+        print(f"output_json={json_path}")
+        if args.output_markdown is not None:
+            markdown_path = write_release_provenance_markdown(
+                provenance,
+                args.output_markdown,
+            )
+            print(f"output_markdown={markdown_path}")
+        return 0 if provenance.status == "ok" else 1
 
     if args.command == "serve-api":
         import uvicorn

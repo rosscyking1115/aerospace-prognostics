@@ -84,6 +84,13 @@ jobs:
             --output-json artifacts/release/cmapss_fd001_release_bundle.json \
             --output-markdown artifacts/release/cmapss_fd001_release_bundle.md
 
+      - name: Generate release provenance
+        run: |
+          uv run aerospace-prognostics generate-release-provenance \
+            --release-bundle-json artifacts/release/cmapss_fd001_release_bundle.json \
+            --output-json artifacts/release/cmapss_fd001_provenance.json \
+            --output-markdown artifacts/release/cmapss_fd001_provenance.md
+
       - name: Smoke serving image
         run: |
           container_id=$(docker run --detach --publish 8000:8000 aerospace-prognostics:ci)

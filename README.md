@@ -52,6 +52,7 @@ The working plan is tracked in [Aerospace_Prognostics_Project_Plan.md](Aerospace
 - Deployment-candidate model cards with intended use, metrics, inference contract, limitations, monitoring, and rollback notes.
 - Artifact latency benchmark reports with optional p95 promotion gates.
 - Release-candidate evidence bundles with file SHA-256 digests, promotion gates, SBOM, model card, artifact identity checks, and serving-image manifest linkage.
+- In-toto/SLSA-style release provenance statements that bind release bundles to Git commit and CI workflow metadata.
 - Promotion evidence reports that combine validation, benchmark, model-card, and SBOM gates.
 - Optional API-key authentication and serving rate limits for protected inference endpoints.
 - `aerospace-prognostics generate-sbom` CLI for lockfile-derived CycloneDX-style dependency inventory generation.
