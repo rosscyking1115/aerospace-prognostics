@@ -44,7 +44,7 @@ The working plan is tracked in [Aerospace_Prognostics_Project_Plan.md](Aerospace
 - `aerospace-prognostics phase2-smap-msl-verify-manifest` CLI for checking the Phase 2 SMAP/MSL artifact bundle against its run manifest and writing an optional markdown audit report.
 - `aerospace-prognostics phase2-cmapss` run manifests with artifact checksums, runtime provenance, Git state, verifier/audit reports, and optional NASA-surrogate, asymmetric, blended, target-weighted, mini-batch monotonic, and unit-batch monotonic training losses for Track A experiment bundles.
 - Phase 2 C-MAPSS deep prediction diagnostics for official-test and validation-selection per-window actual RUL, predicted RUL, signed error, absolute error, early/late error split, aggregate error summaries, RUL-bin calibration views, monotonicity checks, per-unit high-error trajectory reports, and validation-fitted calibration checks.
-- `aerospace-prognostics cmapss-package-hgb-policy`, `cmapss-predict-artifact`, `cmapss-validate-artifact`, `cmapss-benchmark-artifact`, `cmapss-promotion-report`, and `serve-api` CLIs for the production-ML deployment track.
+- `aerospace-prognostics cmapss-package-hgb-policy`, `cmapss-inspect-artifact`, `cmapss-predict-artifact`, `cmapss-validate-artifact`, `cmapss-benchmark-artifact`, `cmapss-promotion-report`, and `serve-api` CLIs for the production-ML deployment track.
 - FastAPI serving observability with `/health` liveness, `/ready` readiness plus artifact identity, `/schema` inference-contract discovery, request IDs, latency headers, JSON request logs, and `/metrics` request, prediction, and drift counters/gauges.
 - Serving-time telemetry drift summaries and prediction distribution monitoring.
 - Docker serving image with non-root runtime, liveness healthcheck, OCI traceability labels, runtime dependency-surface checks, mounted-model smoke checks, and private GHCR publishing for release tags.
@@ -92,7 +92,7 @@ For a no-download deployment demo, run the tiny fixture quickstart:
 uv run python scripts/quickstart_cmapss_demo.py
 ```
 
-It writes dashboard, release bundle, provenance, model-card, validation, benchmark, and SBOM artifacts under `artifacts/quickstart_cmapss`. See [docs/quickstart.md](docs/quickstart.md).
+It writes dashboard, release bundle, provenance, artifact-inspection, model-card, validation, benchmark, and SBOM artifacts under `artifacts/quickstart_cmapss`. See [docs/quickstart.md](docs/quickstart.md).
 
 Raw telemetry and trained artifacts are intentionally ignored by Git. Keep datasets under `data/` or another documented local path, and record source URLs/checksums when adding download scripts.
 
@@ -137,6 +137,7 @@ uv run aerospace-prognostics smap-msl-compare-anomaly-results --result-csv artif
 uv run aerospace-prognostics phase2-smap-msl --data-dir data/raw/smap_msl --artifact-dir artifacts/phase2_smap_msl --max-channels 5 --window-size 30 --epochs 10
 uv run aerospace-prognostics phase2-smap-msl-verify-manifest --manifest artifacts/phase2_smap_msl/phase2_smap_msl_run_manifest.json --output-markdown artifacts/phase2_smap_msl/phase2_smap_msl_manifest_audit.md
 uv run aerospace-prognostics cmapss-package-hgb-policy --data-dir data/raw/cmapss --subset FD001 --output-path artifacts/models/cmapss_fd001_hgb_policy.joblib --metadata-json artifacts/models/cmapss_fd001_hgb_policy_metadata.json --model-card-markdown artifacts/models/cmapss_fd001_hgb_policy_model_card.md
+uv run aerospace-prognostics cmapss-inspect-artifact --model-artifact artifacts/models/cmapss_fd001_hgb_policy.joblib --output-json artifacts/models/cmapss_fd001_hgb_policy_inspection.json
 uv run aerospace-prognostics cmapss-predict-artifact --model-artifact artifacts/models/cmapss_fd001_hgb_policy.joblib --input-csv artifacts/examples/fd001_telemetry.csv --output-json artifacts/predictions/fd001_predictions.json
 uv run aerospace-prognostics cmapss-validate-artifact --model-artifact artifacts/models/cmapss_fd001_hgb_policy.joblib --metadata-json artifacts/models/cmapss_fd001_hgb_policy_metadata.json --input-csv artifacts/examples/fd001_telemetry.csv --output-json artifacts/models/cmapss_fd001_hgb_policy_validation.json
 uv run aerospace-prognostics cmapss-benchmark-artifact --model-artifact artifacts/models/cmapss_fd001_hgb_policy.joblib --input-csv artifacts/examples/fd001_telemetry.csv --max-p95-latency-ms 100 --output-json artifacts/models/cmapss_fd001_hgb_policy_benchmark.json

@@ -6,6 +6,7 @@ This track turns the research pipeline into a deployable ML system. The first pr
 
 ```powershell
 uv run aerospace-prognostics cmapss-package-hgb-policy --data-dir data/raw/cmapss --subset FD001 --output-path artifacts/models/cmapss_fd001_hgb_policy.joblib --metadata-json artifacts/models/cmapss_fd001_hgb_policy_metadata.json --model-card-markdown artifacts/models/cmapss_fd001_hgb_policy_model_card.md
+uv run aerospace-prognostics cmapss-inspect-artifact --model-artifact artifacts/models/cmapss_fd001_hgb_policy.joblib --output-json artifacts/models/cmapss_fd001_hgb_policy_inspection.json
 uv run aerospace-prognostics cmapss-predict-artifact --model-artifact artifacts/models/cmapss_fd001_hgb_policy.joblib --input-csv artifacts/examples/fd001_telemetry.csv --output-json artifacts/predictions/fd001_predictions.json
 uv run aerospace-prognostics cmapss-validate-artifact --model-artifact artifacts/models/cmapss_fd001_hgb_policy.joblib --metadata-json artifacts/models/cmapss_fd001_hgb_policy_metadata.json --input-csv artifacts/examples/fd001_telemetry.csv --output-json artifacts/models/cmapss_fd001_hgb_policy_validation.json
 uv run aerospace-prognostics cmapss-benchmark-artifact --model-artifact artifacts/models/cmapss_fd001_hgb_policy.joblib --input-csv artifacts/examples/fd001_telemetry.csv --max-p95-latency-ms 100 --output-json artifacts/models/cmapss_fd001_hgb_policy_benchmark.json
@@ -13,6 +14,8 @@ uv run aerospace-prognostics generate-sbom --lockfile uv.lock --output-json arti
 uv run aerospace-prognostics cmapss-promotion-report --validation-json artifacts/models/cmapss_fd001_hgb_policy_validation.json --benchmark-json artifacts/models/cmapss_fd001_hgb_policy_benchmark.json --model-card-markdown artifacts/models/cmapss_fd001_hgb_policy_model_card.md --sbom-json artifacts/sbom/cyclonedx.json --output-json artifacts/models/cmapss_fd001_hgb_policy_promotion.json --output-markdown artifacts/models/cmapss_fd001_hgb_policy_promotion.md
 uv run aerospace-prognostics serve-api --model-artifact artifacts/models/cmapss_fd001_hgb_policy.joblib --host 127.0.0.1 --port 8000
 ```
+
+Run `cmapss-inspect-artifact` after packaging when you need a human-readable and JSON-safe artifact contract. It reports the artifact SHA-256, schema identity, model policy, input and feature columns, reference-stat coverage, uncertainty calibration, promotion metadata, and readiness checks without writing custom Python.
 
 Run `cmapss-validate-artifact` before promotion. It verifies that the joblib artifact exists, loads with a supported schema version, carries required promotion metadata, optionally matches the exported metadata JSON, and optionally produces at least one prediction from a telemetry CSV. The command exits non-zero when any validation check fails.
 
@@ -81,7 +84,7 @@ For public deployment, run the API behind a managed gateway, load balancer, or i
 
 The dependency audit intentionally ignores only `CVE-2025-3000` for `torch` while `pip-audit` reports no fixed release. Fixable findings should be resolved in `uv.lock`; for example, the current lockfile pins `pip` to `26.1.2` after the audit reported a fixed version. The serving image now uses the lighter default runtime dependency set and does not install `torch`; keep the explicit audit ignore only for the development and Phase 2 deep-learning environment until PyTorch publishes a patched package that is compatible with the project.
 
-CI also runs `scripts/ci_release_evidence_smoke.py`. The script uses tiny fixture telemetry to build a candidate package and then exercises prediction, validation, benchmark, SBOM, promotion-report, dashboard payload, dashboard HTML, release-bundle, and provenance CLIs end to end. This is a plumbing smoke test rather than production model evidence, but it protects the release-gate workflow from silently breaking.
+CI also runs `scripts/ci_release_evidence_smoke.py`. The script uses tiny fixture telemetry to build a candidate package and then exercises prediction, artifact inspection, validation, benchmark, SBOM, promotion-report, dashboard payload, dashboard HTML, release-bundle, and provenance CLIs end to end. This is a plumbing smoke test rather than production model evidence, but it protects the release-gate workflow from silently breaking.
 
 After the Docker image build, CI runs two serving smoke checks. The first starts the image without a model and confirms liveness plus not-ready behavior. The second mounts the tiny CI artifact into the container, enables API-key authentication, checks readiness and schema discovery, posts a prediction request, and confirms metrics are exposed through the authenticated path.
 
@@ -105,13 +108,14 @@ Every packaged artifact includes a `promotion` metadata block with:
 Promotion procedure:
 
 1. Build a candidate artifact, metadata JSON, and model card with `cmapss-package-hgb-policy`.
-2. Confirm the metadata JSON matches the intended subset, model policy, metrics, and `artifact_id`.
-3. Run `cmapss-validate-artifact` against the candidate artifact, metadata JSON, and a representative telemetry CSV.
-4. Run the benchmark command against representative telemetry and confirm the p95 latency budget passes.
-5. Generate the SBOM and compose a promotion report that passes validation, latency, model-card, and supply-chain gates.
-6. Run local or CI smoke checks against the serving container with the candidate mounted through `AEROSPACE_PROGNOSTICS_MODEL_PATH`.
-7. Promote by updating the deployment artifact pointer, secret, mounted path, or model registry entry to the candidate artifact.
-8. Keep the previously promoted artifact available until the new model has passed telemetry drift, prediction-distribution, latency, and error-rate checks.
+2. Inspect the artifact contract with `cmapss-inspect-artifact`.
+3. Confirm the metadata JSON matches the intended subset, model policy, metrics, and `artifact_id`.
+4. Run `cmapss-validate-artifact` against the candidate artifact, metadata JSON, and a representative telemetry CSV.
+5. Run the benchmark command against representative telemetry and confirm the p95 latency budget passes.
+6. Generate the SBOM and compose a promotion report that passes validation, latency, model-card, and supply-chain gates.
+7. Run local or CI smoke checks against the serving container with the candidate mounted through `AEROSPACE_PROGNOSTICS_MODEL_PATH`.
+8. Promote by updating the deployment artifact pointer, secret, mounted path, or model registry entry to the candidate artifact.
+9. Keep the previously promoted artifact available until the new model has passed telemetry drift, prediction-distribution, latency, and error-rate checks.
 
 Rollback procedure:
 
@@ -133,6 +137,7 @@ Prediction outputs are bounded to `[0, rul_cap]` at inference time. The first re
 Current scope:
 
 - Local model artifact packaging with `joblib`.
+- Artifact inspection command for schema, contract, uncertainty, promotion, and readiness checks.
 - Markdown model cards for deployment-candidate review.
 - Batch inference from CSV.
 - Artifact validation command for promotion checks and prediction smoke tests.

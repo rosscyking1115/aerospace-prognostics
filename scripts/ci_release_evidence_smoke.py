@@ -36,6 +36,7 @@ def run(
     artifact_path = model_dir / "fd001.joblib"
     metadata_json = model_dir / "fd001_metadata.json"
     model_card_markdown = model_dir / "fd001_model_card.md"
+    inspection_json = model_dir / "fd001_inspection.json"
     validation_json = model_dir / "fd001_validation.json"
     benchmark_json = model_dir / "fd001_benchmark.json"
     promotion_json = model_dir / "fd001_promotion.json"
@@ -82,6 +83,16 @@ def run(
             str(input_csv),
             "--output-json",
             str(prediction_json),
+        ],
+        main,
+    )
+    _run_cli(
+        [
+            "cmapss-inspect-artifact",
+            "--model-artifact",
+            str(artifact_path),
+            "--output-json",
+            str(inspection_json),
         ],
         main,
     )
@@ -213,6 +224,13 @@ def run(
     promotion = json.loads(promotion_json.read_text(encoding="utf-8"))
     if promotion["status"] != "ok" or not all(promotion["gates"].values()):
         raise RuntimeError(f"promotion evidence smoke failed: {promotion!r}")
+    inspection = json.loads(inspection_json.read_text(encoding="utf-8"))
+    if (
+        inspection["schema_version"]
+        != "aerospace-prognostics/cmapss-artifact-inspection/v1"
+        or not all(inspection["checks"].values())
+    ):
+        raise RuntimeError(f"artifact inspection smoke failed: {inspection!r}")
     dashboard_payload = json.loads(dashboard_payload_json.read_text(encoding="utf-8"))
     if (
         dashboard_payload["schema_version"] != "aerospace-prognostics/fleet-dashboard/v1"
@@ -235,6 +253,7 @@ def run(
     provenance = json.loads(provenance_json.read_text(encoding="utf-8"))
     if provenance["status"] != "ok":
         raise RuntimeError(f"release provenance smoke failed: {provenance!r}")
+    print(f"artifact_inspection={inspection_json}")
     print(f"promotion_report={promotion_json}")
     print(f"dashboard_payload={dashboard_payload_json}")
     print(f"dashboard_html={dashboard_html}")

@@ -13,6 +13,7 @@ and runs the same public CLI path used by CI:
 
 - package a validation-selected HGB policy artifact;
 - write metadata and a model card;
+- inspect the packaged artifact contract;
 - predict from fixture telemetry;
 - validate and benchmark the artifact;
 - generate an SBOM;
@@ -26,6 +27,7 @@ Key outputs:
 - `artifacts/quickstart_cmapss/dashboard/fleet_dashboard.html`
 - `artifacts/quickstart_cmapss/release/fd001_release_bundle.md`
 - `artifacts/quickstart_cmapss/release/fd001_provenance.md`
+- `artifacts/quickstart_cmapss/models/fd001_inspection.json`
 - `artifacts/quickstart_cmapss/models/fd001_model_card.md`
 
 The prediction and dashboard payloads include train-residual RUL interval bounds, so

@@ -313,6 +313,51 @@ class PackagedCmapssModel:
     result: RegressionRunResult
 
 
+def inspect_cmapss_model_artifact(artifact_path: str | Path) -> dict[str, Any]:
+    """Build a JSON-safe inspection summary for a packaged C-MAPSS artifact."""
+
+    artifact_file = Path(artifact_path)
+    artifact = load_cmapss_model_artifact(artifact_file)
+    return {
+        "schema_version": "aerospace-prognostics/cmapss-artifact-inspection/v1",
+        "artifact_path": str(artifact_file),
+        "artifact_sha256": _sha256_file(artifact_file),
+        "artifact_size_bytes": artifact_file.stat().st_size,
+        "artifact_identity": _artifact_identity(artifact),
+        "model": {
+            "dataset": artifact.dataset,
+            "subset": artifact.subset,
+            "model_name": artifact.model_name,
+            "feature_policy": artifact.feature_policy,
+            "hgb_policy": artifact.hgb_policy,
+            "rolling_window": artifact.rolling_window,
+            "rul_cap": artifact.rul_cap,
+            "random_state": artifact.random_state,
+            "standardize": artifact.standardize,
+        },
+        "input_contract": {
+            "input_column_count": len(artifact.input_columns),
+            "input_columns": list(artifact.input_columns),
+            "feature_column_count": len(artifact.feature_columns),
+            "feature_columns": list(artifact.feature_columns),
+        },
+        "uncertainty": artifact.uncertainty_calibration,
+        "reference_stats": {
+            "column_count": len(artifact.reference_stats),
+            "columns": sorted(artifact.reference_stats),
+        },
+        "promotion": artifact.promotion_metadata,
+        "checks": {
+            "schema_version_supported": (
+                artifact.schema_version in SUPPORTED_ARTIFACT_SCHEMA_VERSIONS
+            ),
+            "promotion_metadata_present": _has_required_promotion_metadata(artifact),
+            "uncertainty_calibration_present": bool(artifact.uncertainty_calibration),
+            "reference_stats_present": bool(artifact.reference_stats),
+        },
+    }
+
+
 def train_cmapss_hgb_policy_artifact(
     data_dir: str | Path,
     subset: str,

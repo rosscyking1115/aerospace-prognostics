@@ -8,6 +8,7 @@ from aerospace_prognostics.deployment.artifacts import (
     benchmark_cmapss_model_artifact,
     build_cmapss_promotion_report,
     build_cmapss_release_bundle,
+    inspect_cmapss_model_artifact,
     load_cmapss_model_artifact,
     render_cmapss_model_card_markdown,
     render_cmapss_release_bundle_markdown,
@@ -66,6 +67,38 @@ def test_train_save_load_and_predict_cmapss_hgb_policy_artifact(tmp_path) -> Non
         and prediction.predicted_rul_upper is not None
     )
     assert predictions[0].to_dict()["interval_method"] == "train_residual_absolute_quantile"
+
+
+def test_inspect_cmapss_model_artifact_summarizes_contract(tmp_path) -> None:
+    write_tiny_cmapss_subset(tmp_path)
+    packaged = train_cmapss_hgb_policy_artifact(tmp_path, "FD001", n_regimes=1)
+    artifact_path = save_cmapss_model_artifact(
+        packaged.artifact,
+        tmp_path / "models" / "fd001.joblib",
+    )
+
+    inspection = inspect_cmapss_model_artifact(artifact_path)
+
+    assert (
+        inspection["schema_version"]
+        == "aerospace-prognostics/cmapss-artifact-inspection/v1"
+    )
+    assert (
+        inspection["artifact_identity"]["artifact_id"]
+        == packaged.artifact.promotion_metadata["artifact_id"]
+    )
+    assert inspection["model"]["subset"] == "FD001"
+    assert inspection["input_contract"]["input_column_count"] == len(
+        packaged.artifact.input_columns
+    )
+    assert inspection["input_contract"]["feature_column_count"] == len(
+        packaged.artifact.feature_columns
+    )
+    assert inspection["uncertainty"]["method"] == "train_residual_absolute_quantile"
+    assert inspection["reference_stats"]["column_count"] == len(
+        packaged.artifact.reference_stats
+    )
+    assert all(inspection["checks"].values())
 
 
 def test_cmapss_hgb_policy_artifact_rejects_missing_columns(tmp_path) -> None:

@@ -42,6 +42,7 @@ from aerospace_prognostics.deployment.artifacts import (
     benchmark_cmapss_model_artifact,
     build_cmapss_promotion_report,
     build_cmapss_release_bundle,
+    inspect_cmapss_model_artifact,
     load_cmapss_model_artifact,
     save_cmapss_model_artifact,
     train_cmapss_hgb_policy_artifact,
@@ -1030,6 +1031,13 @@ def _build_parser() -> argparse.ArgumentParser:
     package_hgb.add_argument("--random-state", type=int, default=42)
     package_hgb.add_argument("--n-regimes", type=int, default=6)
     package_hgb.add_argument("--no-standardize", action="store_true")
+
+    inspect_artifact = subparsers.add_parser(
+        "cmapss-inspect-artifact",
+        help="Inspect packaged C-MAPSS artifact metadata and serving contract",
+    )
+    inspect_artifact.add_argument("--model-artifact", type=Path, required=True)
+    inspect_artifact.add_argument("--output-json", type=Path)
 
     predict_artifact = subparsers.add_parser(
         "cmapss-predict-artifact",
@@ -2487,6 +2495,37 @@ def main(argv: list[str] | None = None) -> int:
                 args.model_card_markdown,
             )
             print(f"model_card_markdown={model_card_path}")
+        return 0
+
+    if args.command == "cmapss-inspect-artifact":
+        inspection = inspect_cmapss_model_artifact(args.model_artifact)
+        identity = inspection["artifact_identity"]
+        model = inspection["model"]
+        uncertainty = inspection["uncertainty"]
+        input_contract = inspection["input_contract"]
+        reference_stats = inspection["reference_stats"]
+        checks = inspection["checks"]
+        print(f"schema_version={inspection['schema_version']}")
+        print(f"artifact_sha256={inspection['artifact_sha256']}")
+        print(f"artifact_id={identity.get('artifact_id')}")
+        print(f"artifact_schema={identity.get('schema_version')}")
+        print(f"dataset={model['dataset']}")
+        print(f"subset={model['subset']}")
+        print(f"model={model['model_name']}")
+        print(f"feature_policy={model['feature_policy']}")
+        print(f"hgb_policy={model['hgb_policy']}")
+        print(f"input_columns={input_contract['input_column_count']}")
+        print(f"feature_columns={input_contract['feature_column_count']}")
+        print(f"reference_columns={reference_stats['column_count']}")
+        print(f"uncertainty_method={uncertainty.get('method')}")
+        print(f"uncertainty_confidence={uncertainty.get('confidence')}")
+        check_summary = ",".join(
+            f"{name}:{value}" for name, value in sorted(checks.items())
+        )
+        print(f"checks={check_summary}")
+        if args.output_json is not None:
+            _write_json_payload(inspection, args.output_json)
+            print(f"output_json={args.output_json}")
         return 0
 
     if args.command == "cmapss-predict-artifact":

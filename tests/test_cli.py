@@ -1699,6 +1699,7 @@ def test_cmapss_package_and_predict_artifact_commands(tmp_path, capsys) -> None:
     artifact_path = tmp_path / "models" / "fd001.joblib"
     metadata_json = tmp_path / "models" / "fd001_metadata.json"
     model_card_markdown = tmp_path / "models" / "fd001_model_card.md"
+    inspection_json = tmp_path / "models" / "fd001_inspection.json"
     prediction_json = tmp_path / "predictions" / "fd001.json"
     benchmark_json = tmp_path / "models" / "fd001_benchmark.json"
     promotion_json = tmp_path / "models" / "fd001_promotion.json"
@@ -1743,6 +1744,30 @@ def test_cmapss_package_and_predict_artifact_commands(tmp_path, capsys) -> None:
     model_card = model_card_markdown.read_text(encoding="utf-8")
     assert "# C-MAPSS Deployment Model Card" in model_card
     assert "## Limitations" in model_card
+
+    inspect_exit_code = main(
+        [
+            "cmapss-inspect-artifact",
+            "--model-artifact",
+            str(artifact_path),
+            "--output-json",
+            str(inspection_json),
+        ]
+    )
+    inspect_output = capsys.readouterr().out
+
+    assert inspect_exit_code == 0
+    assert (
+        "schema_version=aerospace-prognostics/cmapss-artifact-inspection/v1"
+        in inspect_output
+    )
+    assert "artifact_id=fd001-" in inspect_output
+    assert "uncertainty_method=train_residual_absolute_quantile" in inspect_output
+    assert "output_json=" in inspect_output
+    inspection = json.loads(inspection_json.read_text(encoding="utf-8"))
+    assert inspection["model"]["subset"] == "FD001"
+    assert inspection["checks"]["uncertainty_calibration_present"] is True
+    assert inspection["reference_stats"]["column_count"] > 0
 
     predict_exit_code = main(
         [

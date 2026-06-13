@@ -38,4 +38,5 @@ def test_quickstart_release_evidence_demo_writes_review_artifacts(tmp_path) -> N
     assert "dashboard_html" in release_bundle["evidence"]
     assert provenance["summary"]["workflow"] == "local-quickstart"
     assert (root / "dashboard" / "fleet_dashboard.html").exists()
+    assert (root / "models" / "fd001_inspection.json").exists()
     assert (root / "models" / "fd001_model_card.md").exists()
