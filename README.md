@@ -76,6 +76,7 @@ The working plan is tracked in [Aerospace_Prognostics_Project_Plan.md](Aerospace
 
 - Production ML deployment notes: [docs/deployment.md](docs/deployment.md)
 - Repository public-launch strategy: [docs/repo_launch_strategy.md](docs/repo_launch_strategy.md)
+- Product roadmap: [docs/product_roadmap.md](docs/product_roadmap.md)
 
 ## Developer Quickstart
 
@@ -91,9 +92,10 @@ For a no-download deployment demo, run the tiny fixture quickstart:
 
 ```powershell
 uv run aerospace-prognostics quickstart-cmapss-demo
+uv run streamlit run src/aerospace_prognostics/app/streamlit_app.py
 ```
 
-It writes dashboard, release bundle, provenance, artifact-inspection, model-card, validation, benchmark, and SBOM artifacts under `artifacts/quickstart_cmapss`. See [docs/quickstart.md](docs/quickstart.md).
+These commands write dashboard, release bundle, provenance, artifact-inspection, model-card, validation, benchmark, and SBOM artifacts under `artifacts/quickstart_cmapss`, then open an interactive local operations console over those artifacts. See [docs/quickstart.md](docs/quickstart.md).
 
 Raw telemetry and trained artifacts are intentionally ignored by Git. Keep datasets under `data/` or another documented local path, and record source URLs/checksums when adding download scripts.
 

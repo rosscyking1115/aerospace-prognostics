@@ -6,6 +6,7 @@ C-MAPSS or JPL SMAP/MSL data.
 ```powershell
 uv sync --dev
 uv run aerospace-prognostics quickstart-cmapss-demo
+uv run streamlit run src/aerospace_prognostics/app/streamlit_app.py
 ```
 
 The command writes a tiny C-MAPSS-compatible fixture under `artifacts/quickstart_cmapss`
@@ -29,6 +30,10 @@ Key outputs:
 - `artifacts/quickstart_cmapss/release/fd001_provenance.md`
 - `artifacts/quickstart_cmapss/models/fd001_inspection.json`
 - `artifacts/quickstart_cmapss/models/fd001_model_card.md`
+
+The Streamlit app opens a local operations console over the same evidence bundle.
+It shows the fleet triage table, artifact contract, release evidence, and a
+batch-prediction panel for C-MAPSS telemetry CSVs.
 
 The prediction and dashboard payloads include train-residual RUL interval bounds, so
 the quickstart exercises the same uncertainty-aware triage contract used by the
