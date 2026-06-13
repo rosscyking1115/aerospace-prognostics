@@ -16,6 +16,8 @@ from aerospace_prognostics.app.dashboard_state import (
 from aerospace_prognostics.app.store import (
     database_summary,
     initialize_app_database,
+    list_prediction_runs,
+    load_prediction_run,
     record_prediction_run,
     seed_quickstart_workspace,
 )
@@ -62,13 +64,15 @@ def main() -> None:
         st.info("Generate the quickstart evidence bundle to activate the console.")
         return
 
-    fleet_tab, predict_tab, evidence_tab, roadmap_tab = st.tabs(
-        ["Fleet", "Predict", "Evidence", "Roadmap"]
+    fleet_tab, predict_tab, history_tab, evidence_tab, roadmap_tab = st.tabs(
+        ["Fleet", "Predict", "History", "Evidence", "Roadmap"]
     )
     with fleet_tab:
         _render_fleet_tab(st, workspace)
     with predict_tab:
         _render_predict_tab(st, workspace, database_path)
+    with history_tab:
+        _render_history_tab(st, database_path)
     with evidence_tab:
         _render_evidence_tab(st, workspace, database_path)
     with roadmap_tab:
@@ -142,6 +146,7 @@ def _render_predict_tab(st: Any, workspace: QuickstartWorkspace, database_path: 
             model_artifact_path=workspace.model_artifact_path,
             source_name=source_name,
         )
+        st.session_state["selected_prediction_run_id"] = run_id
         st.success(f"Stored prediction run: {run_id}")
         predictions = pd.DataFrame(prediction_document["predictions"])
         st.dataframe(predictions, use_container_width=True, hide_index=True)
@@ -150,6 +155,88 @@ def _render_predict_tab(st: Any, workspace: QuickstartWorkspace, database_path: 
             prediction_summary = monitoring.get("predictions", {})
             if isinstance(prediction_summary, dict):
                 st.json(prediction_summary)
+
+
+def _render_history_tab(st: Any, database_path: Path) -> None:
+    st.subheader("Prediction History")
+    runs = list_prediction_runs(database_path, limit=100)
+    if not runs:
+        st.info("No prediction runs stored yet.")
+        return
+
+    runs_frame = _prediction_runs_frame(runs)
+    st.dataframe(
+        runs_frame,
+        use_container_width=True,
+        hide_index=True,
+        column_config={
+            "created_at_utc": st.column_config.DatetimeColumn("Created"),
+            "run_id": st.column_config.TextColumn("Run"),
+            "source_name": st.column_config.TextColumn("Telemetry"),
+            "model_name": st.column_config.TextColumn("Model"),
+            "prediction_count": st.column_config.NumberColumn("Predictions", width="small"),
+            "min_predicted_rul": st.column_config.NumberColumn("Min RUL", format="%.1f"),
+            "mean_predicted_rul": st.column_config.NumberColumn("Mean RUL", format="%.1f"),
+            "max_predicted_rul": st.column_config.NumberColumn("Max RUL", format="%.1f"),
+            "drift_alert_count": st.column_config.NumberColumn("Drift Alerts", width="small"),
+        },
+    )
+
+    run_ids = [str(run["run_id"]) for run in runs]
+    selected_default = st.session_state.get("selected_prediction_run_id")
+    selected_index = run_ids.index(selected_default) if selected_default in run_ids else 0
+    selected_run_id = st.selectbox("Run", run_ids, index=selected_index)
+    st.session_state["selected_prediction_run_id"] = selected_run_id
+    selected = load_prediction_run(database_path, selected_run_id)
+    if selected is None:
+        st.warning("Selected run is no longer available.")
+        return
+
+    run = selected["run"]
+    predictions_frame = pd.DataFrame(selected["predictions"])
+    metric_columns = st.columns(4)
+    metric_columns[0].metric("Rows", _display(run.get("row_count")))
+    metric_columns[1].metric("Predictions", _display(run.get("prediction_count")))
+    metric_columns[2].metric("Dataset", _display(run.get("dataset")))
+    metric_columns[3].metric("Subset", _display(run.get("subset")))
+
+    detail_columns = st.columns(2)
+    with detail_columns[0]:
+        st.subheader("Run Record")
+        st.json(
+            {
+                "run_id": run.get("run_id"),
+                "created_at_utc": run.get("created_at_utc"),
+                "source_name": run.get("source_name"),
+                "content_sha256": run.get("content_sha256"),
+                "artifact_id": run.get("artifact_id"),
+                "model_artifact_path": run.get("model_artifact_path"),
+            }
+        )
+    with detail_columns[1]:
+        st.subheader("Monitoring")
+        st.json(run.get("monitoring", {}))
+
+    st.dataframe(
+        predictions_frame,
+        use_container_width=True,
+        hide_index=True,
+        column_config={
+            "asset_id": st.column_config.TextColumn("Asset"),
+            "unit_number": st.column_config.NumberColumn("Unit", width="small"),
+            "predicted_rul": st.column_config.NumberColumn("RUL", format="%.1f"),
+            "predicted_rul_lower": st.column_config.NumberColumn("Lower", format="%.1f"),
+            "predicted_rul_upper": st.column_config.NumberColumn("Upper", format="%.1f"),
+            "interval_method": st.column_config.TextColumn("Interval"),
+            "interval_confidence": st.column_config.NumberColumn("Confidence", format="%.2f"),
+        },
+    )
+    st.download_button(
+        "Download Predictions",
+        data=predictions_frame.to_csv(index=False).encode("utf-8"),
+        file_name=f"{selected_run_id}_predictions.csv",
+        mime="text/csv",
+    )
 
 
 def _render_evidence_tab(st: Any, workspace: QuickstartWorkspace, database_path: Path) -> None:
@@ -198,6 +285,7 @@ def _render_roadmap_tab(st: Any) -> None:
     st.markdown(
         """
         - Persist prediction runs, uploads, artifact records, and release evidence in SQLite.
+        - Make prediction history filterable by model, asset, risk, date, and drift status.
         - Add Docker Compose for FastAPI, dashboard, mounted model storage, and the database.
         - Promote the dashboard to a hosted product surface with authentication and audit logs.
         - Add spacecraft anomaly assets beside C-MAPSS engines in the same fleet view.
@@ -226,6 +314,21 @@ def _assets_frame(assets: list[Any]) -> pd.DataFrame:
             }
         )
     return pd.DataFrame(rows)
+
+
+def _prediction_runs_frame(runs: list[dict[str, Any]]) -> pd.DataFrame:
+    columns = [
+        "created_at_utc",
+        "run_id",
+        "source_name",
+        "model_name",
+        "prediction_count",
+        "min_predicted_rul",
+        "mean_predicted_rul",
+        "max_predicted_rul",
+        "drift_alert_count",
+    ]
+    return pd.DataFrame(runs).reindex(columns=columns)
 
 
 def _display(value: Any) -> str:

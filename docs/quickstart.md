@@ -36,7 +36,8 @@ Key outputs:
 The Streamlit app opens a local operations console over the same evidence bundle.
 It shows the fleet triage table, artifact contract, release evidence, and a
 batch-prediction panel for C-MAPSS telemetry CSVs. Prediction runs are persisted
-to `artifacts/app/aerospace_prognostics.sqlite`.
+to `artifacts/app/aerospace_prognostics.sqlite`, and the History tab can inspect
+stored runs, monitoring summaries, and prediction rows.
 
 The prediction and dashboard payloads include train-residual RUL interval bounds, so
 the quickstart exercises the same uncertainty-aware triage contract used by the

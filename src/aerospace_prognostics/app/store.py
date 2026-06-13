@@ -310,6 +310,103 @@ def record_prediction_run(
     return run_id
 
 
+def list_prediction_runs(
+    database_path: str | Path,
+    *,
+    limit: int = 50,
+) -> list[dict[str, Any]]:
+    """Return recent prediction runs with upload and aggregate prediction context."""
+
+    db_path = initialize_app_database(database_path)
+    with _connect(db_path) as connection:
+        connection.row_factory = sqlite3.Row
+        rows = connection.execute(
+            """
+            select
+                prediction_runs.run_id,
+                prediction_runs.created_at_utc,
+                prediction_runs.artifact_id,
+                prediction_runs.model_artifact_path,
+                prediction_runs.dataset,
+                prediction_runs.subset,
+                prediction_runs.model_name,
+                prediction_runs.prediction_count,
+                prediction_runs.monitoring_json,
+                telemetry_uploads.source_name,
+                telemetry_uploads.row_count,
+                telemetry_uploads.column_count,
+                telemetry_uploads.content_sha256,
+                min(predictions.predicted_rul) as min_predicted_rul,
+                avg(predictions.predicted_rul) as mean_predicted_rul,
+                max(predictions.predicted_rul) as max_predicted_rul,
+                count(predictions.predicted_rul_lower) as interval_count
+            from prediction_runs
+            join telemetry_uploads on telemetry_uploads.upload_id = prediction_runs.upload_id
+            left join predictions on predictions.run_id = prediction_runs.run_id
+            group by prediction_runs.run_id
+            order by prediction_runs.created_at_utc desc
+            limit ?
+            """,
+            (int(limit),),
+        ).fetchall()
+    return [_run_summary_from_row(row) for row in rows]
+
+
+def load_prediction_run(database_path: str | Path, run_id: str) -> dict[str, Any] | None:
+    """Load one prediction run and all persisted prediction rows."""
+
+    db_path = initialize_app_database(database_path)
+    with _connect(db_path) as connection:
+        connection.row_factory = sqlite3.Row
+        run_row = connection.execute(
+            """
+            select
+                prediction_runs.run_id,
+                prediction_runs.created_at_utc,
+                prediction_runs.artifact_id,
+                prediction_runs.model_artifact_path,
+                prediction_runs.dataset,
+                prediction_runs.subset,
+                prediction_runs.model_name,
+                prediction_runs.prediction_count,
+                prediction_runs.monitoring_json,
+                telemetry_uploads.source_name,
+                telemetry_uploads.row_count,
+                telemetry_uploads.column_count,
+                telemetry_uploads.content_sha256
+            from prediction_runs
+            join telemetry_uploads on telemetry_uploads.upload_id = prediction_runs.upload_id
+            where prediction_runs.run_id = ?
+            """,
+            (run_id,),
+        ).fetchone()
+        if run_row is None:
+            return None
+        prediction_rows = connection.execute(
+            """
+            select
+                asset_id,
+                unit_number,
+                predicted_rul,
+                predicted_rul_lower,
+                predicted_rul_upper,
+                interval_method,
+                interval_confidence,
+                created_at_utc
+            from predictions
+            where run_id = ?
+            order by predicted_rul asc, unit_number asc
+            """,
+            (run_id,),
+        ).fetchall()
+    run = dict(run_row)
+    run["monitoring"] = _json_loads(run.pop("monitoring_json"))
+    return {
+        "run": run,
+        "predictions": [dict(row) for row in prediction_rows],
+    }
+
+
 def database_summary(database_path: str | Path) -> dict[str, int | str]:
     """Return table counts and schema version for the app database."""
 
@@ -378,6 +475,28 @@ def _prediction_rows(prediction_document: dict[str, Any]) -> list[dict[str, Any]
     return parsed
 
 
+def _run_summary_from_row(row: sqlite3.Row) -> dict[str, Any]:
+    result = dict(row)
+    monitoring = _json_loads(result.pop("monitoring_json"))
+    result["drift_alert_count"] = _drift_alert_count(monitoring)
+    return result
+
+
+def _drift_alert_count(monitoring: Any) -> int:
+    if not isinstance(monitoring, dict):
+        return 0
+    drift = monitoring.get("drift")
+    if not isinstance(drift, dict):
+        return 0
+    alert_columns = drift.get("alert_columns")
+    if isinstance(alert_columns, list):
+        return len(alert_columns)
+    alerts = drift.get("alerts")
+    if isinstance(alerts, list):
+        return len(alerts)
+    return 0
+
+
 def _dataframe_sha256(frame: pd.DataFrame) -> str:
     return hashlib.sha256(frame.to_csv(index=False).encode("utf-8")).hexdigest()
 
@@ -396,6 +515,15 @@ def _sha256_text(text: str) -> str:
 
 def _json_dumps(payload: Any) -> str:
     return json.dumps(payload, sort_keys=True, separators=(",", ":"), default=str)
+
+
+def _json_loads(payload: str | None) -> Any:
+    if not payload:
+        return {}
+    try:
+        return json.loads(payload)
+    except json.JSONDecodeError:
+        return {}
 
 
 def _now() -> str:

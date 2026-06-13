@@ -8,6 +8,8 @@ from aerospace_prognostics.app.store import (
     SCHEMA_VERSION,
     database_summary,
     initialize_app_database,
+    list_prediction_runs,
+    load_prediction_run,
     record_prediction_run,
     seed_quickstart_workspace,
 )
@@ -102,6 +104,64 @@ def test_record_prediction_run_persists_upload_run_and_prediction_rows(tmp_path)
     with sqlite3.connect(database_path) as connection:
         stored_run_id = connection.execute("select run_id from prediction_runs").fetchone()[0]
     assert stored_run_id == run_id
+
+
+def test_prediction_run_history_loads_recent_runs_and_predictions(tmp_path) -> None:
+    database_path, run_id = _write_prediction_run(tmp_path)
+
+    runs = list_prediction_runs(database_path)
+    loaded = load_prediction_run(database_path, run_id)
+
+    assert len(runs) == 1
+    assert runs[0]["run_id"] == run_id
+    assert runs[0]["source_name"] == "test.csv"
+    assert runs[0]["prediction_count"] == 2
+    assert runs[0]["min_predicted_rul"] <= runs[0]["max_predicted_rul"]
+    assert runs[0]["interval_count"] == 2
+    assert runs[0]["drift_alert_count"] == 0
+    assert loaded is not None
+    assert loaded["run"]["run_id"] == run_id
+    assert loaded["run"]["source_name"] == "test.csv"
+    assert len(loaded["predictions"]) == 2
+    assert loaded["predictions"][0]["predicted_rul"] <= loaded["predictions"][1]["predicted_rul"]
+
+
+def test_load_prediction_run_returns_none_for_unknown_run(tmp_path) -> None:
+    database_path = initialize_app_database(tmp_path / "app.sqlite")
+
+    loaded = load_prediction_run(database_path, "run-missing")
+
+    assert loaded is None
+
+
+def _write_prediction_run(tmp_path):
+    write_tiny_cmapss_subset(tmp_path)
+    packaged = train_cmapss_hgb_policy_artifact(tmp_path, "FD001", n_regimes=1)
+    artifact_path = save_cmapss_model_artifact(
+        packaged.artifact,
+        tmp_path / "models" / "fd001.joblib",
+    )
+    telemetry = load_cmapss_subset(tmp_path, "FD001").test
+    predictions = packaged.artifact.predict_from_frame(telemetry)
+    prediction_document = {
+        "dataset": packaged.artifact.dataset,
+        "subset": packaged.artifact.subset,
+        "model_name": packaged.artifact.model_name,
+        "predictions": [prediction.to_dict() for prediction in predictions],
+        "artifact": {
+            "artifact_id": packaged.artifact.promotion_metadata["artifact_id"],
+        },
+        "monitoring": packaged.artifact.monitoring_summary(telemetry, predictions),
+    }
+    database_path = initialize_app_database(tmp_path / "app.sqlite")
+    run_id = record_prediction_run(
+        database_path,
+        telemetry=telemetry,
+        prediction_document=prediction_document,
+        model_artifact_path=artifact_path,
+        source_name="test.csv",
+    )
+    return database_path, run_id
 
 
 def _write_fake_workspace(root):

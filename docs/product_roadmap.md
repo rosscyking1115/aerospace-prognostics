@@ -16,7 +16,9 @@ The professional user-facing tool should support three surfaces:
 
 The current foundation already includes the API, Docker image, release evidence,
 SBOM, artifact inspection, static dashboard output, and no-download quickstart.
-The missing layer is persistent application state and a polished interactive UI.
+The current productization layer adds a local Streamlit console and SQLite
+application state. The next gap is packaging that console and API as a cohesive
+local deployment stack.
 
 ## Milestones
 
@@ -24,6 +26,8 @@ The missing layer is persistent application state and a polished interactive UI.
    - Streamlit app over quickstart and release artifacts.
    - Fleet table with RUL intervals, risk level, attention reasons, and evidence.
    - Telemetry CSV upload and batch prediction against a packaged artifact.
+   - Prediction-history view with run records, upload hashes, monitoring summaries,
+     and downloadable prediction rows.
    - Screenshot/GIF for the README.
 
 2. Local persistence
@@ -34,8 +38,10 @@ The missing layer is persistent application state and a polished interactive UI.
      product data model.
 
 Current status: initial SQLite persistence is active for model artifacts, release
-evidence, telemetry uploads, prediction runs, and per-asset predictions. Audit
-events and import/export beyond quickstart seeding remain future work.
+evidence, telemetry uploads, prediction runs, and per-asset predictions. The
+console can inspect recent runs and export their persisted prediction rows. Audit
+events, operator notes, and import/export beyond quickstart seeding remain future
+work.
 
 3. Local deployment stack
    - Docker Compose with FastAPI inference service, dashboard, mounted model
