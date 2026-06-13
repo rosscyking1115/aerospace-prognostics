@@ -92,10 +92,11 @@ For a no-download deployment demo, run the tiny fixture quickstart:
 
 ```powershell
 uv run aerospace-prognostics quickstart-cmapss-demo
+uv run aerospace-prognostics app-init-db
 uv run streamlit run src/aerospace_prognostics/app/streamlit_app.py
 ```
 
-These commands write dashboard, release bundle, provenance, artifact-inspection, model-card, validation, benchmark, and SBOM artifacts under `artifacts/quickstart_cmapss`, then open an interactive local operations console over those artifacts. See [docs/quickstart.md](docs/quickstart.md).
+These commands write dashboard, release bundle, provenance, artifact-inspection, model-card, validation, benchmark, and SBOM artifacts under `artifacts/quickstart_cmapss`, seed a local SQLite app database under `artifacts/app`, then open an interactive local operations console over those artifacts. See [docs/quickstart.md](docs/quickstart.md).
 
 Raw telemetry and trained artifacts are intentionally ignored by Git. Keep datasets under `data/` or another documented local path, and record source URLs/checksums when adding download scripts.
 
@@ -140,6 +141,7 @@ uv run aerospace-prognostics smap-msl-compare-anomaly-results --result-csv artif
 uv run aerospace-prognostics phase2-smap-msl --data-dir data/raw/smap_msl --artifact-dir artifacts/phase2_smap_msl --max-channels 5 --window-size 30 --epochs 10
 uv run aerospace-prognostics phase2-smap-msl-verify-manifest --manifest artifacts/phase2_smap_msl/phase2_smap_msl_run_manifest.json --output-markdown artifacts/phase2_smap_msl/phase2_smap_msl_manifest_audit.md
 uv run aerospace-prognostics quickstart-cmapss-demo
+uv run aerospace-prognostics app-init-db
 uv run aerospace-prognostics cmapss-package-hgb-policy --data-dir data/raw/cmapss --subset FD001 --output-path artifacts/models/cmapss_fd001_hgb_policy.joblib --metadata-json artifacts/models/cmapss_fd001_hgb_policy_metadata.json --model-card-markdown artifacts/models/cmapss_fd001_hgb_policy_model_card.md
 uv run aerospace-prognostics cmapss-inspect-artifact --model-artifact artifacts/models/cmapss_fd001_hgb_policy.joblib --output-json artifacts/models/cmapss_fd001_hgb_policy_inspection.json
 uv run aerospace-prognostics cmapss-predict-artifact --model-artifact artifacts/models/cmapss_fd001_hgb_policy.joblib --input-csv artifacts/examples/fd001_telemetry.csv --output-json artifacts/predictions/fd001_predictions.json

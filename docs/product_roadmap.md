@@ -29,9 +29,13 @@ The missing layer is persistent application state and a polished interactive UI.
 2. Local persistence
    - SQLite database for uploaded telemetry, prediction runs, model artifacts,
      dashboard payloads, release evidence, and audit events.
-   - CLI import/export commands so generated artifacts can seed the app database.
+   - `app-init-db` command so generated quickstart artifacts can seed the app database.
    - Migration path designed so SQLite can become Postgres without changing the
      product data model.
+
+Current status: initial SQLite persistence is active for model artifacts, release
+evidence, telemetry uploads, prediction runs, and per-asset predictions. Audit
+events and import/export beyond quickstart seeding remain future work.
 
 3. Local deployment stack
    - Docker Compose with FastAPI inference service, dashboard, mounted model

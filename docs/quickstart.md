@@ -6,6 +6,7 @@ C-MAPSS or JPL SMAP/MSL data.
 ```powershell
 uv sync --dev
 uv run aerospace-prognostics quickstart-cmapss-demo
+uv run aerospace-prognostics app-init-db
 uv run streamlit run src/aerospace_prognostics/app/streamlit_app.py
 ```
 
@@ -22,6 +23,7 @@ and runs the same public CLI path used by CI:
 - render the standalone fleet dashboard HTML;
 - build a release bundle;
 - generate in-toto/SLSA-style provenance.
+- seed a local SQLite app database.
 
 Key outputs:
 
@@ -33,7 +35,8 @@ Key outputs:
 
 The Streamlit app opens a local operations console over the same evidence bundle.
 It shows the fleet triage table, artifact contract, release evidence, and a
-batch-prediction panel for C-MAPSS telemetry CSVs.
+batch-prediction panel for C-MAPSS telemetry CSVs. Prediction runs are persisted
+to `artifacts/app/aerospace_prognostics.sqlite`.
 
 The prediction and dashboard payloads include train-residual RUL interval bounds, so
 the quickstart exercises the same uncertainty-aware triage contract used by the

@@ -13,8 +13,15 @@ from aerospace_prognostics.app.dashboard_state import (
     load_quickstart_workspace,
     predict_cmapss_telemetry,
 )
+from aerospace_prognostics.app.store import (
+    database_summary,
+    initialize_app_database,
+    record_prediction_run,
+    seed_quickstart_workspace,
+)
 
 DEFAULT_WORKSPACE = Path("artifacts") / "quickstart_cmapss"
+DEFAULT_DATABASE = Path("artifacts") / "app" / "aerospace_prognostics.sqlite"
 
 
 def main() -> None:
@@ -34,7 +41,9 @@ def main() -> None:
         workspace_root = Path(
             st.text_input("Artifact workspace", value=str(DEFAULT_WORKSPACE))
         )
+        database_path = Path(st.text_input("SQLite database", value=str(DEFAULT_DATABASE)))
         workspace = load_quickstart_workspace(workspace_root)
+        initialize_app_database(database_path)
         st.caption(f"Workspace: {workspace.root}")
         if workspace.missing_paths:
             st.warning("Quickstart evidence is incomplete.")
@@ -43,6 +52,11 @@ def main() -> None:
                 st.caption(f"Missing: {path}")
         else:
             st.success("Quickstart evidence loaded.")
+            seed_quickstart_workspace(database_path, workspace)
+        summary = database_summary(database_path)
+        st.caption(f"Database: {summary['database_path']}")
+        st.metric("Prediction runs", summary["prediction_runs"])
+        st.metric("Stored predictions", summary["predictions"])
 
     if not workspace.is_ready:
         st.info("Generate the quickstart evidence bundle to activate the console.")
@@ -54,9 +68,9 @@ def main() -> None:
     with fleet_tab:
         _render_fleet_tab(st, workspace)
     with predict_tab:
-        _render_predict_tab(st, workspace)
+        _render_predict_tab(st, workspace, database_path)
     with evidence_tab:
-        _render_evidence_tab(st, workspace)
+        _render_evidence_tab(st, workspace, database_path)
     with roadmap_tab:
         _render_roadmap_tab(st)
 
@@ -97,16 +111,19 @@ def _render_fleet_tab(st: Any, workspace: QuickstartWorkspace) -> None:
         st.bar_chart(risk_frame, x="risk_level", y="assets", horizontal=True)
 
 
-def _render_predict_tab(st: Any, workspace: QuickstartWorkspace) -> None:
+def _render_predict_tab(st: Any, workspace: QuickstartWorkspace, database_path: Path) -> None:
     st.subheader("Batch Prediction")
     uploaded = st.file_uploader("Telemetry CSV", type=["csv"])
     if uploaded is None and workspace.telemetry_csv_path.exists():
         st.caption(f"Using sample telemetry: {workspace.telemetry_csv_path}")
         telemetry = pd.read_csv(workspace.telemetry_csv_path)
+        source_name = str(workspace.telemetry_csv_path)
     elif uploaded is not None:
         telemetry = pd.read_csv(BytesIO(uploaded.getvalue()))
+        source_name = uploaded.name
     else:
         telemetry = None
+        source_name = "unknown"
 
     if telemetry is None:
         st.info("No telemetry loaded.")
@@ -118,6 +135,14 @@ def _render_predict_tab(st: Any, workspace: QuickstartWorkspace) -> None:
             workspace.model_artifact_path,
             telemetry,
         )
+        run_id = record_prediction_run(
+            database_path,
+            telemetry=telemetry,
+            prediction_document=prediction_document,
+            model_artifact_path=workspace.model_artifact_path,
+            source_name=source_name,
+        )
+        st.success(f"Stored prediction run: {run_id}")
         predictions = pd.DataFrame(prediction_document["predictions"])
         st.dataframe(predictions, use_container_width=True, hide_index=True)
         monitoring = prediction_document.get("monitoring", {})
@@ -127,19 +152,21 @@ def _render_predict_tab(st: Any, workspace: QuickstartWorkspace) -> None:
                 st.json(prediction_summary)
 
 
-def _render_evidence_tab(st: Any, workspace: QuickstartWorkspace) -> None:
+def _render_evidence_tab(st: Any, workspace: QuickstartWorkspace, database_path: Path) -> None:
     inspection = workspace.artifact_inspection or {}
     release_bundle = workspace.release_bundle or {}
     provenance = workspace.provenance or {}
     promotion_report = workspace.promotion_report or {}
+    summary = database_summary(database_path)
 
-    columns = st.columns(3)
+    columns = st.columns(4)
     identity = inspection.get("artifact_identity")
     if not isinstance(identity, dict):
         identity = {}
     columns[0].metric("Artifact", _display(identity.get("artifact_id")))
     columns[1].metric("Release", _display(release_bundle.get("status")))
     columns[2].metric("Promotion", _display(promotion_report.get("status")))
+    columns[3].metric("DB Evidence", _display(summary["release_evidence"]))
 
     evidence_columns = st.columns(2)
     with evidence_columns[0]:

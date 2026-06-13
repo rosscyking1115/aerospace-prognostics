@@ -15,6 +15,12 @@ from aerospace_prognostics.anomaly.baselines import (
     run_classical_anomaly_baselines,
     run_robust_zscore_baseline,
 )
+from aerospace_prognostics.app.dashboard_state import load_quickstart_workspace
+from aerospace_prognostics.app.store import (
+    database_summary,
+    initialize_app_database,
+    seed_quickstart_workspace,
+)
 from aerospace_prognostics.data.cmapss import CMAPSS_SUBSETS, load_cmapss_subset
 from aerospace_prognostics.data.downloads import (
     NASA_CMAPSS_URL,
@@ -171,6 +177,22 @@ def _build_parser() -> argparse.ArgumentParser:
     quickstart.add_argument("--workflow", default="local-quickstart")
     quickstart.add_argument("--run-id", default="local")
     quickstart.add_argument("--lockfile", type=Path, default=Path("uv.lock"))
+
+    app_init_db = subparsers.add_parser(
+        "app-init-db",
+        help="Initialize the local app database and optionally seed quickstart evidence",
+    )
+    app_init_db.add_argument(
+        "--database",
+        type=Path,
+        default=Path("artifacts") / "app" / "aerospace_prognostics.sqlite",
+    )
+    app_init_db.add_argument(
+        "--quickstart-dir",
+        type=Path,
+        default=Path("artifacts") / "quickstart_cmapss",
+    )
+    app_init_db.add_argument("--no-seed-quickstart", action="store_true")
 
     summary = subparsers.add_parser("cmapss-summary", help="Summarise a local C-MAPSS subset")
     summary.add_argument("--data-dir", type=Path, required=True)
@@ -1181,6 +1203,26 @@ def main(argv: list[str] | None = None) -> int:
             lockfile=args.lockfile,
             runner=main,
         )
+
+    if args.command == "app-init-db":
+        database_path = initialize_app_database(args.database)
+        print(f"database={database_path}")
+        if not args.no_seed_quickstart:
+            workspace = load_quickstart_workspace(args.quickstart_dir)
+            inserted = seed_quickstart_workspace(database_path, workspace)
+            print(f"quickstart_dir={workspace.root}")
+            print(f"model_artifacts_seeded={inserted['model_artifacts']}")
+            print(f"release_evidence_seeded={inserted['release_evidence']}")
+            if workspace.missing_paths:
+                print(f"missing_quickstart_paths={len(workspace.missing_paths)}")
+        summary = database_summary(database_path)
+        print(f"schema_version={summary['schema_version']}")
+        print(f"model_artifacts={summary['model_artifacts']}")
+        print(f"release_evidence={summary['release_evidence']}")
+        print(f"telemetry_uploads={summary['telemetry_uploads']}")
+        print(f"prediction_runs={summary['prediction_runs']}")
+        print(f"predictions={summary['predictions']}")
+        return 0
 
     if args.command == "cmapss-summary":
         bundle = load_cmapss_subset(args.data_dir, args.subset, rul_cap=args.rul_cap)
