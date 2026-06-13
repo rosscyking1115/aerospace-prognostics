@@ -138,6 +138,7 @@ Current scope:
 
 - Local model artifact packaging with `joblib`.
 - Artifact inspection command for schema, contract, uncertainty, promotion, and readiness checks.
+- No-download `quickstart-cmapss-demo` command for fixture-based deployment evidence generation.
 - Markdown model cards for deployment-candidate review.
 - Batch inference from CSV.
 - Artifact validation command for promotion checks and prediction smoke tests.

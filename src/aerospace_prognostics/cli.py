@@ -56,6 +56,7 @@ from aerospace_prognostics.deployment.provenance import (
     write_release_provenance_json,
     write_release_provenance_markdown,
 )
+from aerospace_prognostics.deployment.quickstart import run_cmapss_quickstart
 from aerospace_prognostics.deployment.sbom import build_uv_lock_cyclonedx_sbom
 from aerospace_prognostics.evaluation import (
     RegressionRunResult,
@@ -153,6 +154,23 @@ CMAPSS_DEEP_TRAINING_LOSSES = (
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="aerospace-prognostics")
     subparsers = parser.add_subparsers(dest="command", required=True)
+
+    quickstart = subparsers.add_parser(
+        "quickstart-cmapss-demo",
+        help="Run the no-download C-MAPSS deployment quickstart",
+    )
+    quickstart.add_argument(
+        "--output-dir",
+        type=Path,
+        default=Path("artifacts") / "quickstart_cmapss",
+    )
+    quickstart.add_argument("--release-name", default="quickstart-fd001-demo")
+    quickstart.add_argument("--repository", default="local/aerospace-prognostics")
+    quickstart.add_argument("--git-sha", default="0" * 40)
+    quickstart.add_argument("--git-ref", default="refs/heads/local-quickstart")
+    quickstart.add_argument("--workflow", default="local-quickstart")
+    quickstart.add_argument("--run-id", default="local")
+    quickstart.add_argument("--lockfile", type=Path, default=Path("uv.lock"))
 
     summary = subparsers.add_parser("cmapss-summary", help="Summarise a local C-MAPSS subset")
     summary.add_argument("--data-dir", type=Path, required=True)
@@ -1150,6 +1168,19 @@ def _build_parser() -> argparse.ArgumentParser:
 def main(argv: list[str] | None = None) -> int:
     parser = _build_parser()
     args = parser.parse_args(argv)
+
+    if args.command == "quickstart-cmapss-demo":
+        return run_cmapss_quickstart(
+            root=args.output_dir,
+            release_name=args.release_name,
+            repository=args.repository,
+            git_sha=args.git_sha,
+            git_ref=args.git_ref,
+            workflow=args.workflow,
+            run_id=args.run_id,
+            lockfile=args.lockfile,
+            runner=main,
+        )
 
     if args.command == "cmapss-summary":
         bundle = load_cmapss_subset(args.data_dir, args.subset, rul_cap=args.rul_cap)

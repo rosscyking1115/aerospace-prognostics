@@ -4,11 +4,11 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import ci_release_evidence_smoke
+from aerospace_prognostics.deployment.quickstart import run_cmapss_quickstart
 
 if __name__ == "__main__":
     raise SystemExit(
-        ci_release_evidence_smoke.run(
+        run_cmapss_quickstart(
             root=Path("artifacts") / "quickstart_cmapss",
             release_name="quickstart-fd001-demo",
             repository="local/aerospace-prognostics",

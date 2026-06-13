@@ -55,6 +55,7 @@ The working plan is tracked in [Aerospace_Prognostics_Project_Plan.md](Aerospace
 - In-toto/SLSA-style release provenance statements that bind release bundles to Git commit and CI workflow metadata.
 - Dashboard-ready fleet payloads that combine calibrated prediction intervals, priority ranks, attention reasons, and promotion/release evidence for fleet triage surfaces.
 - Standalone static fleet dashboard HTML rendering for release/demo artifacts.
+- No-download `quickstart-cmapss-demo` CLI that generates a full fixture-based deployment evidence bundle.
 - Promotion evidence reports that combine validation, benchmark, model-card, and SBOM gates.
 - Optional API-key authentication and serving rate limits for protected inference endpoints.
 - `aerospace-prognostics generate-sbom` CLI for lockfile-derived CycloneDX-style dependency inventory generation.
@@ -89,7 +90,7 @@ uv run ruff check .
 For a no-download deployment demo, run the tiny fixture quickstart:
 
 ```powershell
-uv run python scripts/quickstart_cmapss_demo.py
+uv run aerospace-prognostics quickstart-cmapss-demo
 ```
 
 It writes dashboard, release bundle, provenance, artifact-inspection, model-card, validation, benchmark, and SBOM artifacts under `artifacts/quickstart_cmapss`. See [docs/quickstart.md](docs/quickstart.md).
@@ -136,6 +137,7 @@ uv run aerospace-prognostics smap-msl-lstm-forecast-baseline --data-dir data/raw
 uv run aerospace-prognostics smap-msl-compare-anomaly-results --result-csv artifacts/results/smap_msl_classical_baselines_sample.csv artifacts/results/smap_msl_lstm_forecast_sample.csv artifacts/results/smap_msl_lstm_dynamic_sample.csv --source-labels classical lstm_robust lstm_dynamic --output-csv artifacts/results/smap_msl_anomaly_model_comparison.csv --output-markdown artifacts/results/smap_msl_anomaly_model_comparison.md
 uv run aerospace-prognostics phase2-smap-msl --data-dir data/raw/smap_msl --artifact-dir artifacts/phase2_smap_msl --max-channels 5 --window-size 30 --epochs 10
 uv run aerospace-prognostics phase2-smap-msl-verify-manifest --manifest artifacts/phase2_smap_msl/phase2_smap_msl_run_manifest.json --output-markdown artifacts/phase2_smap_msl/phase2_smap_msl_manifest_audit.md
+uv run aerospace-prognostics quickstart-cmapss-demo
 uv run aerospace-prognostics cmapss-package-hgb-policy --data-dir data/raw/cmapss --subset FD001 --output-path artifacts/models/cmapss_fd001_hgb_policy.joblib --metadata-json artifacts/models/cmapss_fd001_hgb_policy_metadata.json --model-card-markdown artifacts/models/cmapss_fd001_hgb_policy_model_card.md
 uv run aerospace-prognostics cmapss-inspect-artifact --model-artifact artifacts/models/cmapss_fd001_hgb_policy.joblib --output-json artifacts/models/cmapss_fd001_hgb_policy_inspection.json
 uv run aerospace-prognostics cmapss-predict-artifact --model-artifact artifacts/models/cmapss_fd001_hgb_policy.joblib --input-csv artifacts/examples/fd001_telemetry.csv --output-json artifacts/predictions/fd001_predictions.json

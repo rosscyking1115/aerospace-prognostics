@@ -5,10 +5,10 @@ C-MAPSS or JPL SMAP/MSL data.
 
 ```powershell
 uv sync --dev
-uv run python scripts/quickstart_cmapss_demo.py
+uv run aerospace-prognostics quickstart-cmapss-demo
 ```
 
-The script writes a tiny C-MAPSS-compatible fixture under `artifacts/quickstart_cmapss`
+The command writes a tiny C-MAPSS-compatible fixture under `artifacts/quickstart_cmapss`
 and runs the same public CLI path used by CI:
 
 - package a validation-selected HGB policy artifact;
@@ -36,3 +36,9 @@ serving API.
 
 This quickstart is a plumbing demo, not model-quality evidence. The fixture is intentionally
 tiny so reviewers can verify the lifecycle quickly before moving to the real benchmark data.
+
+The legacy script entry point remains available:
+
+```powershell
+uv run python scripts/quickstart_cmapss_demo.py
+```
