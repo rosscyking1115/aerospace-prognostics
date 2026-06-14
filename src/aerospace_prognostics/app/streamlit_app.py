@@ -11,8 +11,10 @@ import pandas as pd
 
 from aerospace_prognostics.app.api_client import (
     ApiEndpointStatus,
+    ApiRequestError,
     ApiServiceStatus,
     check_api_service,
+    predict_telemetry,
 )
 from aerospace_prognostics.app.dashboard_state import (
     QuickstartWorkspace,
@@ -32,6 +34,7 @@ DEFAULT_WORKSPACE = Path("artifacts") / "quickstart_cmapss"
 DEFAULT_DATABASE = Path("artifacts") / "app" / "aerospace_prognostics.sqlite"
 DEFAULT_API_BASE_URL = "http://127.0.0.1:8000"
 API_BASE_URL_ENV = "AEROSPACE_PROGNOSTICS_API_BASE_URL"
+API_KEY_ENV = "AEROSPACE_PROGNOSTICS_API_KEY"
 
 
 def main() -> None:
@@ -56,6 +59,7 @@ def main() -> None:
             "API base URL",
             value=os.getenv(API_BASE_URL_ENV, DEFAULT_API_BASE_URL),
         )
+        api_key = st.text_input("API key", value=os.getenv(API_KEY_ENV, ""), type="password")
         workspace = load_quickstart_workspace(workspace_root)
         initialize_app_database(database_path)
         api_status = check_api_service(api_base_url)
@@ -84,7 +88,7 @@ def main() -> None:
     with fleet_tab:
         _render_fleet_tab(st, workspace)
     with predict_tab:
-        _render_predict_tab(st, workspace, database_path)
+        _render_predict_tab(st, workspace, database_path, api_status, api_key)
     with history_tab:
         _render_history_tab(st, database_path)
     with evidence_tab:
@@ -131,7 +135,13 @@ def _render_fleet_tab(st: Any, workspace: QuickstartWorkspace) -> None:
         st.bar_chart(risk_frame, x="risk_level", y="assets", horizontal=True)
 
 
-def _render_predict_tab(st: Any, workspace: QuickstartWorkspace, database_path: Path) -> None:
+def _render_predict_tab(
+    st: Any,
+    workspace: QuickstartWorkspace,
+    database_path: Path,
+    api_status: ApiServiceStatus,
+    api_key: str,
+) -> None:
     st.subheader("Batch Prediction")
     uploaded = st.file_uploader("Telemetry CSV", type=["csv"])
     if uploaded is None and workspace.telemetry_csv_path.exists():
@@ -149,12 +159,32 @@ def _render_predict_tab(st: Any, workspace: QuickstartWorkspace, database_path: 
         st.info("No telemetry loaded.")
         return
 
+    backend_options = ["API service", "Local artifact"]
+    backend_index = 0 if api_status.is_ready else 1
+    backend = st.radio("Inference backend", backend_options, index=backend_index, horizontal=True)
     st.dataframe(telemetry.head(12), use_container_width=True, hide_index=True)
     if st.button("Run Prediction", type="primary"):
-        prediction_document = predict_cmapss_telemetry(
-            workspace.model_artifact_path,
-            telemetry,
-        )
+        if backend == "API service":
+            if not api_status.is_ready:
+                st.error("API service is not ready.")
+                return
+            try:
+                prediction_document = predict_telemetry(
+                    api_status.base_url,
+                    telemetry=_telemetry_records(telemetry),
+                    api_key=api_key or None,
+                )
+            except ApiRequestError as exc:
+                st.error(str(exc))
+                if exc.payload:
+                    st.json(exc.payload)
+                return
+            prediction_document = _with_api_artifact_metadata(prediction_document, api_status)
+        else:
+            prediction_document = predict_cmapss_telemetry(
+                workspace.model_artifact_path,
+                telemetry,
+            )
         run_id = record_prediction_run(
             database_path,
             telemetry=telemetry,
@@ -163,7 +193,7 @@ def _render_predict_tab(st: Any, workspace: QuickstartWorkspace, database_path: 
             source_name=source_name,
         )
         st.session_state["selected_prediction_run_id"] = run_id
-        st.success(f"Stored prediction run: {run_id}")
+        st.success(f"Stored {backend.lower()} prediction run: {run_id}")
         predictions = pd.DataFrame(prediction_document["predictions"])
         st.dataframe(predictions, use_container_width=True, hide_index=True)
         monitoring = prediction_document.get("monitoring", {})
@@ -391,6 +421,29 @@ def _prediction_runs_frame(runs: list[dict[str, Any]]) -> pd.DataFrame:
         "drift_alert_count",
     ]
     return pd.DataFrame(runs).reindex(columns=columns)
+
+
+def _telemetry_records(telemetry: pd.DataFrame) -> list[dict[str, Any]]:
+    sanitized = telemetry.astype(object).where(pd.notna(telemetry), None)
+    return sanitized.to_dict(orient="records")
+
+
+def _with_api_artifact_metadata(
+    prediction_document: dict[str, Any],
+    api_status: ApiServiceStatus,
+) -> dict[str, Any]:
+    if "artifact" in prediction_document:
+        return prediction_document
+    model = api_status.readiness.payload.get("model")
+    if not isinstance(model, dict):
+        return prediction_document
+    enriched = dict(prediction_document)
+    enriched["artifact"] = {
+        "artifact_id": model.get("artifact_id"),
+        "artifact_sha256": model.get("artifact_sha256"),
+        "stage": model.get("stage"),
+    }
+    return enriched
 
 
 def _display(value: Any) -> str:

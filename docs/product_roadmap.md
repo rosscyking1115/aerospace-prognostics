@@ -25,7 +25,8 @@ together. The next gap is hosted deployment and deeper operator workflows.
 1. Interactive local console
    - Streamlit app over quickstart and release artifacts.
    - Fleet table with RUL intervals, risk level, attention reasons, and evidence.
-   - Telemetry CSV upload and batch prediction against a packaged artifact.
+   - Telemetry CSV upload and batch prediction through the deployed API service
+     or direct local artifact inference.
    - Prediction-history view with run records, upload hashes, monitoring summaries,
      and downloadable prediction rows.
    - System view for API health/readiness, mounted model identity, workspace state,

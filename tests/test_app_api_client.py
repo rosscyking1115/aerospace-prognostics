@@ -4,7 +4,13 @@ import io
 import urllib.error
 from unittest.mock import patch
 
-from aerospace_prognostics.app.api_client import check_api_service
+import pytest
+
+from aerospace_prognostics.app.api_client import (
+    ApiRequestError,
+    check_api_service,
+    predict_telemetry,
+)
 
 
 def test_check_api_service_reports_ready_model() -> None:
@@ -59,6 +65,76 @@ def test_check_api_service_reports_unreachable_service() -> None:
     assert not status.is_ready
     assert status.health.status_code is None
     assert status.readiness.error == "connection refused"
+
+
+def test_predict_telemetry_posts_records_with_api_key() -> None:
+    captured = {}
+
+    def fake_urlopen(request, timeout):
+        captured["url"] = request.full_url
+        captured["timeout"] = timeout
+        captured["method"] = request.get_method()
+        captured["api_key"] = request.get_header("X-api-key")
+        captured["body"] = request.data
+        return _response(
+            200,
+            (
+                b'{"dataset":"C-MAPSS","subset":"FD001","model_name":"hgb",'
+                b'"rul_cap":125,"predictions":[{"unit_number":1,"predicted_rul":42.0}],'
+                b'"monitoring":{"predictions":{"count":1}}}'
+            ),
+        )
+
+    with patch("urllib.request.urlopen", side_effect=fake_urlopen):
+        prediction = predict_telemetry(
+            "http://api:8000/",
+            telemetry=[{"unit_number": 1, "time_in_cycles": 2}],
+            api_key="secret",
+            timeout_seconds=7.0,
+        )
+
+    assert captured["url"] == "http://api:8000/predict"
+    assert captured["timeout"] == 7.0
+    assert captured["method"] == "POST"
+    assert captured["api_key"] == "secret"
+    assert captured["body"] == b'{"telemetry": [{"unit_number": 1, "time_in_cycles": 2}]}'
+    assert prediction["predictions"][0]["predicted_rul"] == 42.0
+
+
+def test_predict_telemetry_raises_request_error_for_http_error() -> None:
+    error = urllib.error.HTTPError(
+        "http://api:8000/predict",
+        401,
+        "Unauthorized",
+        hdrs=None,
+        fp=io.BytesIO(b'{"detail":"invalid or missing API key"}'),
+    )
+
+    with (
+        patch("urllib.request.urlopen", side_effect=error),
+        pytest.raises(ApiRequestError) as exc_info,
+    ):
+        predict_telemetry(
+            "http://api:8000",
+            telemetry=[{"unit_number": 1, "time_in_cycles": 2}],
+        )
+
+    assert exc_info.value.status_code == 401
+    assert exc_info.value.payload["detail"] == "invalid or missing API key"
+
+
+def test_predict_telemetry_raises_request_error_for_unreachable_service() -> None:
+    with (
+        patch("urllib.request.urlopen", side_effect=OSError("connection refused")),
+        pytest.raises(ApiRequestError) as exc_info,
+    ):
+        predict_telemetry(
+            "http://api:8000",
+            telemetry=[{"unit_number": 1, "time_in_cycles": 2}],
+        )
+
+    assert exc_info.value.status_code is None
+    assert "connection refused" in str(exc_info.value)
 
 
 class _response:

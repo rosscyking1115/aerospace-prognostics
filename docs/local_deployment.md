@@ -19,6 +19,8 @@ The `api` service mounts the quickstart model artifact from
 the full `artifacts/` tree so prediction history, release evidence, and SQLite
 state are shared with the host. Inside Compose, the console probes the API at
 `http://api:8000` and surfaces health/readiness in the System tab.
+The Predict tab can score telemetry through the API service when it is ready, or
+fall back to direct local-artifact inference.
 
 ## Endpoints
 
@@ -32,6 +34,8 @@ Protected API routes use an API key. The default local key is
 `local-dev-secret`; override it with `AEROSPACE_PROGNOSTICS_API_KEY`.
 The console's API target can be overridden with
 `AEROSPACE_PROGNOSTICS_API_BASE_URL` when running outside Compose.
+The console reads the same API key environment variable and sends it on
+API-backed prediction requests.
 
 ```powershell
 $env:AEROSPACE_PROGNOSTICS_API_KEY="replace-this-local-key"

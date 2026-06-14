@@ -40,6 +40,21 @@ class ApiServiceStatus:
         return bool(self.readiness.payload.get("model_loaded"))
 
 
+class ApiRequestError(RuntimeError):
+    """Raised when an API request fails."""
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        status_code: int | None = None,
+        payload: dict[str, Any] | None = None,
+    ) -> None:
+        super().__init__(message)
+        self.status_code = status_code
+        self.payload = payload or {}
+
+
 def check_api_service(base_url: str, *, timeout_seconds: float = 1.0) -> ApiServiceStatus:
     """Probe the API health and readiness endpoints."""
 
@@ -55,6 +70,50 @@ def check_api_service(base_url: str, *, timeout_seconds: float = 1.0) -> ApiServ
         health=health,
         readiness=readiness,
     )
+
+
+def predict_telemetry(
+    base_url: str,
+    *,
+    telemetry: list[dict[str, Any]],
+    api_key: str | None = None,
+    timeout_seconds: float = 30.0,
+) -> dict[str, Any]:
+    """Call the deployed API prediction endpoint."""
+
+    normalized_base_url = base_url.rstrip("/")
+    payload = {"telemetry": telemetry}
+    headers = {
+        "accept": "application/json",
+        "content-type": "application/json",
+    }
+    if api_key:
+        headers["x-api-key"] = api_key
+    request = urllib.request.Request(
+        f"{normalized_base_url}/predict",
+        data=json.dumps(payload, allow_nan=False).encode("utf-8"),
+        headers=headers,
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=timeout_seconds) as response:
+            response_payload = _json_payload(response.read())
+            if not 200 <= int(response.status) < 300:
+                raise ApiRequestError(
+                    f"API prediction failed with status {response.status}",
+                    status_code=int(response.status),
+                    payload=response_payload,
+                )
+            return response_payload
+    except urllib.error.HTTPError as exc:
+        payload = _json_payload(exc.read())
+        raise ApiRequestError(
+            f"API prediction failed with status {exc.code}",
+            status_code=int(exc.code),
+            payload=payload,
+        ) from exc
+    except (OSError, TimeoutError) as exc:
+        raise ApiRequestError(f"API prediction request failed: {exc}") from exc
 
 
 def _get_json(url: str, *, timeout_seconds: float) -> ApiEndpointStatus:
