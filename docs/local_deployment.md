@@ -17,7 +17,8 @@ The `app-db` service initializes and seeds
 The `api` service mounts the quickstart model artifact from
 `artifacts/quickstart_cmapss/models/fd001.joblib`. The `console` service mounts
 the full `artifacts/` tree so prediction history, release evidence, and SQLite
-state are shared with the host.
+state are shared with the host. Inside Compose, the console probes the API at
+`http://api:8000` and surfaces health/readiness in the System tab.
 
 ## Endpoints
 
@@ -29,6 +30,8 @@ state are shared with the host.
 
 Protected API routes use an API key. The default local key is
 `local-dev-secret`; override it with `AEROSPACE_PROGNOSTICS_API_KEY`.
+The console's API target can be overridden with
+`AEROSPACE_PROGNOSTICS_API_BASE_URL` when running outside Compose.
 
 ```powershell
 $env:AEROSPACE_PROGNOSTICS_API_KEY="replace-this-local-key"

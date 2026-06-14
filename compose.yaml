@@ -64,6 +64,7 @@ services:
       - --server.headless=true
       - --browser.gatherUsageStats=false
     environment:
+      AEROSPACE_PROGNOSTICS_API_BASE_URL: http://api:8000
       STREAMLIT_SERVER_HEADLESS: "true"
     ports:
       - "${AEROSPACE_PROGNOSTICS_CONSOLE_PORT:-8501}:8501"

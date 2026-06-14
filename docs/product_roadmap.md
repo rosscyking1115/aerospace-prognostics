@@ -28,6 +28,8 @@ together. The next gap is hosted deployment and deeper operator workflows.
    - Telemetry CSV upload and batch prediction against a packaged artifact.
    - Prediction-history view with run records, upload hashes, monitoring summaries,
      and downloadable prediction rows.
+   - System view for API health/readiness, mounted model identity, workspace state,
+     and database counts.
    - Screenshot/GIF for the README.
 
 2. Local persistence
@@ -50,9 +52,10 @@ work.
    - Health checks for API, dashboard, and database readiness.
 
 Current status: Compose runs `app-db`, `api`, and `console` services from the
-same runtime image. It mounts quickstart model artifacts read-only into the API
-and shares the ignored local `artifacts/` tree with the console and SQLite app
-database.
+same runtime image. It mounts quickstart model artifacts read-only into the API,
+shares the ignored local `artifacts/` tree with the console and SQLite app
+database, and lets the console probe API health/readiness through the internal
+service URL.
 
 4. Hosted deployment
    - Private hosted demo first, then public read-only demo when the repo is ready.

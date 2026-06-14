@@ -57,7 +57,7 @@ The working plan is tracked in [Aerospace_Prognostics_Project_Plan.md](Aerospace
 - Dashboard-ready fleet payloads that combine calibrated prediction intervals, priority ranks, attention reasons, and promotion/release evidence for fleet triage surfaces.
 - Standalone static fleet dashboard HTML rendering for release/demo artifacts.
 - No-download `quickstart-cmapss-demo` CLI that generates a full fixture-based deployment evidence bundle.
-- Streamlit local operations console with fleet triage, artifact evidence, batch prediction, and SQLite-backed prediction history.
+- Streamlit local operations console with fleet triage, artifact evidence, batch prediction, SQLite-backed prediction history, and API readiness status.
 - `aerospace-prognostics app-init-db` CLI for initializing and seeding the local app database from quickstart artifacts.
 - Promotion evidence reports that combine validation, benchmark, model-card, and SBOM gates.
 - Optional API-key authentication and serving rate limits for protected inference endpoints.
@@ -109,7 +109,7 @@ uv run aerospace-prognostics quickstart-cmapss-demo
 docker compose up --build
 ```
 
-Then open `http://127.0.0.1:8501` for the console or `http://127.0.0.1:8000/ready` for API readiness. See [docs/local_deployment.md](docs/local_deployment.md).
+Then open `http://127.0.0.1:8501` for the console or `http://127.0.0.1:8000/ready` for API readiness. The console System tab shows API health/readiness, mounted model identity, workspace state, and database counts. See [docs/local_deployment.md](docs/local_deployment.md).
 
 Raw telemetry and trained artifacts are intentionally ignored by Git. Keep datasets under `data/` or another documented local path, and record source URLs/checksums when adding download scripts.
 
