@@ -20,7 +20,9 @@ the full `artifacts/` tree so prediction history, release evidence, and SQLite
 state are shared with the host. Inside Compose, the console probes the API at
 `http://api:8000` and surfaces health/readiness in the System tab.
 The Predict tab can score telemetry through the API service when it is ready, or
-fall back to direct local-artifact inference.
+fall back to direct local-artifact inference. The History tab persists run
+records, prediction rows, operator decisions, and audit events in the shared
+SQLite database.
 
 ## Endpoints
 

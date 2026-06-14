@@ -27,6 +27,7 @@ from aerospace_prognostics.app.store import (
     list_prediction_runs,
     load_prediction_run,
     record_prediction_run,
+    record_prediction_run_event,
     seed_quickstart_workspace,
 )
 
@@ -225,6 +226,8 @@ def _render_history_tab(st: Any, database_path: Path) -> None:
             "mean_predicted_rul": st.column_config.NumberColumn("Mean RUL", format="%.1f"),
             "max_predicted_rul": st.column_config.NumberColumn("Max RUL", format="%.1f"),
             "drift_alert_count": st.column_config.NumberColumn("Drift Alerts", width="small"),
+            "decision_status": st.column_config.TextColumn("Decision"),
+            "audit_event_count": st.column_config.NumberColumn("Events", width="small"),
         },
     )
 
@@ -262,6 +265,45 @@ def _render_history_tab(st: Any, database_path: Path) -> None:
     with detail_columns[1]:
         st.subheader("Monitoring")
         st.json(run.get("monitoring", {}))
+
+    decision_columns = st.columns([1, 1, 2])
+    with decision_columns[0]:
+        decision_status = st.selectbox(
+            "Decision",
+            ["review_required", "accepted", "watch", "escalated", "rejected"],
+            index=_decision_status_index(run.get("decision_status")),
+        )
+    with decision_columns[1]:
+        decision_actor = st.text_input("Actor", value="operator")
+    with decision_columns[2]:
+        decision_note = st.text_input("Note", value=str(run.get("decision_note") or ""))
+    if st.button("Record Decision"):
+        record_prediction_run_event(
+            database_path,
+            run_id=selected_run_id,
+            event_type="operator_decision",
+            status=decision_status,
+            actor=decision_actor.strip() or "operator",
+            note=decision_note.strip() or None,
+            payload={"source": "streamlit_history_tab"},
+        )
+        st.success("Decision recorded.")
+        st.rerun()
+
+    audit_events = selected.get("audit_events", [])
+    st.subheader("Audit Log")
+    st.dataframe(
+        _audit_events_frame(audit_events),
+        use_container_width=True,
+        hide_index=True,
+        column_config={
+            "created_at_utc": st.column_config.DatetimeColumn("Created"),
+            "event_type": st.column_config.TextColumn("Event"),
+            "status": st.column_config.TextColumn("Status"),
+            "actor": st.column_config.TextColumn("Actor"),
+            "note": st.column_config.TextColumn("Note"),
+        },
+    )
 
     st.dataframe(
         predictions_frame,
@@ -419,8 +461,22 @@ def _prediction_runs_frame(runs: list[dict[str, Any]]) -> pd.DataFrame:
         "mean_predicted_rul",
         "max_predicted_rul",
         "drift_alert_count",
+        "decision_status",
+        "audit_event_count",
     ]
     return pd.DataFrame(runs).reindex(columns=columns)
+
+
+def _audit_events_frame(events: list[dict[str, Any]]) -> pd.DataFrame:
+    columns = ["created_at_utc", "event_type", "status", "actor", "note"]
+    return pd.DataFrame(events).reindex(columns=columns)
+
+
+def _decision_status_index(status: Any) -> int:
+    options = ["review_required", "accepted", "watch", "escalated", "rejected"]
+    if status in options:
+        return options.index(status)
+    return 0
 
 
 def _telemetry_records(telemetry: pd.DataFrame) -> list[dict[str, Any]]:

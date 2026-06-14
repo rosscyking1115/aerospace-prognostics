@@ -57,7 +57,7 @@ The working plan is tracked in [Aerospace_Prognostics_Project_Plan.md](Aerospace
 - Dashboard-ready fleet payloads that combine calibrated prediction intervals, priority ranks, attention reasons, and promotion/release evidence for fleet triage surfaces.
 - Standalone static fleet dashboard HTML rendering for release/demo artifacts.
 - No-download `quickstart-cmapss-demo` CLI that generates a full fixture-based deployment evidence bundle.
-- Streamlit local operations console with fleet triage, artifact evidence, API-backed or local batch prediction, SQLite-backed prediction history, and API readiness status.
+- Streamlit local operations console with fleet triage, artifact evidence, API-backed or local batch prediction, SQLite-backed prediction history, operator decisions, audit events, and API readiness status.
 - `aerospace-prognostics app-init-db` CLI for initializing and seeding the local app database from quickstart artifacts.
 - Promotion evidence reports that combine validation, benchmark, model-card, and SBOM gates.
 - Optional API-key authentication and serving rate limits for protected inference endpoints.

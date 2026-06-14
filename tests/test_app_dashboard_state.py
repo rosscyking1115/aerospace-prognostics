@@ -8,6 +8,8 @@ from aerospace_prognostics.app.dashboard_state import (
     predict_cmapss_telemetry,
 )
 from aerospace_prognostics.app.streamlit_app import (
+    _audit_events_frame,
+    _decision_status_index,
     _telemetry_records,
     _with_api_artifact_metadata,
 )
@@ -77,3 +79,28 @@ def test_with_api_artifact_metadata_adds_readiness_identity() -> None:
 
     assert enriched["artifact"]["artifact_id"] == "fd001-demo"
     assert enriched["artifact"]["artifact_sha256"] == "abc123"
+
+
+def test_audit_events_frame_preserves_operator_event_columns() -> None:
+    frame = _audit_events_frame(
+        [
+            {
+                "created_at_utc": "2026-01-01T00:00:00+00:00",
+                "event_type": "operator_decision",
+                "status": "watch",
+                "actor": "flight-ops",
+                "note": "Monitor next cycle",
+                "payload": {"ticket": "PHM-42"},
+            }
+        ]
+    )
+
+    assert list(frame.columns) == ["created_at_utc", "event_type", "status", "actor", "note"]
+    assert frame.iloc[0]["status"] == "watch"
+    assert frame.iloc[0]["actor"] == "flight-ops"
+
+
+def test_decision_status_index_defaults_to_review_required() -> None:
+    assert _decision_status_index("accepted") == 1
+    assert _decision_status_index(None) == 0
+    assert _decision_status_index("unknown") == 0

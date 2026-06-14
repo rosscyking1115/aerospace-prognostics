@@ -8,9 +8,11 @@ from aerospace_prognostics.app.store import (
     SCHEMA_VERSION,
     database_summary,
     initialize_app_database,
+    list_prediction_run_events,
     list_prediction_runs,
     load_prediction_run,
     record_prediction_run,
+    record_prediction_run_event,
     seed_quickstart_workspace,
 )
 from aerospace_prognostics.cli import main
@@ -101,6 +103,7 @@ def test_record_prediction_run_persists_upload_run_and_prediction_rows(tmp_path)
     assert summary["telemetry_uploads"] == 1
     assert summary["prediction_runs"] == 1
     assert summary["predictions"] == 2
+    assert summary["prediction_run_events"] == 1
     with sqlite3.connect(database_path) as connection:
         stored_run_id = connection.execute("select run_id from prediction_runs").fetchone()[0]
     assert stored_run_id == run_id
@@ -119,11 +122,57 @@ def test_prediction_run_history_loads_recent_runs_and_predictions(tmp_path) -> N
     assert runs[0]["min_predicted_rul"] <= runs[0]["max_predicted_rul"]
     assert runs[0]["interval_count"] == 2
     assert runs[0]["drift_alert_count"] == 0
+    assert runs[0]["audit_event_count"] == 1
+    assert runs[0]["decision_status"] is None
     assert loaded is not None
     assert loaded["run"]["run_id"] == run_id
     assert loaded["run"]["source_name"] == "test.csv"
+    assert loaded["run"]["audit_event_count"] == 1
+    assert len(loaded["audit_events"]) == 1
+    assert loaded["audit_events"][0]["event_type"] == "prediction_recorded"
     assert len(loaded["predictions"]) == 2
     assert loaded["predictions"][0]["predicted_rul"] <= loaded["predictions"][1]["predicted_rul"]
+
+
+def test_prediction_run_events_append_operator_decisions(tmp_path) -> None:
+    database_path, run_id = _write_prediction_run(tmp_path)
+
+    event_id = record_prediction_run_event(
+        database_path,
+        run_id=run_id,
+        event_type="operator_decision",
+        status="watch",
+        actor="flight-ops",
+        note="Monitor on next cycle",
+        payload={"ticket": "PHM-42"},
+    )
+    runs = list_prediction_runs(database_path)
+    loaded = load_prediction_run(database_path, run_id)
+    events = list_prediction_run_events(database_path, run_id)
+
+    assert event_id.startswith("event-")
+    assert runs[0]["audit_event_count"] == 2
+    assert runs[0]["decision_status"] == "watch"
+    assert runs[0]["decision_note"] == "Monitor on next cycle"
+    assert loaded is not None
+    assert loaded["run"]["decision_status"] == "watch"
+    assert events[0]["event_type"] == "operator_decision"
+    assert events[0]["payload"] == {"ticket": "PHM-42"}
+
+
+def test_prediction_run_event_rejects_unknown_run(tmp_path) -> None:
+    database_path = initialize_app_database(tmp_path / "app.sqlite")
+
+    try:
+        record_prediction_run_event(
+            database_path,
+            run_id="run-missing",
+            event_type="operator_decision",
+        )
+    except ValueError as exc:
+        assert "unknown prediction run" in str(exc)
+    else:
+        raise AssertionError("expected unknown run to fail")
 
 
 def test_load_prediction_run_returns_none_for_unknown_run(tmp_path) -> None:

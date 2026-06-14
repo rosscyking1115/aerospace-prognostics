@@ -88,6 +88,17 @@ def initialize_app_database(database_path: str | Path) -> Path:
                 created_at_utc text not null,
                 primary key (run_id, unit_number)
             );
+
+            create table if not exists prediction_run_events (
+                event_id text primary key,
+                run_id text not null references prediction_runs(run_id),
+                event_type text not null,
+                status text,
+                actor text not null,
+                note text,
+                payload_json text,
+                created_at_utc text not null
+            );
             """
         )
         timestamp = _now()
@@ -307,7 +318,50 @@ def record_prediction_run(
                 for row in predictions
             ),
         )
+        _insert_prediction_run_event(
+            connection,
+            run_id=run_id,
+            event_type="prediction_recorded",
+            status="recorded",
+            actor="system",
+            note="Prediction run persisted",
+            payload={
+                "source_name": source_name,
+                "prediction_count": len(predictions),
+                "artifact_id": artifact_id,
+            },
+            timestamp=timestamp,
+        )
     return run_id
+
+
+def record_prediction_run_event(
+    database_path: str | Path,
+    *,
+    run_id: str,
+    event_type: str,
+    actor: str = "operator",
+    status: str | None = None,
+    note: str | None = None,
+    payload: dict[str, Any] | None = None,
+) -> str:
+    """Append an auditable event to a persisted prediction run."""
+
+    db_path = initialize_app_database(database_path)
+    timestamp = _now()
+    with _connect(db_path) as connection:
+        if not _prediction_run_exists(connection, run_id):
+            raise ValueError(f"unknown prediction run: {run_id}")
+        return _insert_prediction_run_event(
+            connection,
+            run_id=run_id,
+            event_type=event_type,
+            status=status,
+            actor=actor,
+            note=note,
+            payload=payload,
+            timestamp=timestamp,
+        )
 
 
 def list_prediction_runs(
@@ -339,7 +393,28 @@ def list_prediction_runs(
                 min(predictions.predicted_rul) as min_predicted_rul,
                 avg(predictions.predicted_rul) as mean_predicted_rul,
                 max(predictions.predicted_rul) as max_predicted_rul,
-                count(predictions.predicted_rul_lower) as interval_count
+                count(predictions.predicted_rul_lower) as interval_count,
+                (
+                    select count(*)
+                    from prediction_run_events
+                    where prediction_run_events.run_id = prediction_runs.run_id
+                ) as audit_event_count,
+                (
+                    select status
+                    from prediction_run_events
+                    where prediction_run_events.run_id = prediction_runs.run_id
+                        and prediction_run_events.event_type = 'operator_decision'
+                    order by prediction_run_events.created_at_utc desc
+                    limit 1
+                ) as decision_status,
+                (
+                    select note
+                    from prediction_run_events
+                    where prediction_run_events.run_id = prediction_runs.run_id
+                        and prediction_run_events.event_type = 'operator_decision'
+                    order by prediction_run_events.created_at_utc desc
+                    limit 1
+                ) as decision_note
             from prediction_runs
             join telemetry_uploads on telemetry_uploads.upload_id = prediction_runs.upload_id
             left join predictions on predictions.run_id = prediction_runs.run_id
@@ -373,7 +448,28 @@ def load_prediction_run(database_path: str | Path, run_id: str) -> dict[str, Any
                 telemetry_uploads.source_name,
                 telemetry_uploads.row_count,
                 telemetry_uploads.column_count,
-                telemetry_uploads.content_sha256
+                telemetry_uploads.content_sha256,
+                (
+                    select count(*)
+                    from prediction_run_events
+                    where prediction_run_events.run_id = prediction_runs.run_id
+                ) as audit_event_count,
+                (
+                    select status
+                    from prediction_run_events
+                    where prediction_run_events.run_id = prediction_runs.run_id
+                        and prediction_run_events.event_type = 'operator_decision'
+                    order by prediction_run_events.created_at_utc desc
+                    limit 1
+                ) as decision_status,
+                (
+                    select note
+                    from prediction_run_events
+                    where prediction_run_events.run_id = prediction_runs.run_id
+                        and prediction_run_events.event_type = 'operator_decision'
+                    order by prediction_run_events.created_at_utc desc
+                    limit 1
+                ) as decision_note
             from prediction_runs
             join telemetry_uploads on telemetry_uploads.upload_id = prediction_runs.upload_id
             where prediction_runs.run_id = ?
@@ -399,11 +495,28 @@ def load_prediction_run(database_path: str | Path, run_id: str) -> dict[str, Any
             """,
             (run_id,),
         ).fetchall()
+        event_rows = connection.execute(
+            """
+            select
+                event_id,
+                event_type,
+                status,
+                actor,
+                note,
+                payload_json,
+                created_at_utc
+            from prediction_run_events
+            where run_id = ?
+            order by created_at_utc desc
+            """,
+            (run_id,),
+        ).fetchall()
     run = dict(run_row)
     run["monitoring"] = _json_loads(run.pop("monitoring_json"))
     return {
         "run": run,
         "predictions": [dict(row) for row in prediction_rows],
+        "audit_events": [_event_from_row(row) for row in event_rows],
     }
 
 
@@ -422,11 +535,43 @@ def database_summary(database_path: str | Path) -> dict[str, int | str]:
             "telemetry_uploads",
             "prediction_runs",
             "predictions",
+            "prediction_run_events",
         ):
             summary[table_name] = int(
                 connection.execute(f"select count(*) from {table_name}").fetchone()[0]
             )
     return summary
+
+
+def list_prediction_run_events(
+    database_path: str | Path,
+    run_id: str,
+    *,
+    limit: int = 50,
+) -> list[dict[str, Any]]:
+    """Return recent audit events for a prediction run."""
+
+    db_path = initialize_app_database(database_path)
+    with _connect(db_path) as connection:
+        connection.row_factory = sqlite3.Row
+        rows = connection.execute(
+            """
+            select
+                event_id,
+                event_type,
+                status,
+                actor,
+                note,
+                payload_json,
+                created_at_utc
+            from prediction_run_events
+            where run_id = ?
+            order by created_at_utc desc
+            limit ?
+            """,
+            (run_id, int(limit)),
+        ).fetchall()
+    return [_event_from_row(row) for row in rows]
 
 
 def _connect(database_path: Path) -> sqlite3.Connection:
@@ -441,6 +586,63 @@ def _metadata_value(connection: sqlite3.Connection, key: str) -> str | None:
         (key,),
     ).fetchone()
     return str(row[0]) if row is not None else None
+
+
+def _prediction_run_exists(connection: sqlite3.Connection, run_id: str) -> bool:
+    row = connection.execute(
+        "select 1 from prediction_runs where run_id = ?",
+        (run_id,),
+    ).fetchone()
+    return row is not None
+
+
+def _insert_prediction_run_event(
+    connection: sqlite3.Connection,
+    *,
+    run_id: str,
+    event_type: str,
+    actor: str,
+    timestamp: str,
+    status: str | None = None,
+    note: str | None = None,
+    payload: dict[str, Any] | None = None,
+) -> str:
+    event_material = {
+        "run_id": run_id,
+        "event_type": event_type,
+        "status": status,
+        "actor": actor,
+        "note": note,
+        "payload": payload or {},
+        "timestamp": timestamp,
+    }
+    event_id = f"event-{_sha256_text(_json_dumps(event_material))[:16]}"
+    connection.execute(
+        """
+        insert into prediction_run_events (
+            event_id,
+            run_id,
+            event_type,
+            status,
+            actor,
+            note,
+            payload_json,
+            created_at_utc
+        )
+        values (?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            event_id,
+            run_id,
+            event_type,
+            status,
+            actor,
+            note,
+            _json_dumps(payload or {}),
+            timestamp,
+        ),
+    )
+    return event_id
 
 
 def _workspace_evidence(
@@ -480,6 +682,12 @@ def _run_summary_from_row(row: sqlite3.Row) -> dict[str, Any]:
     monitoring = _json_loads(result.pop("monitoring_json"))
     result["drift_alert_count"] = _drift_alert_count(monitoring)
     return result
+
+
+def _event_from_row(row: sqlite3.Row) -> dict[str, Any]:
+    event = dict(row)
+    event["payload"] = _json_loads(event.pop("payload_json"))
+    return event
 
 
 def _drift_alert_count(monitoring: Any) -> int:

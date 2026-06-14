@@ -28,7 +28,7 @@ together. The next gap is hosted deployment and deeper operator workflows.
    - Telemetry CSV upload and batch prediction through the deployed API service
      or direct local artifact inference.
    - Prediction-history view with run records, upload hashes, monitoring summaries,
-     and downloadable prediction rows.
+     operator decisions, audit events, and downloadable prediction rows.
    - System view for API health/readiness, mounted model identity, workspace state,
      and database counts.
    - Screenshot/GIF for the README.
@@ -42,9 +42,9 @@ together. The next gap is hosted deployment and deeper operator workflows.
 
 Current status: initial SQLite persistence is active for model artifacts, release
 evidence, telemetry uploads, prediction runs, and per-asset predictions. The
-console can inspect recent runs and export their persisted prediction rows. Audit
-events, operator notes, and import/export beyond quickstart seeding remain future
-work.
+console can inspect recent runs, export their persisted prediction rows, append
+operator decisions, and display an audit log for each run. Import/export beyond
+quickstart seeding remains future work.
 
 3. Local deployment stack
    - Docker Compose with FastAPI inference service, dashboard, mounted model
@@ -67,8 +67,8 @@ service URL.
 5. Professional workflow
    - Model registry view with artifact identity, schema version, promotion status,
      SBOM, provenance, model card, and rollback notes.
-   - Prediction-run history with input hash, model ID, latency, risk counts, and
-     operator notes.
+   - Prediction-run history with input hash, model ID, latency, risk counts,
+     operator decisions, and audit events.
    - Fleet asset registry that can combine C-MAPSS engine RUL and spacecraft
      anomaly alerts in one console.
 
