@@ -48,6 +48,7 @@ The working plan is tracked in [Aerospace_Prognostics_Project_Plan.md](Aerospace
 - FastAPI serving observability with `/health` liveness, `/ready` readiness plus artifact identity, `/schema` inference-contract discovery, request IDs, latency headers, JSON request logs, and `/metrics` request, prediction, and drift counters/gauges.
 - Serving-time telemetry drift summaries and prediction distribution monitoring.
 - Docker serving image with non-root runtime, liveness healthcheck, OCI traceability labels, runtime dependency-surface checks, mounted-model smoke checks, and private GHCR publishing for release tags.
+- Docker Compose local product stack for API, Streamlit console, mounted quickstart model artifacts, and SQLite app state.
 - Candidate artifact promotion metadata with stable IDs and rollback guidance.
 - Deployment-candidate model cards with intended use, metrics, inference contract, limitations, monitoring, and rollback notes.
 - Artifact latency benchmark reports with optional p95 promotion gates.
@@ -77,6 +78,7 @@ The working plan is tracked in [Aerospace_Prognostics_Project_Plan.md](Aerospace
 ## Deployment Artifacts
 
 - Production ML deployment notes: [docs/deployment.md](docs/deployment.md)
+- Local product deployment: [docs/local_deployment.md](docs/local_deployment.md)
 - Repository public-launch strategy: [docs/repo_launch_strategy.md](docs/repo_launch_strategy.md)
 - Product roadmap: [docs/product_roadmap.md](docs/product_roadmap.md)
 
@@ -99,6 +101,15 @@ uv run streamlit run src/aerospace_prognostics/app/streamlit_app.py
 ```
 
 These commands write dashboard, release bundle, provenance, artifact-inspection, model-card, validation, benchmark, and SBOM artifacts under `artifacts/quickstart_cmapss`, seed a local SQLite app database under `artifacts/app`, then open an interactive local operations console with fleet triage, prediction, evidence, and run-history views. See [docs/quickstart.md](docs/quickstart.md).
+
+To run the local product stack with both the API and console:
+
+```powershell
+uv run aerospace-prognostics quickstart-cmapss-demo
+docker compose up --build
+```
+
+Then open `http://127.0.0.1:8501` for the console or `http://127.0.0.1:8000/ready` for API readiness. See [docs/local_deployment.md](docs/local_deployment.md).
 
 Raw telemetry and trained artifacts are intentionally ignored by Git. Keep datasets under `data/` or another documented local path, and record source URLs/checksums when adding download scripts.
 

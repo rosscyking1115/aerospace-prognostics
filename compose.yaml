@@ -1,0 +1,80 @@
+name: aerospace-prognostics
+
+x-app-image: &app-image
+  build:
+    context: .
+    args:
+      SOURCE: https://github.com/rosscyking1115/aerospace-prognostics
+      VERSION: 0.1.0
+  image: aerospace-prognostics:local
+
+x-artifacts-volume: &artifacts-volume
+  - ./artifacts:/app/artifacts
+
+services:
+  app-db:
+    <<: *app-image
+    command:
+      - aerospace-prognostics
+      - app-init-db
+      - --database
+      - /app/artifacts/app/aerospace_prognostics.sqlite
+      - --quickstart-dir
+      - /app/artifacts/quickstart_cmapss
+    volumes: *artifacts-volume
+    restart: "no"
+
+  api:
+    <<: *app-image
+    depends_on:
+      app-db:
+        condition: service_completed_successfully
+    environment:
+      AEROSPACE_PROGNOSTICS_API_KEY: ${AEROSPACE_PROGNOSTICS_API_KEY:-local-dev-secret}
+      AEROSPACE_PROGNOSTICS_MODEL_PATH: /models/fd001.joblib
+      AEROSPACE_PROGNOSTICS_RATE_LIMIT_PER_MINUTE: ${AEROSPACE_PROGNOSTICS_RATE_LIMIT_PER_MINUTE:-120}
+    ports:
+      - "${AEROSPACE_PROGNOSTICS_API_PORT:-8000}:8000"
+    volumes:
+      - ./artifacts/quickstart_cmapss/models:/models:ro
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -m
+        - aerospace_prognostics.serving.healthcheck
+      interval: 30s
+      timeout: 5s
+      start_period: 10s
+      retries: 3
+
+  console:
+    <<: *app-image
+    depends_on:
+      app-db:
+        condition: service_completed_successfully
+      api:
+        condition: service_healthy
+    command:
+      - streamlit
+      - run
+      - src/aerospace_prognostics/app/streamlit_app.py
+      - --server.address=0.0.0.0
+      - --server.port=8501
+      - --server.headless=true
+      - --browser.gatherUsageStats=false
+    environment:
+      STREAMLIT_SERVER_HEADLESS: "true"
+    ports:
+      - "${AEROSPACE_PROGNOSTICS_CONSOLE_PORT:-8501}:8501"
+    volumes: *artifacts-volume
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8501/_stcore/health', timeout=2).read()"
+      interval: 30s
+      timeout: 5s
+      start_period: 15s
+      retries: 3

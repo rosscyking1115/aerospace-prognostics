@@ -17,8 +17,8 @@ The professional user-facing tool should support three surfaces:
 The current foundation already includes the API, Docker image, release evidence,
 SBOM, artifact inspection, static dashboard output, and no-download quickstart.
 The current productization layer adds a local Streamlit console and SQLite
-application state. The next gap is packaging that console and API as a cohesive
-local deployment stack.
+application state plus a Docker Compose stack for running the console and API
+together. The next gap is hosted deployment and deeper operator workflows.
 
 ## Milestones
 
@@ -48,6 +48,11 @@ work.
      artifact storage, and database volume.
    - Seeded quickstart data for a one-command local product demo.
    - Health checks for API, dashboard, and database readiness.
+
+Current status: Compose runs `app-db`, `api`, and `console` services from the
+same runtime image. It mounts quickstart model artifacts read-only into the API
+and shares the ignored local `artifacts/` tree with the console and SQLite app
+database.
 
 4. Hosted deployment
    - Private hosted demo first, then public read-only demo when the repo is ready.
