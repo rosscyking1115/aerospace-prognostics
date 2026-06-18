@@ -28,9 +28,10 @@ together. The next gap is hosted deployment and deeper operator workflows.
    - Telemetry CSV upload and batch prediction through the deployed API service
      or direct local artifact inference.
    - Prediction-history view with run records, upload hashes, monitoring summaries,
-     operator decisions, audit events, and downloadable prediction rows.
+     interval availability and width diagnostics, operator decisions, audit
+     events, and downloadable prediction rows.
    - Model registry view with artifact identity, release evidence, prediction
-     usage, and release-gate report cards.
+     usage, release-gate report cards, and operational interval diagnostics.
    - System view for API health/readiness, mounted model identity, workspace state,
      and database counts.
    - Screenshot/GIF for the README.
@@ -45,9 +46,11 @@ together. The next gap is hosted deployment and deeper operator workflows.
 Current status: initial SQLite persistence is active for model artifacts, release
 evidence, telemetry uploads, prediction runs, and per-asset predictions. The
 console can inspect recent runs, export their persisted prediction rows, append
-operator decisions, display an audit log for each run, and inspect stored model
-artifacts with their release evidence, recent prediction usage, and release-gate
-report cards. Import/export beyond quickstart seeding remains future work.
+operator decisions, display an audit log for each run, summarize interval
+availability and width, and inspect stored model artifacts with their release
+evidence, recent prediction usage, release-gate report cards, and operational
+interval diagnostics. Import/export beyond quickstart seeding remains future
+work.
 
 3. Local deployment stack
    - Docker Compose with FastAPI inference service, dashboard, mounted model

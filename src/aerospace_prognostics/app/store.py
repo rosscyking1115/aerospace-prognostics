@@ -455,10 +455,24 @@ def load_model_artifact(
                 prediction_runs.model_name,
                 prediction_runs.prediction_count,
                 telemetry_uploads.source_name,
-                telemetry_uploads.content_sha256
+                telemetry_uploads.content_sha256,
+                count(predictions.unit_number) as prediction_row_count,
+                sum(
+                    case
+                        when predictions.predicted_rul_lower is not null
+                            and predictions.predicted_rul_upper is not null
+                        then 1 else 0
+                    end
+                ) as interval_count,
+                avg(predictions.predicted_rul_upper - predictions.predicted_rul_lower)
+                    as mean_interval_width,
+                max(predictions.predicted_rul_upper - predictions.predicted_rul_lower)
+                    as max_interval_width
             from prediction_runs
             join telemetry_uploads on telemetry_uploads.upload_id = prediction_runs.upload_id
+            left join predictions on predictions.run_id = prediction_runs.run_id
             where prediction_runs.artifact_id = ?
+            group by prediction_runs.run_id
             order by prediction_runs.created_at_utc desc
             limit 25
             """,
@@ -467,7 +481,7 @@ def load_model_artifact(
     artifact = dict(artifact_row)
     artifact["inspection"] = _json_loads(artifact.pop("inspection_json"))
     release_evidence = [_evidence_from_row(row) for row in evidence_rows]
-    prediction_runs = [dict(row) for row in run_rows]
+    prediction_runs = [_with_interval_availability(dict(row)) for row in run_rows]
     return {
         "artifact": artifact,
         "release_evidence": release_evidence,
@@ -509,7 +523,17 @@ def list_prediction_runs(
                 min(predictions.predicted_rul) as min_predicted_rul,
                 avg(predictions.predicted_rul) as mean_predicted_rul,
                 max(predictions.predicted_rul) as max_predicted_rul,
-                count(predictions.predicted_rul_lower) as interval_count,
+                sum(
+                    case
+                        when predictions.predicted_rul_lower is not null
+                            and predictions.predicted_rul_upper is not null
+                        then 1 else 0
+                    end
+                ) as interval_count,
+                avg(predictions.predicted_rul_upper - predictions.predicted_rul_lower)
+                    as mean_interval_width,
+                max(predictions.predicted_rul_upper - predictions.predicted_rul_lower)
+                    as max_interval_width,
                 (
                     select count(*)
                     from prediction_run_events
@@ -797,7 +821,36 @@ def _run_summary_from_row(row: sqlite3.Row) -> dict[str, Any]:
     result = dict(row)
     monitoring = _json_loads(result.pop("monitoring_json"))
     result["drift_alert_count"] = _drift_alert_count(monitoring)
+    return _with_interval_availability(result)
+
+
+def _with_interval_availability(row: dict[str, Any]) -> dict[str, Any]:
+    result = dict(row)
+    prediction_count = _optional_int(result.get("prediction_count")) or 0
+    interval_count = _optional_int(result.get("interval_count")) or 0
+    result["interval_count"] = interval_count
+    result["interval_availability_rate"] = (
+        interval_count / prediction_count if prediction_count > 0 else None
+    )
     return result
+
+
+def _optional_int(value: Any) -> int | None:
+    if value is None:
+        return None
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _optional_float(value: Any) -> float | None:
+    if value is None:
+        return None
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
 
 
 def _event_from_row(row: sqlite3.Row) -> dict[str, Any]:
@@ -852,6 +905,40 @@ def _model_report_card(
     latency_ms = latency_ms if isinstance(latency_ms, dict) else {}
     provenance_summary = provenance.get("summary")
     provenance_summary = provenance_summary if isinstance(provenance_summary, dict) else {}
+    prediction_count_total = 0
+    interval_count_total = 0
+    weighted_interval_width = 0.0
+    interval_width_count = 0
+    max_interval_width = None
+    for run in prediction_runs:
+        prediction_count = _optional_int(run.get("prediction_count"))
+        if prediction_count is None:
+            prediction_count = _optional_int(run.get("prediction_row_count")) or 0
+        interval_count = _optional_int(run.get("interval_count")) or 0
+        mean_width = _optional_float(run.get("mean_interval_width"))
+        run_max_width = _optional_float(run.get("max_interval_width"))
+        prediction_count_total += prediction_count
+        interval_count_total += interval_count
+        if mean_width is not None and interval_count > 0:
+            weighted_interval_width += mean_width * interval_count
+            interval_width_count += interval_count
+        if run_max_width is not None:
+            max_interval_width = (
+                run_max_width
+                if max_interval_width is None
+                else max(max_interval_width, run_max_width)
+            )
+    missing_interval_count = max(prediction_count_total - interval_count_total, 0)
+    interval_availability_rate = (
+        interval_count_total / prediction_count_total
+        if prediction_count_total > 0
+        else None
+    )
+    mean_interval_width = (
+        weighted_interval_width / interval_width_count
+        if interval_width_count > 0
+        else None
+    )
     return {
         "artifact_id": artifact.get("artifact_id"),
         "stage": artifact.get("stage"),
@@ -870,6 +957,16 @@ def _model_report_card(
         "max_p95_latency_ms": benchmark.get("max_p95_latency_ms"),
         "interval_method": uncertainty.get("interval_method"),
         "interval_confidence": uncertainty.get("interval_confidence"),
+        "interval_diagnostic_kind": "operational_interval_availability",
+        "prediction_count_total": prediction_count_total,
+        "interval_count_total": interval_count_total,
+        "missing_interval_count": missing_interval_count,
+        "interval_availability_rate": interval_availability_rate,
+        "interval_complete": (
+            prediction_count_total > 0 and missing_interval_count == 0
+        ),
+        "mean_interval_width": mean_interval_width,
+        "max_interval_width": max_interval_width,
         "provenance_workflow": provenance_summary.get("workflow"),
     }
 

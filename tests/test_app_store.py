@@ -3,6 +3,8 @@ from __future__ import annotations
 import json
 import sqlite3
 
+import pandas as pd
+
 from aerospace_prognostics.app.dashboard_state import QuickstartWorkspace
 from aerospace_prognostics.app.store import (
     SCHEMA_VERSION,
@@ -100,6 +102,16 @@ def test_model_registry_lists_artifacts_evidence_and_prediction_usage(tmp_path) 
     assert loaded["report_card"]["failed_gates"] == ["promotion.latency_benchmark"]
     assert loaded["report_card"]["p95_latency_ms"] == 42.0
     assert loaded["report_card"]["max_p95_latency_ms"] == 25.0
+    assert loaded["report_card"]["interval_diagnostic_kind"] == (
+        "operational_interval_availability"
+    )
+    assert loaded["report_card"]["prediction_count_total"] == 2
+    assert loaded["report_card"]["interval_count_total"] == 2
+    assert loaded["report_card"]["missing_interval_count"] == 0
+    assert loaded["report_card"]["interval_availability_rate"] == 1.0
+    assert loaded["report_card"]["interval_complete"] is True
+    assert loaded["report_card"]["mean_interval_width"] is not None
+    assert loaded["report_card"]["max_interval_width"] is not None
     assert loaded["report_card"]["provenance_workflow"] == "local"
 
 
@@ -163,6 +175,9 @@ def test_prediction_run_history_loads_recent_runs_and_predictions(tmp_path) -> N
     assert runs[0]["prediction_count"] == 2
     assert runs[0]["min_predicted_rul"] <= runs[0]["max_predicted_rul"]
     assert runs[0]["interval_count"] == 2
+    assert runs[0]["interval_availability_rate"] == 1.0
+    assert runs[0]["mean_interval_width"] is not None
+    assert runs[0]["max_interval_width"] is not None
     assert runs[0]["drift_alert_count"] == 0
     assert runs[0]["audit_event_count"] == 1
     assert runs[0]["decision_status"] is None
@@ -174,6 +189,51 @@ def test_prediction_run_history_loads_recent_runs_and_predictions(tmp_path) -> N
     assert loaded["audit_events"][0]["event_type"] == "prediction_recorded"
     assert len(loaded["predictions"]) == 2
     assert loaded["predictions"][0]["predicted_rul"] <= loaded["predictions"][1]["predicted_rul"]
+
+
+def test_interval_diagnostics_report_missing_prediction_bounds(tmp_path) -> None:
+    workspace = _write_fake_workspace(tmp_path / "quickstart")
+    database_path = tmp_path / "app.sqlite"
+    seed_quickstart_workspace(database_path, workspace)
+    telemetry = pd.DataFrame(
+        {
+            "unit_number": [1, 2],
+            "time_in_cycles": [10, 11],
+        }
+    )
+    prediction_document = {
+        "dataset": "C-MAPSS",
+        "subset": "FD001",
+        "model_name": "manual",
+        "artifact": {"artifact_id": "fd001-demo"},
+        "predictions": [
+            {"unit_number": 1, "predicted_rul": 12.0},
+            {"unit_number": 2, "predicted_rul": 20.0},
+        ],
+        "monitoring": {},
+    }
+
+    run_id = record_prediction_run(
+        database_path,
+        telemetry=telemetry,
+        prediction_document=prediction_document,
+        model_artifact_path=workspace.model_artifact_path,
+        source_name="manual.csv",
+    )
+    runs = list_prediction_runs(database_path)
+    loaded = load_model_artifact(database_path, "fd001-demo")
+
+    assert runs[0]["run_id"] == run_id
+    assert runs[0]["interval_count"] == 0
+    assert runs[0]["interval_availability_rate"] == 0.0
+    assert runs[0]["mean_interval_width"] is None
+    assert loaded is not None
+    assert loaded["report_card"]["prediction_count_total"] == 2
+    assert loaded["report_card"]["interval_count_total"] == 0
+    assert loaded["report_card"]["missing_interval_count"] == 2
+    assert loaded["report_card"]["interval_availability_rate"] == 0.0
+    assert loaded["report_card"]["interval_complete"] is False
+    assert loaded["report_card"]["mean_interval_width"] is None
 
 
 def test_prediction_run_events_append_operator_decisions(tmp_path) -> None:

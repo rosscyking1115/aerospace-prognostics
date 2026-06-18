@@ -12,7 +12,10 @@ from aerospace_prognostics.app.streamlit_app import (
     _audit_events_frame,
     _decision_status_index,
     _failed_gates_frame,
+    _float_display,
     _model_artifacts_frame,
+    _percent_display,
+    _prediction_runs_frame,
     _release_evidence_frame,
     _telemetry_records,
     _with_api_artifact_metadata,
@@ -139,6 +142,8 @@ def test_registry_frames_preserve_artifact_evidence_and_usage_columns() -> None:
                 "run_id": "run-1",
                 "source_name": "telemetry.csv",
                 "prediction_count": 2,
+                "interval_availability_rate": 1.0,
+                "mean_interval_width": 18.5,
                 "content_sha256": "abc123",
             }
         ]
@@ -158,6 +163,49 @@ def test_registry_frames_preserve_artifact_evidence_and_usage_columns() -> None:
     ]
     assert evidence.iloc[0]["evidence_type"] == "release_bundle"
     assert usage.iloc[0]["run_id"] == "run-1"
+    assert list(usage.columns) == [
+        "created_at_utc",
+        "run_id",
+        "source_name",
+        "prediction_count",
+        "interval_availability_rate",
+        "mean_interval_width",
+        "content_sha256",
+    ]
+    assert usage.iloc[0]["interval_availability_rate"] == 100.0
+    assert usage.iloc[0]["mean_interval_width"] == 18.5
+
+
+def test_prediction_runs_frame_formats_interval_availability() -> None:
+    frame = _prediction_runs_frame(
+        [
+            {
+                "created_at_utc": "2026-01-01T00:01:00+00:00",
+                "run_id": "run-1",
+                "source_name": "telemetry.csv",
+                "model_name": "hgb",
+                "prediction_count": 2,
+                "min_predicted_rul": 10.0,
+                "mean_predicted_rul": 15.0,
+                "max_predicted_rul": 20.0,
+                "interval_availability_rate": 0.5,
+                "mean_interval_width": 18.5,
+                "drift_alert_count": 1,
+                "decision_status": "watch",
+                "audit_event_count": 2,
+            }
+        ]
+    )
+
+    assert frame.iloc[0]["interval_availability_rate"] == 50.0
+    assert frame.iloc[0]["mean_interval_width"] == 18.5
+
+
+def test_display_helpers_format_optional_interval_metrics() -> None:
+    assert _percent_display(0.875) == "88%"
+    assert _percent_display(None) == "n/a"
+    assert _float_display(12.345) == "12.3"
+    assert _float_display(None) == "n/a"
 
 
 def test_failed_gates_frame_formats_gate_names() -> None:

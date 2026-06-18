@@ -237,6 +237,14 @@ def _render_history_tab(st: Any, database_path: Path) -> None:
             "min_predicted_rul": st.column_config.NumberColumn("Min RUL", format="%.1f"),
             "mean_predicted_rul": st.column_config.NumberColumn("Mean RUL", format="%.1f"),
             "max_predicted_rul": st.column_config.NumberColumn("Max RUL", format="%.1f"),
+            "interval_availability_rate": st.column_config.NumberColumn(
+                "Intervals",
+                format="%.0f%%",
+            ),
+            "mean_interval_width": st.column_config.NumberColumn(
+                "Mean Width",
+                format="%.1f",
+            ),
             "drift_alert_count": st.column_config.NumberColumn("Drift Alerts", width="small"),
             "decision_status": st.column_config.TextColumn("Decision"),
             "audit_event_count": st.column_config.NumberColumn("Events", width="small"),
@@ -395,6 +403,24 @@ def _render_registry_tab(st: Any, database_path: Path) -> None:
         f"{_display(report_card.get('passed_gate_count'))}/{_display(report_card.get('gate_count'))}",
     )
     report_columns[3].metric("Prediction Runs", _display(report_card.get("prediction_run_count")))
+    interval_columns = st.columns(4)
+    interval_columns[0].metric(
+        "Interval Availability",
+        _percent_display(report_card.get("interval_availability_rate")),
+    )
+    interval_columns[1].metric(
+        "Interval Rows",
+        f"{_display(report_card.get('interval_count_total'))}/"
+        f"{_display(report_card.get('prediction_count_total'))}",
+    )
+    interval_columns[2].metric(
+        "Mean Width",
+        _float_display(report_card.get("mean_interval_width")),
+    )
+    interval_columns[3].metric(
+        "Missing Intervals",
+        _display(report_card.get("missing_interval_count")),
+    )
 
     st.subheader("Model Report Card")
     card_columns = st.columns(2)
@@ -405,6 +431,14 @@ def _render_registry_tab(st: Any, database_path: Path) -> None:
                 "max_p95_latency_ms": report_card.get("max_p95_latency_ms"),
                 "interval_method": report_card.get("interval_method"),
                 "interval_confidence": report_card.get("interval_confidence"),
+                "interval_diagnostic_kind": report_card.get("interval_diagnostic_kind"),
+                "prediction_count_total": report_card.get("prediction_count_total"),
+                "interval_count_total": report_card.get("interval_count_total"),
+                "missing_interval_count": report_card.get("missing_interval_count"),
+                "interval_availability_rate": report_card.get("interval_availability_rate"),
+                "interval_complete": report_card.get("interval_complete"),
+                "mean_interval_width": report_card.get("mean_interval_width"),
+                "max_interval_width": report_card.get("max_interval_width"),
                 "provenance_workflow": report_card.get("provenance_workflow"),
                 "latest_prediction_at": report_card.get("latest_prediction_at"),
             }
@@ -472,6 +506,14 @@ def _render_registry_tab(st: Any, database_path: Path) -> None:
                 "run_id": st.column_config.TextColumn("Run"),
                 "source_name": st.column_config.TextColumn("Telemetry"),
                 "prediction_count": st.column_config.NumberColumn("Predictions", width="small"),
+                "interval_availability_rate": st.column_config.NumberColumn(
+                    "Intervals",
+                    format="%.0f%%",
+                ),
+                "mean_interval_width": st.column_config.NumberColumn(
+                    "Mean Width",
+                    format="%.1f",
+                ),
                 "content_sha256": st.column_config.TextColumn("Input SHA-256"),
             },
         )
@@ -610,11 +652,14 @@ def _prediction_runs_frame(runs: list[dict[str, Any]]) -> pd.DataFrame:
         "min_predicted_rul",
         "mean_predicted_rul",
         "max_predicted_rul",
+        "interval_availability_rate",
+        "mean_interval_width",
         "drift_alert_count",
         "decision_status",
         "audit_event_count",
     ]
-    return pd.DataFrame(runs).reindex(columns=columns)
+    frame = pd.DataFrame(runs).reindex(columns=columns)
+    return _percent_frame_columns(frame, ["interval_availability_rate"])
 
 
 def _model_artifacts_frame(artifacts: list[dict[str, Any]]) -> pd.DataFrame:
@@ -639,8 +684,17 @@ def _release_evidence_frame(evidence: list[dict[str, Any]]) -> pd.DataFrame:
 
 
 def _artifact_prediction_runs_frame(runs: list[dict[str, Any]]) -> pd.DataFrame:
-    columns = ["created_at_utc", "run_id", "source_name", "prediction_count", "content_sha256"]
-    return pd.DataFrame(runs).reindex(columns=columns)
+    columns = [
+        "created_at_utc",
+        "run_id",
+        "source_name",
+        "prediction_count",
+        "interval_availability_rate",
+        "mean_interval_width",
+        "content_sha256",
+    ]
+    frame = pd.DataFrame(runs).reindex(columns=columns)
+    return _percent_frame_columns(frame, ["interval_availability_rate"])
 
 
 def _failed_gates_frame(failed_gates: list[Any]) -> pd.DataFrame:
@@ -686,6 +740,31 @@ def _display(value: Any) -> str:
     if value is None:
         return "n/a"
     return str(value)
+
+
+def _float_display(value: Any) -> str:
+    if value is None:
+        return "n/a"
+    try:
+        return f"{float(value):.1f}"
+    except (TypeError, ValueError):
+        return str(value)
+
+
+def _percent_display(value: Any) -> str:
+    if value is None:
+        return "n/a"
+    try:
+        return f"{float(value):.0%}"
+    except (TypeError, ValueError):
+        return str(value)
+
+
+def _percent_frame_columns(frame: pd.DataFrame, columns: list[str]) -> pd.DataFrame:
+    for column in columns:
+        if column in frame:
+            frame[column] = frame[column] * 100
+    return frame
 
 
 def _api_status_label(status: ApiServiceStatus) -> str:
