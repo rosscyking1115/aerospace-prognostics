@@ -61,6 +61,23 @@ uv run aerospace-prognostics app-record-outcomes `
 After import, the History and Registry tabs report outcome availability, MAE,
 signed error, and interval coverage against observed RUL.
 
+## Run Evidence Exports
+
+Persisted prediction runs can be exported for review, incident follow-up, or
+handoff to another engineer. The export writes a JSON evidence document with the
+run metadata, prediction rows, outcomes, and audit events, plus a separate
+prediction-row CSV for spreadsheet inspection.
+
+```powershell
+uv run aerospace-prognostics app-export-run `
+  --database artifacts/app/aerospace_prognostics.sqlite `
+  --run-id run-... `
+  --output-dir artifacts/app_exports
+```
+
+The command prints SHA-256 digests for both generated files so they can be
+attached to tickets or release notes without losing traceability.
+
 ```powershell
 $env:AEROSPACE_PROGNOSTICS_API_KEY="replace-this-local-key"
 docker compose up --build

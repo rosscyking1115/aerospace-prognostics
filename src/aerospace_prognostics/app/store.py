@@ -823,6 +823,62 @@ def load_prediction_run(database_path: str | Path, run_id: str) -> dict[str, Any
     }
 
 
+def export_prediction_run_evidence(
+    database_path: str | Path,
+    *,
+    run_id: str,
+    output_dir: str | Path,
+) -> dict[str, Any]:
+    """Export a portable evidence bundle for one prediction run."""
+
+    loaded = load_prediction_run(database_path, run_id)
+    if loaded is None:
+        raise ValueError(f"unknown prediction run: {run_id}")
+
+    export_dir = Path(output_dir)
+    export_dir.mkdir(parents=True, exist_ok=True)
+    predictions_path = export_dir / f"{run_id}_predictions.csv"
+    evidence_path = export_dir / f"{run_id}_evidence.json"
+
+    predictions = list(loaded["predictions"])
+    pd.DataFrame(predictions).to_csv(predictions_path, index=False)
+    summary = database_summary(database_path)
+    manifest = {
+        "schema_version": "aerospace-prognostics/prediction-run-evidence/v1",
+        "exported_at_utc": _now(),
+        "database": {
+            "path": str(Path(database_path)),
+            "schema_version": summary["schema_version"],
+        },
+        "run": loaded["run"],
+        "predictions": predictions,
+        "audit_events": loaded["audit_events"],
+        "files": {
+            "predictions_csv": {
+                "path": str(predictions_path),
+                "sha256": _file_sha256(predictions_path),
+                "rows": len(predictions),
+            },
+        },
+    }
+    evidence_path.write_text(
+        json.dumps(manifest, indent=2, sort_keys=True, default=str),
+        encoding="utf-8",
+    )
+    outcome_count = sum(1 for row in predictions if row.get("actual_rul") is not None)
+    return {
+        "run_id": run_id,
+        "output_dir": str(export_dir),
+        "evidence_json": str(evidence_path),
+        "evidence_sha256": _file_sha256(evidence_path),
+        "predictions_csv": str(predictions_path),
+        "predictions_sha256": _file_sha256(predictions_path),
+        "prediction_count": len(predictions),
+        "outcome_count": outcome_count,
+        "audit_event_count": len(loaded["audit_events"]),
+    }
+
+
 def database_summary(database_path: str | Path) -> dict[str, int | str]:
     """Return table counts and schema version for the app database."""
 

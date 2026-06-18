@@ -18,6 +18,7 @@ from aerospace_prognostics.anomaly.baselines import (
 from aerospace_prognostics.app.dashboard_state import load_quickstart_workspace
 from aerospace_prognostics.app.store import (
     database_summary,
+    export_prediction_run_evidence,
     initialize_app_database,
     record_prediction_outcomes,
     seed_quickstart_workspace,
@@ -209,6 +210,22 @@ def _build_parser() -> argparse.ArgumentParser:
     app_record_outcomes.add_argument("--source-name")
     app_record_outcomes.add_argument("--actor", default="operator")
     app_record_outcomes.add_argument("--observed-at-utc")
+
+    app_export_run = subparsers.add_parser(
+        "app-export-run",
+        help="Export a persisted prediction run as portable review evidence",
+    )
+    app_export_run.add_argument(
+        "--database",
+        type=Path,
+        default=Path("artifacts") / "app" / "aerospace_prognostics.sqlite",
+    )
+    app_export_run.add_argument("--run-id", required=True)
+    app_export_run.add_argument(
+        "--output-dir",
+        type=Path,
+        default=Path("artifacts") / "app_exports",
+    )
 
     summary = subparsers.add_parser("cmapss-summary", help="Summarise a local C-MAPSS subset")
     summary.add_argument("--data-dir", type=Path, required=True)
@@ -1260,6 +1277,24 @@ def main(argv: list[str] | None = None) -> int:
         print(f"outcome_count={result['outcome_count']}")
         print(f"event_id={result['event_id']}")
         print(f"prediction_outcomes={summary['prediction_outcomes']}")
+        return 0
+
+    if args.command == "app-export-run":
+        result = export_prediction_run_evidence(
+            args.database,
+            run_id=args.run_id,
+            output_dir=args.output_dir,
+        )
+        print(f"database={args.database}")
+        print(f"run_id={args.run_id}")
+        print(f"output_dir={result['output_dir']}")
+        print(f"evidence_json={result['evidence_json']}")
+        print(f"evidence_sha256={result['evidence_sha256']}")
+        print(f"predictions_csv={result['predictions_csv']}")
+        print(f"predictions_sha256={result['predictions_sha256']}")
+        print(f"prediction_count={result['prediction_count']}")
+        print(f"outcome_count={result['outcome_count']}")
+        print(f"audit_event_count={result['audit_event_count']}")
         return 0
 
     if args.command == "cmapss-summary":

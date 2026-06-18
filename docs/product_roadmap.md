@@ -52,8 +52,9 @@ summarize interval availability and width, report outcome-backed MAE/coverage,
 and inspect stored model artifacts with their release evidence, recent
 prediction usage, release-gate report cards, operational interval diagnostics,
 and observed-outcome calibration summaries. Import/export beyond quickstart
-seeding remains future work, but outcome CSV import is now available through
-both the console and CLI.
+seeding remains future work, but outcome CSV import and prediction-run evidence
+export are now available through the CLI, with outcome import also available in
+the console.
 
 3. Local deployment stack
    - Docker Compose with FastAPI inference service, dashboard, mounted model

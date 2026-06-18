@@ -9,6 +9,7 @@ from aerospace_prognostics.app.dashboard_state import QuickstartWorkspace
 from aerospace_prognostics.app.store import (
     SCHEMA_VERSION,
     database_summary,
+    export_prediction_run_evidence,
     initialize_app_database,
     list_model_artifacts,
     list_prediction_run_events,
@@ -313,6 +314,106 @@ def test_app_record_outcomes_command_attaches_observed_rul_csv(tmp_path, capsys)
     assert loaded_after is not None
     assert loaded_after["predictions"][0]["actual_rul"] is not None
     assert loaded_after["audit_events"][0]["actor"] == "reliability-engineer"
+
+
+def test_export_prediction_run_evidence_writes_json_and_prediction_csv(tmp_path) -> None:
+    database_path, run_id = _write_prediction_run(tmp_path)
+    loaded_before = load_prediction_run(database_path, run_id)
+    assert loaded_before is not None
+    outcomes = pd.DataFrame(
+        {
+            "unit_number": [row["unit_number"] for row in loaded_before["predictions"]],
+            "actual_rul": [row["predicted_rul"] for row in loaded_before["predictions"]],
+        }
+    )
+    record_prediction_outcomes(
+        database_path,
+        run_id=run_id,
+        outcomes=outcomes,
+        source_name="verified_outcomes.csv",
+        actor="reliability-engineer",
+    )
+    record_prediction_run_event(
+        database_path,
+        run_id=run_id,
+        event_type="operator_decision",
+        status="watch",
+        actor="flight-ops",
+        note="Review after next cycle",
+    )
+
+    result = export_prediction_run_evidence(
+        database_path,
+        run_id=run_id,
+        output_dir=tmp_path / "exports",
+    )
+    manifest = json.loads(
+        (tmp_path / "exports" / f"{run_id}_evidence.json").read_text(encoding="utf-8")
+    )
+    exported_predictions = pd.read_csv(result["predictions_csv"])
+
+    assert result["run_id"] == run_id
+    assert result["prediction_count"] == 2
+    assert result["outcome_count"] == 2
+    assert result["audit_event_count"] == 3
+    assert result["evidence_sha256"]
+    assert result["predictions_sha256"]
+    assert manifest["schema_version"] == (
+        "aerospace-prognostics/prediction-run-evidence/v1"
+    )
+    assert manifest["run"]["run_id"] == run_id
+    assert manifest["files"]["predictions_csv"]["rows"] == 2
+    assert len(manifest["predictions"]) == 2
+    assert len(manifest["audit_events"]) == 3
+    assert list(exported_predictions["unit_number"]) == [
+        row["unit_number"] for row in manifest["predictions"]
+    ]
+    assert "actual_rul" in exported_predictions.columns
+
+
+def test_app_export_run_command_writes_review_evidence(tmp_path, capsys) -> None:
+    database_path, run_id = _write_prediction_run(tmp_path)
+    output_dir = tmp_path / "run_exports"
+
+    exit_code = main(
+        [
+            "app-export-run",
+            "--database",
+            str(database_path),
+            "--run-id",
+            run_id,
+            "--output-dir",
+            str(output_dir),
+        ]
+    )
+    output = capsys.readouterr().out
+
+    assert exit_code == 0
+    assert f"database={database_path}" in output
+    assert f"run_id={run_id}" in output
+    assert f"output_dir={output_dir}" in output
+    assert "evidence_json=" in output
+    assert "predictions_csv=" in output
+    assert "prediction_count=2" in output
+    assert "outcome_count=0" in output
+    assert "audit_event_count=1" in output
+    assert (output_dir / f"{run_id}_evidence.json").exists()
+    assert (output_dir / f"{run_id}_predictions.csv").exists()
+
+
+def test_export_prediction_run_evidence_rejects_unknown_run(tmp_path) -> None:
+    database_path = initialize_app_database(tmp_path / "app.sqlite")
+
+    try:
+        export_prediction_run_evidence(
+            database_path,
+            run_id="run-missing",
+            output_dir=tmp_path / "exports",
+        )
+    except ValueError as exc:
+        assert "unknown prediction run" in str(exc)
+    else:
+        raise AssertionError("expected unknown run export to fail")
 
 
 def test_prediction_outcomes_reject_unknown_prediction_units(tmp_path) -> None:
