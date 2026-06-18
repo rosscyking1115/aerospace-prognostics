@@ -21,11 +21,12 @@ state are shared with the host. Inside Compose, the console probes the API at
 `http://api:8000` and surfaces health/readiness in the System tab.
 The Predict tab can score telemetry through the API service when it is ready, or
 fall back to direct local-artifact inference. The History tab persists run
-records, prediction rows, operator decisions, audit events, and interval
-availability and width diagnostics in the shared SQLite database. The Registry
-tab reads the same database to show stored model artifacts, release evidence,
-release-gate report cards, recent prediction usage, and operational interval
-availability for each artifact.
+records, prediction rows, optional observed RUL outcomes, operator decisions,
+audit events, interval availability and width diagnostics, and outcome-backed
+coverage/MAE diagnostics in the shared SQLite database. The Registry tab reads
+the same database to show stored model artifacts, release evidence,
+release-gate report cards, recent prediction usage, operational interval
+availability, and observed-outcome calibration summaries for each artifact.
 
 ## Endpoints
 

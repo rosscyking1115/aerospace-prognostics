@@ -144,6 +144,9 @@ def test_registry_frames_preserve_artifact_evidence_and_usage_columns() -> None:
                 "prediction_count": 2,
                 "interval_availability_rate": 1.0,
                 "mean_interval_width": 18.5,
+                "outcome_count": 2,
+                "outcome_interval_coverage_rate": 0.5,
+                "mean_absolute_error": 7.5,
                 "content_sha256": "abc123",
             }
         ]
@@ -170,10 +173,15 @@ def test_registry_frames_preserve_artifact_evidence_and_usage_columns() -> None:
         "prediction_count",
         "interval_availability_rate",
         "mean_interval_width",
+        "outcome_count",
+        "outcome_interval_coverage_rate",
+        "mean_absolute_error",
         "content_sha256",
     ]
     assert usage.iloc[0]["interval_availability_rate"] == 100.0
     assert usage.iloc[0]["mean_interval_width"] == 18.5
+    assert usage.iloc[0]["outcome_interval_coverage_rate"] == 50.0
+    assert usage.iloc[0]["mean_absolute_error"] == 7.5
 
 
 def test_prediction_runs_frame_formats_interval_availability() -> None:
@@ -190,6 +198,9 @@ def test_prediction_runs_frame_formats_interval_availability() -> None:
                 "max_predicted_rul": 20.0,
                 "interval_availability_rate": 0.5,
                 "mean_interval_width": 18.5,
+                "outcome_count": 1,
+                "outcome_interval_coverage_rate": 1.0,
+                "mean_absolute_error": 5.0,
                 "drift_alert_count": 1,
                 "decision_status": "watch",
                 "audit_event_count": 2,
@@ -199,6 +210,8 @@ def test_prediction_runs_frame_formats_interval_availability() -> None:
 
     assert frame.iloc[0]["interval_availability_rate"] == 50.0
     assert frame.iloc[0]["mean_interval_width"] == 18.5
+    assert frame.iloc[0]["outcome_interval_coverage_rate"] == 100.0
+    assert frame.iloc[0]["mean_absolute_error"] == 5.0
 
 
 def test_display_helpers_format_optional_interval_metrics() -> None:

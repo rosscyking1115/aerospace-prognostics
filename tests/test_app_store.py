@@ -15,6 +15,7 @@ from aerospace_prognostics.app.store import (
     list_prediction_runs,
     load_model_artifact,
     load_prediction_run,
+    record_prediction_outcomes,
     record_prediction_run,
     record_prediction_run_event,
     seed_quickstart_workspace,
@@ -36,6 +37,7 @@ def test_initialize_app_database_creates_schema(tmp_path) -> None:
     assert summary["schema_version"] == SCHEMA_VERSION
     assert summary["model_artifacts"] == 0
     assert summary["prediction_runs"] == 0
+    assert summary["prediction_outcomes"] == 0
 
 
 def test_app_init_db_command_creates_database_without_seed(tmp_path, capsys) -> None:
@@ -157,6 +159,7 @@ def test_record_prediction_run_persists_upload_run_and_prediction_rows(tmp_path)
     assert summary["telemetry_uploads"] == 1
     assert summary["prediction_runs"] == 1
     assert summary["predictions"] == 2
+    assert summary["prediction_outcomes"] == 0
     assert summary["prediction_run_events"] == 1
     with sqlite3.connect(database_path) as connection:
         stored_run_id = connection.execute("select run_id from prediction_runs").fetchone()[0]
@@ -189,6 +192,87 @@ def test_prediction_run_history_loads_recent_runs_and_predictions(tmp_path) -> N
     assert loaded["audit_events"][0]["event_type"] == "prediction_recorded"
     assert len(loaded["predictions"]) == 2
     assert loaded["predictions"][0]["predicted_rul"] <= loaded["predictions"][1]["predicted_rul"]
+
+
+def test_prediction_outcomes_attach_actuals_and_calibration_metrics(tmp_path) -> None:
+    workspace = _write_fake_workspace(tmp_path / "quickstart")
+    database_path = tmp_path / "app.sqlite"
+    seed_quickstart_workspace(database_path, workspace)
+    run_id = _write_prediction_run_for_artifact(
+        tmp_path,
+        database_path=database_path,
+        artifact_id="fd001-demo",
+    )
+    loaded_before = load_prediction_run(database_path, run_id)
+    assert loaded_before is not None
+    outcome_frame = pd.DataFrame(
+        {
+            "unit_number": [
+                row["unit_number"] for row in loaded_before["predictions"]
+            ],
+            "actual_rul": [
+                row["predicted_rul"] for row in loaded_before["predictions"]
+            ],
+        }
+    )
+
+    result = record_prediction_outcomes(
+        database_path,
+        run_id=run_id,
+        outcomes=outcome_frame,
+        source_name="rul_outcomes.csv",
+        actor="reliability-engineer",
+        observed_at_utc="2026-01-01T00:00:00+00:00",
+    )
+    runs = list_prediction_runs(database_path)
+    loaded_after = load_prediction_run(database_path, run_id)
+    artifact = load_model_artifact(database_path, "fd001-demo")
+    summary = database_summary(database_path)
+
+    assert result["outcome_count"] == 2
+    assert result["event_id"].startswith("event-")
+    assert summary["prediction_outcomes"] == 2
+    assert summary["prediction_run_events"] == 2
+    assert runs[0]["outcome_count"] == 2
+    assert runs[0]["outcome_availability_rate"] == 1.0
+    assert runs[0]["mean_absolute_error"] == 0.0
+    assert runs[0]["mean_signed_error"] == 0.0
+    assert runs[0]["interval_outcome_count"] == 2
+    assert runs[0]["interval_covered_count"] == 2
+    assert runs[0]["outcome_interval_coverage_rate"] == 1.0
+    assert loaded_after is not None
+    assert loaded_after["predictions"][0]["actual_rul"] is not None
+    assert loaded_after["predictions"][0]["absolute_error"] == 0.0
+    assert loaded_after["predictions"][0]["interval_covered"] == 1
+    assert loaded_after["predictions"][0]["outcome_source"] == "rul_outcomes.csv"
+    assert loaded_after["audit_events"][0]["event_type"] == "outcomes_recorded"
+    assert artifact is not None
+    assert artifact["report_card"]["outcome_diagnostic_kind"] == (
+        "observed_rul_outcome_coverage"
+    )
+    assert artifact["report_card"]["outcome_count_total"] == 2
+    assert artifact["report_card"]["outcome_availability_rate"] == 1.0
+    assert artifact["report_card"]["mean_absolute_error"] == 0.0
+    assert artifact["report_card"]["mean_signed_error"] == 0.0
+    assert artifact["report_card"]["interval_outcome_count_total"] == 2
+    assert artifact["report_card"]["interval_covered_count_total"] == 2
+    assert artifact["report_card"]["outcome_interval_coverage_rate"] == 1.0
+
+
+def test_prediction_outcomes_reject_unknown_prediction_units(tmp_path) -> None:
+    database_path, run_id = _write_prediction_run(tmp_path)
+
+    try:
+        record_prediction_outcomes(
+            database_path,
+            run_id=run_id,
+            outcomes=pd.DataFrame({"unit_number": [999], "actual_rul": [10.0]}),
+            source_name="bad_outcomes.csv",
+        )
+    except ValueError as exc:
+        assert "outcome unit_number values are not in run" in str(exc)
+    else:  # pragma: no cover - defensive assertion for clearer failures
+        raise AssertionError("record_prediction_outcomes should reject unknown units")
 
 
 def test_interval_diagnostics_report_missing_prediction_bounds(tmp_path) -> None:

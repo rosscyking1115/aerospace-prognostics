@@ -89,6 +89,18 @@ def initialize_app_database(database_path: str | Path) -> Path:
                 primary key (run_id, unit_number)
             );
 
+            create table if not exists prediction_outcomes (
+                run_id text not null,
+                unit_number integer not null,
+                actual_rul real not null,
+                outcome_source text not null,
+                observed_at_utc text,
+                recorded_at_utc text not null,
+                primary key (run_id, unit_number),
+                foreign key (run_id, unit_number)
+                    references predictions(run_id, unit_number)
+            );
+
             create table if not exists prediction_run_events (
                 event_id text primary key,
                 run_id text not null references prediction_runs(run_id),
@@ -364,6 +376,84 @@ def record_prediction_run_event(
         )
 
 
+def record_prediction_outcomes(
+    database_path: str | Path,
+    *,
+    run_id: str,
+    outcomes: pd.DataFrame,
+    source_name: str,
+    actor: str = "operator",
+    observed_at_utc: str | None = None,
+) -> dict[str, Any]:
+    """Attach observed RUL outcomes to an existing prediction run."""
+
+    db_path = initialize_app_database(database_path)
+    timestamp = _now()
+    outcome_rows = _outcome_rows(outcomes)
+    with _connect(db_path) as connection:
+        if not _prediction_run_exists(connection, run_id):
+            raise ValueError(f"unknown prediction run: {run_id}")
+        expected_units = {
+            int(row[0])
+            for row in connection.execute(
+                "select unit_number from predictions where run_id = ?",
+                (run_id,),
+            ).fetchall()
+        }
+        unknown_units = sorted(
+            int(row["unit_number"])
+            for row in outcome_rows
+            if int(row["unit_number"]) not in expected_units
+        )
+        if unknown_units:
+            units = ", ".join(str(unit) for unit in unknown_units)
+            raise ValueError(f"outcome unit_number values are not in run {run_id}: {units}")
+        connection.executemany(
+            """
+            insert into prediction_outcomes (
+                run_id,
+                unit_number,
+                actual_rul,
+                outcome_source,
+                observed_at_utc,
+                recorded_at_utc
+            )
+            values (?, ?, ?, ?, ?, ?)
+            on conflict(run_id, unit_number) do update set
+                actual_rul = excluded.actual_rul,
+                outcome_source = excluded.outcome_source,
+                observed_at_utc = excluded.observed_at_utc,
+                recorded_at_utc = excluded.recorded_at_utc
+            """,
+            (
+                (
+                    run_id,
+                    int(row["unit_number"]),
+                    float(row["actual_rul"]),
+                    source_name,
+                    observed_at_utc,
+                    timestamp,
+                )
+                for row in outcome_rows
+            ),
+        )
+        event_id = _insert_prediction_run_event(
+            connection,
+            run_id=run_id,
+            event_type="outcomes_recorded",
+            status="recorded",
+            actor=actor,
+            note="Observed outcomes attached",
+            payload={
+                "source_name": source_name,
+                "outcome_count": len(outcome_rows),
+                "observed_at_utc": observed_at_utc,
+            },
+            timestamp=timestamp,
+        )
+    return {"outcome_count": len(outcome_rows), "event_id": event_id}
+
+
 def list_model_artifacts(
     database_path: str | Path,
     *,
@@ -467,10 +557,37 @@ def load_model_artifact(
                 avg(predictions.predicted_rul_upper - predictions.predicted_rul_lower)
                     as mean_interval_width,
                 max(predictions.predicted_rul_upper - predictions.predicted_rul_lower)
-                    as max_interval_width
+                    as max_interval_width,
+                count(prediction_outcomes.actual_rul) as outcome_count,
+                avg(abs(predictions.predicted_rul - prediction_outcomes.actual_rul))
+                    as mean_absolute_error,
+                avg(predictions.predicted_rul - prediction_outcomes.actual_rul)
+                    as mean_signed_error,
+                sum(
+                    case
+                        when prediction_outcomes.actual_rul is not null
+                            and predictions.predicted_rul_lower is not null
+                            and predictions.predicted_rul_upper is not null
+                        then 1 else 0
+                    end
+                ) as interval_outcome_count,
+                sum(
+                    case
+                        when prediction_outcomes.actual_rul is not null
+                            and predictions.predicted_rul_lower is not null
+                            and predictions.predicted_rul_upper is not null
+                            and prediction_outcomes.actual_rul
+                                between predictions.predicted_rul_lower
+                                and predictions.predicted_rul_upper
+                        then 1 else 0
+                    end
+                ) as interval_covered_count
             from prediction_runs
             join telemetry_uploads on telemetry_uploads.upload_id = prediction_runs.upload_id
             left join predictions on predictions.run_id = prediction_runs.run_id
+            left join prediction_outcomes
+                on prediction_outcomes.run_id = predictions.run_id
+                and prediction_outcomes.unit_number = predictions.unit_number
             where prediction_runs.artifact_id = ?
             group by prediction_runs.run_id
             order by prediction_runs.created_at_utc desc
@@ -534,6 +651,30 @@ def list_prediction_runs(
                     as mean_interval_width,
                 max(predictions.predicted_rul_upper - predictions.predicted_rul_lower)
                     as max_interval_width,
+                count(prediction_outcomes.actual_rul) as outcome_count,
+                avg(abs(predictions.predicted_rul - prediction_outcomes.actual_rul))
+                    as mean_absolute_error,
+                avg(predictions.predicted_rul - prediction_outcomes.actual_rul)
+                    as mean_signed_error,
+                sum(
+                    case
+                        when prediction_outcomes.actual_rul is not null
+                            and predictions.predicted_rul_lower is not null
+                            and predictions.predicted_rul_upper is not null
+                        then 1 else 0
+                    end
+                ) as interval_outcome_count,
+                sum(
+                    case
+                        when prediction_outcomes.actual_rul is not null
+                            and predictions.predicted_rul_lower is not null
+                            and predictions.predicted_rul_upper is not null
+                            and prediction_outcomes.actual_rul
+                                between predictions.predicted_rul_lower
+                                and predictions.predicted_rul_upper
+                        then 1 else 0
+                    end
+                ) as interval_covered_count,
                 (
                     select count(*)
                     from prediction_run_events
@@ -558,6 +699,9 @@ def list_prediction_runs(
             from prediction_runs
             join telemetry_uploads on telemetry_uploads.upload_id = prediction_runs.upload_id
             left join predictions on predictions.run_id = prediction_runs.run_id
+            left join prediction_outcomes
+                on prediction_outcomes.run_id = predictions.run_id
+                and prediction_outcomes.unit_number = predictions.unit_number
             group by prediction_runs.run_id
             order by prediction_runs.created_at_utc desc
             limit ?
@@ -621,17 +765,36 @@ def load_prediction_run(database_path: str | Path, run_id: str) -> dict[str, Any
         prediction_rows = connection.execute(
             """
             select
-                asset_id,
-                unit_number,
-                predicted_rul,
-                predicted_rul_lower,
-                predicted_rul_upper,
-                interval_method,
-                interval_confidence,
-                created_at_utc
+                predictions.asset_id,
+                predictions.unit_number,
+                predictions.predicted_rul,
+                predictions.predicted_rul_lower,
+                predictions.predicted_rul_upper,
+                predictions.interval_method,
+                predictions.interval_confidence,
+                prediction_outcomes.actual_rul,
+                predictions.predicted_rul - prediction_outcomes.actual_rul as signed_error,
+                abs(predictions.predicted_rul - prediction_outcomes.actual_rul)
+                    as absolute_error,
+                case
+                    when prediction_outcomes.actual_rul is not null
+                        and predictions.predicted_rul_lower is not null
+                        and predictions.predicted_rul_upper is not null
+                    then prediction_outcomes.actual_rul
+                        between predictions.predicted_rul_lower
+                        and predictions.predicted_rul_upper
+                    else null
+                end as interval_covered,
+                prediction_outcomes.outcome_source,
+                prediction_outcomes.observed_at_utc,
+                prediction_outcomes.recorded_at_utc,
+                predictions.created_at_utc
             from predictions
-            where run_id = ?
-            order by predicted_rul asc, unit_number asc
+            left join prediction_outcomes
+                on prediction_outcomes.run_id = predictions.run_id
+                and prediction_outcomes.unit_number = predictions.unit_number
+            where predictions.run_id = ?
+            order by predictions.predicted_rul asc, predictions.unit_number asc
             """,
             (run_id,),
         ).fetchall()
@@ -675,6 +838,7 @@ def database_summary(database_path: str | Path) -> dict[str, int | str]:
             "telemetry_uploads",
             "prediction_runs",
             "predictions",
+            "prediction_outcomes",
             "prediction_run_events",
         ):
             summary[table_name] = int(
@@ -817,6 +981,27 @@ def _prediction_rows(prediction_document: dict[str, Any]) -> list[dict[str, Any]
     return parsed
 
 
+def _outcome_rows(outcomes: pd.DataFrame) -> list[dict[str, Any]]:
+    required_columns = {"unit_number", "actual_rul"}
+    missing_columns = required_columns.difference(outcomes.columns)
+    if missing_columns:
+        missing = ", ".join(sorted(missing_columns))
+        raise ValueError(f"outcomes require columns: {missing}")
+    parsed: list[dict[str, Any]] = []
+    for row in outcomes[["unit_number", "actual_rul"]].to_dict(orient="records"):
+        if pd.isna(row["unit_number"]) or pd.isna(row["actual_rul"]):
+            raise ValueError("outcome rows require unit_number and actual_rul")
+        parsed.append(
+            {
+                "unit_number": int(row["unit_number"]),
+                "actual_rul": float(row["actual_rul"]),
+            }
+        )
+    if not parsed:
+        raise ValueError("outcomes must contain at least one row")
+    return parsed
+
+
 def _run_summary_from_row(row: sqlite3.Row) -> dict[str, Any]:
     result = dict(row)
     monitoring = _json_loads(result.pop("monitoring_json"))
@@ -831,6 +1016,20 @@ def _with_interval_availability(row: dict[str, Any]) -> dict[str, Any]:
     result["interval_count"] = interval_count
     result["interval_availability_rate"] = (
         interval_count / prediction_count if prediction_count > 0 else None
+    )
+    outcome_count = _optional_int(result.get("outcome_count")) or 0
+    interval_outcome_count = _optional_int(result.get("interval_outcome_count")) or 0
+    interval_covered_count = _optional_int(result.get("interval_covered_count")) or 0
+    result["outcome_count"] = outcome_count
+    result["outcome_availability_rate"] = (
+        outcome_count / prediction_count if prediction_count > 0 else None
+    )
+    result["interval_outcome_count"] = interval_outcome_count
+    result["interval_covered_count"] = interval_covered_count
+    result["outcome_interval_coverage_rate"] = (
+        interval_covered_count / interval_outcome_count
+        if interval_outcome_count > 0
+        else None
     )
     return result
 
@@ -910,6 +1109,11 @@ def _model_report_card(
     weighted_interval_width = 0.0
     interval_width_count = 0
     max_interval_width = None
+    outcome_count_total = 0
+    weighted_absolute_error = 0.0
+    weighted_signed_error = 0.0
+    interval_outcome_count_total = 0
+    interval_covered_count_total = 0
     for run in prediction_runs:
         prediction_count = _optional_int(run.get("prediction_count"))
         if prediction_count is None:
@@ -917,11 +1121,23 @@ def _model_report_card(
         interval_count = _optional_int(run.get("interval_count")) or 0
         mean_width = _optional_float(run.get("mean_interval_width"))
         run_max_width = _optional_float(run.get("max_interval_width"))
+        outcome_count = _optional_int(run.get("outcome_count")) or 0
+        mean_absolute_error = _optional_float(run.get("mean_absolute_error"))
+        mean_signed_error = _optional_float(run.get("mean_signed_error"))
+        interval_outcome_count = _optional_int(run.get("interval_outcome_count")) or 0
+        interval_covered_count = _optional_int(run.get("interval_covered_count")) or 0
         prediction_count_total += prediction_count
         interval_count_total += interval_count
+        outcome_count_total += outcome_count
+        interval_outcome_count_total += interval_outcome_count
+        interval_covered_count_total += interval_covered_count
         if mean_width is not None and interval_count > 0:
             weighted_interval_width += mean_width * interval_count
             interval_width_count += interval_count
+        if mean_absolute_error is not None and outcome_count > 0:
+            weighted_absolute_error += mean_absolute_error * outcome_count
+        if mean_signed_error is not None and outcome_count > 0:
+            weighted_signed_error += mean_signed_error * outcome_count
         if run_max_width is not None:
             max_interval_width = (
                 run_max_width
@@ -937,6 +1153,26 @@ def _model_report_card(
     mean_interval_width = (
         weighted_interval_width / interval_width_count
         if interval_width_count > 0
+        else None
+    )
+    mean_absolute_error = (
+        weighted_absolute_error / outcome_count_total
+        if outcome_count_total > 0
+        else None
+    )
+    mean_signed_error = (
+        weighted_signed_error / outcome_count_total
+        if outcome_count_total > 0
+        else None
+    )
+    outcome_availability_rate = (
+        outcome_count_total / prediction_count_total
+        if prediction_count_total > 0
+        else None
+    )
+    outcome_interval_coverage_rate = (
+        interval_covered_count_total / interval_outcome_count_total
+        if interval_outcome_count_total > 0
         else None
     )
     return {
@@ -967,6 +1203,14 @@ def _model_report_card(
         ),
         "mean_interval_width": mean_interval_width,
         "max_interval_width": max_interval_width,
+        "outcome_diagnostic_kind": "observed_rul_outcome_coverage",
+        "outcome_count_total": outcome_count_total,
+        "outcome_availability_rate": outcome_availability_rate,
+        "mean_absolute_error": mean_absolute_error,
+        "mean_signed_error": mean_signed_error,
+        "interval_outcome_count_total": interval_outcome_count_total,
+        "interval_covered_count_total": interval_covered_count_total,
+        "outcome_interval_coverage_rate": outcome_interval_coverage_rate,
         "provenance_workflow": provenance_summary.get("workflow"),
     }
 

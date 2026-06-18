@@ -28,6 +28,7 @@ from aerospace_prognostics.app.store import (
     list_prediction_runs,
     load_model_artifact,
     load_prediction_run,
+    record_prediction_outcomes,
     record_prediction_run,
     record_prediction_run_event,
     seed_quickstart_workspace,
@@ -245,6 +246,12 @@ def _render_history_tab(st: Any, database_path: Path) -> None:
                 "Mean Width",
                 format="%.1f",
             ),
+            "outcome_count": st.column_config.NumberColumn("Outcomes", width="small"),
+            "mean_absolute_error": st.column_config.NumberColumn("MAE", format="%.1f"),
+            "outcome_interval_coverage_rate": st.column_config.NumberColumn(
+                "Coverage",
+                format="%.0f%%",
+            ),
             "drift_alert_count": st.column_config.NumberColumn("Drift Alerts", width="small"),
             "decision_status": st.column_config.TextColumn("Decision"),
             "audit_event_count": st.column_config.NumberColumn("Events", width="small"),
@@ -285,6 +292,34 @@ def _render_history_tab(st: Any, database_path: Path) -> None:
     with detail_columns[1]:
         st.subheader("Monitoring")
         st.json(run.get("monitoring", {}))
+
+    outcome_file = st.file_uploader("Outcome CSV", type=["csv"], key=f"outcomes-{selected_run_id}")
+    outcome_columns = st.columns([2, 1])
+    with outcome_columns[0]:
+        outcome_source = st.text_input(
+            "Outcome Source",
+            value=outcome_file.name if outcome_file is not None else "outcomes.csv",
+        )
+    with outcome_columns[1]:
+        outcome_actor = st.text_input("Outcome Actor", value="operator")
+    if st.button("Attach Outcomes", disabled=outcome_file is None):
+        if outcome_file is None:
+            st.warning("No outcome CSV loaded.")
+        else:
+            try:
+                outcome_frame = pd.read_csv(BytesIO(outcome_file.getvalue()))
+                result = record_prediction_outcomes(
+                    database_path,
+                    run_id=selected_run_id,
+                    outcomes=outcome_frame,
+                    source_name=outcome_source.strip() or outcome_file.name,
+                    actor=outcome_actor.strip() or "operator",
+                )
+            except ValueError as exc:
+                st.error(str(exc))
+            else:
+                st.success(f"Attached {result['outcome_count']} outcomes.")
+                st.rerun()
 
     decision_columns = st.columns([1, 1, 2])
     with decision_columns[0]:
@@ -337,6 +372,11 @@ def _render_history_tab(st: Any, database_path: Path) -> None:
             "predicted_rul_upper": st.column_config.NumberColumn("Upper", format="%.1f"),
             "interval_method": st.column_config.TextColumn("Interval"),
             "interval_confidence": st.column_config.NumberColumn("Confidence", format="%.2f"),
+            "actual_rul": st.column_config.NumberColumn("Actual", format="%.1f"),
+            "signed_error": st.column_config.NumberColumn("Error", format="%.1f"),
+            "absolute_error": st.column_config.NumberColumn("Abs Error", format="%.1f"),
+            "interval_covered": st.column_config.CheckboxColumn("Covered"),
+            "outcome_source": st.column_config.TextColumn("Outcome Source"),
         },
     )
     st.download_button(
@@ -421,6 +461,24 @@ def _render_registry_tab(st: Any, database_path: Path) -> None:
         "Missing Intervals",
         _display(report_card.get("missing_interval_count")),
     )
+    outcome_columns = st.columns(4)
+    outcome_columns[0].metric(
+        "Outcome Availability",
+        _percent_display(report_card.get("outcome_availability_rate")),
+    )
+    outcome_columns[1].metric(
+        "Observed Coverage",
+        _percent_display(report_card.get("outcome_interval_coverage_rate")),
+    )
+    outcome_columns[2].metric(
+        "Observed MAE",
+        _float_display(report_card.get("mean_absolute_error")),
+    )
+    outcome_columns[3].metric(
+        "Outcome Rows",
+        f"{_display(report_card.get('outcome_count_total'))}/"
+        f"{_display(report_card.get('prediction_count_total'))}",
+    )
 
     st.subheader("Model Report Card")
     card_columns = st.columns(2)
@@ -439,6 +497,20 @@ def _render_registry_tab(st: Any, database_path: Path) -> None:
                 "interval_complete": report_card.get("interval_complete"),
                 "mean_interval_width": report_card.get("mean_interval_width"),
                 "max_interval_width": report_card.get("max_interval_width"),
+                "outcome_diagnostic_kind": report_card.get("outcome_diagnostic_kind"),
+                "outcome_count_total": report_card.get("outcome_count_total"),
+                "outcome_availability_rate": report_card.get("outcome_availability_rate"),
+                "mean_absolute_error": report_card.get("mean_absolute_error"),
+                "mean_signed_error": report_card.get("mean_signed_error"),
+                "interval_outcome_count_total": report_card.get(
+                    "interval_outcome_count_total"
+                ),
+                "interval_covered_count_total": report_card.get(
+                    "interval_covered_count_total"
+                ),
+                "outcome_interval_coverage_rate": report_card.get(
+                    "outcome_interval_coverage_rate"
+                ),
                 "provenance_workflow": report_card.get("provenance_workflow"),
                 "latest_prediction_at": report_card.get("latest_prediction_at"),
             }
@@ -514,6 +586,12 @@ def _render_registry_tab(st: Any, database_path: Path) -> None:
                     "Mean Width",
                     format="%.1f",
                 ),
+                "outcome_count": st.column_config.NumberColumn("Outcomes", width="small"),
+                "outcome_interval_coverage_rate": st.column_config.NumberColumn(
+                    "Coverage",
+                    format="%.0f%%",
+                ),
+                "mean_absolute_error": st.column_config.NumberColumn("MAE", format="%.1f"),
                 "content_sha256": st.column_config.TextColumn("Input SHA-256"),
             },
         )
@@ -654,12 +732,18 @@ def _prediction_runs_frame(runs: list[dict[str, Any]]) -> pd.DataFrame:
         "max_predicted_rul",
         "interval_availability_rate",
         "mean_interval_width",
+        "outcome_count",
+        "outcome_interval_coverage_rate",
+        "mean_absolute_error",
         "drift_alert_count",
         "decision_status",
         "audit_event_count",
     ]
     frame = pd.DataFrame(runs).reindex(columns=columns)
-    return _percent_frame_columns(frame, ["interval_availability_rate"])
+    return _percent_frame_columns(
+        frame,
+        ["interval_availability_rate", "outcome_interval_coverage_rate"],
+    )
 
 
 def _model_artifacts_frame(artifacts: list[dict[str, Any]]) -> pd.DataFrame:
@@ -691,10 +775,16 @@ def _artifact_prediction_runs_frame(runs: list[dict[str, Any]]) -> pd.DataFrame:
         "prediction_count",
         "interval_availability_rate",
         "mean_interval_width",
+        "outcome_count",
+        "outcome_interval_coverage_rate",
+        "mean_absolute_error",
         "content_sha256",
     ]
     frame = pd.DataFrame(runs).reindex(columns=columns)
-    return _percent_frame_columns(frame, ["interval_availability_rate"])
+    return _percent_frame_columns(
+        frame,
+        ["interval_availability_rate", "outcome_interval_coverage_rate"],
+    )
 
 
 def _failed_gates_frame(failed_gates: list[Any]) -> pd.DataFrame:
