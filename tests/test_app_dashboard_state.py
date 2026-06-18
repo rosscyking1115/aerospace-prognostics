@@ -8,8 +8,11 @@ from aerospace_prognostics.app.dashboard_state import (
     predict_cmapss_telemetry,
 )
 from aerospace_prognostics.app.streamlit_app import (
+    _artifact_prediction_runs_frame,
     _audit_events_frame,
     _decision_status_index,
+    _model_artifacts_frame,
+    _release_evidence_frame,
     _telemetry_records,
     _with_api_artifact_metadata,
 )
@@ -98,6 +101,62 @@ def test_audit_events_frame_preserves_operator_event_columns() -> None:
     assert list(frame.columns) == ["created_at_utc", "event_type", "status", "actor", "note"]
     assert frame.iloc[0]["status"] == "watch"
     assert frame.iloc[0]["actor"] == "flight-ops"
+
+
+def test_registry_frames_preserve_artifact_evidence_and_usage_columns() -> None:
+    artifacts = _model_artifacts_frame(
+        [
+            {
+                "created_at_utc": "2026-01-01T00:00:00+00:00",
+                "artifact_id": "fd001-demo",
+                "stage": "candidate",
+                "dataset": "C-MAPSS",
+                "subset": "FD001",
+                "model_name": "hgb",
+                "schema_version": "1.0",
+                "evidence_count": 5,
+                "prediction_run_count": 2,
+                "latest_prediction_at": "2026-01-01T00:01:00+00:00",
+            }
+        ]
+    )
+    evidence = _release_evidence_frame(
+        [
+            {
+                "created_at_utc": "2026-01-01T00:00:00+00:00",
+                "evidence_type": "release_bundle",
+                "status": "ok",
+                "source_path": "release.json",
+                "payload": {"status": "ok"},
+            }
+        ]
+    )
+    usage = _artifact_prediction_runs_frame(
+        [
+            {
+                "created_at_utc": "2026-01-01T00:01:00+00:00",
+                "run_id": "run-1",
+                "source_name": "telemetry.csv",
+                "prediction_count": 2,
+                "content_sha256": "abc123",
+            }
+        ]
+    )
+
+    assert list(artifacts.columns) == [
+        "created_at_utc",
+        "artifact_id",
+        "stage",
+        "dataset",
+        "subset",
+        "model_name",
+        "schema_version",
+        "evidence_count",
+        "prediction_run_count",
+        "latest_prediction_at",
+    ]
+    assert evidence.iloc[0]["evidence_type"] == "release_bundle"
+    assert usage.iloc[0]["run_id"] == "run-1"
 
 
 def test_decision_status_index_defaults_to_review_required() -> None:

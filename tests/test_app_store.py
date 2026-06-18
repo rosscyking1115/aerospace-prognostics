@@ -8,8 +8,10 @@ from aerospace_prognostics.app.store import (
     SCHEMA_VERSION,
     database_summary,
     initialize_app_database,
+    list_model_artifacts,
     list_prediction_run_events,
     list_prediction_runs,
+    load_model_artifact,
     load_prediction_run,
     record_prediction_run,
     record_prediction_run_event,
@@ -67,6 +69,39 @@ def test_seed_quickstart_workspace_persists_model_and_evidence(tmp_path) -> None
     assert second_insert["release_evidence"] == 0
     assert summary["model_artifacts"] == 1
     assert summary["release_evidence"] == 5
+
+
+def test_model_registry_lists_artifacts_evidence_and_prediction_usage(tmp_path) -> None:
+    workspace = _write_fake_workspace(tmp_path / "quickstart")
+    database_path = tmp_path / "app.sqlite"
+    seed_quickstart_workspace(database_path, workspace)
+    run_id = _write_prediction_run_for_artifact(
+        tmp_path,
+        database_path=database_path,
+        artifact_id="fd001-demo",
+    )
+
+    artifacts = list_model_artifacts(database_path)
+    loaded = load_model_artifact(database_path, "fd001-demo")
+
+    assert len(artifacts) == 1
+    assert artifacts[0]["artifact_id"] == "fd001-demo"
+    assert artifacts[0]["evidence_count"] == 5
+    assert artifacts[0]["prediction_run_count"] == 1
+    assert artifacts[0]["latest_prediction_at"] is not None
+    assert loaded is not None
+    assert loaded["artifact"]["artifact_id"] == "fd001-demo"
+    assert loaded["artifact"]["inspection"]["model"]["subset"] == "FD001"
+    assert len(loaded["release_evidence"]) == 5
+    assert loaded["prediction_runs"][0]["run_id"] == run_id
+
+
+def test_load_model_artifact_returns_none_for_unknown_artifact(tmp_path) -> None:
+    database_path = initialize_app_database(tmp_path / "app.sqlite")
+
+    loaded = load_model_artifact(database_path, "artifact-missing")
+
+    assert loaded is None
 
 
 def test_record_prediction_run_persists_upload_run_and_prediction_rows(tmp_path) -> None:
@@ -211,6 +246,32 @@ def _write_prediction_run(tmp_path):
         source_name="test.csv",
     )
     return database_path, run_id
+
+
+def _write_prediction_run_for_artifact(tmp_path, *, database_path, artifact_id: str):
+    write_tiny_cmapss_subset(tmp_path)
+    packaged = train_cmapss_hgb_policy_artifact(tmp_path, "FD001", n_regimes=1)
+    artifact_path = save_cmapss_model_artifact(
+        packaged.artifact,
+        tmp_path / "models" / "fd001.joblib",
+    )
+    telemetry = load_cmapss_subset(tmp_path, "FD001").test
+    predictions = packaged.artifact.predict_from_frame(telemetry)
+    prediction_document = {
+        "dataset": packaged.artifact.dataset,
+        "subset": packaged.artifact.subset,
+        "model_name": packaged.artifact.model_name,
+        "predictions": [prediction.to_dict() for prediction in predictions],
+        "artifact": {"artifact_id": artifact_id},
+        "monitoring": packaged.artifact.monitoring_summary(telemetry, predictions),
+    }
+    return record_prediction_run(
+        database_path,
+        telemetry=telemetry,
+        prediction_document=prediction_document,
+        model_artifact_path=artifact_path,
+        source_name="test.csv",
+    )
 
 
 def _write_fake_workspace(root):

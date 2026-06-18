@@ -22,7 +22,8 @@ state are shared with the host. Inside Compose, the console probes the API at
 The Predict tab can score telemetry through the API service when it is ready, or
 fall back to direct local-artifact inference. The History tab persists run
 records, prediction rows, operator decisions, and audit events in the shared
-SQLite database.
+SQLite database. The Registry tab reads the same database to show stored model
+artifacts, release evidence, and recent prediction usage for each artifact.
 
 ## Endpoints
 

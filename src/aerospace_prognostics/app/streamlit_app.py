@@ -24,7 +24,9 @@ from aerospace_prognostics.app.dashboard_state import (
 from aerospace_prognostics.app.store import (
     database_summary,
     initialize_app_database,
+    list_model_artifacts,
     list_prediction_runs,
+    load_model_artifact,
     load_prediction_run,
     record_prediction_run,
     record_prediction_run_event,
@@ -83,8 +85,16 @@ def main() -> None:
         st.info("Generate the quickstart evidence bundle to activate the console.")
         return
 
-    fleet_tab, predict_tab, history_tab, evidence_tab, system_tab, roadmap_tab = st.tabs(
-        ["Fleet", "Predict", "History", "Evidence", "System", "Roadmap"]
+    (
+        fleet_tab,
+        predict_tab,
+        history_tab,
+        registry_tab,
+        evidence_tab,
+        system_tab,
+        roadmap_tab,
+    ) = st.tabs(
+        ["Fleet", "Predict", "History", "Registry", "Evidence", "System", "Roadmap"],
     )
     with fleet_tab:
         _render_fleet_tab(st, workspace)
@@ -92,6 +102,8 @@ def main() -> None:
         _render_predict_tab(st, workspace, database_path, api_status, api_key)
     with history_tab:
         _render_history_tab(st, database_path)
+    with registry_tab:
+        _render_registry_tab(st, database_path)
     with evidence_tab:
         _render_evidence_tab(st, workspace, database_path)
     with system_tab:
@@ -327,6 +339,107 @@ def _render_history_tab(st: Any, database_path: Path) -> None:
     )
 
 
+def _render_registry_tab(st: Any, database_path: Path) -> None:
+    st.subheader("Model Registry")
+    artifacts = list_model_artifacts(database_path, limit=100)
+    if not artifacts:
+        st.info("No model artifacts stored yet.")
+        return
+
+    artifacts_frame = _model_artifacts_frame(artifacts)
+    st.dataframe(
+        artifacts_frame,
+        use_container_width=True,
+        hide_index=True,
+        column_config={
+            "created_at_utc": st.column_config.DatetimeColumn("Created"),
+            "artifact_id": st.column_config.TextColumn("Artifact"),
+            "stage": st.column_config.TextColumn("Stage"),
+            "dataset": st.column_config.TextColumn("Dataset"),
+            "subset": st.column_config.TextColumn("Subset"),
+            "model_name": st.column_config.TextColumn("Model"),
+            "evidence_count": st.column_config.NumberColumn("Evidence", width="small"),
+            "prediction_run_count": st.column_config.NumberColumn("Runs", width="small"),
+            "latest_prediction_at": st.column_config.DatetimeColumn("Latest Prediction"),
+        },
+    )
+
+    artifact_ids = [str(artifact["artifact_id"]) for artifact in artifacts]
+    selected_artifact_id = st.selectbox("Artifact", artifact_ids)
+    selected = load_model_artifact(database_path, selected_artifact_id)
+    if selected is None:
+        st.warning("Selected artifact is no longer available.")
+        return
+
+    artifact = selected["artifact"]
+    inspection = artifact.get("inspection")
+    inspection = inspection if isinstance(inspection, dict) else {}
+    model = inspection.get("model")
+    model = model if isinstance(model, dict) else {}
+    promotion = inspection.get("promotion")
+    promotion = promotion if isinstance(promotion, dict) else {}
+
+    metric_columns = st.columns(4)
+    metric_columns[0].metric("Stage", _display(artifact.get("stage") or promotion.get("stage")))
+    metric_columns[1].metric("Dataset", _display(artifact.get("dataset") or model.get("dataset")))
+    metric_columns[2].metric("Subset", _display(artifact.get("subset") or model.get("subset")))
+    metric_columns[3].metric("Evidence", _display(len(selected["release_evidence"])))
+
+    detail_columns = st.columns(2)
+    with detail_columns[0]:
+        st.subheader("Artifact Record")
+        st.json(
+            {
+                "artifact_id": artifact.get("artifact_id"),
+                "artifact_sha256": artifact.get("artifact_sha256"),
+                "artifact_path": artifact.get("artifact_path"),
+                "schema_version": artifact.get("schema_version"),
+                "created_at_utc": artifact.get("created_at_utc"),
+            }
+        )
+    with detail_columns[1]:
+        st.subheader("Inspection")
+        st.json(
+            {
+                "model": model,
+                "promotion": promotion,
+                "checks": inspection.get("checks"),
+                "uncertainty": inspection.get("uncertainty"),
+            }
+        )
+
+    st.subheader("Release Evidence")
+    st.dataframe(
+        _release_evidence_frame(selected["release_evidence"]),
+        use_container_width=True,
+        hide_index=True,
+        column_config={
+            "created_at_utc": st.column_config.DatetimeColumn("Created"),
+            "evidence_type": st.column_config.TextColumn("Type"),
+            "status": st.column_config.TextColumn("Status"),
+            "source_path": st.column_config.TextColumn("Source"),
+        },
+    )
+
+    st.subheader("Prediction Usage")
+    usage_frame = _artifact_prediction_runs_frame(selected["prediction_runs"])
+    if usage_frame.empty:
+        st.info("No prediction runs recorded for this artifact.")
+    else:
+        st.dataframe(
+            usage_frame,
+            use_container_width=True,
+            hide_index=True,
+            column_config={
+                "created_at_utc": st.column_config.DatetimeColumn("Created"),
+                "run_id": st.column_config.TextColumn("Run"),
+                "source_name": st.column_config.TextColumn("Telemetry"),
+                "prediction_count": st.column_config.NumberColumn("Predictions", width="small"),
+                "content_sha256": st.column_config.TextColumn("Input SHA-256"),
+            },
+        )
+
+
 def _render_evidence_tab(st: Any, workspace: QuickstartWorkspace, database_path: Path) -> None:
     inspection = workspace.artifact_inspection or {}
     release_bundle = workspace.release_bundle or {}
@@ -464,6 +577,32 @@ def _prediction_runs_frame(runs: list[dict[str, Any]]) -> pd.DataFrame:
         "decision_status",
         "audit_event_count",
     ]
+    return pd.DataFrame(runs).reindex(columns=columns)
+
+
+def _model_artifacts_frame(artifacts: list[dict[str, Any]]) -> pd.DataFrame:
+    columns = [
+        "created_at_utc",
+        "artifact_id",
+        "stage",
+        "dataset",
+        "subset",
+        "model_name",
+        "schema_version",
+        "evidence_count",
+        "prediction_run_count",
+        "latest_prediction_at",
+    ]
+    return pd.DataFrame(artifacts).reindex(columns=columns)
+
+
+def _release_evidence_frame(evidence: list[dict[str, Any]]) -> pd.DataFrame:
+    columns = ["created_at_utc", "evidence_type", "status", "source_path"]
+    return pd.DataFrame(evidence).reindex(columns=columns)
+
+
+def _artifact_prediction_runs_frame(runs: list[dict[str, Any]]) -> pd.DataFrame:
+    columns = ["created_at_utc", "run_id", "source_name", "prediction_count", "content_sha256"]
     return pd.DataFrame(runs).reindex(columns=columns)
 
 

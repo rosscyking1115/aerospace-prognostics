@@ -364,6 +364,115 @@ def record_prediction_run_event(
         )
 
 
+def list_model_artifacts(
+    database_path: str | Path,
+    *,
+    limit: int = 50,
+) -> list[dict[str, Any]]:
+    """Return model artifacts with evidence and prediction usage counts."""
+
+    db_path = initialize_app_database(database_path)
+    with _connect(db_path) as connection:
+        connection.row_factory = sqlite3.Row
+        rows = connection.execute(
+            """
+            select
+                model_artifacts.artifact_id,
+                model_artifacts.artifact_path,
+                model_artifacts.artifact_sha256,
+                model_artifacts.dataset,
+                model_artifacts.subset,
+                model_artifacts.model_name,
+                model_artifacts.schema_version,
+                model_artifacts.stage,
+                model_artifacts.created_at_utc,
+                count(distinct release_evidence.evidence_id) as evidence_count,
+                count(distinct prediction_runs.run_id) as prediction_run_count,
+                max(prediction_runs.created_at_utc) as latest_prediction_at
+            from model_artifacts
+            left join release_evidence
+                on release_evidence.artifact_id = model_artifacts.artifact_id
+            left join prediction_runs
+                on prediction_runs.artifact_id = model_artifacts.artifact_id
+            group by model_artifacts.artifact_id
+            order by model_artifacts.created_at_utc desc
+            limit ?
+            """,
+            (int(limit),),
+        ).fetchall()
+    return [dict(row) for row in rows]
+
+
+def load_model_artifact(
+    database_path: str | Path,
+    artifact_id: str,
+) -> dict[str, Any] | None:
+    """Load one model artifact with release evidence and prediction usage."""
+
+    db_path = initialize_app_database(database_path)
+    with _connect(db_path) as connection:
+        connection.row_factory = sqlite3.Row
+        artifact_row = connection.execute(
+            """
+            select
+                artifact_id,
+                artifact_path,
+                artifact_sha256,
+                dataset,
+                subset,
+                model_name,
+                schema_version,
+                stage,
+                inspection_json,
+                created_at_utc
+            from model_artifacts
+            where artifact_id = ?
+            """,
+            (artifact_id,),
+        ).fetchone()
+        if artifact_row is None:
+            return None
+        evidence_rows = connection.execute(
+            """
+            select
+                evidence_id,
+                evidence_type,
+                source_path,
+                status,
+                payload_json,
+                created_at_utc
+            from release_evidence
+            where artifact_id = ?
+            order by evidence_type asc, created_at_utc desc
+            """,
+            (artifact_id,),
+        ).fetchall()
+        run_rows = connection.execute(
+            """
+            select
+                prediction_runs.run_id,
+                prediction_runs.created_at_utc,
+                prediction_runs.model_name,
+                prediction_runs.prediction_count,
+                telemetry_uploads.source_name,
+                telemetry_uploads.content_sha256
+            from prediction_runs
+            join telemetry_uploads on telemetry_uploads.upload_id = prediction_runs.upload_id
+            where prediction_runs.artifact_id = ?
+            order by prediction_runs.created_at_utc desc
+            limit 25
+            """,
+            (artifact_id,),
+        ).fetchall()
+    artifact = dict(artifact_row)
+    artifact["inspection"] = _json_loads(artifact.pop("inspection_json"))
+    return {
+        "artifact": artifact,
+        "release_evidence": [_evidence_from_row(row) for row in evidence_rows],
+        "prediction_runs": [dict(row) for row in run_rows],
+    }
+
+
 def list_prediction_runs(
     database_path: str | Path,
     *,
@@ -688,6 +797,12 @@ def _event_from_row(row: sqlite3.Row) -> dict[str, Any]:
     event = dict(row)
     event["payload"] = _json_loads(event.pop("payload_json"))
     return event
+
+
+def _evidence_from_row(row: sqlite3.Row) -> dict[str, Any]:
+    evidence = dict(row)
+    evidence["payload"] = _json_loads(evidence.pop("payload_json"))
+    return evidence
 
 
 def _drift_alert_count(monitoring: Any) -> int:
