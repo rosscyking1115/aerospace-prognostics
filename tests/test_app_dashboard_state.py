@@ -11,6 +11,7 @@ from aerospace_prognostics.app.streamlit_app import (
     _artifact_prediction_runs_frame,
     _audit_events_frame,
     _decision_status_index,
+    _failed_gates_frame,
     _model_artifacts_frame,
     _release_evidence_frame,
     _telemetry_records,
@@ -157,6 +158,13 @@ def test_registry_frames_preserve_artifact_evidence_and_usage_columns() -> None:
     ]
     assert evidence.iloc[0]["evidence_type"] == "release_bundle"
     assert usage.iloc[0]["run_id"] == "run-1"
+
+
+def test_failed_gates_frame_formats_gate_names() -> None:
+    frame = _failed_gates_frame(["promotion.latency_benchmark"])
+
+    assert list(frame.columns) == ["gate"]
+    assert frame.iloc[0]["gate"] == "promotion.latency_benchmark"
 
 
 def test_decision_status_index_defaults_to_review_required() -> None:

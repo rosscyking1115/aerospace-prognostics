@@ -466,10 +466,17 @@ def load_model_artifact(
         ).fetchall()
     artifact = dict(artifact_row)
     artifact["inspection"] = _json_loads(artifact.pop("inspection_json"))
+    release_evidence = [_evidence_from_row(row) for row in evidence_rows]
+    prediction_runs = [dict(row) for row in run_rows]
     return {
         "artifact": artifact,
-        "release_evidence": [_evidence_from_row(row) for row in evidence_rows],
-        "prediction_runs": [dict(row) for row in run_rows],
+        "release_evidence": release_evidence,
+        "prediction_runs": prediction_runs,
+        "report_card": _model_report_card(
+            artifact,
+            release_evidence=release_evidence,
+            prediction_runs=prediction_runs,
+        ),
     }
 
 
@@ -803,6 +810,85 @@ def _evidence_from_row(row: sqlite3.Row) -> dict[str, Any]:
     evidence = dict(row)
     evidence["payload"] = _json_loads(evidence.pop("payload_json"))
     return evidence
+
+
+def _model_report_card(
+    artifact: dict[str, Any],
+    *,
+    release_evidence: list[dict[str, Any]],
+    prediction_runs: list[dict[str, Any]],
+) -> dict[str, Any]:
+    evidence_by_type = {
+        str(evidence.get("evidence_type")): evidence
+        for evidence in release_evidence
+        if evidence.get("evidence_type") is not None
+    }
+    promotion = _payload_for_evidence(evidence_by_type, "promotion_report")
+    release_bundle = _payload_for_evidence(evidence_by_type, "release_bundle")
+    provenance = _payload_for_evidence(evidence_by_type, "release_provenance")
+    inspection = artifact.get("inspection")
+    inspection = inspection if isinstance(inspection, dict) else {}
+    uncertainty = inspection.get("uncertainty")
+    uncertainty = uncertainty if isinstance(uncertainty, dict) else {}
+    promotion_gates = _bool_dict(promotion.get("gates"))
+    release_gates = _bool_dict(release_bundle.get("gates"))
+    all_gates = {
+        **{f"promotion.{key}": value for key, value in promotion_gates.items()},
+        **{f"release.{key}": value for key, value in release_gates.items()},
+    }
+    latest_run_at = max(
+        (
+            str(run["created_at_utc"])
+            for run in prediction_runs
+            if run.get("created_at_utc") is not None
+        ),
+        default=None,
+    )
+    promotion_evidence = promotion.get("evidence")
+    promotion_evidence = promotion_evidence if isinstance(promotion_evidence, dict) else {}
+    benchmark = promotion_evidence.get("benchmark")
+    benchmark = benchmark if isinstance(benchmark, dict) else {}
+    latency_ms = benchmark.get("latency_ms")
+    latency_ms = latency_ms if isinstance(latency_ms, dict) else {}
+    provenance_summary = provenance.get("summary")
+    provenance_summary = provenance_summary if isinstance(provenance_summary, dict) else {}
+    return {
+        "artifact_id": artifact.get("artifact_id"),
+        "stage": artifact.get("stage"),
+        "dataset": artifact.get("dataset"),
+        "subset": artifact.get("subset"),
+        "model_name": artifact.get("model_name"),
+        "release_status": release_bundle.get("status"),
+        "promotion_status": promotion.get("status"),
+        "gate_count": len(all_gates),
+        "passed_gate_count": sum(1 for value in all_gates.values() if value is True),
+        "failed_gates": [key for key, value in sorted(all_gates.items()) if value is not True],
+        "evidence_count": len(release_evidence),
+        "prediction_run_count": len(prediction_runs),
+        "latest_prediction_at": latest_run_at,
+        "p95_latency_ms": latency_ms.get("p95"),
+        "max_p95_latency_ms": benchmark.get("max_p95_latency_ms"),
+        "interval_method": uncertainty.get("interval_method"),
+        "interval_confidence": uncertainty.get("interval_confidence"),
+        "provenance_workflow": provenance_summary.get("workflow"),
+    }
+
+
+def _payload_for_evidence(
+    evidence_by_type: dict[str, dict[str, Any]],
+    evidence_type: str,
+) -> dict[str, Any]:
+    evidence = evidence_by_type.get(evidence_type)
+    if not isinstance(evidence, dict):
+        return {}
+    payload = evidence.get("payload")
+    return payload if isinstance(payload, dict) else {}
+
+
+def _bool_dict(payload: Any) -> dict[str, bool]:
+    if not isinstance(payload, dict):
+        return {}
+    return {str(key): value for key, value in payload.items() if isinstance(value, bool)}
 
 
 def _drift_alert_count(monitoring: Any) -> int:

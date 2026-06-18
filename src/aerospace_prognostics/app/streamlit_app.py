@@ -372,6 +372,8 @@ def _render_registry_tab(st: Any, database_path: Path) -> None:
         return
 
     artifact = selected["artifact"]
+    report_card = selected.get("report_card")
+    report_card = report_card if isinstance(report_card, dict) else {}
     inspection = artifact.get("inspection")
     inspection = inspection if isinstance(inspection, dict) else {}
     model = inspection.get("model")
@@ -384,6 +386,41 @@ def _render_registry_tab(st: Any, database_path: Path) -> None:
     metric_columns[1].metric("Dataset", _display(artifact.get("dataset") or model.get("dataset")))
     metric_columns[2].metric("Subset", _display(artifact.get("subset") or model.get("subset")))
     metric_columns[3].metric("Evidence", _display(len(selected["release_evidence"])))
+
+    report_columns = st.columns(4)
+    report_columns[0].metric("Release", _display(report_card.get("release_status")))
+    report_columns[1].metric("Promotion", _display(report_card.get("promotion_status")))
+    report_columns[2].metric(
+        "Gates",
+        f"{_display(report_card.get('passed_gate_count'))}/{_display(report_card.get('gate_count'))}",
+    )
+    report_columns[3].metric("Prediction Runs", _display(report_card.get("prediction_run_count")))
+
+    st.subheader("Model Report Card")
+    card_columns = st.columns(2)
+    with card_columns[0]:
+        st.json(
+            {
+                "p95_latency_ms": report_card.get("p95_latency_ms"),
+                "max_p95_latency_ms": report_card.get("max_p95_latency_ms"),
+                "interval_method": report_card.get("interval_method"),
+                "interval_confidence": report_card.get("interval_confidence"),
+                "provenance_workflow": report_card.get("provenance_workflow"),
+                "latest_prediction_at": report_card.get("latest_prediction_at"),
+            }
+        )
+    with card_columns[1]:
+        failed_gates = report_card.get("failed_gates")
+        failed_gates = failed_gates if isinstance(failed_gates, list) else []
+        if failed_gates:
+            st.dataframe(
+                _failed_gates_frame(failed_gates),
+                use_container_width=True,
+                hide_index=True,
+                column_config={"gate": st.column_config.TextColumn("Failed Gate")},
+            )
+        else:
+            st.success("All recorded gates passed.")
 
     detail_columns = st.columns(2)
     with detail_columns[0]:
@@ -604,6 +641,10 @@ def _release_evidence_frame(evidence: list[dict[str, Any]]) -> pd.DataFrame:
 def _artifact_prediction_runs_frame(runs: list[dict[str, Any]]) -> pd.DataFrame:
     columns = ["created_at_utc", "run_id", "source_name", "prediction_count", "content_sha256"]
     return pd.DataFrame(runs).reindex(columns=columns)
+
+
+def _failed_gates_frame(failed_gates: list[Any]) -> pd.DataFrame:
+    return pd.DataFrame([{"gate": str(gate)} for gate in failed_gates])
 
 
 def _audit_events_frame(events: list[dict[str, Any]]) -> pd.DataFrame:

@@ -94,6 +94,13 @@ def test_model_registry_lists_artifacts_evidence_and_prediction_usage(tmp_path) 
     assert loaded["artifact"]["inspection"]["model"]["subset"] == "FD001"
     assert len(loaded["release_evidence"]) == 5
     assert loaded["prediction_runs"][0]["run_id"] == run_id
+    assert loaded["report_card"]["artifact_id"] == "fd001-demo"
+    assert loaded["report_card"]["gate_count"] == 4
+    assert loaded["report_card"]["passed_gate_count"] == 3
+    assert loaded["report_card"]["failed_gates"] == ["promotion.latency_benchmark"]
+    assert loaded["report_card"]["p95_latency_ms"] == 42.0
+    assert loaded["report_card"]["max_p95_latency_ms"] == 25.0
+    assert loaded["report_card"]["provenance_workflow"] == "local"
 
 
 def test_load_model_artifact_returns_none_for_unknown_artifact(tmp_path) -> None:
@@ -299,10 +306,34 @@ def _write_fake_workspace(root):
             "model_name": "hist_gradient_boosting",
         },
         "promotion": {"stage": "candidate"},
+        "uncertainty": {
+            "interval_method": "train_residual_absolute_quantile",
+            "interval_confidence": 0.9,
+        },
     }
-    release_bundle = {"status": "ok", "release_name": "fd001-demo"}
+    release_bundle = {
+        "status": "ok",
+        "release_name": "fd001-demo",
+        "gates": {
+            "promotion_report_ok": True,
+            "promotion_gates_passed": True,
+        },
+    }
     provenance = {"status": "ok", "summary": {"workflow": "local"}}
-    promotion = {"status": "ok", "artifact_identity": {"artifact_id": "fd001-demo"}}
+    promotion = {
+        "status": "failed",
+        "artifact_identity": {"artifact_id": "fd001-demo"},
+        "gates": {
+            "artifact_validation": True,
+            "latency_benchmark": False,
+        },
+        "evidence": {
+            "benchmark": {
+                "latency_ms": {"p95": 42.0},
+                "max_p95_latency_ms": 25.0,
+            }
+        },
+    }
     dashboard_payload = {"schema_version": "aerospace-prognostics/fleet-dashboard/v1"}
     artifact_inspection_path = model_dir / "fd001_inspection.json"
     release_bundle_path = release_dir / "fd001_release_bundle.json"
