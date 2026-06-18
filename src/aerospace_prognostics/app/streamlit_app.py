@@ -23,6 +23,7 @@ from aerospace_prognostics.app.dashboard_state import (
 )
 from aerospace_prognostics.app.store import (
     database_summary,
+    export_prediction_run_evidence,
     initialize_app_database,
     list_model_artifacts,
     list_prediction_runs,
@@ -36,6 +37,7 @@ from aerospace_prognostics.app.store import (
 
 DEFAULT_WORKSPACE = Path("artifacts") / "quickstart_cmapss"
 DEFAULT_DATABASE = Path("artifacts") / "app" / "aerospace_prognostics.sqlite"
+DEFAULT_EXPORT_DIR = Path("artifacts") / "app_exports"
 DEFAULT_API_BASE_URL = "http://127.0.0.1:8000"
 API_BASE_URL_ENV = "AEROSPACE_PROGNOSTICS_API_BASE_URL"
 API_KEY_ENV = "AEROSPACE_PROGNOSTICS_API_KEY"
@@ -379,12 +381,45 @@ def _render_history_tab(st: Any, database_path: Path) -> None:
             "outcome_source": st.column_config.TextColumn("Outcome Source"),
         },
     )
-    st.download_button(
-        "Download Predictions",
-        data=predictions_frame.to_csv(index=False).encode("utf-8"),
-        file_name=f"{selected_run_id}_predictions.csv",
-        mime="text/csv",
-    )
+    export_columns = st.columns([1, 1, 2])
+    with export_columns[0]:
+        st.download_button(
+            "Download Predictions",
+            data=predictions_frame.to_csv(index=False).encode("utf-8"),
+            file_name=f"{selected_run_id}_predictions.csv",
+            mime="text/csv",
+        )
+    with export_columns[1]:
+        if st.button("Export Run Evidence"):
+            try:
+                result = export_prediction_run_evidence(
+                    database_path,
+                    run_id=selected_run_id,
+                    output_dir=DEFAULT_EXPORT_DIR,
+                )
+            except ValueError as exc:
+                st.error(str(exc))
+            else:
+                st.session_state[f"evidence-export-{selected_run_id}"] = result
+                st.success("Evidence export generated.")
+
+    export_result = st.session_state.get(f"evidence-export-{selected_run_id}")
+    if isinstance(export_result, dict):
+        evidence_path = Path(str(export_result["evidence_json"]))
+        st.json(
+            {
+                "evidence_json": export_result["evidence_json"],
+                "evidence_sha256": export_result["evidence_sha256"],
+                "predictions_csv": export_result["predictions_csv"],
+                "predictions_sha256": export_result["predictions_sha256"],
+            }
+        )
+        st.download_button(
+            "Download Evidence JSON",
+            data=evidence_path.read_bytes(),
+            file_name=evidence_path.name,
+            mime="application/json",
+        )
 
 
 def _render_registry_tab(st: Any, database_path: Path) -> None:

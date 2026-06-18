@@ -63,10 +63,11 @@ signed error, and interval coverage against observed RUL.
 
 ## Run Evidence Exports
 
-Persisted prediction runs can be exported for review, incident follow-up, or
-handoff to another engineer. The export writes a JSON evidence document with the
-run metadata, prediction rows, outcomes, and audit events, plus a separate
-prediction-row CSV for spreadsheet inspection.
+Persisted prediction runs can be exported from the History tab or from the CLI
+for review, incident follow-up, or handoff to another engineer. The export
+writes a JSON evidence document with the run metadata, prediction rows,
+outcomes, and audit events, plus a separate prediction-row CSV for spreadsheet
+inspection.
 
 ```powershell
 uv run aerospace-prognostics app-export-run `

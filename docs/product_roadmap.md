@@ -47,14 +47,15 @@ together. The next gap is hosted deployment and deeper operator workflows.
 Current status: initial SQLite persistence is active for model artifacts, release
 evidence, telemetry uploads, prediction runs, and per-asset predictions. The
 console can inspect recent runs, attach observed RUL outcomes, export persisted
-prediction rows, append operator decisions, display an audit log for each run,
+prediction rows and run evidence bundles, append operator decisions, display an
+audit log for each run,
 summarize interval availability and width, report outcome-backed MAE/coverage,
 and inspect stored model artifacts with their release evidence, recent
 prediction usage, release-gate report cards, operational interval diagnostics,
 and observed-outcome calibration summaries. Import/export beyond quickstart
 seeding remains future work, but outcome CSV import and prediction-run evidence
-export are now available through the CLI, with outcome import also available in
-the console.
+export are now available through the CLI, with both outcome import and run
+evidence export also available in the console.
 
 3. Local deployment stack
    - Docker Compose with FastAPI inference service, dashboard, mounted model
