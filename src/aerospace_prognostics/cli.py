@@ -19,6 +19,7 @@ from aerospace_prognostics.app.dashboard_state import load_quickstart_workspace
 from aerospace_prognostics.app.store import (
     database_summary,
     initialize_app_database,
+    record_prediction_outcomes,
     seed_quickstart_workspace,
 )
 from aerospace_prognostics.data.cmapss import CMAPSS_SUBSETS, load_cmapss_subset
@@ -193,6 +194,21 @@ def _build_parser() -> argparse.ArgumentParser:
         default=Path("artifacts") / "quickstart_cmapss",
     )
     app_init_db.add_argument("--no-seed-quickstart", action="store_true")
+
+    app_record_outcomes = subparsers.add_parser(
+        "app-record-outcomes",
+        help="Attach observed RUL outcomes to a persisted prediction run",
+    )
+    app_record_outcomes.add_argument(
+        "--database",
+        type=Path,
+        default=Path("artifacts") / "app" / "aerospace_prognostics.sqlite",
+    )
+    app_record_outcomes.add_argument("--run-id", required=True)
+    app_record_outcomes.add_argument("--outcomes-csv", type=Path, required=True)
+    app_record_outcomes.add_argument("--source-name")
+    app_record_outcomes.add_argument("--actor", default="operator")
+    app_record_outcomes.add_argument("--observed-at-utc")
 
     summary = subparsers.add_parser("cmapss-summary", help="Summarise a local C-MAPSS subset")
     summary.add_argument("--data-dir", type=Path, required=True)
@@ -1222,6 +1238,28 @@ def main(argv: list[str] | None = None) -> int:
         print(f"telemetry_uploads={summary['telemetry_uploads']}")
         print(f"prediction_runs={summary['prediction_runs']}")
         print(f"predictions={summary['predictions']}")
+        print(f"prediction_outcomes={summary['prediction_outcomes']}")
+        return 0
+
+    if args.command == "app-record-outcomes":
+        import pandas as pd
+
+        outcomes = pd.read_csv(args.outcomes_csv)
+        result = record_prediction_outcomes(
+            args.database,
+            run_id=args.run_id,
+            outcomes=outcomes,
+            source_name=args.source_name or str(args.outcomes_csv),
+            actor=args.actor,
+            observed_at_utc=args.observed_at_utc,
+        )
+        summary = database_summary(args.database)
+        print(f"database={args.database}")
+        print(f"run_id={args.run_id}")
+        print(f"outcomes_csv={args.outcomes_csv}")
+        print(f"outcome_count={result['outcome_count']}")
+        print(f"event_id={result['event_id']}")
+        print(f"prediction_outcomes={summary['prediction_outcomes']}")
         return 0
 
     if args.command == "cmapss-summary":

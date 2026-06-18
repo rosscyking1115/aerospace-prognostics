@@ -57,6 +57,7 @@ def test_app_init_db_command_creates_database_without_seed(tmp_path, capsys) -> 
     assert database_path.exists()
     assert f"database={database_path}" in output
     assert f"schema_version={SCHEMA_VERSION}" in output
+    assert "prediction_outcomes=0" in output
 
 
 def test_seed_quickstart_workspace_persists_model_and_evidence(tmp_path) -> None:
@@ -257,6 +258,61 @@ def test_prediction_outcomes_attach_actuals_and_calibration_metrics(tmp_path) ->
     assert artifact["report_card"]["interval_outcome_count_total"] == 2
     assert artifact["report_card"]["interval_covered_count_total"] == 2
     assert artifact["report_card"]["outcome_interval_coverage_rate"] == 1.0
+
+
+def test_app_record_outcomes_command_attaches_observed_rul_csv(tmp_path, capsys) -> None:
+    workspace = _write_fake_workspace(tmp_path / "quickstart")
+    database_path = tmp_path / "app.sqlite"
+    seed_quickstart_workspace(database_path, workspace)
+    run_id = _write_prediction_run_for_artifact(
+        tmp_path,
+        database_path=database_path,
+        artifact_id="fd001-demo",
+    )
+    loaded_before = load_prediction_run(database_path, run_id)
+    assert loaded_before is not None
+    outcomes_csv = tmp_path / "outcomes.csv"
+    pd.DataFrame(
+        {
+            "unit_number": [
+                row["unit_number"] for row in loaded_before["predictions"]
+            ],
+            "actual_rul": [
+                row["predicted_rul"] for row in loaded_before["predictions"]
+            ],
+        }
+    ).to_csv(outcomes_csv, index=False)
+
+    exit_code = main(
+        [
+            "app-record-outcomes",
+            "--database",
+            str(database_path),
+            "--run-id",
+            run_id,
+            "--outcomes-csv",
+            str(outcomes_csv),
+            "--source-name",
+            "verified_outcomes.csv",
+            "--actor",
+            "reliability-engineer",
+            "--observed-at-utc",
+            "2026-01-01T00:00:00+00:00",
+        ]
+    )
+    output = capsys.readouterr().out
+    loaded_after = load_prediction_run(database_path, run_id)
+
+    assert exit_code == 0
+    assert f"database={database_path}" in output
+    assert f"run_id={run_id}" in output
+    assert f"outcomes_csv={outcomes_csv}" in output
+    assert "outcome_count=2" in output
+    assert "event_id=event-" in output
+    assert "prediction_outcomes=2" in output
+    assert loaded_after is not None
+    assert loaded_after["predictions"][0]["actual_rul"] is not None
+    assert loaded_after["audit_events"][0]["actor"] == "reliability-engineer"
 
 
 def test_prediction_outcomes_reject_unknown_prediction_units(tmp_path) -> None:

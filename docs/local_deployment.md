@@ -43,6 +43,24 @@ The console's API target can be overridden with
 The console reads the same API key environment variable and sends it on
 API-backed prediction requests.
 
+## Outcome Imports
+
+Observed RUL outcomes can be attached through the History tab or imported from
+the CLI when a run has later ground truth. The CSV must contain `unit_number`
+and `actual_rul` columns that match units already present in the prediction run.
+
+```powershell
+uv run aerospace-prognostics app-record-outcomes `
+  --database artifacts/app/aerospace_prognostics.sqlite `
+  --run-id run-... `
+  --outcomes-csv artifacts/outcomes/fd001_outcomes.csv `
+  --source-name fd001_outcomes.csv `
+  --actor reliability-engineer
+```
+
+After import, the History and Registry tabs report outcome availability, MAE,
+signed error, and interval coverage against observed RUL.
+
 ```powershell
 $env:AEROSPACE_PROGNOSTICS_API_KEY="replace-this-local-key"
 docker compose up --build
