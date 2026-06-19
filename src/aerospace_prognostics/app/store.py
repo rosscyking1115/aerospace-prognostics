@@ -133,89 +133,66 @@ def seed_quickstart_workspace(
 ) -> dict[str, int]:
     """Seed database records from quickstart model and release evidence files."""
 
+    if not workspace.model_artifact_path.exists():
+        return {"model_artifacts": 0, "release_evidence": 0}
+    return register_model_artifact_evidence(
+        database_path,
+        model_artifact_path=workspace.model_artifact_path,
+        inspection=workspace.artifact_inspection or {},
+        inspection_source_path=workspace.artifact_inspection_path,
+        release_evidence=_workspace_evidence_without_inspection(workspace),
+    )
+
+
+def register_model_artifact_evidence(
+    database_path: str | Path,
+    *,
+    model_artifact_path: str | Path,
+    inspection: dict[str, Any],
+    inspection_source_path: str | Path | None = None,
+    release_evidence: Iterable[tuple[str, str | Path, dict[str, Any] | None]] = (),
+) -> dict[str, int | str]:
+    """Register one model artifact and optional JSON release evidence."""
+
+    artifact_path = Path(model_artifact_path)
+    if not artifact_path.exists():
+        raise FileNotFoundError(f"model artifact not found: {artifact_path}")
     db_path = initialize_app_database(database_path)
-    inserted = {"model_artifacts": 0, "release_evidence": 0}
-    artifact_id = _artifact_id_from_workspace(workspace)
+    inserted: dict[str, int | str] = {
+        "artifact_id": _artifact_id_from_inspection(inspection, artifact_path),
+        "model_artifacts": 0,
+        "release_evidence": 0,
+    }
     timestamp = _now()
     with _connect(db_path) as connection:
-        if workspace.model_artifact_path.exists():
-            inspection = workspace.artifact_inspection or {}
-            identity = inspection.get("artifact_identity")
-            identity = identity if isinstance(identity, dict) else {}
-            model = inspection.get("model")
-            model = model if isinstance(model, dict) else {}
-            promotion = inspection.get("promotion")
-            promotion = promotion if isinstance(promotion, dict) else {}
-            connection.execute(
-                """
-                insert into model_artifacts (
-                    artifact_id,
-                    artifact_path,
-                    artifact_sha256,
-                    dataset,
-                    subset,
-                    model_name,
-                    schema_version,
-                    stage,
-                    inspection_json,
-                    created_at_utc
-                )
-                values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                on conflict(artifact_id) do update set
-                    artifact_path = excluded.artifact_path,
-                    artifact_sha256 = excluded.artifact_sha256,
-                    dataset = excluded.dataset,
-                    subset = excluded.subset,
-                    model_name = excluded.model_name,
-                    schema_version = excluded.schema_version,
-                    stage = excluded.stage,
-                    inspection_json = excluded.inspection_json
-                """,
-                (
-                    artifact_id,
-                    str(workspace.model_artifact_path),
-                    _file_sha256(workspace.model_artifact_path),
-                    model.get("dataset"),
-                    model.get("subset"),
-                    model.get("model_name"),
-                    identity.get("schema_version"),
-                    promotion.get("stage"),
-                    _json_dumps(inspection),
-                    timestamp,
-                ),
+        _upsert_model_artifact(
+            connection,
+            artifact_id=str(inserted["artifact_id"]),
+            artifact_path=artifact_path,
+            inspection=inspection,
+            timestamp=timestamp,
+        )
+        inserted["model_artifacts"] = 1
+        evidence_items = list(release_evidence)
+        if inspection_source_path is not None:
+            evidence_items.insert(
+                0,
+                ("artifact_inspection", Path(inspection_source_path), inspection),
             )
-            inserted["model_artifacts"] = 1
-
-        for evidence_type, path, payload in _workspace_evidence(workspace):
-            if payload is None or not path.exists():
+        for evidence_type, path, payload in evidence_items:
+            evidence_path = Path(path)
+            if payload is None or not evidence_path.exists():
                 continue
-            evidence_id = f"{evidence_type}:{artifact_id}:{_file_sha256(path)}"
-            status = payload.get("status") if isinstance(payload.get("status"), str) else None
-            cursor = connection.execute(
-                """
-                insert into release_evidence (
-                    evidence_id,
-                    artifact_id,
-                    evidence_type,
-                    source_path,
-                    status,
-                    payload_json,
-                    created_at_utc
+            inserted["release_evidence"] = int(inserted["release_evidence"]) + (
+                _insert_release_evidence(
+                    connection,
+                    artifact_id=str(inserted["artifact_id"]),
+                    evidence_type=evidence_type,
+                    path=evidence_path,
+                    payload=payload,
+                    timestamp=timestamp,
                 )
-                values (?, ?, ?, ?, ?, ?, ?)
-                on conflict(evidence_id) do nothing
-                """,
-                (
-                    evidence_id,
-                    artifact_id,
-                    evidence_type,
-                    str(path),
-                    status,
-                    _json_dumps(payload),
-                    timestamp,
-                ),
             )
-            inserted["release_evidence"] += max(0, cursor.rowcount)
     return inserted
 
 
@@ -1005,22 +982,112 @@ def _insert_prediction_run_event(
     return event_id
 
 
-def _workspace_evidence(
+def _upsert_model_artifact(
+    connection: sqlite3.Connection,
+    *,
+    artifact_id: str,
+    artifact_path: Path,
+    inspection: dict[str, Any],
+    timestamp: str,
+) -> None:
+    identity = inspection.get("artifact_identity")
+    identity = identity if isinstance(identity, dict) else {}
+    model = inspection.get("model")
+    model = model if isinstance(model, dict) else {}
+    promotion = inspection.get("promotion")
+    promotion = promotion if isinstance(promotion, dict) else {}
+    connection.execute(
+        """
+        insert into model_artifacts (
+            artifact_id,
+            artifact_path,
+            artifact_sha256,
+            dataset,
+            subset,
+            model_name,
+            schema_version,
+            stage,
+            inspection_json,
+            created_at_utc
+        )
+        values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        on conflict(artifact_id) do update set
+            artifact_path = excluded.artifact_path,
+            artifact_sha256 = excluded.artifact_sha256,
+            dataset = excluded.dataset,
+            subset = excluded.subset,
+            model_name = excluded.model_name,
+            schema_version = excluded.schema_version,
+            stage = excluded.stage,
+            inspection_json = excluded.inspection_json
+        """,
+        (
+            artifact_id,
+            str(artifact_path),
+            _file_sha256(artifact_path),
+            model.get("dataset"),
+            model.get("subset"),
+            model.get("model_name"),
+            identity.get("schema_version"),
+            promotion.get("stage"),
+            _json_dumps(inspection),
+            timestamp,
+        ),
+    )
+
+
+def _insert_release_evidence(
+    connection: sqlite3.Connection,
+    *,
+    artifact_id: str,
+    evidence_type: str,
+    path: Path,
+    payload: dict[str, Any],
+    timestamp: str,
+) -> int:
+    evidence_id = f"{evidence_type}:{artifact_id}:{_file_sha256(path)}"
+    status = payload.get("status") if isinstance(payload.get("status"), str) else None
+    cursor = connection.execute(
+        """
+        insert into release_evidence (
+            evidence_id,
+            artifact_id,
+            evidence_type,
+            source_path,
+            status,
+            payload_json,
+            created_at_utc
+        )
+        values (?, ?, ?, ?, ?, ?, ?)
+        on conflict(evidence_id) do nothing
+        """,
+        (
+            evidence_id,
+            artifact_id,
+            evidence_type,
+            str(path),
+            status,
+            _json_dumps(payload),
+            timestamp,
+        ),
+    )
+    return max(0, cursor.rowcount)
+
+
+def _workspace_evidence_without_inspection(
     workspace: QuickstartWorkspace,
 ) -> Iterable[tuple[str, Path, dict[str, Any] | None]]:
-    yield "artifact_inspection", workspace.artifact_inspection_path, workspace.artifact_inspection
     yield "release_bundle", workspace.release_bundle_path, workspace.release_bundle
     yield "release_provenance", workspace.provenance_path, workspace.provenance
     yield "promotion_report", workspace.promotion_report_path, workspace.promotion_report
     yield "dashboard_payload", workspace.dashboard_payload_path, workspace.dashboard_payload
 
 
-def _artifact_id_from_workspace(workspace: QuickstartWorkspace) -> str:
-    inspection = workspace.artifact_inspection or {}
+def _artifact_id_from_inspection(inspection: dict[str, Any], artifact_path: Path) -> str:
     identity = inspection.get("artifact_identity")
     if isinstance(identity, dict) and identity.get("artifact_id"):
         return str(identity["artifact_id"])
-    return f"artifact-{_sha256_text(str(workspace.model_artifact_path))[:16]}"
+    return f"artifact-{_sha256_text(str(artifact_path))[:16]}"
 
 
 def _prediction_rows(prediction_document: dict[str, Any]) -> list[dict[str, Any]]:

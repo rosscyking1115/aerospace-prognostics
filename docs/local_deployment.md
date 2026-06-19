@@ -43,6 +43,24 @@ The console's API target can be overridden with
 The console reads the same API key environment variable and sends it on
 API-backed prediction requests.
 
+## Custom Artifact Registration
+
+Generated model artifacts and release evidence can be registered without using
+the quickstart seeding path. The model artifact and inspection JSON are
+required; release bundle, provenance, promotion, and dashboard payload JSON
+files are optional and appear in the Registry and Evidence views when present.
+
+```powershell
+uv run aerospace-prognostics app-register-artifact `
+  --database artifacts/app/aerospace_prognostics.sqlite `
+  --model-artifact artifacts/models/cmapss_fd001_hgb_policy.joblib `
+  --inspection-json artifacts/models/cmapss_fd001_hgb_policy_inspection.json `
+  --release-bundle-json artifacts/release/cmapss_fd001_release_bundle.json `
+  --provenance-json artifacts/release/cmapss_fd001_provenance.json `
+  --promotion-json artifacts/models/cmapss_fd001_hgb_policy_promotion.json `
+  --dashboard-payload-json artifacts/dashboard/fleet_payload.json
+```
+
 ## Outcome Imports
 
 Observed RUL outcomes can be attached through the History tab or imported from

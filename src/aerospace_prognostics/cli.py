@@ -21,6 +21,7 @@ from aerospace_prognostics.app.store import (
     export_prediction_run_evidence,
     initialize_app_database,
     record_prediction_outcomes,
+    register_model_artifact_evidence,
     seed_quickstart_workspace,
 )
 from aerospace_prognostics.data.cmapss import CMAPSS_SUBSETS, load_cmapss_subset
@@ -195,6 +196,22 @@ def _build_parser() -> argparse.ArgumentParser:
         default=Path("artifacts") / "quickstart_cmapss",
     )
     app_init_db.add_argument("--no-seed-quickstart", action="store_true")
+
+    app_register_artifact = subparsers.add_parser(
+        "app-register-artifact",
+        help="Register a model artifact and release evidence in the local app database",
+    )
+    app_register_artifact.add_argument(
+        "--database",
+        type=Path,
+        default=Path("artifacts") / "app" / "aerospace_prognostics.sqlite",
+    )
+    app_register_artifact.add_argument("--model-artifact", type=Path, required=True)
+    app_register_artifact.add_argument("--inspection-json", type=Path, required=True)
+    app_register_artifact.add_argument("--release-bundle-json", type=Path)
+    app_register_artifact.add_argument("--provenance-json", type=Path)
+    app_register_artifact.add_argument("--promotion-json", type=Path)
+    app_register_artifact.add_argument("--dashboard-payload-json", type=Path)
 
     app_record_outcomes = subparsers.add_parser(
         "app-record-outcomes",
@@ -1256,6 +1273,35 @@ def main(argv: list[str] | None = None) -> int:
         print(f"prediction_runs={summary['prediction_runs']}")
         print(f"predictions={summary['predictions']}")
         print(f"prediction_outcomes={summary['prediction_outcomes']}")
+        return 0
+
+    if args.command == "app-register-artifact":
+        inspection = _read_json_file(args.inspection_json)
+        evidence_files = (
+            ("release_bundle", args.release_bundle_json),
+            ("release_provenance", args.provenance_json),
+            ("promotion_report", args.promotion_json),
+            ("dashboard_payload", args.dashboard_payload_json),
+        )
+        result = register_model_artifact_evidence(
+            args.database,
+            model_artifact_path=args.model_artifact,
+            inspection=inspection,
+            inspection_source_path=args.inspection_json,
+            release_evidence=tuple(
+                (evidence_type, path, _read_json_file(path))
+                for evidence_type, path in evidence_files
+                if path is not None
+            ),
+        )
+        summary = database_summary(args.database)
+        print(f"database={args.database}")
+        print(f"artifact_id={result['artifact_id']}")
+        print(f"model_artifact={args.model_artifact}")
+        print(f"model_artifacts_registered={result['model_artifacts']}")
+        print(f"release_evidence_registered={result['release_evidence']}")
+        print(f"model_artifacts={summary['model_artifacts']}")
+        print(f"release_evidence={summary['release_evidence']}")
         return 0
 
     if args.command == "app-record-outcomes":
@@ -3242,6 +3288,13 @@ def _write_deep_history_json(
 def _write_json_payload(payload: object, path: Path) -> None:
     output_path = _prepare_output_path(path)
     output_path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n")
+
+
+def _read_json_file(path: Path) -> dict[str, object]:
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(payload, dict):
+        raise ValueError(f"JSON file must contain an object: {path}")
+    return payload
 
 
 def _prepare_output_path(path: Path) -> Path:

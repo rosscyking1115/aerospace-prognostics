@@ -19,6 +19,7 @@ from aerospace_prognostics.app.store import (
     record_prediction_outcomes,
     record_prediction_run,
     record_prediction_run_event,
+    register_model_artifact_evidence,
     seed_quickstart_workspace,
 )
 from aerospace_prognostics.cli import main
@@ -75,6 +76,77 @@ def test_seed_quickstart_workspace_persists_model_and_evidence(tmp_path) -> None
     assert second_insert["release_evidence"] == 0
     assert summary["model_artifacts"] == 1
     assert summary["release_evidence"] == 5
+
+
+def test_register_model_artifact_evidence_persists_custom_artifact(tmp_path) -> None:
+    workspace = _write_fake_workspace(tmp_path / "custom_artifact")
+    database_path = tmp_path / "app.sqlite"
+
+    result = register_model_artifact_evidence(
+        database_path,
+        model_artifact_path=workspace.model_artifact_path,
+        inspection=workspace.artifact_inspection,
+        inspection_source_path=workspace.artifact_inspection_path,
+        release_evidence=(
+            ("release_bundle", workspace.release_bundle_path, workspace.release_bundle),
+            ("promotion_report", workspace.promotion_report_path, workspace.promotion_report),
+        ),
+    )
+    loaded = load_model_artifact(database_path, "fd001-demo")
+    summary = database_summary(database_path)
+
+    assert result["artifact_id"] == "fd001-demo"
+    assert result["model_artifacts"] == 1
+    assert result["release_evidence"] == 3
+    assert summary["model_artifacts"] == 1
+    assert summary["release_evidence"] == 3
+    assert loaded is not None
+    assert loaded["artifact"]["artifact_id"] == "fd001-demo"
+    assert loaded["artifact"]["artifact_sha256"] is not None
+    assert {
+        evidence["evidence_type"] for evidence in loaded["release_evidence"]
+    } == {"artifact_inspection", "promotion_report", "release_bundle"}
+
+
+def test_app_register_artifact_command_persists_custom_evidence(
+    tmp_path,
+    capsys,
+) -> None:
+    workspace = _write_fake_workspace(tmp_path / "custom_artifact")
+    database_path = tmp_path / "app.sqlite"
+
+    exit_code = main(
+        [
+            "app-register-artifact",
+            "--database",
+            str(database_path),
+            "--model-artifact",
+            str(workspace.model_artifact_path),
+            "--inspection-json",
+            str(workspace.artifact_inspection_path),
+            "--release-bundle-json",
+            str(workspace.release_bundle_path),
+            "--provenance-json",
+            str(workspace.provenance_path),
+            "--promotion-json",
+            str(workspace.promotion_report_path),
+            "--dashboard-payload-json",
+            str(workspace.dashboard_payload_path),
+        ]
+    )
+    output = capsys.readouterr().out
+    loaded = load_model_artifact(database_path, "fd001-demo")
+
+    assert exit_code == 0
+    assert f"database={database_path}" in output
+    assert "artifact_id=fd001-demo" in output
+    assert f"model_artifact={workspace.model_artifact_path}" in output
+    assert "model_artifacts_registered=1" in output
+    assert "release_evidence_registered=5" in output
+    assert "model_artifacts=1" in output
+    assert "release_evidence=5" in output
+    assert loaded is not None
+    assert len(loaded["release_evidence"]) == 5
 
 
 def test_model_registry_lists_artifacts_evidence_and_prediction_usage(tmp_path) -> None:
