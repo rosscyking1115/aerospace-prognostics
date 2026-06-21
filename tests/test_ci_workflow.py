@@ -35,6 +35,29 @@ def test_ci_uploads_reviewable_release_evidence_without_model_binary() -> None:
     assert "fd001_input.csv" not in upload_step
 
 
+def test_ci_builds_and_smokes_hosted_demo_image() -> None:
+    workflow = _ci_workflow_text()
+
+    demo_build_step = workflow.split("- name: Build hosted demo image", maxsplit=1)[
+        1
+    ].split("- name: Verify hosted demo image contract", maxsplit=1)[0]
+    demo_contract_step = workflow.split(
+        "- name: Verify hosted demo image contract",
+        maxsplit=1,
+    )[1].split("- name: Smoke hosted demo image", maxsplit=1)[0]
+    demo_smoke_step = workflow.split("- name: Smoke hosted demo image", maxsplit=1)[
+        1
+    ].split("- name: Build release candidate bundle", maxsplit=1)[0]
+
+    assert "--file Dockerfile.demo" in demo_build_step
+    assert "--tag aerospace-prognostics-demo:ci" in demo_build_step
+    assert "AEROSPACE_PROGNOSTICS_CONSOLE_READ_ONLY=true" in demo_contract_step
+    assert "find_spec('torch') is None" in demo_contract_step
+    assert "--publish 8502:8501" in demo_smoke_step
+    assert "http://127.0.0.1:8502/_stcore/health" in demo_smoke_step
+    assert "docker logs" in demo_smoke_step
+
+
 def _ci_workflow_text() -> str:
     return (
         Path(__file__).resolve().parents[1] / ".github" / "workflows" / "ci.yml"
