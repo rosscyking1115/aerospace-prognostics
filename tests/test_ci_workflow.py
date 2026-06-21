@@ -38,6 +38,10 @@ def test_ci_uploads_reviewable_release_evidence_without_model_binary() -> None:
 def test_ci_builds_and_smokes_hosted_demo_image() -> None:
     workflow = _ci_workflow_text()
 
+    cleanup_step = workflow.split(
+        "- name: Free serving image before hosted demo image",
+        maxsplit=1,
+    )[1].split("- name: Build hosted demo image", maxsplit=1)[0]
     demo_build_step = workflow.split("- name: Build hosted demo image", maxsplit=1)[
         1
     ].split("- name: Verify hosted demo image contract", maxsplit=1)[0]
@@ -45,10 +49,10 @@ def test_ci_builds_and_smokes_hosted_demo_image() -> None:
         "- name: Verify hosted demo image contract",
         maxsplit=1,
     )[1].split("- name: Smoke hosted demo image", maxsplit=1)[0]
-    demo_smoke_step = workflow.split("- name: Smoke hosted demo image", maxsplit=1)[
-        1
-    ].split("- name: Build release candidate bundle", maxsplit=1)[0]
+    demo_smoke_step = workflow.split("- name: Smoke hosted demo image", maxsplit=1)[1]
 
+    assert "docker image rm aerospace-prognostics:ci" in cleanup_step
+    assert "docker builder prune --force" in cleanup_step
     assert "--file Dockerfile.demo" in demo_build_step
     assert "--tag aerospace-prognostics-demo:ci" in demo_build_step
     assert "AEROSPACE_PROGNOSTICS_CONSOLE_READ_ONLY=true" in demo_contract_step

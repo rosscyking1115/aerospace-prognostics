@@ -70,43 +70,6 @@ jobs:
             --expected-revision "$GITHUB_SHA" \
             --check-torch-absent
 
-      - name: Build hosted demo image
-        run: |
-          build_date="$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
-          version="$(uv run python -c "import tomllib; print(tomllib.load(open('pyproject.toml', 'rb'))['project']['version'])")"
-          docker build \
-            --file Dockerfile.demo \
-            --tag aerospace-prognostics-demo:ci \
-            --build-arg BUILD_DATE="$build_date" \
-            --build-arg SOURCE="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY" \
-            --build-arg VERSION="$version" \
-            --build-arg VCS_REF="$GITHUB_SHA" \
-            .
-
-      - name: Verify hosted demo image contract
-        run: |
-          env_config="$(docker image inspect aerospace-prognostics-demo:ci --format '{{json .Config.Env}}')"
-          echo "$env_config"
-          echo "$env_config" | grep AEROSPACE_PROGNOSTICS_CONSOLE_READ_ONLY=true
-          docker run --rm aerospace-prognostics-demo:ci python -c "import importlib.util; assert importlib.util.find_spec('torch') is None"
-
-      - name: Smoke hosted demo image
-        run: |
-          container_id=$(docker run --detach --publish 8502:8501 aerospace-prognostics-demo:ci)
-          trap 'docker rm --force "$container_id"' EXIT
-          response=""
-          for attempt in {1..45}; do
-            if response=$(curl --fail --silent http://127.0.0.1:8502/_stcore/health); then
-              break
-            fi
-            sleep 1
-          done
-          echo "$response"
-          if [ -z "$response" ]; then
-            docker logs "$container_id"
-            exit 1
-          fi
-
       - name: Build release candidate bundle
         run: |
           uv run aerospace-prognostics cmapss-release-bundle \
@@ -187,3 +150,45 @@ jobs:
             --base-url http://127.0.0.1:8001 \
             --input-csv artifacts/ci_release_evidence/predictions/fd001_input.csv \
             --api-key ci-secret
+
+      - name: Free serving image before hosted demo image
+        run: |
+          docker image rm aerospace-prognostics:ci
+          docker builder prune --force
+
+      - name: Build hosted demo image
+        run: |
+          build_date="$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+          version="$(uv run python -c "import tomllib; print(tomllib.load(open('pyproject.toml', 'rb'))['project']['version'])")"
+          docker build \
+            --file Dockerfile.demo \
+            --tag aerospace-prognostics-demo:ci \
+            --build-arg BUILD_DATE="$build_date" \
+            --build-arg SOURCE="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY" \
+            --build-arg VERSION="$version" \
+            --build-arg VCS_REF="$GITHUB_SHA" \
+            .
+
+      - name: Verify hosted demo image contract
+        run: |
+          env_config="$(docker image inspect aerospace-prognostics-demo:ci --format '{{json .Config.Env}}')"
+          echo "$env_config"
+          echo "$env_config" | grep AEROSPACE_PROGNOSTICS_CONSOLE_READ_ONLY=true
+          docker run --rm aerospace-prognostics-demo:ci python -c "import importlib.util; assert importlib.util.find_spec('torch') is None"
+
+      - name: Smoke hosted demo image
+        run: |
+          container_id=$(docker run --detach --publish 8502:8501 aerospace-prognostics-demo:ci)
+          trap 'docker rm --force "$container_id"' EXIT
+          response=""
+          for attempt in {1..45}; do
+            if response=$(curl --fail --silent http://127.0.0.1:8502/_stcore/health); then
+              break
+            fi
+            sleep 1
+          done
+          echo "$response"
+          if [ -z "$response" ]; then
+            docker logs "$container_id"
+            exit 1
+          fi
