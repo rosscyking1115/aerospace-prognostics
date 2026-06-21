@@ -88,7 +88,8 @@ Prioritize these features because they differentiate the project from typical C-
 - [ ] Add architecture diagram and at least two visual result assets.
 - [x] Add a tiny fixture-based quickstart that runs without downloading NASA/JPL data.
 - [x] Publish one release candidate bundle from CI artifacts and document how to inspect it.
-- [ ] Add a dashboard or recorded dashboard demo.
+- [x] Add a dashboard or recorded dashboard demo.
+- [x] Add a self-contained read-only demo image for private hosted review.
 - [ ] Finish Phase 3 uncertainty and physics-informed reporting before making strong public claims.
 - [ ] Add a technical report PDF or long-form markdown report.
 - [ ] Prepare a launch article that explains the engineering and domain choices without overselling the model.

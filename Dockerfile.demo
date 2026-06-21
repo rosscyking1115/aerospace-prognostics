@@ -1,0 +1,45 @@
+FROM python:3.12-slim
+
+ARG BUILD_DATE="unknown"
+ARG SOURCE="https://github.com/rosscyking1115/aerospace-prognostics"
+ARG VERSION="0.1.0"
+ARG VCS_REF="unknown"
+
+LABEL org.opencontainers.image.created="${BUILD_DATE}" \
+    org.opencontainers.image.description="Self-contained read-only demo console for Aerospace Prognostics." \
+    org.opencontainers.image.licenses="UNLICENSED" \
+    org.opencontainers.image.revision="${VCS_REF}" \
+    org.opencontainers.image.source="${SOURCE}" \
+    org.opencontainers.image.title="aerospace-prognostics-demo-console" \
+    org.opencontainers.image.version="${VERSION}"
+
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
+ENV STREAMLIT_SERVER_HEADLESS=true
+ENV AEROSPACE_PROGNOSTICS_CONSOLE_READ_ONLY=true
+
+WORKDIR /app
+
+COPY pyproject.toml uv.lock README.md ./
+COPY src ./src
+
+RUN pip install --no-cache-dir uv \
+    && uv sync --frozen --no-dev \
+    && uv run aerospace-prognostics quickstart-cmapss-demo \
+    && uv run aerospace-prognostics app-init-db \
+        --database artifacts/app/aerospace_prognostics.sqlite \
+        --quickstart-dir artifacts/quickstart_cmapss
+
+RUN useradd --create-home --shell /usr/sbin/nologin appuser \
+    && chown -R appuser:appuser /app
+
+ENV PATH="/app/.venv/bin:${PATH}"
+
+USER appuser
+
+EXPOSE 8501
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
+    CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8501/_stcore/health', timeout=2).read()"
+
+CMD ["streamlit", "run", "src/aerospace_prognostics/app/streamlit_app.py", "--server.address=0.0.0.0", "--server.port=8501", "--server.headless=true", "--browser.gatherUsageStats=false"]

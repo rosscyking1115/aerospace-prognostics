@@ -77,6 +77,12 @@ mode for hosted review and demo deployments.
    - Release artifacts and model binaries kept out of Git and mounted or fetched
      from controlled storage.
 
+Current status: `Dockerfile.demo` builds a self-contained read-only Streamlit
+console image with baked-in quickstart evidence and a seeded SQLite registry.
+This is the first private hosted demo path. It is console-only by design; the
+full local product stack still uses Compose when the API service and console
+need to run together.
+
 5. Professional workflow
    - Model registry view with artifact identity, schema version, promotion status,
      release evidence, prediction usage, report cards, SBOM, provenance, model

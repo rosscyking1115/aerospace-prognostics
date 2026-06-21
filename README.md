@@ -82,6 +82,7 @@ The working plan is tracked in [Aerospace_Prognostics_Project_Plan.md](Aerospace
 
 - Production ML deployment notes: [docs/deployment.md](docs/deployment.md)
 - Local product deployment: [docs/local_deployment.md](docs/local_deployment.md)
+- Hosted read-only demo image: [docs/hosted_demo.md](docs/hosted_demo.md)
 - Repository public-launch strategy: [docs/repo_launch_strategy.md](docs/repo_launch_strategy.md)
 - Product roadmap: [docs/product_roadmap.md](docs/product_roadmap.md)
 
@@ -113,6 +114,15 @@ docker compose up --build
 ```
 
 Then open `http://127.0.0.1:8501` for the console or `http://127.0.0.1:8000/ready` for API readiness. The console System tab shows API health/readiness, mounted model identity, workspace state, and database counts. See [docs/local_deployment.md](docs/local_deployment.md).
+
+For a private hosted read-only console that does not require local bind mounts:
+
+```bash
+docker build -f Dockerfile.demo -t aerospace-prognostics-demo:local .
+docker run --rm -p 8501:8501 aerospace-prognostics-demo:local
+```
+
+See [docs/hosted_demo.md](docs/hosted_demo.md).
 
 Raw telemetry and trained artifacts are intentionally ignored by Git. Keep datasets under `data/` or another documented local path, and record source URLs/checksums when adding download scripts.
 
