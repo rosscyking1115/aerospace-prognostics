@@ -43,6 +43,20 @@ The console's API target can be overridden with
 The console reads the same API key environment variable and sends it on
 API-backed prediction requests.
 
+## Read-Only Console Mode
+
+Set `AEROSPACE_PROGNOSTICS_CONSOLE_READ_ONLY=true` for hosted demos or review
+environments where users should inspect evidence without mutating app state.
+Read-only mode disables telemetry upload, prediction persistence, outcome
+imports, operator decisions, run-evidence exports, and automatic quickstart
+database seeding. Existing dashboards, registry records, evidence, history, and
+downloads remain visible.
+
+```powershell
+$env:AEROSPACE_PROGNOSTICS_CONSOLE_READ_ONLY="true"
+docker compose up --build
+```
+
 ## Custom Artifact Registration
 
 Generated model artifacts and release evidence can be registered without using

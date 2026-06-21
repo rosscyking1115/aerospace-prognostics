@@ -8,9 +8,11 @@ from aerospace_prognostics.app.dashboard_state import (
     predict_cmapss_telemetry,
 )
 from aerospace_prognostics.app.streamlit_app import (
+    READ_ONLY_ENV,
     _artifact_prediction_runs_frame,
     _audit_events_frame,
     _decision_status_index,
+    _env_flag,
     _failed_gates_frame,
     _float_display,
     _model_artifacts_frame,
@@ -232,3 +234,15 @@ def test_decision_status_index_defaults_to_review_required() -> None:
     assert _decision_status_index("accepted") == 1
     assert _decision_status_index(None) == 0
     assert _decision_status_index("unknown") == 0
+
+
+def test_env_flag_parses_read_only_mode(monkeypatch) -> None:
+    monkeypatch.delenv(READ_ONLY_ENV, raising=False)
+    assert _env_flag(READ_ONLY_ENV) is False
+
+    for value in ("1", "true", "YES", "on"):
+        monkeypatch.setenv(READ_ONLY_ENV, value)
+        assert _env_flag(READ_ONLY_ENV) is True
+
+    monkeypatch.setenv(READ_ONLY_ENV, "false")
+    assert _env_flag(READ_ONLY_ENV) is False

@@ -41,6 +41,7 @@ def test_compose_stack_sets_local_api_security_defaults() -> None:
     assert "AEROSPACE_PROGNOSTICS_API_BASE_URL: http://api:8000" in compose
     assert "local-dev-secret" in compose
     assert "AEROSPACE_PROGNOSTICS_RATE_LIMIT_PER_MINUTE:" in compose
+    assert "AEROSPACE_PROGNOSTICS_CONSOLE_READ_ONLY:" in compose
 
 
 def _compose_text() -> str:

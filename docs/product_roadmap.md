@@ -52,10 +52,11 @@ audit log for each run,
 summarize interval availability and width, report outcome-backed MAE/coverage,
 and inspect stored model artifacts with their release evidence, recent
 prediction usage, release-gate report cards, operational interval diagnostics,
-and observed-outcome calibration summaries. Custom model artifact and release
-evidence registration, outcome CSV import, and prediction-run evidence export
-are now available through the CLI, with both outcome import and run evidence
-export also available in the console.
+and observed-outcome calibration summaries. The console can run in read-only
+mode for hosted demos. Custom model artifact and release evidence registration,
+outcome CSV import, and prediction-run evidence export are now available through
+the CLI, with both outcome import and run evidence export also available in the
+console.
 
 3. Local deployment stack
    - Docker Compose with FastAPI inference service, dashboard, mounted model
@@ -67,7 +68,8 @@ Current status: Compose runs `app-db`, `api`, and `console` services from the
 same runtime image. It mounts quickstart model artifacts read-only into the API,
 shares the ignored local `artifacts/` tree with the console and SQLite app
 database, and lets the console probe API health/readiness through the internal
-service URL.
+service URL. The console service exposes an environment-controlled read-only
+mode for hosted review and demo deployments.
 
 4. Hosted deployment
    - Private hosted demo first, then public read-only demo when the repo is ready.

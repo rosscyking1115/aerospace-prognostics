@@ -41,6 +41,7 @@ DEFAULT_EXPORT_DIR = Path("artifacts") / "app_exports"
 DEFAULT_API_BASE_URL = "http://127.0.0.1:8000"
 API_BASE_URL_ENV = "AEROSPACE_PROGNOSTICS_API_BASE_URL"
 API_KEY_ENV = "AEROSPACE_PROGNOSTICS_API_KEY"
+READ_ONLY_ENV = "AEROSPACE_PROGNOSTICS_CONSOLE_READ_ONLY"
 
 
 def main() -> None:
@@ -66,10 +67,13 @@ def main() -> None:
             value=os.getenv(API_BASE_URL_ENV, DEFAULT_API_BASE_URL),
         )
         api_key = st.text_input("API key", value=os.getenv(API_KEY_ENV, ""), type="password")
+        read_only = _env_flag(READ_ONLY_ENV)
         workspace = load_quickstart_workspace(workspace_root)
         initialize_app_database(database_path)
         api_status = check_api_service(api_base_url)
         st.caption(f"Workspace: {workspace.root}")
+        if read_only:
+            st.warning("Read-only console mode is active.")
         if workspace.missing_paths:
             st.warning("Quickstart evidence is incomplete.")
             st.code("uv run aerospace-prognostics quickstart-cmapss-demo")
@@ -77,7 +81,8 @@ def main() -> None:
                 st.caption(f"Missing: {path}")
         else:
             st.success("Quickstart evidence loaded.")
-            seed_quickstart_workspace(database_path, workspace)
+            if not read_only:
+                seed_quickstart_workspace(database_path, workspace)
         summary = database_summary(database_path)
         st.caption(f"Database: {summary['database_path']}")
         st.metric("Prediction runs", summary["prediction_runs"])
@@ -102,9 +107,9 @@ def main() -> None:
     with fleet_tab:
         _render_fleet_tab(st, workspace)
     with predict_tab:
-        _render_predict_tab(st, workspace, database_path, api_status, api_key)
+        _render_predict_tab(st, workspace, database_path, api_status, api_key, read_only)
     with history_tab:
-        _render_history_tab(st, database_path)
+        _render_history_tab(st, database_path, read_only)
     with registry_tab:
         _render_registry_tab(st, database_path)
     with evidence_tab:
@@ -157,9 +162,10 @@ def _render_predict_tab(
     database_path: Path,
     api_status: ApiServiceStatus,
     api_key: str,
+    read_only: bool,
 ) -> None:
     st.subheader("Batch Prediction")
-    uploaded = st.file_uploader("Telemetry CSV", type=["csv"])
+    uploaded = st.file_uploader("Telemetry CSV", type=["csv"], disabled=read_only)
     if uploaded is None and workspace.telemetry_csv_path.exists():
         st.caption(f"Using sample telemetry: {workspace.telemetry_csv_path}")
         telemetry = pd.read_csv(workspace.telemetry_csv_path)
@@ -179,7 +185,7 @@ def _render_predict_tab(
     backend_index = 0 if api_status.is_ready else 1
     backend = st.radio("Inference backend", backend_options, index=backend_index, horizontal=True)
     st.dataframe(telemetry.head(12), use_container_width=True, hide_index=True)
-    if st.button("Run Prediction", type="primary"):
+    if st.button("Run Prediction", type="primary", disabled=read_only):
         if backend == "API service":
             if not api_status.is_ready:
                 st.error("API service is not ready.")
@@ -219,7 +225,7 @@ def _render_predict_tab(
                 st.json(prediction_summary)
 
 
-def _render_history_tab(st: Any, database_path: Path) -> None:
+def _render_history_tab(st: Any, database_path: Path, read_only: bool) -> None:
     st.subheader("Prediction History")
     runs = list_prediction_runs(database_path, limit=100)
     if not runs:
@@ -295,16 +301,22 @@ def _render_history_tab(st: Any, database_path: Path) -> None:
         st.subheader("Monitoring")
         st.json(run.get("monitoring", {}))
 
-    outcome_file = st.file_uploader("Outcome CSV", type=["csv"], key=f"outcomes-{selected_run_id}")
+    outcome_file = st.file_uploader(
+        "Outcome CSV",
+        type=["csv"],
+        key=f"outcomes-{selected_run_id}",
+        disabled=read_only,
+    )
     outcome_columns = st.columns([2, 1])
     with outcome_columns[0]:
         outcome_source = st.text_input(
             "Outcome Source",
             value=outcome_file.name if outcome_file is not None else "outcomes.csv",
+            disabled=read_only,
         )
     with outcome_columns[1]:
-        outcome_actor = st.text_input("Outcome Actor", value="operator")
-    if st.button("Attach Outcomes", disabled=outcome_file is None):
+        outcome_actor = st.text_input("Outcome Actor", value="operator", disabled=read_only)
+    if st.button("Attach Outcomes", disabled=read_only or outcome_file is None):
         if outcome_file is None:
             st.warning("No outcome CSV loaded.")
         else:
@@ -329,12 +341,17 @@ def _render_history_tab(st: Any, database_path: Path) -> None:
             "Decision",
             ["review_required", "accepted", "watch", "escalated", "rejected"],
             index=_decision_status_index(run.get("decision_status")),
+            disabled=read_only,
         )
     with decision_columns[1]:
-        decision_actor = st.text_input("Actor", value="operator")
+        decision_actor = st.text_input("Actor", value="operator", disabled=read_only)
     with decision_columns[2]:
-        decision_note = st.text_input("Note", value=str(run.get("decision_note") or ""))
-    if st.button("Record Decision"):
+        decision_note = st.text_input(
+            "Note",
+            value=str(run.get("decision_note") or ""),
+            disabled=read_only,
+        )
+    if st.button("Record Decision", disabled=read_only):
         record_prediction_run_event(
             database_path,
             run_id=selected_run_id,
@@ -390,7 +407,7 @@ def _render_history_tab(st: Any, database_path: Path) -> None:
             mime="text/csv",
         )
     with export_columns[1]:
-        if st.button("Export Run Evidence"):
+        if st.button("Export Run Evidence", disabled=read_only):
             try:
                 result = export_prediction_run_evidence(
                     database_path,
@@ -890,6 +907,13 @@ def _percent_frame_columns(frame: pd.DataFrame, columns: list[str]) -> pd.DataFr
         if column in frame:
             frame[column] = frame[column] * 100
     return frame
+
+
+def _env_flag(name: str) -> bool:
+    value = os.getenv(name)
+    if value is None:
+        return False
+    return value.strip().lower() in {"1", "true", "yes", "on"}
 
 
 def _api_status_label(status: ApiServiceStatus) -> str:
