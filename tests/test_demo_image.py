@@ -7,8 +7,8 @@ def test_demo_dockerfile_bakes_seeded_read_only_console() -> None:
     dockerfile = _repo_root().joinpath("Dockerfile.demo").read_text(encoding="utf-8")
 
     assert "AEROSPACE_PROGNOSTICS_CONSOLE_READ_ONLY=true" in dockerfile
-    assert "uv run aerospace-prognostics quickstart-cmapss-demo" in dockerfile
-    assert "uv run aerospace-prognostics app-init-db" in dockerfile
+    assert "uv run --no-sync aerospace-prognostics quickstart-cmapss-demo" in dockerfile
+    assert "uv run --no-sync aerospace-prognostics app-init-db" in dockerfile
     assert "--quickstart-dir artifacts/quickstart_cmapss" in dockerfile
     assert "EXPOSE 8501" in dockerfile
     assert "streamlit" in dockerfile
