@@ -25,5 +25,19 @@ def test_hosted_demo_docs_describe_private_read_only_deployment() -> None:
     assert "/_stcore/health" in docs
 
 
+def test_demo_image_contract_script_validates_seeded_state() -> None:
+    script = _repo_root().joinpath("scripts", "ci_demo_image_contract.py").read_text(
+        encoding="utf-8"
+    )
+
+    assert "load_quickstart_workspace" in script
+    assert "database_summary" in script
+    assert '"model_artifacts": 1' in script
+    assert '"release_evidence": 5' in script
+    assert "expected {key}>={expected}" in script
+    assert "artifact evidence_count>=5" in script
+    assert "demo_image_contract=ok" in script
+
+
 def _repo_root() -> Path:
     return Path(__file__).resolve().parents[1]

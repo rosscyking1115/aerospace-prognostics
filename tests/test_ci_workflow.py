@@ -57,6 +57,8 @@ def test_ci_builds_and_smokes_hosted_demo_image() -> None:
     assert "--tag aerospace-prognostics-demo:ci" in demo_build_step
     assert "AEROSPACE_PROGNOSTICS_CONSOLE_READ_ONLY=true" in demo_contract_step
     assert "find_spec('torch') is None" in demo_contract_step
+    assert '--volume "$PWD/scripts:/ci-scripts:ro"' in demo_contract_step
+    assert "python /ci-scripts/ci_demo_image_contract.py" in demo_contract_step
     assert "--publish 8502:8501" in demo_smoke_step
     assert "http://127.0.0.1:8502/_stcore/health" in demo_smoke_step
     assert "docker logs" in demo_smoke_step
