@@ -8,7 +8,7 @@ Streamlit console in read-only mode.
 
 ```powershell
 docker build -f Dockerfile.demo -t aerospace-prognostics-demo:local .
-docker run --rm -p 8501:8501 aerospace-prognostics-demo:local
+docker run --rm --read-only --tmpfs /tmp:rw,nosuid,nodev,noexec,size=128m -p 8501:8501 aerospace-prognostics-demo:local
 ```
 
 Then open `http://127.0.0.1:8501`.
@@ -40,8 +40,10 @@ visitors into database writers.
 4. Use `/_stcore/health` as the health check path.
 5. Keep `AEROSPACE_PROGNOSTICS_CONSOLE_READ_ONLY=true` in the service
    environment, even though the image already sets it by default.
-6. Add platform authentication or an allowlist for private review links.
-7. Rebuild the image whenever the quickstart evidence contract changes.
+6. Run the container filesystem as read-only and provide a writable tmpfs at
+   `/tmp` for framework cache files.
+7. Add platform authentication or an allowlist for private review links.
+8. Rebuild the image whenever the quickstart evidence contract changes.
 
 For the fuller local product stack with both FastAPI and Streamlit, use
 `compose.yaml` instead. The demo image is intentionally single-service so it can

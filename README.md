@@ -119,7 +119,7 @@ For a private hosted read-only console that does not require local bind mounts:
 
 ```bash
 docker build -f Dockerfile.demo -t aerospace-prognostics-demo:local .
-docker run --rm -p 8501:8501 aerospace-prognostics-demo:local
+docker run --rm --read-only --tmpfs /tmp:rw,nosuid,nodev,noexec,size=128m -p 8501:8501 aerospace-prognostics-demo:local
 ```
 
 See [docs/hosted_demo.md](docs/hosted_demo.md).

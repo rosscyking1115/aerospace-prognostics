@@ -69,7 +69,8 @@ def main() -> None:
         api_key = st.text_input("API key", value=os.getenv(API_KEY_ENV, ""), type="password")
         read_only = _env_flag(READ_ONLY_ENV)
         workspace = load_quickstart_workspace(workspace_root)
-        initialize_app_database(database_path)
+        if not read_only:
+            initialize_app_database(database_path)
         api_status = check_api_service(api_base_url)
         st.caption(f"Workspace: {workspace.root}")
         if read_only:
@@ -83,7 +84,11 @@ def main() -> None:
             st.success("Quickstart evidence loaded.")
             if not read_only:
                 seed_quickstart_workspace(database_path, workspace)
-        summary = database_summary(database_path)
+        try:
+            summary = database_summary(database_path, read_only=read_only)
+        except (FileNotFoundError, RuntimeError) as exc:
+            st.error(f"Database is not available: {exc}")
+            return
         st.caption(f"Database: {summary['database_path']}")
         st.metric("Prediction runs", summary["prediction_runs"])
         st.metric("Stored predictions", summary["predictions"])
@@ -111,11 +116,11 @@ def main() -> None:
     with history_tab:
         _render_history_tab(st, database_path, read_only)
     with registry_tab:
-        _render_registry_tab(st, database_path)
+        _render_registry_tab(st, database_path, read_only)
     with evidence_tab:
-        _render_evidence_tab(st, workspace, database_path)
+        _render_evidence_tab(st, workspace, database_path, read_only)
     with system_tab:
-        _render_system_tab(st, workspace, database_path, api_status)
+        _render_system_tab(st, workspace, database_path, api_status, read_only)
     with roadmap_tab:
         _render_roadmap_tab(st)
 
@@ -227,7 +232,7 @@ def _render_predict_tab(
 
 def _render_history_tab(st: Any, database_path: Path, read_only: bool) -> None:
     st.subheader("Prediction History")
-    runs = list_prediction_runs(database_path, limit=100)
+    runs = list_prediction_runs(database_path, limit=100, read_only=read_only)
     if not runs:
         st.info("No prediction runs stored yet.")
         return
@@ -271,7 +276,7 @@ def _render_history_tab(st: Any, database_path: Path, read_only: bool) -> None:
     selected_index = run_ids.index(selected_default) if selected_default in run_ids else 0
     selected_run_id = st.selectbox("Run", run_ids, index=selected_index)
     st.session_state["selected_prediction_run_id"] = selected_run_id
-    selected = load_prediction_run(database_path, selected_run_id)
+    selected = load_prediction_run(database_path, selected_run_id, read_only=read_only)
     if selected is None:
         st.warning("Selected run is no longer available.")
         return
@@ -439,9 +444,9 @@ def _render_history_tab(st: Any, database_path: Path, read_only: bool) -> None:
         )
 
 
-def _render_registry_tab(st: Any, database_path: Path) -> None:
+def _render_registry_tab(st: Any, database_path: Path, read_only: bool) -> None:
     st.subheader("Model Registry")
-    artifacts = list_model_artifacts(database_path, limit=100)
+    artifacts = list_model_artifacts(database_path, limit=100, read_only=read_only)
     if not artifacts:
         st.info("No model artifacts stored yet.")
         return
@@ -466,7 +471,11 @@ def _render_registry_tab(st: Any, database_path: Path) -> None:
 
     artifact_ids = [str(artifact["artifact_id"]) for artifact in artifacts]
     selected_artifact_id = st.selectbox("Artifact", artifact_ids)
-    selected = load_model_artifact(database_path, selected_artifact_id)
+    selected = load_model_artifact(
+        database_path,
+        selected_artifact_id,
+        read_only=read_only,
+    )
     if selected is None:
         st.warning("Selected artifact is no longer available.")
         return
@@ -649,12 +658,17 @@ def _render_registry_tab(st: Any, database_path: Path) -> None:
         )
 
 
-def _render_evidence_tab(st: Any, workspace: QuickstartWorkspace, database_path: Path) -> None:
+def _render_evidence_tab(
+    st: Any,
+    workspace: QuickstartWorkspace,
+    database_path: Path,
+    read_only: bool,
+) -> None:
     inspection = workspace.artifact_inspection or {}
     release_bundle = workspace.release_bundle or {}
     provenance = workspace.provenance or {}
     promotion_report = workspace.promotion_report or {}
-    summary = database_summary(database_path)
+    summary = database_summary(database_path, read_only=read_only)
 
     columns = st.columns(4)
     identity = inspection.get("artifact_identity")
@@ -695,9 +709,10 @@ def _render_system_tab(
     workspace: QuickstartWorkspace,
     database_path: Path,
     api_status: ApiServiceStatus,
+    read_only: bool,
 ) -> None:
     st.subheader("System Status")
-    summary = database_summary(database_path)
+    summary = database_summary(database_path, read_only=read_only)
     columns = st.columns(4)
     columns[0].metric("API Health", _endpoint_status_label(api_status.health))
     columns[1].metric("API Ready", _endpoint_status_label(api_status.readiness))

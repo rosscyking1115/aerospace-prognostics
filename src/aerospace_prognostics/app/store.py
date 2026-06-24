@@ -15,6 +15,16 @@ import pandas as pd
 from aerospace_prognostics.app.dashboard_state import QuickstartWorkspace
 
 SCHEMA_VERSION = "aerospace-prognostics/app-db/v1"
+REQUIRED_TABLES = (
+    "app_metadata",
+    "model_artifacts",
+    "release_evidence",
+    "telemetry_uploads",
+    "prediction_runs",
+    "predictions",
+    "prediction_outcomes",
+    "prediction_run_events",
+)
 
 
 def initialize_app_database(database_path: str | Path) -> Path:
@@ -435,11 +445,12 @@ def list_model_artifacts(
     database_path: str | Path,
     *,
     limit: int = 50,
+    read_only: bool = False,
 ) -> list[dict[str, Any]]:
     """Return model artifacts with evidence and prediction usage counts."""
 
-    db_path = initialize_app_database(database_path)
-    with _connect(db_path) as connection:
+    db_path = _prepare_database(database_path, read_only=read_only)
+    with _connect(db_path, read_only=read_only) as connection:
         connection.row_factory = sqlite3.Row
         rows = connection.execute(
             """
@@ -473,11 +484,13 @@ def list_model_artifacts(
 def load_model_artifact(
     database_path: str | Path,
     artifact_id: str,
+    *,
+    read_only: bool = False,
 ) -> dict[str, Any] | None:
     """Load one model artifact with release evidence and prediction usage."""
 
-    db_path = initialize_app_database(database_path)
-    with _connect(db_path) as connection:
+    db_path = _prepare_database(database_path, read_only=read_only)
+    with _connect(db_path, read_only=read_only) as connection:
         connection.row_factory = sqlite3.Row
         artifact_row = connection.execute(
             """
@@ -592,11 +605,12 @@ def list_prediction_runs(
     database_path: str | Path,
     *,
     limit: int = 50,
+    read_only: bool = False,
 ) -> list[dict[str, Any]]:
     """Return recent prediction runs with upload and aggregate prediction context."""
 
-    db_path = initialize_app_database(database_path)
-    with _connect(db_path) as connection:
+    db_path = _prepare_database(database_path, read_only=read_only)
+    with _connect(db_path, read_only=read_only) as connection:
         connection.row_factory = sqlite3.Row
         rows = connection.execute(
             """
@@ -688,11 +702,16 @@ def list_prediction_runs(
     return [_run_summary_from_row(row) for row in rows]
 
 
-def load_prediction_run(database_path: str | Path, run_id: str) -> dict[str, Any] | None:
+def load_prediction_run(
+    database_path: str | Path,
+    run_id: str,
+    *,
+    read_only: bool = False,
+) -> dict[str, Any] | None:
     """Load one prediction run and all persisted prediction rows."""
 
-    db_path = initialize_app_database(database_path)
-    with _connect(db_path) as connection:
+    db_path = _prepare_database(database_path, read_only=read_only)
+    with _connect(db_path, read_only=read_only) as connection:
         connection.row_factory = sqlite3.Row
         run_row = connection.execute(
             """
@@ -856,11 +875,15 @@ def export_prediction_run_evidence(
     }
 
 
-def database_summary(database_path: str | Path) -> dict[str, int | str]:
+def database_summary(
+    database_path: str | Path,
+    *,
+    read_only: bool = False,
+) -> dict[str, int | str]:
     """Return table counts and schema version for the app database."""
 
-    db_path = initialize_app_database(database_path)
-    with _connect(db_path) as connection:
+    db_path = _prepare_database(database_path, read_only=read_only)
+    with _connect(db_path, read_only=read_only) as connection:
         summary: dict[str, int | str] = {
             "database_path": str(Path(database_path)),
             "schema_version": _metadata_value(connection, "schema_version") or SCHEMA_VERSION,
@@ -885,11 +908,12 @@ def list_prediction_run_events(
     run_id: str,
     *,
     limit: int = 50,
+    read_only: bool = False,
 ) -> list[dict[str, Any]]:
     """Return recent audit events for a prediction run."""
 
-    db_path = initialize_app_database(database_path)
-    with _connect(db_path) as connection:
+    db_path = _prepare_database(database_path, read_only=read_only)
+    with _connect(db_path, read_only=read_only) as connection:
         connection.row_factory = sqlite3.Row
         rows = connection.execute(
             """
@@ -911,8 +935,43 @@ def list_prediction_run_events(
     return [_event_from_row(row) for row in rows]
 
 
-def _connect(database_path: Path) -> sqlite3.Connection:
-    connection = sqlite3.connect(database_path)
+def _prepare_database(database_path: str | Path, *, read_only: bool) -> Path:
+    if read_only:
+        return _validate_existing_database(database_path)
+    return initialize_app_database(database_path)
+
+
+def _validate_existing_database(database_path: str | Path) -> Path:
+    db_path = Path(database_path)
+    if not db_path.exists():
+        raise FileNotFoundError(f"app database not found: {db_path}")
+
+    with _connect(db_path, read_only=True) as connection:
+        schema_version = _metadata_value(connection, "schema_version")
+        if schema_version != SCHEMA_VERSION:
+            raise RuntimeError(
+                f"app database schema mismatch: expected {SCHEMA_VERSION}, "
+                f"got {schema_version or 'missing'}"
+            )
+        table_rows = connection.execute(
+            "select name from sqlite_master where type = 'table'"
+        ).fetchall()
+        table_names = {str(row[0]) for row in table_rows}
+        missing_tables = sorted(set(REQUIRED_TABLES).difference(table_names))
+        if missing_tables:
+            raise RuntimeError(
+                "app database is missing required tables: "
+                + ", ".join(missing_tables)
+            )
+    return db_path
+
+
+def _connect(database_path: Path, *, read_only: bool = False) -> sqlite3.Connection:
+    if read_only:
+        uri = database_path.resolve().as_uri() + "?mode=ro"
+        connection = sqlite3.connect(uri, uri=True)
+    else:
+        connection = sqlite3.connect(database_path)
     connection.execute("pragma foreign_keys = on")
     return connection
 

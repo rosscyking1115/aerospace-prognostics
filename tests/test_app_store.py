@@ -4,7 +4,9 @@ import json
 import sqlite3
 
 import pandas as pd
+import pytest
 
+import aerospace_prognostics.app.store as store
 from aerospace_prognostics.app.dashboard_state import QuickstartWorkspace
 from aerospace_prognostics.app.store import (
     SCHEMA_VERSION,
@@ -189,6 +191,51 @@ def test_model_registry_lists_artifacts_evidence_and_prediction_usage(tmp_path) 
     assert loaded["report_card"]["mean_interval_width"] is not None
     assert loaded["report_card"]["max_interval_width"] is not None
     assert loaded["report_card"]["provenance_workflow"] == "local"
+
+
+def test_read_only_queries_use_existing_database_without_initializing(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    workspace = _write_fake_workspace(tmp_path / "quickstart")
+    database_path = tmp_path / "app.sqlite"
+    seed_quickstart_workspace(database_path, workspace)
+    run_id = _write_prediction_run_for_artifact(
+        tmp_path,
+        database_path=database_path,
+        artifact_id="fd001-demo",
+    )
+
+    def fail_initialize(path):
+        raise AssertionError(f"unexpected write initializer call for {path}")
+
+    monkeypatch.setattr(store, "initialize_app_database", fail_initialize)
+
+    summary = store.database_summary(database_path, read_only=True)
+    artifacts = store.list_model_artifacts(database_path, read_only=True)
+    loaded_artifact = store.load_model_artifact(
+        database_path,
+        "fd001-demo",
+        read_only=True,
+    )
+    runs = store.list_prediction_runs(database_path, read_only=True)
+    loaded_run = store.load_prediction_run(database_path, run_id, read_only=True)
+    events = store.list_prediction_run_events(database_path, run_id, read_only=True)
+
+    assert summary["schema_version"] == SCHEMA_VERSION
+    assert summary["model_artifacts"] == 1
+    assert artifacts[0]["artifact_id"] == "fd001-demo"
+    assert loaded_artifact is not None
+    assert loaded_artifact["artifact"]["artifact_id"] == "fd001-demo"
+    assert runs[0]["run_id"] == run_id
+    assert loaded_run is not None
+    assert loaded_run["run"]["run_id"] == run_id
+    assert events[0]["event_type"] == "prediction_recorded"
+
+
+def test_read_only_summary_requires_existing_database(tmp_path) -> None:
+    with pytest.raises(FileNotFoundError, match="app database not found"):
+        database_summary(tmp_path / "missing.sqlite", read_only=True)
 
 
 def test_load_model_artifact_returns_none_for_unknown_artifact(tmp_path) -> None:

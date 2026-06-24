@@ -16,7 +16,12 @@ LABEL org.opencontainers.image.created="${BUILD_DATE}" \
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 ENV STREAMLIT_SERVER_HEADLESS=true
+ENV STREAMLIT_BROWSER_GATHER_USAGE_STATS=false
 ENV AEROSPACE_PROGNOSTICS_CONSOLE_READ_ONLY=true
+ENV HOME=/tmp
+ENV XDG_CACHE_HOME=/tmp/.cache
+ENV XDG_CONFIG_HOME=/tmp/.config
+ENV MPLCONFIGDIR=/tmp/matplotlib
 
 WORKDIR /app
 
@@ -42,4 +47,4 @@ EXPOSE 8501
 HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
     CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8501/_stcore/health', timeout=2).read()"
 
-CMD ["streamlit", "run", "src/aerospace_prognostics/app/streamlit_app.py", "--server.address=0.0.0.0", "--server.port=8501", "--server.headless=true", "--browser.gatherUsageStats=false"]
+CMD ["streamlit", "run", "src/aerospace_prognostics/app/streamlit_app.py", "--server.address=0.0.0.0", "--server.port=8501", "--server.headless=true", "--browser.gatherUsageStats=false", "--server.fileWatcherType=none"]

@@ -176,13 +176,19 @@ jobs:
           echo "$env_config" | grep AEROSPACE_PROGNOSTICS_CONSOLE_READ_ONLY=true
           docker run --rm aerospace-prognostics-demo:ci python -c "import importlib.util; assert importlib.util.find_spec('torch') is None"
           docker run --rm \
+            --read-only \
+            --tmpfs /tmp:rw,nosuid,nodev,noexec,size=128m \
             --volume "$PWD/scripts:/ci-scripts:ro" \
             aerospace-prognostics-demo:ci \
             python /ci-scripts/ci_demo_image_contract.py
 
       - name: Smoke hosted demo image
         run: |
-          container_id=$(docker run --detach --publish 8502:8501 aerospace-prognostics-demo:ci)
+          container_id=$(docker run --detach \
+            --read-only \
+            --tmpfs /tmp:rw,nosuid,nodev,noexec,size=128m \
+            --publish 8502:8501 \
+            aerospace-prognostics-demo:ci)
           trap 'docker rm --force "$container_id"' EXIT
           response=""
           for attempt in {1..45}; do

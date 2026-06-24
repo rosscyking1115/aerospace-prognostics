@@ -42,7 +42,7 @@ def run(argv: list[str] | None = None) -> int:
     if provenance.get("status") != "ok":
         raise RuntimeError(f"demo provenance is not ok: {provenance.get('status')}")
 
-    summary = database_summary(args.database)
+    summary = database_summary(args.database, read_only=True)
     minimum_counts = {
         "model_artifacts": 1,
         "release_evidence": 5,
@@ -52,7 +52,7 @@ def run(argv: list[str] | None = None) -> int:
         if actual < expected:
             raise RuntimeError(f"expected {key}>={expected}, got {actual}")
 
-    artifacts = list_model_artifacts(args.database)
+    artifacts = list_model_artifacts(args.database, read_only=True)
     if not artifacts:
         raise RuntimeError("expected at least one registered model artifact")
     artifact = artifacts[0]
