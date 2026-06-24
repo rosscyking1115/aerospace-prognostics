@@ -85,6 +85,7 @@ The working plan is tracked in [Aerospace_Prognostics_Project_Plan.md](Aerospace
 - Hosted read-only demo image: [docs/hosted_demo.md](docs/hosted_demo.md)
 - Repository public-launch strategy: [docs/repo_launch_strategy.md](docs/repo_launch_strategy.md)
 - Product roadmap: [docs/product_roadmap.md](docs/product_roadmap.md)
+- Restructure and replan: [docs/restructure_plan.md](docs/restructure_plan.md)
 
 ## Developer Quickstart
 
