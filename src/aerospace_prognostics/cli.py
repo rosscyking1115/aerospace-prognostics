@@ -23,6 +23,10 @@ from aerospace_prognostics.cli_cmapss_data import (
     handle_cmapss_data_command,
     register_cmapss_data_commands,
 )
+from aerospace_prognostics.cli_cmapss_validation import (
+    handle_cmapss_validation_command,
+    register_cmapss_validation_commands,
+)
 from aerospace_prognostics.cli_deployment import (
     handle_deployment_command,
     register_deployment_artifact_commands,
@@ -45,21 +49,6 @@ from aerospace_prognostics.evaluation import (
     RegressionRunResult,
     write_results_csv,
     write_results_json,
-)
-from aerospace_prognostics.experiments.cmapss_baseline import (
-    CMAPSS_ENGINEERED_DEFAULT_WINDOWS,
-    CMAPSS_HGB_PARAM_GRID,
-    CMAPSS_SENSOR_FILTER_CANDIDATES,
-    CMAPSS_VALIDATION_SELECTED_FEATURES,
-    CMAPSS_VALIDATION_SELECTED_HGB_PARAMS,
-    CmapssValidationAggregateResult,
-    run_all_cmapss_regime_aware_engineered_default_windows,
-    run_all_cmapss_validation_selected_default_windows,
-    run_all_cmapss_validation_selected_hgb_policy_default_windows,
-    run_cmapss_repeated_validation_feature_comparison,
-    run_cmapss_validation_feature_comparison,
-    run_cmapss_validation_selected_hgb_grid,
-    run_cmapss_validation_sensor_filter_comparison,
 )
 from aerospace_prognostics.experiments.smap_msl_anomaly import (
     LSTM_FORECAST_THRESHOLD_METHODS,
@@ -132,142 +121,7 @@ def _build_parser() -> argparse.ArgumentParser:
     register_app_commands(subparsers)
     register_cmapss_data_commands(subparsers)
     register_cmapss_baseline_commands(subparsers)
-
-    regime_engineered = subparsers.add_parser(
-        "cmapss-regime-engineered-best-baseline-all",
-        help="Train regime-aware engineered baselines with per-subset windows",
-    )
-    regime_engineered.add_argument("--data-dir", type=Path, required=True)
-    regime_engineered.add_argument(
-        "--subsets",
-        nargs="+",
-        choices=CMAPSS_SUBSETS,
-        default=list(CMAPSS_SUBSETS),
-    )
-    regime_engineered.add_argument("--rul-cap", type=int, default=125)
-    regime_engineered.add_argument("--random-state", type=int, default=42)
-    regime_engineered.add_argument("--n-regimes", type=int, default=6)
-    regime_engineered.add_argument("--output-json", type=Path)
-    regime_engineered.add_argument("--output-csv", type=Path)
-    regime_engineered.add_argument("--no-standardize", action="store_true")
-
-    validation_selected = subparsers.add_parser(
-        "cmapss-validation-selected-baseline-all",
-        help="Train official-test baselines using the repeated-validation feature policy",
-    )
-    validation_selected.add_argument("--data-dir", type=Path, required=True)
-    validation_selected.add_argument(
-        "--subsets",
-        nargs="+",
-        choices=CMAPSS_SUBSETS,
-        default=list(CMAPSS_SUBSETS),
-    )
-    validation_selected.add_argument("--rul-cap", type=int, default=125)
-    validation_selected.add_argument("--random-state", type=int, default=42)
-    validation_selected.add_argument("--n-regimes", type=int, default=6)
-    validation_selected.add_argument("--output-json", type=Path)
-    validation_selected.add_argument("--output-csv", type=Path)
-    validation_selected.add_argument("--no-standardize", action="store_true")
-
-    hgb_policy = subparsers.add_parser(
-        "cmapss-hgb-policy-baseline-all",
-        help="Train official-test baselines using validation-selected features and HGB params",
-    )
-    hgb_policy.add_argument("--data-dir", type=Path, required=True)
-    hgb_policy.add_argument(
-        "--subsets",
-        nargs="+",
-        choices=CMAPSS_SUBSETS,
-        default=list(CMAPSS_SUBSETS),
-    )
-    hgb_policy.add_argument("--rul-cap", type=int, default=125)
-    hgb_policy.add_argument("--random-state", type=int, default=42)
-    hgb_policy.add_argument("--n-regimes", type=int, default=6)
-    hgb_policy.add_argument("--output-json", type=Path)
-    hgb_policy.add_argument("--output-csv", type=Path)
-    hgb_policy.add_argument("--no-standardize", action="store_true")
-
-    validation_candidates = subparsers.add_parser(
-        "cmapss-validate-feature-candidates",
-        help="Compare engineered and regime-aware candidates on temporal validation splits",
-    )
-    validation_candidates.add_argument("--data-dir", type=Path, required=True)
-    validation_candidates.add_argument(
-        "--subsets",
-        nargs="+",
-        choices=CMAPSS_SUBSETS,
-        default=list(CMAPSS_SUBSETS),
-    )
-    validation_candidates.add_argument("--rul-cap", type=int, default=125)
-    validation_candidates.add_argument("--random-state", type=int, default=42)
-    validation_candidates.add_argument("--n-regimes", type=int, default=6)
-    validation_candidates.add_argument("--validation-fraction", type=float, default=0.2)
-    validation_candidates.add_argument("--validation-horizon", type=int, default=30)
-    validation_candidates.add_argument("--output-json", type=Path)
-    validation_candidates.add_argument("--output-csv", type=Path)
-    validation_candidates.add_argument("--no-standardize", action="store_true")
-
-    repeated_validation = subparsers.add_parser(
-        "cmapss-validate-feature-candidates-repeated",
-        help="Aggregate candidate validation across multiple seeds and horizons",
-    )
-    repeated_validation.add_argument("--data-dir", type=Path, required=True)
-    repeated_validation.add_argument(
-        "--subsets",
-        nargs="+",
-        choices=CMAPSS_SUBSETS,
-        default=list(CMAPSS_SUBSETS),
-    )
-    repeated_validation.add_argument("--rul-cap", type=int, default=125)
-    repeated_validation.add_argument("--random-states", nargs="+", type=int, default=[11, 42])
-    repeated_validation.add_argument("--n-regimes", type=int, default=6)
-    repeated_validation.add_argument("--validation-fraction", type=float, default=0.2)
-    repeated_validation.add_argument("--validation-horizons", nargs="+", type=int, default=[20, 30])
-    repeated_validation.add_argument("--output-json", type=Path)
-    repeated_validation.add_argument("--output-csv", type=Path)
-    repeated_validation.add_argument("--no-standardize", action="store_true")
-
-    hgb_grid = subparsers.add_parser(
-        "cmapss-validate-hgb-grid",
-        help="Validate compact HGB parameter candidates for the current feature policy",
-    )
-    hgb_grid.add_argument("--data-dir", type=Path, required=True)
-    hgb_grid.add_argument(
-        "--subsets",
-        nargs="+",
-        choices=CMAPSS_SUBSETS,
-        default=list(CMAPSS_SUBSETS),
-    )
-    hgb_grid.add_argument("--rul-cap", type=int, default=125)
-    hgb_grid.add_argument("--random-state", type=int, default=42)
-    hgb_grid.add_argument("--n-regimes", type=int, default=6)
-    hgb_grid.add_argument("--validation-fraction", type=float, default=0.2)
-    hgb_grid.add_argument("--validation-horizon", type=int, default=30)
-    hgb_grid.add_argument("--output-json", type=Path)
-    hgb_grid.add_argument("--output-csv", type=Path)
-    hgb_grid.add_argument("--no-standardize", action="store_true")
-
-    sensor_filters = subparsers.add_parser(
-        "cmapss-validate-sensor-filters",
-        help="Validate full versus EDA-filtered sensor sets for the current policy",
-    )
-    sensor_filters.add_argument("--data-dir", type=Path, required=True)
-    sensor_filters.add_argument(
-        "--subsets",
-        nargs="+",
-        choices=CMAPSS_SUBSETS,
-        default=list(CMAPSS_SUBSETS),
-    )
-    sensor_filters.add_argument("--rul-cap", type=int, default=125)
-    sensor_filters.add_argument("--random-state", type=int, default=42)
-    sensor_filters.add_argument("--n-regimes", type=int, default=6)
-    sensor_filters.add_argument("--validation-fraction", type=float, default=0.2)
-    sensor_filters.add_argument("--validation-horizon", type=int, default=30)
-    sensor_filters.add_argument("--min-abs-rul-correlation", type=float, default=0.05)
-    sensor_filters.add_argument("--min-abs-standardized-drift", type=float, default=0.2)
-    sensor_filters.add_argument("--output-json", type=Path)
-    sensor_filters.add_argument("--output-csv", type=Path)
-    sensor_filters.add_argument("--no-standardize", action="store_true")
+    register_cmapss_validation_commands(subparsers)
 
     register_smap_msl_download_command(subparsers)
 
@@ -798,264 +652,9 @@ def main(argv: list[str] | None = None) -> int:
     if cmapss_baseline_result is not None:
         return cmapss_baseline_result
 
-    if args.command == "cmapss-regime-engineered-best-baseline-all":
-        results = run_all_cmapss_regime_aware_engineered_default_windows(
-            args.data_dir,
-            subsets=tuple(args.subsets),
-            rul_cap=args.rul_cap,
-            random_state=args.random_state,
-            n_regimes=args.n_regimes,
-            standardize=not args.no_standardize,
-        )
-        print(
-            "rolling_windows="
-            + ",".join(
-                f"{subset}:{CMAPSS_ENGINEERED_DEFAULT_WINDOWS[subset]}"
-                for subset in args.subsets
-            )
-        )
-        print(f"max_regimes={args.n_regimes}")
-        _print_results_table(results)
-        if args.output_json is not None:
-            write_results_json(results, args.output_json)
-        if args.output_csv is not None:
-            write_results_csv(results, args.output_csv)
-        return 0
-
-    if args.command == "cmapss-validation-selected-baseline-all":
-        results = run_all_cmapss_validation_selected_default_windows(
-            args.data_dir,
-            subsets=tuple(args.subsets),
-            rul_cap=args.rul_cap,
-            random_state=args.random_state,
-            n_regimes=args.n_regimes,
-            standardize=not args.no_standardize,
-        )
-        print(
-            "rolling_windows="
-            + ",".join(
-                f"{subset}:{CMAPSS_ENGINEERED_DEFAULT_WINDOWS[subset]}"
-                for subset in args.subsets
-            )
-        )
-        print(
-            "feature_policy="
-            + ",".join(
-                f"{subset}:{CMAPSS_VALIDATION_SELECTED_FEATURES[subset]}"
-                for subset in args.subsets
-            )
-        )
-        print(f"max_regimes={args.n_regimes}")
-        _print_results_table(results)
-        if args.output_json is not None:
-            write_results_json(results, args.output_json)
-        if args.output_csv is not None:
-            write_results_csv(results, args.output_csv)
-        return 0
-
-    if args.command == "cmapss-hgb-policy-baseline-all":
-        results = run_all_cmapss_validation_selected_hgb_policy_default_windows(
-            args.data_dir,
-            subsets=tuple(args.subsets),
-            rul_cap=args.rul_cap,
-            random_state=args.random_state,
-            n_regimes=args.n_regimes,
-            standardize=not args.no_standardize,
-        )
-        print(
-            "rolling_windows="
-            + ",".join(
-                f"{subset}:{CMAPSS_ENGINEERED_DEFAULT_WINDOWS[subset]}"
-                for subset in args.subsets
-            )
-        )
-        print(
-            "feature_policy="
-            + ",".join(
-                f"{subset}:{CMAPSS_VALIDATION_SELECTED_FEATURES[subset]}"
-                for subset in args.subsets
-            )
-        )
-        print(
-            "hgb_policy="
-            + ",".join(
-                f"{subset}:{CMAPSS_VALIDATION_SELECTED_HGB_PARAMS[subset]}"
-                for subset in args.subsets
-            )
-        )
-        print(f"max_regimes={args.n_regimes}")
-        _print_results_table(results)
-        if args.output_json is not None:
-            write_results_json(results, args.output_json)
-        if args.output_csv is not None:
-            write_results_csv(results, args.output_csv)
-        return 0
-
-    if args.command == "cmapss-validate-feature-candidates":
-        results = run_cmapss_validation_feature_comparison(
-            args.data_dir,
-            subsets=tuple(args.subsets),
-            rul_cap=args.rul_cap,
-            random_state=args.random_state,
-            n_regimes=args.n_regimes,
-            validation_fraction=args.validation_fraction,
-            validation_horizon=args.validation_horizon,
-            standardize=not args.no_standardize,
-        )
-        print(
-            "rolling_windows="
-            + ",".join(
-                f"{subset}:{CMAPSS_ENGINEERED_DEFAULT_WINDOWS[subset]}"
-                for subset in args.subsets
-            )
-        )
-        print(f"validation_fraction={args.validation_fraction}")
-        print(f"validation_horizon={args.validation_horizon}")
-        print(f"max_regimes={args.n_regimes}")
-        _print_results_table(results)
-        print(
-            "selected_by_nasa="
-            + ",".join(
-                f"{subset}:{_best_result_for_subset(results, subset).model_name}"
-                for subset in args.subsets
-            )
-        )
-        if args.output_json is not None:
-            write_results_json(results, args.output_json)
-        if args.output_csv is not None:
-            write_results_csv(results, args.output_csv)
-        return 0
-
-    if args.command == "cmapss-validate-feature-candidates-repeated":
-        results = run_cmapss_repeated_validation_feature_comparison(
-            args.data_dir,
-            subsets=tuple(args.subsets),
-            rul_cap=args.rul_cap,
-            random_states=tuple(args.random_states),
-            n_regimes=args.n_regimes,
-            validation_fraction=args.validation_fraction,
-            validation_horizons=tuple(args.validation_horizons),
-            standardize=not args.no_standardize,
-        )
-        print(
-            "rolling_windows="
-            + ",".join(
-                f"{subset}:{CMAPSS_ENGINEERED_DEFAULT_WINDOWS[subset]}"
-                for subset in args.subsets
-            )
-        )
-        print(f"validation_fraction={args.validation_fraction}")
-        print(f"validation_horizons={','.join(str(value) for value in args.validation_horizons)}")
-        print(f"random_states={','.join(str(value) for value in args.random_states)}")
-        print(f"max_regimes={args.n_regimes}")
-        _print_validation_aggregate_table(results)
-        print(
-            "selected_by_mean_nasa="
-            + ",".join(
-                f"{subset}:{_best_aggregate_for_subset(results, subset).model_name}"
-                for subset in args.subsets
-            )
-        )
-        if args.output_json is not None:
-            _write_validation_aggregate_json(results, args.output_json)
-        if args.output_csv is not None:
-            _write_validation_aggregate_csv(results, args.output_csv)
-        return 0
-
-    if args.command == "cmapss-validate-hgb-grid":
-        results = run_cmapss_validation_selected_hgb_grid(
-            args.data_dir,
-            subsets=tuple(args.subsets),
-            rul_cap=args.rul_cap,
-            random_state=args.random_state,
-            n_regimes=args.n_regimes,
-            validation_fraction=args.validation_fraction,
-            validation_horizon=args.validation_horizon,
-            standardize=not args.no_standardize,
-        )
-        print(
-            "rolling_windows="
-            + ",".join(
-                f"{subset}:{CMAPSS_ENGINEERED_DEFAULT_WINDOWS[subset]}"
-                for subset in args.subsets
-            )
-        )
-        print(
-            "feature_policy="
-            + ",".join(
-                f"{subset}:{CMAPSS_VALIDATION_SELECTED_FEATURES[subset]}"
-                for subset in args.subsets
-            )
-        )
-        print(f"validation_fraction={args.validation_fraction}")
-        print(f"validation_horizon={args.validation_horizon}")
-        print(f"param_grid={','.join(str(params['label']) for params in CMAPSS_HGB_PARAM_GRID)}")
-        _print_results_table(results)
-        print(
-            "selected_by_nasa="
-            + ",".join(
-                f"{subset}:{_best_result_for_subset(results, subset).model_name}"
-                for subset in args.subsets
-            )
-        )
-        if args.output_json is not None:
-            write_results_json(results, args.output_json)
-        if args.output_csv is not None:
-            write_results_csv(results, args.output_csv)
-        return 0
-
-    if args.command == "cmapss-validate-sensor-filters":
-        results = run_cmapss_validation_sensor_filter_comparison(
-            args.data_dir,
-            subsets=tuple(args.subsets),
-            rul_cap=args.rul_cap,
-            random_state=args.random_state,
-            n_regimes=args.n_regimes,
-            validation_fraction=args.validation_fraction,
-            validation_horizon=args.validation_horizon,
-            min_abs_rul_correlation=args.min_abs_rul_correlation,
-            min_abs_standardized_drift=args.min_abs_standardized_drift,
-            standardize=not args.no_standardize,
-        )
-        print(
-            "rolling_windows="
-            + ",".join(
-                f"{subset}:{CMAPSS_ENGINEERED_DEFAULT_WINDOWS[subset]}"
-                for subset in args.subsets
-            )
-        )
-        print(
-            "feature_policy="
-            + ",".join(
-                f"{subset}:{CMAPSS_VALIDATION_SELECTED_FEATURES[subset]}"
-                for subset in args.subsets
-            )
-        )
-        print(
-            "hgb_policy="
-            + ",".join(
-                f"{subset}:{CMAPSS_VALIDATION_SELECTED_HGB_PARAMS[subset]}"
-                for subset in args.subsets
-            )
-        )
-        print(f"sensor_filter_candidates={','.join(CMAPSS_SENSOR_FILTER_CANDIDATES)}")
-        print(f"validation_fraction={args.validation_fraction}")
-        print(f"validation_horizon={args.validation_horizon}")
-        print(f"min_abs_rul_correlation={args.min_abs_rul_correlation}")
-        print(f"min_abs_standardized_drift={args.min_abs_standardized_drift}")
-        _print_results_table(results)
-        print(
-            "selected_by_nasa="
-            + ",".join(
-                f"{subset}:{_best_result_for_subset(results, subset).model_name}"
-                for subset in args.subsets
-            )
-        )
-        if args.output_json is not None:
-            write_results_json(results, args.output_json)
-        if args.output_csv is not None:
-            write_results_csv(results, args.output_csv)
-        return 0
+    cmapss_validation_result = handle_cmapss_validation_command(args)
+    if cmapss_validation_result is not None:
+        return cmapss_validation_result
 
     if args.command == "phase1-cmapss":
         result = run_phase1_cmapss_workflow(
@@ -1778,6 +1377,16 @@ def _print_results_table(results: Iterable[RegressionRunResult]) -> None:
         )
 
 
+def _best_result_for_subset(
+    results: Iterable[RegressionRunResult],
+    subset: str,
+) -> RegressionRunResult:
+    subset_results = [result for result in results if result.subset == subset]
+    if not subset_results:
+        raise ValueError(f"no results for subset: {subset}")
+    return min(subset_results, key=lambda result: result.nasa_score)
+
+
 def _print_smap_msl_classical_table(runs: Iterable[SmapMslClassicalBaselineRun]) -> None:
     print("channel_id,spacecraft,model,precision,recall,f1,point_adjusted_f1,false_alarm_rate")
     for run in runs:
@@ -1876,42 +1485,6 @@ def _phase2_smap_msl_default_max_channels(channels: list[str] | None) -> int | N
     if channels is not None:
         return None
     return 5
-
-
-def _best_result_for_subset(
-    results: Iterable[RegressionRunResult],
-    subset: str,
-) -> RegressionRunResult:
-    subset_results = [result for result in results if result.subset == subset]
-    if not subset_results:
-        raise ValueError(f"no results for subset: {subset}")
-    return min(subset_results, key=lambda result: result.nasa_score)
-
-
-def _print_validation_aggregate_table(
-    results: Iterable[CmapssValidationAggregateResult],
-) -> None:
-    print("subset,model,standardize,runs,wins_by_nasa,mean_rmse,mean_nasa_score")
-    for result in results:
-        print(
-            f"{result.subset},"
-            f"{result.model_name},"
-            f"{result.standardize},"
-            f"{result.runs},"
-            f"{result.wins_by_nasa},"
-            f"{result.mean_rmse:.6f},"
-            f"{result.mean_nasa_score:.6f}"
-        )
-
-
-def _best_aggregate_for_subset(
-    results: Iterable[CmapssValidationAggregateResult],
-    subset: str,
-) -> CmapssValidationAggregateResult:
-    subset_results = [result for result in results if result.subset == subset]
-    if not subset_results:
-        raise ValueError(f"no aggregate results for subset: {subset}")
-    return min(subset_results, key=lambda result: result.mean_nasa_score)
 
 
 def _format_cli_float(value: float) -> str:
@@ -2025,28 +1598,6 @@ def _write_classical_anomaly_predictions_csv(
                         "prediction": int(prediction),
                     }
                 )
-
-
-def _write_validation_aggregate_json(
-    results: list[CmapssValidationAggregateResult],
-    path: Path,
-) -> None:
-    output_path = _prepare_output_path(path)
-    payload = [result.to_dict() for result in results]
-    output_path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n")
-
-
-def _write_validation_aggregate_csv(
-    results: list[CmapssValidationAggregateResult],
-    path: Path,
-) -> None:
-    if not results:
-        raise ValueError("results must contain at least one item")
-    output_path = _prepare_output_path(path)
-    with output_path.open("w", encoding="utf-8", newline="") as file:
-        writer = csv.DictWriter(file, fieldnames=list(results[0].to_dict()))
-        writer.writeheader()
-        writer.writerows(result.to_dict() for result in results)
 
 
 def _write_deep_history_json(
