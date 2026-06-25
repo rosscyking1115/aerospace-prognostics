@@ -3,10 +3,10 @@
 from __future__ import annotations
 
 import argparse
-import json
 from pathlib import Path
 from typing import Any
 
+from aerospace_prognostics.cli_io import write_json_payload
 from aerospace_prognostics.data.cmapss import CMAPSS_SUBSETS
 from aerospace_prognostics.deployment.artifacts import (
     benchmark_cmapss_model_artifact,
@@ -162,7 +162,7 @@ def handle_deployment_command(args: argparse.Namespace) -> int | None:
         print(f"rmse={packaged.result.rmse:.6f}")
         print(f"nasa_score={packaged.result.nasa_score:.6f}")
         if args.metadata_json is not None:
-            _write_json_payload(
+            write_json_payload(
                 {
                     "artifact": packaged.artifact.metadata(),
                     "result": packaged.result.to_dict(),
@@ -205,7 +205,7 @@ def handle_deployment_command(args: argparse.Namespace) -> int | None:
         )
         print(f"checks={check_summary}")
         if args.output_json is not None:
-            _write_json_payload(inspection, args.output_json)
+            write_json_payload(inspection, args.output_json)
             print(f"output_json={args.output_json}")
         return 0
 
@@ -230,7 +230,7 @@ def handle_deployment_command(args: argparse.Namespace) -> int | None:
                 f"predicted_rul={prediction.predicted_rul:.6f}"
             )
         if args.output_json is not None:
-            _write_json_payload(payload, args.output_json)
+            write_json_payload(payload, args.output_json)
         return 0
 
     if args.command == "cmapss-benchmark-artifact":
@@ -250,7 +250,7 @@ def handle_deployment_command(args: argparse.Namespace) -> int | None:
         for problem in benchmark.problems:
             print(f"problem={problem}")
         if args.output_json is not None:
-            _write_json_payload(benchmark.to_dict(), args.output_json)
+            write_json_payload(benchmark.to_dict(), args.output_json)
         return 0 if benchmark.status == "ok" else 1
 
     if args.command == "cmapss-validate-artifact":
@@ -268,7 +268,7 @@ def handle_deployment_command(args: argparse.Namespace) -> int | None:
         for problem in validation.problems:
             print(f"problem={problem}")
         if args.output_json is not None:
-            _write_json_payload(validation.to_dict(), args.output_json)
+            write_json_payload(validation.to_dict(), args.output_json)
         return 0 if validation.status == "ok" else 1
 
     if args.command == "cmapss-promotion-report":
@@ -286,7 +286,7 @@ def handle_deployment_command(args: argparse.Namespace) -> int | None:
         print(f"gates_total={len(report.gates)}")
         for problem in report.problems:
             print(f"problem={problem}")
-        _write_json_payload(report.to_dict(), args.output_json)
+        write_json_payload(report.to_dict(), args.output_json)
         if args.output_markdown is not None:
             markdown_path = write_cmapss_promotion_report_markdown(
                 report,
@@ -319,7 +319,7 @@ def handle_deployment_command(args: argparse.Namespace) -> int | None:
         print(f"gates_total={len(bundle.gates)}")
         for problem in bundle.problems:
             print(f"problem={problem}")
-        _write_json_payload(bundle.to_dict(), args.output_json)
+        write_json_payload(bundle.to_dict(), args.output_json)
         if args.output_markdown is not None:
             markdown_path = write_cmapss_release_bundle_markdown(
                 bundle,
@@ -372,20 +372,10 @@ def handle_deployment_command(args: argparse.Namespace) -> int | None:
 
     if args.command == "generate-sbom":
         sbom = build_uv_lock_cyclonedx_sbom(args.lockfile)
-        _write_json_payload(sbom, args.output_json)
+        write_json_payload(sbom, args.output_json)
         print(f"sbom_json={args.output_json}")
         print(f"spec_version={sbom['specVersion']}")
         print(f"component_count={len(sbom['components'])}")
         return 0
 
     return None
-
-
-def _write_json_payload(payload: object, path: Path) -> None:
-    output_path = _prepare_output_path(path)
-    output_path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n")
-
-
-def _prepare_output_path(path: Path) -> Path:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    return path

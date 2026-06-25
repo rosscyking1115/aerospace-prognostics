@@ -4,11 +4,11 @@ from __future__ import annotations
 
 import argparse
 import csv
-import json
 from collections.abc import Iterable
 from pathlib import Path
 from typing import Any
 
+from aerospace_prognostics.cli_io import prepare_output_path, write_json_payload
 from aerospace_prognostics.data.cmapss import CMAPSS_SUBSETS
 from aerospace_prognostics.evaluation import (
     RegressionRunResult,
@@ -370,9 +370,8 @@ def _write_validation_aggregate_json(
     results: list[CmapssValidationAggregateResult],
     path: Path,
 ) -> None:
-    output_path = _prepare_output_path(path)
     payload = [result.to_dict() for result in results]
-    output_path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n")
+    write_json_payload(payload, path)
 
 
 def _write_validation_aggregate_csv(
@@ -381,13 +380,8 @@ def _write_validation_aggregate_csv(
 ) -> None:
     if not results:
         raise ValueError("results must contain at least one item")
-    output_path = _prepare_output_path(path)
+    output_path = prepare_output_path(path)
     with output_path.open("w", encoding="utf-8", newline="") as file:
         writer = csv.DictWriter(file, fieldnames=list(results[0].to_dict()))
         writer.writeheader()
         writer.writerows(result.to_dict() for result in results)
-
-
-def _prepare_output_path(path: Path) -> Path:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    return path

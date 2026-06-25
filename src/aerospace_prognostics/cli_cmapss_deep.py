@@ -3,11 +3,11 @@
 from __future__ import annotations
 
 import argparse
-import json
 from collections.abc import Iterable
 from pathlib import Path
 from typing import Any
 
+from aerospace_prognostics.cli_io import write_json_payload
 from aerospace_prognostics.data.cmapss import CMAPSS_SUBSETS
 from aerospace_prognostics.evaluation import (
     RegressionRunResult,
@@ -545,11 +545,5 @@ def _write_deep_history_json(
     results: list[object],
     path: Path,
 ) -> None:
-    output_path = _prepare_output_path(path)
     payload = [result.to_dict() for result in results]
-    output_path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n")
-
-
-def _prepare_output_path(path: Path) -> Path:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    return path
+    write_json_payload(payload, path)

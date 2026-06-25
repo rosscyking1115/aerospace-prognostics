@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import argparse
 import csv
-import json
 from collections.abc import Iterable
 from pathlib import Path
 from typing import Any
@@ -15,6 +14,7 @@ from aerospace_prognostics.anomaly.baselines import (
     run_classical_anomaly_baselines,
     run_robust_zscore_baseline,
 )
+from aerospace_prognostics.cli_io import prepare_output_path, write_json_payload
 
 
 def register_anomaly_commands(subparsers: Any) -> None:
@@ -91,7 +91,7 @@ def handle_anomaly_command(args: argparse.Namespace) -> int | None:
         print(f"point_adjusted_f1={result.point_adjusted_metrics.f1:.6f}")
         print(f"false_alarm_rate={result.metrics.false_alarm_rate:.6f}")
         if args.output_json is not None:
-            _write_json_payload(result.to_dict(), args.output_json)
+            write_json_payload(result.to_dict(), args.output_json)
         if args.predictions_csv is not None:
             _write_anomaly_predictions_csv(
                 labels=test_frame.loc[:, args.label_column].to_numpy(),
@@ -139,7 +139,7 @@ def handle_anomaly_command(args: argparse.Namespace) -> int | None:
                 f"{result.metrics.false_alarm_rate:.6f}"
             )
         if args.output_json is not None:
-            _write_json_payload([result.to_dict() for result in results], args.output_json)
+            write_json_payload([result.to_dict() for result in results], args.output_json)
         if args.output_csv is not None:
             _write_classical_anomaly_summary_csv(results, args.output_csv)
         if args.predictions_csv is not None:
@@ -179,7 +179,7 @@ def _write_anomaly_predictions_csv(
     predictions: Iterable[int],
     path: Path,
 ) -> None:
-    output_path = _prepare_output_path(path)
+    output_path = prepare_output_path(path)
     with output_path.open("w", encoding="utf-8", newline="") as file:
         writer = csv.DictWriter(
             file,
@@ -203,7 +203,7 @@ def _write_classical_anomaly_summary_csv(
     results: Iterable[ClassicalAnomalyBaselineResult],
     path: Path,
 ) -> None:
-    output_path = _prepare_output_path(path)
+    output_path = prepare_output_path(path)
     with output_path.open("w", encoding="utf-8", newline="") as file:
         fieldnames = [
             "model_name",
@@ -240,7 +240,7 @@ def _write_classical_anomaly_predictions_csv(
     results: Iterable[ClassicalAnomalyBaselineResult],
     path: Path,
 ) -> None:
-    output_path = _prepare_output_path(path)
+    output_path = prepare_output_path(path)
     with output_path.open("w", encoding="utf-8", newline="") as file:
         writer = csv.DictWriter(
             file,
@@ -260,13 +260,3 @@ def _write_classical_anomaly_predictions_csv(
                         "prediction": int(prediction),
                     }
                 )
-
-
-def _write_json_payload(payload: object, path: Path) -> None:
-    output_path = _prepare_output_path(path)
-    output_path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n")
-
-
-def _prepare_output_path(path: Path) -> Path:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    return path

@@ -3,11 +3,11 @@
 from __future__ import annotations
 
 import argparse
-import json
 from collections.abc import Iterable
 from pathlib import Path
 from typing import Any
 
+from aerospace_prognostics.cli_io import write_json_payload
 from aerospace_prognostics.data.downloads import (
     TELEMANOM_SMAP_MSL_DATA_URL,
     TELEMANOM_SMAP_MSL_LABELS_URL,
@@ -153,7 +153,7 @@ def handle_smap_msl_data_command(args: argparse.Namespace) -> int | None:
         print(f"test_rows={export.test_rows}")
         print(f"features={len(export.feature_names)}")
         if args.metadata_json is not None:
-            _write_json_payload(export.to_dict(), args.metadata_json)
+            write_json_payload(export.to_dict(), args.metadata_json)
         return 0
 
     return None
@@ -172,13 +172,3 @@ def _print_smap_msl_channel_selection_table(
             f"{selection.anomaly_points},"
             f"{selection.num_values if selection.num_values is not None else ''}"
         )
-
-
-def _write_json_payload(payload: object, path: Path) -> None:
-    output_path = _prepare_output_path(path)
-    output_path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n")
-
-
-def _prepare_output_path(path: Path) -> Path:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    return path
