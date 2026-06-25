@@ -2150,7 +2150,10 @@ def test_smap_msl_download_command_reports_actionable_download_failure(
     def fail_download(*args, **kwargs):
         raise RuntimeError("Could not download SMAP/MSL data\nDownload the Kaggle dataset")
 
-    monkeypatch.setattr("aerospace_prognostics.cli.download_smap_msl_dataset", fail_download)
+    monkeypatch.setattr(
+        "aerospace_prognostics.cli_smap_msl.download_smap_msl_dataset",
+        fail_download,
+    )
 
     exit_code = main(
         [
