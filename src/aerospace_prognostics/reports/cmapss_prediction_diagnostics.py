@@ -8,6 +8,8 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
 
+from aerospace_prognostics.artifact_io import prepare_output_path
+
 
 @dataclass(frozen=True)
 class CmapssPredictionDiagnosticRow:
@@ -212,9 +214,7 @@ def build_cmapss_prediction_monotonicity_diagnostics(
             unit_rows[1:],
             strict=False,
         ):
-            step_change = _float(next_row["predicted_rul"]) - _float(
-                previous_row["predicted_rul"]
-            )
+            step_change = _float(next_row["predicted_rul"]) - _float(previous_row["predicted_rul"])
             step_changes.append(step_change)
             if step_change > 0.0:
                 violations.append(step_change)
@@ -233,9 +233,7 @@ def build_cmapss_prediction_monotonicity_diagnostics(
                 unit_count=unit_counts[model_key],
                 transition_count=transition_count,
                 violation_count=violation_count,
-                violation_rate=violation_count / transition_count
-                if transition_count
-                else 0.0,
+                violation_rate=violation_count / transition_count if transition_count else 0.0,
                 mean_step_change=_mean(step_changes) if step_changes else 0.0,
                 mean_violation_magnitude=_mean(violations) if violations else 0.0,
                 max_violation_magnitude=max(violations) if violations else 0.0,
@@ -269,9 +267,7 @@ def build_cmapss_prediction_unit_diagnostics(
             unit_rows[1:],
             strict=False,
         ):
-            step_change = _float(next_row["predicted_rul"]) - _float(
-                previous_row["predicted_rul"]
-            )
+            step_change = _float(next_row["predicted_rul"]) - _float(previous_row["predicted_rul"])
             step_changes.append(step_change)
             if step_change > 0.0:
                 violations.append(step_change)
@@ -340,7 +336,7 @@ def write_cmapss_prediction_diagnostics_csv(
 
     if not rows:
         raise ValueError("rows must contain at least one item")
-    output_path = _prepare_output_path(path)
+    output_path = prepare_output_path(path)
     with output_path.open("w", encoding="utf-8", newline="") as file:
         writer = csv.DictWriter(file, fieldnames=list(rows[0].to_dict()))
         writer.writeheader()
@@ -355,7 +351,7 @@ def write_cmapss_prediction_rul_bin_diagnostics_csv(
 
     if not rows:
         raise ValueError("rows must contain at least one item")
-    output_path = _prepare_output_path(path)
+    output_path = prepare_output_path(path)
     with output_path.open("w", encoding="utf-8", newline="") as file:
         writer = csv.DictWriter(file, fieldnames=list(rows[0].to_dict()))
         writer.writeheader()
@@ -370,7 +366,7 @@ def write_cmapss_prediction_monotonicity_diagnostics_csv(
 
     if not rows:
         raise ValueError("rows must contain at least one item")
-    output_path = _prepare_output_path(path)
+    output_path = prepare_output_path(path)
     with output_path.open("w", encoding="utf-8", newline="") as file:
         writer = csv.DictWriter(file, fieldnames=list(rows[0].to_dict()))
         writer.writeheader()
@@ -385,7 +381,7 @@ def write_cmapss_prediction_unit_diagnostics_csv(
 
     if not rows:
         raise ValueError("rows must contain at least one item")
-    output_path = _prepare_output_path(path)
+    output_path = prepare_output_path(path)
     with output_path.open("w", encoding="utf-8", newline="") as file:
         writer = csv.DictWriter(file, fieldnames=list(rows[0].to_dict()))
         writer.writeheader()
@@ -403,7 +399,7 @@ def write_cmapss_prediction_diagnostics_markdown(
 ) -> None:
     """Write prediction diagnostics as a compact Markdown report."""
 
-    output_path = _prepare_output_path(path)
+    output_path = prepare_output_path(path)
     output_path.write_text(
         render_cmapss_prediction_diagnostics_markdown(
             diagnostics,
@@ -699,9 +695,3 @@ def _rate(values: Iterable[bool]) -> float:
 
 def _float(value: Any) -> float:
     return float(value)
-
-
-def _prepare_output_path(path: str | Path) -> Path:
-    output_path = Path(path)
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    return output_path

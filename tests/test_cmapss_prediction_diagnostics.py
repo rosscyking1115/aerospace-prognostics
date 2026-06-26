@@ -85,14 +85,17 @@ def test_cmapss_prediction_diagnostics_outputs_csv_and_markdown(tmp_path) -> Non
     )
 
     csv_rows = list(csv.DictReader(output_csv.open("r", encoding="utf-8", newline="")))
-    bin_rows = list(
-        csv.DictReader(output_bins_csv.open("r", encoding="utf-8", newline=""))
-    )
+    bin_rows = list(csv.DictReader(output_bins_csv.open("r", encoding="utf-8", newline="")))
     monotonicity_rows = list(
         csv.DictReader(output_monotonicity_csv.open("r", encoding="utf-8", newline=""))
     )
     unit_rows = list(csv.DictReader(output_unit_csv.open("r", encoding="utf-8", newline="")))
     markdown = output_markdown.read_text(encoding="utf-8")
+    assert output_csv.read_text(encoding="utf-8").endswith("\n")
+    assert output_bins_csv.read_text(encoding="utf-8").endswith("\n")
+    assert output_monotonicity_csv.read_text(encoding="utf-8").endswith("\n")
+    assert output_unit_csv.read_text(encoding="utf-8").endswith("\n")
+    assert markdown.endswith("\n")
     assert csv_rows[0]["model_name"] == "cnn"
     assert bin_rows[0]["actual_rul_bin"] == "91-120"
     assert monotonicity_rows[0]["violation_count"] == "1"
