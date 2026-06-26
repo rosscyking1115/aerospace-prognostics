@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import csv
-import json
 from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
@@ -14,6 +13,7 @@ from aerospace_prognostics.anomaly.baselines import (
     run_robust_zscore_baseline,
 )
 from aerospace_prognostics.anomaly.metrics import AnomalyDetectionMetrics
+from aerospace_prognostics.artifact_io import prepare_output_path, write_json_payload
 from aerospace_prognostics.data.smap_msl import load_smap_msl_channel, read_smap_msl_labels
 
 LSTM_FORECAST_THRESHOLD_METHODS = ("robust", "dynamic")
@@ -290,9 +290,7 @@ def aggregate_smap_msl_robust_threshold_sweep(
                 mean_point_adjusted_f1=_mean(
                     run.point_adjusted_metrics.f1 for run in threshold_runs
                 ),
-                mean_false_alarm_rate=_mean(
-                    run.metrics.false_alarm_rate for run in threshold_runs
-                ),
+                mean_false_alarm_rate=_mean(run.metrics.false_alarm_rate for run in threshold_runs),
                 mean_miss_rate=_mean(run.metrics.miss_rate for run in threshold_runs),
             )
         )
@@ -470,9 +468,8 @@ def write_smap_msl_classical_baselines_json(
 ) -> None:
     """Write SMAP/MSL classical baseline runs as JSON."""
 
-    output_path = _prepare_output_path(path)
     payload = [run.to_dict() for run in runs]
-    output_path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n")
+    write_json_payload(payload, path)
 
 
 def write_smap_msl_lstm_forecast_baseline_json(
@@ -481,9 +478,8 @@ def write_smap_msl_lstm_forecast_baseline_json(
 ) -> None:
     """Write SMAP/MSL LSTM forecast baseline runs as JSON."""
 
-    output_path = _prepare_output_path(path)
     payload = [run.to_dict() for run in runs]
-    output_path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n")
+    write_json_payload(payload, path)
 
 
 def write_smap_msl_classical_baselines_csv(
@@ -492,7 +488,7 @@ def write_smap_msl_classical_baselines_csv(
 ) -> None:
     """Write SMAP/MSL classical baseline runs as a compact metrics table."""
 
-    output_path = _prepare_output_path(path)
+    output_path = prepare_output_path(path)
     fieldnames = [
         "channel_id",
         "spacecraft",
@@ -543,9 +539,8 @@ def write_smap_msl_robust_threshold_sweep_json(
 ) -> None:
     """Write SMAP/MSL robust threshold sweep runs as JSON."""
 
-    output_path = _prepare_output_path(path)
     payload = [run.to_dict() for run in runs]
-    output_path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n")
+    write_json_payload(payload, path)
 
 
 def write_smap_msl_robust_threshold_sweep_csv(
@@ -554,7 +549,7 @@ def write_smap_msl_robust_threshold_sweep_csv(
 ) -> None:
     """Write SMAP/MSL robust threshold sweep runs as a compact metrics table."""
 
-    output_path = _prepare_output_path(path)
+    output_path = prepare_output_path(path)
     fieldnames = [
         "channel_id",
         "spacecraft",
@@ -605,9 +600,8 @@ def write_smap_msl_robust_threshold_sweep_aggregate_json(
 ) -> None:
     """Write SMAP/MSL robust threshold sweep aggregate metrics as JSON."""
 
-    output_path = _prepare_output_path(path)
     payload = [aggregate.to_dict() for aggregate in aggregates]
-    output_path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n")
+    write_json_payload(payload, path)
 
 
 def write_smap_msl_robust_threshold_sweep_aggregate_csv(
@@ -618,7 +612,7 @@ def write_smap_msl_robust_threshold_sweep_aggregate_csv(
 
     if not aggregates:
         raise ValueError("aggregates must contain at least one item")
-    output_path = _prepare_output_path(path)
+    output_path = prepare_output_path(path)
     with output_path.open("w", encoding="utf-8", newline="") as file:
         writer = csv.DictWriter(file, fieldnames=list(aggregates[0].to_dict()))
         writer.writeheader()
@@ -631,9 +625,8 @@ def write_smap_msl_robust_threshold_operating_points_json(
 ) -> None:
     """Write selected SMAP/MSL robust threshold operating points as JSON."""
 
-    output_path = _prepare_output_path(path)
     payload = [operating_point.to_dict() for operating_point in operating_points]
-    output_path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n")
+    write_json_payload(payload, path)
 
 
 def write_smap_msl_robust_threshold_operating_points_csv(
@@ -644,7 +637,7 @@ def write_smap_msl_robust_threshold_operating_points_csv(
 
     if not operating_points:
         raise ValueError("operating_points must contain at least one item")
-    output_path = _prepare_output_path(path)
+    output_path = prepare_output_path(path)
     with output_path.open("w", encoding="utf-8", newline="") as file:
         writer = csv.DictWriter(file, fieldnames=list(operating_points[0].to_dict()))
         writer.writeheader()
@@ -658,12 +651,11 @@ def write_smap_msl_robust_threshold_policy_json(
 ) -> None:
     """Write selected robust threshold policy runs as comparison-ready JSON rows."""
 
-    output_path = _prepare_output_path(path)
     payload = [
         _robust_threshold_policy_row(run, _operating_point_for_run(run, operating_points))
         for run in runs
     ]
-    output_path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n")
+    write_json_payload(payload, path)
 
 
 def write_smap_msl_robust_threshold_policy_csv(
@@ -675,7 +667,7 @@ def write_smap_msl_robust_threshold_policy_csv(
 
     if not runs:
         raise ValueError("runs must contain at least one item")
-    output_path = _prepare_output_path(path)
+    output_path = prepare_output_path(path)
     rows = [
         _robust_threshold_policy_row(run, _operating_point_for_run(run, operating_points))
         for run in runs
@@ -692,7 +684,7 @@ def write_smap_msl_lstm_forecast_baseline_csv(
 ) -> None:
     """Write SMAP/MSL LSTM forecast baseline runs as a compact metrics table."""
 
-    output_path = _prepare_output_path(path)
+    output_path = prepare_output_path(path)
     fieldnames = [
         "channel_id",
         "spacecraft",
@@ -859,8 +851,3 @@ def _mean(values: Iterable[float]) -> float:
     if not sequence:
         raise ValueError("cannot average an empty sequence")
     return sum(sequence) / len(sequence)
-
-
-def _prepare_output_path(path: Path) -> Path:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    return path
