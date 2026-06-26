@@ -34,7 +34,8 @@ def test_export_cmapss_sequence_splits_writes_npz_and_metadata(tmp_path) -> None
     train_npz = np.load(result.train_npz_path)
     validation_npz = np.load(result.validation_npz_path)
     validation_selection_npz = np.load(result.validation_selection_npz_path)
-    metadata = json.loads(result.metadata_path.read_text(encoding="utf-8"))
+    metadata_text = result.metadata_path.read_text(encoding="utf-8")
+    metadata = json.loads(metadata_text)
 
     assert train_npz["windows"].shape == (2, 2, 24)
     assert train_npz["targets"].shape == (2,)
@@ -49,6 +50,7 @@ def test_export_cmapss_sequence_splits_writes_npz_and_metadata(tmp_path) -> None
         "validation_selection_sequences.npz"
     )
     assert metadata["standardize"] is True
+    assert metadata_text.endswith("\n")
 
 
 def test_export_cmapss_sequence_splits_writes_rolling_validation_selection(

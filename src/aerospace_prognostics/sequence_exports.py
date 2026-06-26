@@ -2,13 +2,13 @@
 
 from __future__ import annotations
 
-import json
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
 
 import numpy as np
 
+from aerospace_prognostics.artifact_io import write_json_payload
 from aerospace_prognostics.data.cmapss import load_cmapss_subset
 from aerospace_prognostics.experiments.cmapss_baseline import (
     make_cmapss_temporal_validation_split,
@@ -206,4 +206,4 @@ def _write_metadata(
             "uncapped remaining cycles for validation/test final windows"
         ),
     }
-    path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    write_json_payload(payload, path)
