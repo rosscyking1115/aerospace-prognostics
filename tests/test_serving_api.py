@@ -11,7 +11,7 @@ from aerospace_prognostics.deployment.artifacts import (
     save_cmapss_model_artifact,
     train_cmapss_hgb_policy_artifact,
 )
-from aerospace_prognostics.serving.api import create_app
+from aerospace_prognostics.serving.api import RATE_LIMIT_ENV, create_app
 from tests.cmapss_fixtures import write_tiny_cmapss_subset
 
 
@@ -161,6 +161,37 @@ def test_serving_api_rejects_unexpected_model_sha256(tmp_path) -> None:
         assert "model artifact sha256 mismatch" in str(exc)
     else:
         raise AssertionError("expected serving startup to reject mismatched sha256")
+
+
+def test_serving_api_allows_explicitly_disabled_rate_limit() -> None:
+    client = TestClient(create_app(rate_limit_per_minute=0))
+
+    assert client.get("/health").status_code == 200
+
+
+def test_serving_api_rejects_negative_rate_limit_argument() -> None:
+    try:
+        create_app(rate_limit_per_minute=-1)
+    except ValueError as exc:
+        assert "rate_limit_per_minute must be greater than or equal to 0" in str(exc)
+    else:
+        raise AssertionError("expected serving startup to reject negative rate limit")
+
+
+def test_serving_api_rejects_invalid_rate_limit_environment(monkeypatch) -> None:
+    for value, expected_message in (
+        ("not-an-int", f"{RATE_LIMIT_ENV} must be an integer"),
+        ("-1", f"{RATE_LIMIT_ENV} must be greater than or equal to 0"),
+    ):
+        monkeypatch.setenv(RATE_LIMIT_ENV, value)
+        try:
+            create_app()
+        except ValueError as exc:
+            assert expected_message in str(exc)
+        else:
+            raise AssertionError(
+                f"expected serving startup to reject {RATE_LIMIT_ENV}={value}"
+            )
 
 
 def test_serving_api_reports_validation_errors(tmp_path) -> None:

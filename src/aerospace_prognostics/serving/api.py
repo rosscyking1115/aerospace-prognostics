@@ -261,7 +261,11 @@ def create_app(
     rate_limit_per_minute: int | None = None,
     expected_artifact_sha256: str | None = None,
 ) -> FastAPI:
-    """Create a FastAPI app, optionally loading a model artifact at startup."""
+    """Create a FastAPI app, optionally loading a model artifact at startup.
+
+    ``rate_limit_per_minute=0`` disables request throttling. Positive values
+    enable a per-client fixed-window limit for secured deployment smoke tests.
+    """
 
     app = FastAPI(
         title="Aerospace Prognostics API",
@@ -405,13 +409,17 @@ def _verify_model_artifact_sha256(path: str | Path, expected_sha256: str) -> str
 
 def _configured_rate_limit(rate_limit_per_minute: int | None) -> int:
     if rate_limit_per_minute is not None:
-        rate_limit = rate_limit_per_minute
-    else:
-        value = os.getenv(RATE_LIMIT_ENV, "0")
-        try:
-            rate_limit = int(value)
-        except ValueError as exc:
-            raise ValueError(f"{RATE_LIMIT_ENV} must be an integer") from exc
+        if rate_limit_per_minute < 0:
+            raise ValueError(
+                "rate_limit_per_minute must be greater than or equal to 0"
+            )
+        return rate_limit_per_minute
+
+    value = os.getenv(RATE_LIMIT_ENV, "0")
+    try:
+        rate_limit = int(value)
+    except ValueError as exc:
+        raise ValueError(f"{RATE_LIMIT_ENV} must be an integer") from exc
     if rate_limit < 0:
         raise ValueError(f"{RATE_LIMIT_ENV} must be greater than or equal to 0")
     return rate_limit
