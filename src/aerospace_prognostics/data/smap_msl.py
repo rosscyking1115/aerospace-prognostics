@@ -4,11 +4,12 @@ from __future__ import annotations
 
 import ast
 import csv
-import json
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
 import numpy as np
+
+from aerospace_prognostics.artifact_io import prepare_output_path, write_json_payload
 
 SMAP_MSL_LABEL_FILENAME = "labeled_anomalies.csv"
 
@@ -218,12 +219,7 @@ def write_smap_msl_channel_selection_json(
 ) -> None:
     """Write selected SMAP/MSL channel metadata as JSON."""
 
-    output_path = _prepare_output_path(path)
-    output_path.write_text(
-        json.dumps([selection.to_dict() for selection in selections], indent=2, sort_keys=True)
-        + "\n",
-        encoding="utf-8",
-    )
+    write_json_payload([selection.to_dict() for selection in selections], path)
 
 
 def write_smap_msl_channel_selection_csv(
@@ -234,7 +230,7 @@ def write_smap_msl_channel_selection_csv(
 
     if not selections:
         raise ValueError("selections must contain at least one item")
-    output_path = _prepare_output_path(path)
+    output_path = prepare_output_path(path)
     with output_path.open("w", encoding="utf-8", newline="") as file:
         writer = csv.DictWriter(file, fieldnames=list(selections[0].to_dict()))
         writer.writeheader()
@@ -331,12 +327,6 @@ def _unique_smap_msl_metadata_by_channel(
 
 def _smap_msl_interval_points(intervals: tuple[tuple[int, int], ...]) -> int:
     return sum(end - start + 1 for start, end in intervals)
-
-
-def _prepare_output_path(path: Path) -> Path:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    return path
-
 
 def _smap_msl_split_path(data_dir: Path, split: str, channel_id: str) -> Path:
     direct_path = data_dir / split / f"{channel_id}.npy"

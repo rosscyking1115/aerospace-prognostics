@@ -7,6 +7,7 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
 
+from aerospace_prognostics.artifact_io import write_json_payload
 from aerospace_prognostics.data.cmapss import CMAPSS_SUBSETS
 from aerospace_prognostics.data.integrity import FileCheck, file_sha256, verify_file
 
@@ -45,9 +46,7 @@ class DatasetManifest:
     def write_json(self, path: str | Path) -> None:
         """Write this manifest as pretty JSON."""
 
-        output_path = Path(path)
-        output_path.parent.mkdir(parents=True, exist_ok=True)
-        output_path.write_text(json.dumps(self.to_dict(), indent=2, sort_keys=True) + "\n")
+        write_json_payload(self.to_dict(), path)
 
 
 def build_cmapss_manifest(
