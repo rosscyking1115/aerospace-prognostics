@@ -7,7 +7,7 @@ from collections.abc import Iterable
 from pathlib import Path
 from typing import Any
 
-from aerospace_prognostics.cli_io import write_json_payload
+from aerospace_prognostics.artifact_io import write_json_payload
 from aerospace_prognostics.data.cmapss import CMAPSS_SUBSETS
 from aerospace_prognostics.evaluation import (
     RegressionRunResult,

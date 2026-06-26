@@ -14,7 +14,7 @@ from aerospace_prognostics.anomaly.baselines import (
     run_classical_anomaly_baselines,
     run_robust_zscore_baseline,
 )
-from aerospace_prognostics.cli_io import prepare_output_path, write_json_payload
+from aerospace_prognostics.artifact_io import prepare_output_path, write_json_payload
 
 
 def register_anomaly_commands(subparsers: Any) -> None:

@@ -3,10 +3,11 @@
 from __future__ import annotations
 
 import csv
-import json
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
+
+from aerospace_prognostics.artifact_io import prepare_output_path, write_json_payload
 
 
 @dataclass(frozen=True)
@@ -35,16 +36,14 @@ class RegressionRunResult:
     def write_json(self, path: str | Path) -> None:
         """Write this result as pretty JSON."""
 
-        output_path = _prepare_output_path(path)
-        output_path.write_text(json.dumps(self.to_dict(), indent=2, sort_keys=True) + "\n")
+        write_json_payload(self.to_dict(), path)
 
 
 def write_results_json(results: list[RegressionRunResult], path: str | Path) -> None:
     """Write multiple run results as pretty JSON."""
 
     payload = [result.to_dict() for result in results]
-    output_path = _prepare_output_path(path)
-    output_path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n")
+    write_json_payload(payload, path)
 
 
 def write_results_csv(results: list[RegressionRunResult], path: str | Path) -> None:
@@ -53,14 +52,8 @@ def write_results_csv(results: list[RegressionRunResult], path: str | Path) -> N
     if not results:
         raise ValueError("results must contain at least one item")
 
-    output_path = _prepare_output_path(path)
+    output_path = prepare_output_path(path)
     with output_path.open("w", encoding="utf-8", newline="") as file:
         writer = csv.DictWriter(file, fieldnames=list(results[0].to_dict()))
         writer.writeheader()
         writer.writerows(result.to_dict() for result in results)
-
-
-def _prepare_output_path(path: str | Path) -> Path:
-    output_path = Path(path)
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    return output_path
