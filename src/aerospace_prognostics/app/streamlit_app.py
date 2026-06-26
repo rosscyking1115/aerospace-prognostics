@@ -24,6 +24,7 @@ from aerospace_prognostics.app.dashboard_state import (
     predict_cmapss_telemetry,
 )
 from aerospace_prognostics.app.store import (
+    build_model_artifact_review_bundle,
     build_prediction_run_evidence,
     database_summary,
     export_prediction_run_evidence,
@@ -527,6 +528,22 @@ def _render_registry_tab(st: Any, database_path: Path, read_only: bool) -> None:
     metric_columns[1].metric("Dataset", _display(artifact.get("dataset") or model.get("dataset")))
     metric_columns[2].metric("Subset", _display(artifact.get("subset") or model.get("subset")))
     metric_columns[3].metric("Evidence", _display(len(selected["release_evidence"])))
+
+    try:
+        review_bundle = build_model_artifact_review_bundle(
+            database_path,
+            artifact_id=selected_artifact_id,
+            read_only=read_only,
+        )
+    except ValueError as exc:
+        st.error(str(exc))
+    else:
+        st.download_button(
+            "Download Review Bundle",
+            data=_json_download_bytes(review_bundle),
+            file_name=f"{selected_artifact_id}_review_bundle.json",
+            mime="application/json",
+        )
 
     report_columns = st.columns(4)
     report_columns[0].metric("Release", _display(report_card.get("release_status")))

@@ -602,6 +602,37 @@ def load_model_artifact(
     }
 
 
+def build_model_artifact_review_bundle(
+    database_path: str | Path,
+    *,
+    artifact_id: str,
+    read_only: bool = False,
+) -> dict[str, Any]:
+    """Build a portable model-artifact review bundle without writing files."""
+
+    loaded = load_model_artifact(database_path, artifact_id, read_only=read_only)
+    if loaded is None:
+        raise ValueError(f"unknown model artifact: {artifact_id}")
+
+    summary = database_summary(database_path, read_only=read_only)
+    return {
+        "schema_version": "aerospace-prognostics/model-artifact-review/v1",
+        "exported_at_utc": _now(),
+        "database": {
+            "path": str(Path(database_path)),
+            "schema_version": summary["schema_version"],
+        },
+        "artifact": loaded["artifact"],
+        "report_card": loaded["report_card"],
+        "release_evidence": loaded["release_evidence"],
+        "prediction_runs": loaded["prediction_runs"],
+        "counts": {
+            "release_evidence": len(loaded["release_evidence"]),
+            "prediction_runs": len(loaded["prediction_runs"]),
+        },
+    }
+
+
 def list_prediction_runs(
     database_path: str | Path,
     *,

@@ -10,6 +10,7 @@ import aerospace_prognostics.app.store as store
 from aerospace_prognostics.app.dashboard_state import QuickstartWorkspace
 from aerospace_prognostics.app.store import (
     SCHEMA_VERSION,
+    build_model_artifact_review_bundle,
     build_prediction_run_evidence,
     database_summary,
     export_prediction_outcome_template,
@@ -195,6 +196,42 @@ def test_model_registry_lists_artifacts_evidence_and_prediction_usage(tmp_path) 
     assert loaded["report_card"]["provenance_workflow"] == "local"
 
 
+def test_build_model_artifact_review_bundle_is_read_only_safe(tmp_path) -> None:
+    workspace = _write_fake_workspace(tmp_path / "quickstart")
+    database_path = tmp_path / "app.sqlite"
+    seed_quickstart_workspace(database_path, workspace)
+    run_id = _write_prediction_run_for_artifact(
+        tmp_path,
+        database_path=database_path,
+        artifact_id="fd001-demo",
+    )
+
+    bundle = build_model_artifact_review_bundle(
+        database_path,
+        artifact_id="fd001-demo",
+        read_only=True,
+    )
+
+    assert bundle["schema_version"] == "aerospace-prognostics/model-artifact-review/v1"
+    assert bundle["database"]["schema_version"] == SCHEMA_VERSION
+    assert bundle["artifact"]["artifact_id"] == "fd001-demo"
+    assert bundle["report_card"]["artifact_id"] == "fd001-demo"
+    assert bundle["counts"] == {"release_evidence": 5, "prediction_runs": 1}
+    assert len(bundle["release_evidence"]) == 5
+    assert bundle["prediction_runs"][0]["run_id"] == run_id
+
+
+def test_build_model_artifact_review_bundle_rejects_unknown_artifact(tmp_path) -> None:
+    database_path = initialize_app_database(tmp_path / "app.sqlite")
+
+    with pytest.raises(ValueError, match="unknown model artifact"):
+        build_model_artifact_review_bundle(
+            database_path,
+            artifact_id="missing-artifact",
+            read_only=True,
+        )
+
+
 def test_read_only_queries_use_existing_database_without_initializing(
     tmp_path,
     monkeypatch,
@@ -223,6 +260,11 @@ def test_read_only_queries_use_existing_database_without_initializing(
     runs = store.list_prediction_runs(database_path, read_only=True)
     loaded_run = store.load_prediction_run(database_path, run_id, read_only=True)
     events = store.list_prediction_run_events(database_path, run_id, read_only=True)
+    review_bundle = store.build_model_artifact_review_bundle(
+        database_path,
+        artifact_id="fd001-demo",
+        read_only=True,
+    )
 
     assert summary["schema_version"] == SCHEMA_VERSION
     assert summary["model_artifacts"] == 1
@@ -233,6 +275,7 @@ def test_read_only_queries_use_existing_database_without_initializing(
     assert loaded_run is not None
     assert loaded_run["run"]["run_id"] == run_id
     assert events[0]["event_type"] == "prediction_recorded"
+    assert review_bundle["artifact"]["artifact_id"] == "fd001-demo"
 
 
 def test_read_only_summary_requires_existing_database(tmp_path) -> None:

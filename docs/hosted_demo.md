@@ -18,8 +18,8 @@ Then open `http://127.0.0.1:8501`.
 - Browse fleet triage, model registry, release evidence, model card, SBOM, and
   provenance records.
 - Inspect seeded prediction history and deployment gate evidence.
-- Download stored prediction rows, outcome templates, and run evidence JSON
-  without mutating the seeded database.
+- Download stored prediction rows, outcome templates, run evidence JSON, and
+  model-review bundles without mutating the seeded database.
 - Verify the console health endpoint at `/_stcore/health`.
 
 ## What Read-Only Mode Blocks

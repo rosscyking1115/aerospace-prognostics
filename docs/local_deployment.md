@@ -51,7 +51,7 @@ Read-only mode disables telemetry upload, prediction persistence, outcome
 imports, operator decisions, file-writing run-evidence exports, and automatic
 quickstart database seeding. Existing dashboards, registry records, evidence,
 history, and in-memory downloads remain visible, including prediction rows,
-outcome templates, and evidence JSON for stored runs.
+outcome templates, model-review bundles, and evidence JSON for stored runs.
 
 ```powershell
 $env:AEROSPACE_PROGNOSTICS_CONSOLE_READ_ONLY="true"
@@ -64,6 +64,10 @@ Generated model artifacts and release evidence can be registered without using
 the quickstart seeding path. The model artifact and inspection JSON are
 required; release bundle, provenance, promotion, and dashboard payload JSON
 files are optional and appear in the Registry and Evidence views when present.
+The Registry tab can download a JSON review bundle for the selected artifact
+without writing files, so hosted reviewers can inspect artifact identity,
+release evidence, report-card diagnostics, and recent prediction usage from one
+portable document.
 
 ```powershell
 uv run aerospace-prognostics app-register-artifact `
