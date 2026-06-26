@@ -19,6 +19,7 @@ from aerospace_prognostics.app.streamlit_app import (
     _model_artifacts_frame,
     _percent_display,
     _prediction_runs_frame,
+    _read_outcome_csv,
     _read_telemetry_csv,
     _release_evidence_frame,
     _telemetry_records,
@@ -116,6 +117,49 @@ def test_read_telemetry_csv_rejects_invalid_identity_values(
 
     with pytest.raises(ValueError, match=expected_message):
         _read_telemetry_csv(telemetry.to_csv(index=False).encode("utf-8"))
+
+
+def test_read_outcome_csv_accepts_required_contract(tmp_path) -> None:
+    outcomes = pd.DataFrame({"unit_number": [1, 2], "actual_rul": [12.0, 24.0]})
+    outcome_path = tmp_path / "outcomes.csv"
+    outcomes.to_csv(outcome_path, index=False)
+
+    loaded = _read_outcome_csv(outcome_path)
+
+    assert list(loaded.columns) == ["unit_number", "actual_rul"]
+    assert loaded.iloc[0]["actual_rul"] == 12.0
+
+
+def test_read_outcome_csv_rejects_missing_required_columns() -> None:
+    with pytest.raises(ValueError) as exc_info:
+        _read_outcome_csv(b"unit_number\n1\n")
+
+    assert str(exc_info.value) == "outcome CSV is missing required columns: actual_rul"
+
+
+def test_read_outcome_csv_rejects_empty_csv() -> None:
+    with pytest.raises(ValueError, match="outcome CSV must contain at least one row"):
+        _read_outcome_csv(b"unit_number,actual_rul\n")
+
+
+@pytest.mark.parametrize(
+    ("unit_number", "actual_rul", "expected_message"),
+    [
+        ("", "12", "unit_number and actual_rul must be numeric and non-null"),
+        ("1", "-1", "actual_rul values must be nonnegative"),
+    ],
+)
+def test_read_outcome_csv_rejects_invalid_values(
+    unit_number: str,
+    actual_rul: str,
+    expected_message: str,
+) -> None:
+    outcomes = pd.DataFrame(
+        [{"unit_number": unit_number, "actual_rul": actual_rul}]
+    )
+
+    with pytest.raises(ValueError, match=expected_message):
+        _read_outcome_csv(outcomes.to_csv(index=False).encode("utf-8"))
 
 
 def test_with_api_artifact_metadata_adds_readiness_identity() -> None:

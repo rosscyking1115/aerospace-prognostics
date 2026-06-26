@@ -332,7 +332,7 @@ def _render_history_tab(st: Any, database_path: Path, read_only: bool) -> None:
             st.warning("No outcome CSV loaded.")
         else:
             try:
-                outcome_frame = pd.read_csv(BytesIO(outcome_file.getvalue()))
+                outcome_frame = _read_outcome_csv(outcome_file.getvalue())
                 result = record_prediction_outcomes(
                     database_path,
                     run_id=selected_run_id,
@@ -910,6 +910,33 @@ def _validate_telemetry_frame(telemetry: pd.DataFrame) -> None:
         raise ValueError("unit_number and time_in_cycles must be numeric and non-null")
     if (identity_columns["time_in_cycles"] < 1).any():
         raise ValueError("time_in_cycles values must be positive")
+
+
+def _read_outcome_csv(source: bytes | Path) -> pd.DataFrame:
+    try:
+        outcomes = (
+            pd.read_csv(BytesIO(source))
+            if isinstance(source, bytes)
+            else pd.read_csv(source)
+        )
+    except (EmptyDataError, ParserError, UnicodeDecodeError) as exc:
+        raise ValueError("outcome CSV could not be read as a valid CSV") from exc
+    _validate_outcome_frame(outcomes)
+    return outcomes
+
+
+def _validate_outcome_frame(outcomes: pd.DataFrame) -> None:
+    if outcomes.empty:
+        raise ValueError("outcome CSV must contain at least one row")
+    required_columns = ("unit_number", "actual_rul")
+    missing = [column for column in required_columns if column not in outcomes.columns]
+    if missing:
+        raise ValueError(f"outcome CSV is missing required columns: {', '.join(missing)}")
+    numeric_columns = outcomes[list(required_columns)].apply(pd.to_numeric, errors="coerce")
+    if numeric_columns.isna().any().any():
+        raise ValueError("unit_number and actual_rul must be numeric and non-null")
+    if (numeric_columns["actual_rul"] < 0).any():
+        raise ValueError("actual_rul values must be nonnegative")
 
 
 def _with_api_artifact_metadata(
