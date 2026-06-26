@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from aerospace_prognostics.analysis.cmapss_eda import build_cmapss_eda_report
+from aerospace_prognostics.artifact_io import prepare_output_path
 from aerospace_prognostics.data.cmapss import CMAPSS_SUBSETS, load_cmapss_subset
 from aerospace_prognostics.data.manifest import build_cmapss_manifest, verify_manifest
 from aerospace_prognostics.evaluation import (
@@ -152,7 +153,7 @@ def _write_phase1_summary(
     hgb_policy_results: tuple[RegressionRunResult, ...],
     sensor_filter_results: tuple[RegressionRunResult, ...],
 ) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
+    output_path = prepare_output_path(path)
     lines = [
         "# Phase 1 C-MAPSS Summary",
         "",
@@ -200,4 +201,4 @@ def _write_phase1_summary(
             f"| {result.subset} | {result.model_name} | {result.standardize} | "
             f"{result.rmse:.6f} | {result.nasa_score:.6f} |"
         )
-    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    output_path.write_text("\n".join(lines) + "\n", encoding="utf-8")

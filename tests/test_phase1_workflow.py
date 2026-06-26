@@ -35,3 +35,4 @@ def test_run_phase1_cmapss_workflow_writes_expected_artifacts(tmp_path) -> None:
     assert "## Current Phase 1 Baseline" in summary_text
     assert "| FD004 | hist_gradient_boosting | True |" in summary_text
     assert "_eda_filtered" in summary_text
+    assert summary_text.endswith("\n")
