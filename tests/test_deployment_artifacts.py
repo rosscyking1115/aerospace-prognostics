@@ -17,6 +17,7 @@ from aerospace_prognostics.deployment.artifacts import (
     validate_cmapss_model_artifact,
     write_cmapss_model_card_markdown,
     write_cmapss_promotion_report_markdown,
+    write_cmapss_release_bundle_markdown,
 )
 from tests.cmapss_fixtures import write_tiny_cmapss_subset
 
@@ -214,8 +215,8 @@ def test_build_cmapss_promotion_report_combines_gate_evidence(tmp_path) -> None:
     metadata_json = tmp_path / "models" / "fd001_metadata.json"
     validation_json = tmp_path / "models" / "fd001_validation.json"
     benchmark_json = tmp_path / "models" / "fd001_benchmark.json"
-    model_card_markdown = tmp_path / "models" / "fd001_model_card.md"
-    promotion_markdown = tmp_path / "models" / "fd001_promotion.md"
+    model_card_markdown = tmp_path / "reports" / "cards" / "fd001_model_card.md"
+    promotion_markdown = tmp_path / "reports" / "promotion" / "fd001_promotion.md"
     sbom_json = tmp_path / "sbom" / "cyclonedx.json"
     input_csv = tmp_path / "fd001_input.csv"
     metadata_json.write_text(
@@ -244,7 +245,11 @@ def test_build_cmapss_promotion_report_combines_gate_evidence(tmp_path) -> None:
     )
     validation_json.write_text(json.dumps(validation.to_dict()), encoding="utf-8")
     benchmark_json.write_text(json.dumps(benchmark.to_dict()), encoding="utf-8")
-    write_cmapss_model_card_markdown(packaged.artifact, packaged.result, model_card_markdown)
+    model_card_path = write_cmapss_model_card_markdown(
+        packaged.artifact,
+        packaged.result,
+        model_card_markdown,
+    )
     sbom_json.parent.mkdir(parents=True)
     sbom_json.write_text(
         json.dumps(
@@ -265,6 +270,9 @@ def test_build_cmapss_promotion_report_combines_gate_evidence(tmp_path) -> None:
     )
     markdown_path = write_cmapss_promotion_report_markdown(report, promotion_markdown)
 
+    assert model_card_path == model_card_markdown
+    assert model_card_path.exists()
+    assert markdown_path == promotion_markdown
     assert report.status == "ok"
     assert all(report.gates.values())
     assert report.problems == []
@@ -385,6 +393,10 @@ def test_build_cmapss_release_bundle_ties_model_supply_chain_and_container_evide
         container_image_ref="aerospace-prognostics:ci",
     )
     markdown = render_cmapss_release_bundle_markdown(bundle)
+    release_markdown_path = write_cmapss_release_bundle_markdown(
+        bundle,
+        tmp_path / "reports" / "release" / "fd001_release.md",
+    )
 
     assert bundle.status == "ok"
     assert all(bundle.gates.values())
@@ -399,6 +411,7 @@ def test_build_cmapss_release_bundle_ties_model_supply_chain_and_container_evide
     assert bundle.evidence["container"]["image_id"] == "sha256:image"
     assert bundle.to_dict()["schema_version"] == "aerospace-prognostics/cmapss-release-bundle/v1"
     assert "# C-MAPSS Release Bundle" in markdown
+    assert "# C-MAPSS Release Bundle" in release_markdown_path.read_text(encoding="utf-8")
     assert "Model artifact SHA-256" in markdown
     assert "Dashboard payload" in markdown
     assert "Dashboard HTML" in markdown

@@ -14,6 +14,7 @@ import joblib
 import numpy as np
 import pandas as pd
 
+from aerospace_prognostics.artifact_io import prepare_output_path
 from aerospace_prognostics.data.cmapss import (
     CMAPSS_COLUMNS,
     load_cmapss_subset,
@@ -487,8 +488,7 @@ def save_cmapss_model_artifact(
 ) -> Path:
     """Persist a deployable model artifact with joblib."""
 
-    output_path = Path(path)
-    output_path.parent.mkdir(parents=True, exist_ok=True)
+    output_path = prepare_output_path(path)
     joblib.dump(artifact, output_path)
     return output_path
 
@@ -838,8 +838,7 @@ def write_cmapss_promotion_report_markdown(
 ) -> Path:
     """Write a markdown promotion-gate report."""
 
-    output_path = Path(output_markdown)
-    output_path.parent.mkdir(parents=True, exist_ok=True)
+    output_path = prepare_output_path(output_markdown)
     output_path.write_text(render_cmapss_promotion_report_markdown(report), encoding="utf-8")
     return output_path
 
@@ -1073,8 +1072,7 @@ def write_cmapss_release_bundle_markdown(
 ) -> Path:
     """Write a release-candidate bundle Markdown artifact."""
 
-    output_path = Path(output_markdown)
-    output_path.parent.mkdir(parents=True, exist_ok=True)
+    output_path = prepare_output_path(output_markdown)
     output_path.write_text(render_cmapss_release_bundle_markdown(bundle), encoding="utf-8")
     return output_path
 
@@ -1196,8 +1194,7 @@ def write_cmapss_model_card_markdown(
 ) -> Path:
     """Write a model-card markdown artifact for a packaged C-MAPSS model."""
 
-    output_path = Path(output_markdown)
-    output_path.parent.mkdir(parents=True, exist_ok=True)
+    output_path = prepare_output_path(output_markdown)
     output_path.write_text(
         render_cmapss_model_card_markdown(artifact, result),
         encoding="utf-8",
