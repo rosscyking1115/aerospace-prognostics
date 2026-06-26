@@ -35,6 +35,7 @@ def test_download_cmapss_dataset_extracts_required_files_from_zip(tmp_path) -> N
 
     metadata = json.loads(result.metadata_path.read_text(encoding="utf-8"))
     assert metadata["source_url"] == source_zip.as_uri()
+    assert result.metadata_path.read_text(encoding="utf-8").endswith("\n")
 
 
 def test_download_cmapss_dataset_extracts_required_files_from_nested_zip(tmp_path) -> None:
@@ -113,6 +114,7 @@ def test_download_smap_msl_dataset_extracts_arrays_and_labels(tmp_path) -> None:
     metadata = json.loads(result.metadata_path.read_text(encoding="utf-8"))
     assert metadata["source_url"] == source_zip.as_uri()
     assert metadata["labels_url"] == labels_csv.as_uri()
+    assert result.metadata_path.read_text(encoding="utf-8").endswith("\n")
 
 
 def test_download_smap_msl_dataset_can_import_existing_kaggle_archive(tmp_path) -> None:

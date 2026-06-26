@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 import shutil
 import urllib.error
 import urllib.request
@@ -12,6 +11,7 @@ from datetime import UTC, datetime
 from io import BytesIO
 from pathlib import Path
 
+from aerospace_prognostics.artifact_io import write_json_payload
 from aerospace_prognostics.data.cmapss import CMAPSS_SUBSETS
 
 NASA_CMAPSS_URL = (
@@ -315,8 +315,7 @@ def _write_download_metadata(
             "Data Set, NASA Ames Prognostics Data Repository, NASA Ames, Moffett Field, CA."
         ),
     }
-    metadata_path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-    return metadata_path
+    return write_json_payload(payload, metadata_path)
 
 
 def _write_smap_msl_download_metadata(
@@ -343,8 +342,7 @@ def _write_smap_msl_download_metadata(
             "Dynamic Thresholding."
         ),
     }
-    metadata_path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-    return metadata_path
+    return write_json_payload(payload, metadata_path)
 
 
 def cmapss_download_result_to_dict(result: CmapssDownloadResult) -> dict[str, object]:
