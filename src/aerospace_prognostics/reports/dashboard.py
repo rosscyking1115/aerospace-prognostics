@@ -9,6 +9,8 @@ from html import escape
 from pathlib import Path
 from typing import Any
 
+from aerospace_prognostics.artifact_io import prepare_output_path, write_json_payload
+
 DASHBOARD_SCHEMA_VERSION = "aerospace-prognostics/fleet-dashboard/v1"
 
 
@@ -87,10 +89,7 @@ def write_fleet_dashboard_payload_json(
 ) -> Path:
     """Write a dashboard payload JSON document."""
 
-    output_path = Path(output_json)
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    output_path.write_text(json.dumps(payload.to_dict(), indent=2, sort_keys=True) + "\n")
-    return output_path
+    return write_json_payload(payload.to_dict(), output_json)
 
 
 def render_fleet_dashboard_html(payload: FleetDashboardPayload | dict[str, Any]) -> str:
@@ -344,8 +343,7 @@ def write_fleet_dashboard_html(
 ) -> Path:
     """Write a standalone fleet dashboard HTML document."""
 
-    output_path = Path(output_html)
-    output_path.parent.mkdir(parents=True, exist_ok=True)
+    output_path = prepare_output_path(output_html)
     output_path.write_text(render_fleet_dashboard_html(payload), encoding="utf-8")
     return output_path
 

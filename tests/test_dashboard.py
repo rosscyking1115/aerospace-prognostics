@@ -6,6 +6,8 @@ from aerospace_prognostics.reports.dashboard import (
     DASHBOARD_SCHEMA_VERSION,
     build_fleet_dashboard_payload,
     render_fleet_dashboard_html,
+    write_fleet_dashboard_html,
+    write_fleet_dashboard_payload_json,
 )
 
 
@@ -162,3 +164,37 @@ def test_render_fleet_dashboard_html_outputs_standalone_dashboard(tmp_path) -> N
     assert "<th>Attention</th>" in html
     assert "risk-critical" in html
     assert "risk-nominal" in html
+
+
+def test_write_fleet_dashboard_artifacts_create_parent_directories(tmp_path) -> None:
+    prediction_json = tmp_path / "predictions.json"
+    prediction_json.write_text(
+        json.dumps(
+            {
+                "dataset": "C-MAPSS",
+                "subset": "FD001",
+                "model_name": "hist_gradient_boosting",
+                "rul_cap": 100,
+                "predictions": [{"unit_number": 1, "predicted_rul": 18.0}],
+            }
+        ),
+        encoding="utf-8",
+    )
+    payload = build_fleet_dashboard_payload(
+        prediction_json,
+        generated_at_utc="2026-06-11T00:00:00+00:00",
+    )
+
+    payload_path = write_fleet_dashboard_payload_json(
+        payload,
+        tmp_path / "nested" / "dashboard" / "fleet.json",
+    )
+    html_path = write_fleet_dashboard_html(
+        payload,
+        tmp_path / "nested" / "dashboard" / "fleet.html",
+    )
+
+    written_payload = json.loads(payload_path.read_text(encoding="utf-8"))
+    assert written_payload["schema_version"] == DASHBOARD_SCHEMA_VERSION
+    assert payload_path.read_text(encoding="utf-8").endswith("\n")
+    assert html_path.read_text(encoding="utf-8").startswith("<!doctype html>")
