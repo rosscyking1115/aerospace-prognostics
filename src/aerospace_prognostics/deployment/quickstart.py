@@ -6,6 +6,8 @@ import json
 from collections.abc import Callable
 from pathlib import Path
 
+from aerospace_prognostics.artifact_io import prepare_output_path
+
 
 def run_cmapss_quickstart(
     *,
@@ -56,7 +58,7 @@ def run_cmapss_quickstart(
 
     data_dir.mkdir(parents=True, exist_ok=True)
     write_tiny_cmapss_subset(data_dir)
-    input_csv.parent.mkdir(parents=True, exist_ok=True)
+    input_csv = prepare_output_path(input_csv)
     read_cmapss_frame(data_dir / "test_FD001.txt").to_csv(input_csv, index=False)
 
     _run_cli(

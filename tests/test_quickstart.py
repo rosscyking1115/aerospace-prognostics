@@ -39,6 +39,7 @@ def test_quickstart_release_evidence_demo_writes_review_artifacts(tmp_path) -> N
     assert release_bundle["status"] == "ok"
     assert "dashboard_html" in release_bundle["evidence"]
     assert provenance["summary"]["workflow"] == "local-quickstart"
+    assert (root / "predictions" / "fd001_input.csv").exists()
     assert (root / "dashboard" / "fleet_dashboard.html").exists()
     assert (root / "models" / "fd001_inspection.json").exists()
     assert (root / "models" / "fd001_model_card.md").exists()
@@ -78,5 +79,6 @@ def test_quickstart_cmapss_demo_command_writes_review_artifacts(tmp_path) -> Non
     assert release_bundle["release_name"] == "cli-quickstart-fd001-demo"
     assert release_bundle["status"] == "ok"
     assert provenance["summary"]["workflow"] == "cli-quickstart"
+    assert (root / "predictions" / "fd001_input.csv").exists()
     assert (root / "dashboard" / "fleet_dashboard.html").exists()
     assert (root / "models" / "fd001_inspection.json").exists()
