@@ -11,6 +11,7 @@ from aerospace_prognostics.app.dashboard_state import QuickstartWorkspace
 from aerospace_prognostics.app.store import (
     SCHEMA_VERSION,
     database_summary,
+    export_prediction_outcome_template,
     export_prediction_run_evidence,
     initialize_app_database,
     list_model_artifacts,
@@ -511,6 +512,30 @@ def test_export_prediction_run_evidence_writes_json_and_prediction_csv(tmp_path)
     assert "actual_rul" in exported_predictions.columns
 
 
+def test_export_prediction_outcome_template_writes_fillable_csv(tmp_path) -> None:
+    database_path, run_id = _write_prediction_run(tmp_path)
+    output_csv = tmp_path / "templates" / "outcomes.csv"
+
+    result = export_prediction_outcome_template(
+        database_path,
+        run_id=run_id,
+        output_csv=output_csv,
+    )
+    template = pd.read_csv(output_csv)
+    loaded = load_prediction_run(database_path, run_id)
+    assert loaded is not None
+
+    assert result["run_id"] == run_id
+    assert result["outcome_template_csv"] == str(output_csv)
+    assert result["outcome_template_sha256"]
+    assert result["prediction_count"] == len(loaded["predictions"])
+    assert list(template.columns) == ["unit_number", "actual_rul"]
+    assert list(template["unit_number"]) == [
+        row["unit_number"] for row in loaded["predictions"]
+    ]
+    assert template["actual_rul"].isna().all()
+
+
 def test_app_export_run_command_writes_review_evidence(tmp_path, capsys) -> None:
     database_path, run_id = _write_prediction_run(tmp_path)
     output_dir = tmp_path / "run_exports"
@@ -539,6 +564,37 @@ def test_app_export_run_command_writes_review_evidence(tmp_path, capsys) -> None
     assert "audit_event_count=1" in output
     assert (output_dir / f"{run_id}_evidence.json").exists()
     assert (output_dir / f"{run_id}_predictions.csv").exists()
+
+
+def test_app_export_outcome_template_command_writes_template_csv(
+    tmp_path,
+    capsys,
+) -> None:
+    database_path, run_id = _write_prediction_run(tmp_path)
+    output_csv = tmp_path / "exports" / "outcomes_template.csv"
+
+    exit_code = main(
+        [
+            "app-export-outcome-template",
+            "--database",
+            str(database_path),
+            "--run-id",
+            run_id,
+            "--output-csv",
+            str(output_csv),
+        ]
+    )
+    output = capsys.readouterr().out
+    template = pd.read_csv(output_csv)
+
+    assert exit_code == 0
+    assert f"database={database_path}" in output
+    assert f"run_id={run_id}" in output
+    assert f"outcome_template_csv={output_csv}" in output
+    assert "outcome_template_sha256=" in output
+    assert "prediction_count=2" in output
+    assert list(template.columns) == ["unit_number", "actual_rul"]
+    assert len(template) == 2
 
 
 def test_export_prediction_run_evidence_rejects_unknown_run(tmp_path) -> None:

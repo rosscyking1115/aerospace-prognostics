@@ -873,6 +873,32 @@ def export_prediction_run_evidence(
     }
 
 
+def export_prediction_outcome_template(
+    database_path: str | Path,
+    *,
+    run_id: str,
+    output_csv: str | Path,
+) -> dict[str, Any]:
+    """Export a fillable observed-RUL outcome CSV for one prediction run."""
+
+    loaded = load_prediction_run(database_path, run_id)
+    if loaded is None:
+        raise ValueError(f"unknown prediction run: {run_id}")
+
+    predictions = list(loaded["predictions"])
+    template = pd.DataFrame(predictions).reindex(columns=["unit_number"])
+    template["actual_rul"] = ""
+    output_path = Path(output_csv)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    template.to_csv(output_path, index=False)
+    return {
+        "run_id": run_id,
+        "outcome_template_csv": str(output_path),
+        "outcome_template_sha256": _file_sha256(output_path),
+        "prediction_count": len(predictions),
+    }
+
+
 def database_summary(
     database_path: str | Path,
     *,

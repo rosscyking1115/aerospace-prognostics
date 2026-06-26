@@ -13,6 +13,7 @@ from pandas.errors import EmptyDataError, ParserError
 from aerospace_prognostics.app.dashboard_state import load_quickstart_workspace
 from aerospace_prognostics.app.store import (
     database_summary,
+    export_prediction_outcome_template,
     export_prediction_run_evidence,
     initialize_app_database,
     record_prediction_outcomes,
@@ -24,6 +25,7 @@ APP_COMMANDS = {
     "app-init-db",
     "app-register-artifact",
     "app-record-outcomes",
+    "app-export-outcome-template",
     "app-export-run",
 }
 
@@ -75,6 +77,18 @@ def register_app_commands(subparsers: Any) -> None:
     app_record_outcomes.add_argument("--source-name")
     app_record_outcomes.add_argument("--actor", default="operator")
     app_record_outcomes.add_argument("--observed-at-utc")
+
+    app_export_outcome_template = subparsers.add_parser(
+        "app-export-outcome-template",
+        help="Export a fillable outcome CSV template for a persisted prediction run",
+    )
+    app_export_outcome_template.add_argument(
+        "--database",
+        type=Path,
+        default=Path("artifacts") / "app" / "aerospace_prognostics.sqlite",
+    )
+    app_export_outcome_template.add_argument("--run-id", required=True)
+    app_export_outcome_template.add_argument("--output-csv", type=Path)
 
     app_export_run = subparsers.add_parser(
         "app-export-run",
@@ -161,6 +175,22 @@ def handle_app_command(args: argparse.Namespace) -> int | None:
         print(f"outcome_count={result['outcome_count']}")
         print(f"event_id={result['event_id']}")
         print(f"prediction_outcomes={summary['prediction_outcomes']}")
+        return 0
+
+    if args.command == "app-export-outcome-template":
+        output_csv = args.output_csv or (
+            Path("artifacts") / "app_exports" / f"{args.run_id}_outcomes_template.csv"
+        )
+        result = export_prediction_outcome_template(
+            args.database,
+            run_id=args.run_id,
+            output_csv=output_csv,
+        )
+        print(f"database={args.database}")
+        print(f"run_id={args.run_id}")
+        print(f"outcome_template_csv={result['outcome_template_csv']}")
+        print(f"outcome_template_sha256={result['outcome_template_sha256']}")
+        print(f"prediction_count={result['prediction_count']}")
         return 0
 
     if args.command == "app-export-run":
