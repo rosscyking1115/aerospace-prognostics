@@ -78,8 +78,18 @@ uv run aerospace-prognostics app-register-artifact `
 ## Outcome Imports
 
 Observed RUL outcomes can be attached through the History tab or imported from
-the CLI when a run has later ground truth. The CSV must contain `unit_number`
-and `actual_rul` columns that match units already present in the prediction run.
+the CLI when a run has later ground truth. The History tab can download a
+fillable outcome template for the selected run, and the CLI can export the same
+template for handoff or offline review. Fill the `actual_rul` values and keep
+the `unit_number` values aligned with units already present in the prediction
+run.
+
+```powershell
+uv run aerospace-prognostics app-export-outcome-template `
+  --database artifacts/app/aerospace_prognostics.sqlite `
+  --run-id run-... `
+  --output-csv artifacts/outcomes/fd001_outcomes_template.csv
+```
 
 ```powershell
 uv run aerospace-prognostics app-record-outcomes `

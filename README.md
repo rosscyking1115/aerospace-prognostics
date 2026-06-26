@@ -57,10 +57,11 @@ The working plan is tracked in [Aerospace_Prognostics_Project_Plan.md](Aerospace
 - Dashboard-ready fleet payloads that combine calibrated prediction intervals, priority ranks, attention reasons, and promotion/release evidence for fleet triage surfaces.
 - Standalone static fleet dashboard HTML rendering for release/demo artifacts.
 - No-download `quickstart-cmapss-demo` CLI that generates a full fixture-based deployment evidence bundle.
-- Streamlit local operations console with fleet triage, model registry, release-gate report cards, operational interval availability diagnostics, observed-outcome coverage/MAE diagnostics, artifact evidence, API-backed or local batch prediction, SQLite-backed prediction history, prediction-run evidence export, read-only demo mode, operator decisions, audit events, and API readiness status.
+- Streamlit local operations console with fleet triage, model registry, release-gate report cards, operational interval availability diagnostics, observed-outcome coverage/MAE diagnostics, artifact evidence, API-backed or local batch prediction, SQLite-backed prediction history, outcome-template downloads, prediction-run evidence export, read-only demo mode, operator decisions, audit events, and API readiness status.
 - `aerospace-prognostics app-init-db` CLI for initializing and seeding the local app database from quickstart artifacts.
 - `aerospace-prognostics app-register-artifact` CLI for registering custom model artifacts and release evidence JSON files in the local app database.
 - `aerospace-prognostics app-record-outcomes` CLI for attaching observed RUL outcome CSVs to persisted prediction runs and updating calibration diagnostics.
+- `aerospace-prognostics app-export-outcome-template` CLI for exporting fillable observed-RUL outcome CSV templates from persisted prediction runs.
 - `aerospace-prognostics app-export-run` CLI for exporting portable prediction-run evidence JSON and prediction-row CSV files for review.
 - Promotion evidence reports that combine validation, benchmark, model-card, and SBOM gates.
 - Optional API-key authentication and serving rate limits for protected inference endpoints.
