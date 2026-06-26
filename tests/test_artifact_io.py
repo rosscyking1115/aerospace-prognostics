@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from datetime import UTC, datetime
 
 from aerospace_prognostics.artifact_io import prepare_output_path, write_json_payload
 
@@ -22,3 +23,14 @@ def test_write_json_payload_writes_sorted_pretty_json(tmp_path) -> None:
     assert written_path == output_path
     assert json.loads(output_path.read_text(encoding="utf-8")) == {"a": 1, "b": 2}
     assert output_path.read_text(encoding="utf-8").splitlines()[1].strip() == '"a": 1,'
+
+
+def test_write_json_payload_accepts_default_serializer(tmp_path) -> None:
+    output_path = tmp_path / "nested" / "artifact.json"
+    timestamp = datetime(2026, 6, 26, 12, 30, tzinfo=UTC)
+
+    write_json_payload({"timestamp": timestamp}, output_path, default=str)
+
+    payload = json.loads(output_path.read_text(encoding="utf-8"))
+    assert payload["timestamp"] == str(timestamp)
+    assert output_path.read_text(encoding="utf-8").endswith("\n")

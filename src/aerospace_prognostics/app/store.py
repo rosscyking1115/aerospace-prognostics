@@ -13,6 +13,7 @@ from typing import Any
 import pandas as pd
 
 from aerospace_prognostics.app.dashboard_state import QuickstartWorkspace
+from aerospace_prognostics.artifact_io import write_json_payload
 
 SCHEMA_VERSION = "aerospace-prognostics/app-db/v1"
 REQUIRED_TABLES = (
@@ -857,10 +858,7 @@ def export_prediction_run_evidence(
             },
         },
     }
-    evidence_path.write_text(
-        json.dumps(manifest, indent=2, sort_keys=True, default=str),
-        encoding="utf-8",
-    )
+    write_json_payload(manifest, evidence_path, default=str)
     outcome_count = sum(1 for row in predictions if row.get("actual_rul") is not None)
     return {
         "run_id": run_id,
