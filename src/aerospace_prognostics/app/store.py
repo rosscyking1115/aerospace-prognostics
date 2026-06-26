@@ -1167,18 +1167,29 @@ def _outcome_rows(outcomes: pd.DataFrame) -> list[dict[str, Any]]:
     if missing_columns:
         missing = ", ".join(sorted(missing_columns))
         raise ValueError(f"outcomes require columns: {missing}")
+    numeric_outcomes = outcomes[["unit_number", "actual_rul"]].apply(
+        pd.to_numeric,
+        errors="coerce",
+    )
+    if numeric_outcomes.empty:
+        raise ValueError("outcomes must contain at least one row")
+    if numeric_outcomes.isnull().any().any():
+        raise ValueError(
+            "outcome rows require numeric, non-null unit_number and actual_rul"
+        )
+    if (numeric_outcomes["unit_number"] % 1 != 0).any():
+        raise ValueError("outcome unit_number values must be whole numbers")
+    if (numeric_outcomes["actual_rul"] < 0).any():
+        raise ValueError("actual_rul values must be nonnegative")
+
     parsed: list[dict[str, Any]] = []
-    for row in outcomes[["unit_number", "actual_rul"]].to_dict(orient="records"):
-        if pd.isna(row["unit_number"]) or pd.isna(row["actual_rul"]):
-            raise ValueError("outcome rows require unit_number and actual_rul")
+    for row in numeric_outcomes.to_dict(orient="records"):
         parsed.append(
             {
                 "unit_number": int(row["unit_number"]),
                 "actual_rul": float(row["actual_rul"]),
             }
         )
-    if not parsed:
-        raise ValueError("outcomes must contain at least one row")
     return parsed
 
 

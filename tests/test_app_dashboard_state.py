@@ -146,6 +146,7 @@ def test_read_outcome_csv_rejects_empty_csv() -> None:
     ("unit_number", "actual_rul", "expected_message"),
     [
         ("", "12", "unit_number and actual_rul must be numeric and non-null"),
+        ("1.5", "12", "unit_number values must be whole numbers"),
         ("1", "-1", "actual_rul values must be nonnegative"),
     ],
 )

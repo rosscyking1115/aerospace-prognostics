@@ -551,6 +551,43 @@ def test_prediction_outcomes_reject_unknown_prediction_units(tmp_path) -> None:
         raise AssertionError("record_prediction_outcomes should reject unknown units")
 
 
+@pytest.mark.parametrize(
+    ("outcomes", "expected_message"),
+    [
+        (
+            pd.DataFrame({"unit_number": ["unit-1"], "actual_rul": [10.0]}),
+            "outcome rows require numeric, non-null unit_number and actual_rul",
+        ),
+        (
+            pd.DataFrame({"unit_number": [1], "actual_rul": [None]}),
+            "outcome rows require numeric, non-null unit_number and actual_rul",
+        ),
+        (
+            pd.DataFrame({"unit_number": [1.5], "actual_rul": [10.0]}),
+            "outcome unit_number values must be whole numbers",
+        ),
+        (
+            pd.DataFrame({"unit_number": [1], "actual_rul": [-1.0]}),
+            "actual_rul values must be nonnegative",
+        ),
+    ],
+)
+def test_prediction_outcomes_reject_invalid_outcome_values(
+    tmp_path,
+    outcomes: pd.DataFrame,
+    expected_message: str,
+) -> None:
+    database_path, run_id = _write_prediction_run(tmp_path)
+
+    with pytest.raises(ValueError, match=expected_message):
+        record_prediction_outcomes(
+            database_path,
+            run_id=run_id,
+            outcomes=outcomes,
+            source_name="bad_outcomes.csv",
+        )
+
+
 def test_interval_diagnostics_report_missing_prediction_bounds(tmp_path) -> None:
     workspace = _write_fake_workspace(tmp_path / "quickstart")
     database_path = tmp_path / "app.sqlite"

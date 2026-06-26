@@ -935,6 +935,8 @@ def _validate_outcome_frame(outcomes: pd.DataFrame) -> None:
     numeric_columns = outcomes[list(required_columns)].apply(pd.to_numeric, errors="coerce")
     if numeric_columns.isna().any().any():
         raise ValueError("unit_number and actual_rul must be numeric and non-null")
+    if (numeric_columns["unit_number"] % 1 != 0).any():
+        raise ValueError("unit_number values must be whole numbers")
     if (numeric_columns["actual_rul"] < 0).any():
         raise ValueError("actual_rul values must be nonnegative")
 
