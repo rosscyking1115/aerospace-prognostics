@@ -12,6 +12,7 @@ from dataclasses import dataclass
 from importlib import metadata as importlib_metadata
 from pathlib import Path
 
+from aerospace_prognostics.artifact_io import prepare_output_path, write_json_payload
 from aerospace_prognostics.data.cmapss import CMAPSS_SUBSETS
 from aerospace_prognostics.data.integrity import file_sha256
 from aerospace_prognostics.evaluation import (
@@ -687,9 +688,9 @@ def write_phase2_cmapss_manifest_audit_markdown(
     else:
         lines.append("- None")
 
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
-    return path
+    output_path = prepare_output_path(path)
+    output_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    return output_path
 
 
 def _write_phase2_summary(
@@ -724,7 +725,7 @@ def _write_phase2_summary(
     comparison_rows: tuple[CmapssModelComparisonRow, ...],
     training_loss: str,
 ) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
+    output_path = prepare_output_path(path)
     lines = [
         "# Phase 2 C-MAPSS Summary",
         "",
@@ -930,7 +931,7 @@ def _write_phase2_summary(
             f"{best.rmse:.6f} | {best.nasa_score:.6f} | "
             f"{best.nasa_score_delta:.6f} |"
         )
-    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    output_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
 def _sequence_artifact_paths(
@@ -954,8 +955,7 @@ def _sequence_artifact_paths(
 
 
 def _write_phase2_run_manifest(path: Path, payload: dict[str, object]) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    write_json_payload(payload, path)
 
 
 def _read_run_manifest_payload(path: Path, problems: list[str]) -> dict[str, object] | None:

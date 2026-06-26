@@ -101,6 +101,7 @@ def test_run_phase2_cmapss_workflow_writes_expected_artifacts(tmp_path) -> None:
     ) as file:
         validation_selection_unit_diagnostic_rows = list(csv.DictReader(file))
     run_manifest = json.loads(result.run_manifest_path.read_text(encoding="utf-8"))
+    run_manifest_text = result.run_manifest_path.read_text(encoding="utf-8")
     summary = result.summary_markdown_path.read_text(encoding="utf-8")
 
     assert deep_payload[0]["subset"] == "FD001"
@@ -192,6 +193,8 @@ def test_run_phase2_cmapss_workflow_writes_expected_artifacts(tmp_path) -> None:
     assert "## Validation Selection Highest-Error Units" in summary
     assert "deep prediction diagnostics" in summary
     assert "Run manifest" in summary
+    assert summary.endswith("\n")
+    assert run_manifest_text.endswith("\n")
 
     verification = verify_phase2_cmapss_run_manifest(result.run_manifest_path)
     assert verification.ok
@@ -225,6 +228,7 @@ def test_run_phase2_cmapss_workflow_writes_expected_artifacts(tmp_path) -> None:
         in audit_markdown
     )
     assert "- None" in audit_markdown
+    assert audit_markdown.endswith("\n")
 
     with result.deep_compare_csv_path.open("a", encoding="utf-8") as file:
         file.write("tampered\n")
