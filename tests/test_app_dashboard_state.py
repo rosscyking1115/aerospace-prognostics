@@ -17,6 +17,7 @@ from aerospace_prognostics.app.streamlit_app import (
     _failed_gates_frame,
     _float_display,
     _model_artifacts_frame,
+    _outcome_template_frame,
     _percent_display,
     _prediction_runs_frame,
     _read_outcome_csv,
@@ -161,6 +162,21 @@ def test_read_outcome_csv_rejects_invalid_values(
 
     with pytest.raises(ValueError, match=expected_message):
         _read_outcome_csv(outcomes.to_csv(index=False).encode("utf-8"))
+
+
+def test_outcome_template_frame_preserves_prediction_units() -> None:
+    template = _outcome_template_frame(
+        pd.DataFrame(
+            [
+                {"unit_number": 7, "predicted_rul": 42.0, "asset_id": "FD001-unit-7"},
+                {"unit_number": 8, "predicted_rul": 55.0, "asset_id": "FD001-unit-8"},
+            ]
+        )
+    )
+
+    assert list(template.columns) == ["unit_number", "actual_rul"]
+    assert list(template["unit_number"]) == [7, 8]
+    assert list(template["actual_rul"]) == ["", ""]
 
 
 def test_with_api_artifact_metadata_adds_readiness_identity() -> None:

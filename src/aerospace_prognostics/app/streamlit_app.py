@@ -409,7 +409,7 @@ def _render_history_tab(st: Any, database_path: Path, read_only: bool) -> None:
             "outcome_source": st.column_config.TextColumn("Outcome Source"),
         },
     )
-    export_columns = st.columns([1, 1, 2])
+    export_columns = st.columns([1, 1, 1, 1])
     with export_columns[0]:
         st.download_button(
             "Download Predictions",
@@ -418,6 +418,14 @@ def _render_history_tab(st: Any, database_path: Path, read_only: bool) -> None:
             mime="text/csv",
         )
     with export_columns[1]:
+        outcome_template = _outcome_template_frame(predictions_frame)
+        st.download_button(
+            "Download Outcome Template",
+            data=outcome_template.to_csv(index=False).encode("utf-8"),
+            file_name=f"{selected_run_id}_outcomes_template.csv",
+            mime="text/csv",
+        )
+    with export_columns[2]:
         if st.button("Export Run Evidence", disabled=read_only):
             try:
                 result = export_prediction_run_evidence(
@@ -858,6 +866,12 @@ def _artifact_prediction_runs_frame(runs: list[dict[str, Any]]) -> pd.DataFrame:
         frame,
         ["interval_availability_rate", "outcome_interval_coverage_rate"],
     )
+
+
+def _outcome_template_frame(predictions: pd.DataFrame) -> pd.DataFrame:
+    template = predictions.reindex(columns=["unit_number"]).copy()
+    template["actual_rul"] = ""
+    return template
 
 
 def _failed_gates_frame(failed_gates: list[Any]) -> pd.DataFrame:
