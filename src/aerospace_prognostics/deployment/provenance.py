@@ -10,6 +10,8 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from aerospace_prognostics.artifact_io import prepare_output_path, write_json_payload
+
 IN_TOTO_STATEMENT_TYPE = "https://in-toto.io/Statement/v1"
 SLSA_PROVENANCE_V1 = "https://slsa.dev/provenance/v1"
 
@@ -207,10 +209,7 @@ def write_release_provenance_json(
 ) -> Path:
     """Write release provenance JSON."""
 
-    output_path = Path(output_json)
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    output_path.write_text(json.dumps(provenance.to_dict(), indent=2, sort_keys=True) + "\n")
-    return output_path
+    return write_json_payload(provenance.to_dict(), output_json)
 
 
 def write_release_provenance_markdown(
@@ -219,8 +218,7 @@ def write_release_provenance_markdown(
 ) -> Path:
     """Write release provenance Markdown."""
 
-    output_path = Path(output_markdown)
-    output_path.parent.mkdir(parents=True, exist_ok=True)
+    output_path = prepare_output_path(output_markdown)
     output_path.write_text(render_release_provenance_markdown(provenance), encoding="utf-8")
     return output_path
 

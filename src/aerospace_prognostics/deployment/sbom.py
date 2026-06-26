@@ -2,12 +2,13 @@
 
 from __future__ import annotations
 
-import json
 import tomllib
 import uuid
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
+
+from aerospace_prognostics.artifact_io import write_json_payload
 
 CYCLONEDX_SPEC_VERSION = "1.6"
 
@@ -57,11 +58,8 @@ def build_uv_lock_cyclonedx_sbom(
 def write_uv_lock_cyclonedx_sbom(lockfile: str | Path, output_json: str | Path) -> Path:
     """Write a CycloneDX-style SBOM and return the output path."""
 
-    output_path = Path(output_json)
-    output_path.parent.mkdir(parents=True, exist_ok=True)
     sbom = build_uv_lock_cyclonedx_sbom(lockfile)
-    output_path.write_text(json.dumps(sbom, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-    return output_path
+    return write_json_payload(sbom, output_json)
 
 
 def _root_package(packages: tuple[dict[str, Any], ...]) -> dict[str, Any]:
