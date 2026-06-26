@@ -8,6 +8,8 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
 
+from aerospace_prognostics.artifact_io import prepare_output_path
+
 
 @dataclass(frozen=True)
 class AnomalyModelComparisonRow:
@@ -102,7 +104,7 @@ def write_anomaly_model_comparison_csv(
 
     if not rows:
         raise ValueError("rows must contain at least one item")
-    output_path = _prepare_output_path(path)
+    output_path = prepare_output_path(path)
     with output_path.open("w", encoding="utf-8", newline="") as file:
         writer = csv.DictWriter(file, fieldnames=list(rows[0].to_dict()))
         writer.writeheader()
@@ -115,7 +117,7 @@ def write_anomaly_model_comparison_markdown(
 ) -> None:
     """Write anomaly comparison rows as a compact Markdown table."""
 
-    output_path = _prepare_output_path(path)
+    output_path = prepare_output_path(path)
     output_path.write_text(render_anomaly_model_comparison_markdown(rows), encoding="utf-8")
 
 
@@ -284,9 +286,3 @@ def _mean(values: Iterable[float]) -> float:
     if not sequence:
         raise ValueError("cannot average an empty metric sequence")
     return sum(sequence) / len(sequence)
-
-
-def _prepare_output_path(path: str | Path) -> Path:
-    output_path = Path(path)
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    return output_path

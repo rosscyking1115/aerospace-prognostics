@@ -67,6 +67,7 @@ def test_write_anomaly_model_comparison_outputs_csv_and_markdown(tmp_path) -> No
     assert "| classical | `isolation_forest` | 1 |" in markdown
     assert "| classical | `robust_zscore` | 1 |" in markdown
     assert "## Average Metrics By Source And Model" in markdown
+    assert markdown.endswith("\n")
 
 
 def test_render_anomaly_model_comparison_markdown_rejects_empty_rows() -> None:
