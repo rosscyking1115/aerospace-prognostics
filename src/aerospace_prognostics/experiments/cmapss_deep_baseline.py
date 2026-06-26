@@ -15,6 +15,7 @@ import torch
 from torch import nn
 from torch.utils.data import DataLoader, TensorDataset
 
+from aerospace_prognostics.artifact_io import prepare_output_path
 from aerospace_prognostics.evaluation import RegressionRunResult
 from aerospace_prognostics.metrics import nasa_rul_score, rmse
 
@@ -1808,8 +1809,7 @@ def write_cmapss_deep_predictions_csv(
     if prediction_split not in {"official_test", "validation_selection"}:
         raise ValueError("prediction_split must be 'official_test' or 'validation_selection'")
 
-    path = Path(output_path)
-    path.parent.mkdir(parents=True, exist_ok=True)
+    path = prepare_output_path(output_path)
     fieldnames = [
         "dataset",
         "prediction_split",

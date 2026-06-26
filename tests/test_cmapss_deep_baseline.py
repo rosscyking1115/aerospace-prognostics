@@ -933,8 +933,10 @@ def test_write_cmapss_deep_predictions_csv_records_unit_diagnostics(tmp_path) ->
         learning_rates=(1e-3,),
         hidden_sizes=(4,),
     )
-    write_cmapss_deep_predictions_csv(runs, output_csv)
+    written_csv = write_cmapss_deep_predictions_csv(runs, output_csv)
 
+    assert written_csv == output_csv
+    assert written_csv.exists()
     with output_csv.open("r", encoding="utf-8", newline="") as file:
         rows = list(csv.DictReader(file))
 
@@ -972,12 +974,14 @@ def test_write_cmapss_deep_predictions_csv_records_validation_selection_rows(
         learning_rates=(1e-3,),
         hidden_sizes=(4,),
     )
-    write_cmapss_deep_predictions_csv(
+    written_csv = write_cmapss_deep_predictions_csv(
         runs,
         output_csv,
         prediction_split="validation_selection",
     )
 
+    assert written_csv == output_csv
+    assert written_csv.exists()
     with output_csv.open("r", encoding="utf-8", newline="") as file:
         rows = list(csv.DictReader(file))
 
