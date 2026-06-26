@@ -18,6 +18,8 @@ Then open `http://127.0.0.1:8501`.
 - Browse fleet triage, model registry, release evidence, model card, SBOM, and
   provenance records.
 - Inspect seeded prediction history and deployment gate evidence.
+- Download stored prediction rows, outcome templates, and run evidence JSON
+  without mutating the seeded database.
 - Verify the console health endpoint at `/_stcore/health`.
 
 ## What Read-Only Mode Blocks
@@ -25,7 +27,7 @@ Then open `http://127.0.0.1:8501`.
 - Telemetry upload and prediction persistence.
 - Outcome imports.
 - Operator decisions.
-- Run-evidence exports.
+- File-writing run-evidence exports.
 - Automatic database seeding from the Streamlit process.
 
 This keeps a hosted portfolio or pilot demo inspectable without turning public

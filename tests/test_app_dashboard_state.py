@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+
 import pandas as pd
 import pytest
 
@@ -16,6 +18,7 @@ from aerospace_prognostics.app.streamlit_app import (
     _env_flag,
     _failed_gates_frame,
     _float_display,
+    _json_download_bytes,
     _model_artifacts_frame,
     _outcome_template_frame,
     _percent_display,
@@ -177,6 +180,15 @@ def test_outcome_template_frame_preserves_prediction_units() -> None:
     assert list(template.columns) == ["unit_number", "actual_rul"]
     assert list(template["unit_number"]) == [7, 8]
     assert list(template["actual_rul"]) == ["", ""]
+
+
+def test_json_download_bytes_writes_stable_json_payload() -> None:
+    payload = {"run": {"run_id": "run-123"}, "predictions": [{"unit_number": 1}]}
+
+    encoded = _json_download_bytes(payload)
+
+    assert json.loads(encoded.decode("utf-8")) == payload
+    assert encoded.endswith(b"}")
 
 
 def test_with_api_artifact_metadata_adds_readiness_identity() -> None:

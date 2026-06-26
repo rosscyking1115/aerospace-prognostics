@@ -828,36 +828,19 @@ def export_prediction_run_evidence(
 ) -> dict[str, Any]:
     """Export a portable evidence bundle for one prediction run."""
 
-    loaded = load_prediction_run(database_path, run_id)
-    if loaded is None:
-        raise ValueError(f"unknown prediction run: {run_id}")
-
     export_dir = Path(output_dir)
     export_dir.mkdir(parents=True, exist_ok=True)
     predictions_path = export_dir / f"{run_id}_predictions.csv"
     evidence_path = export_dir / f"{run_id}_evidence.json"
 
-    predictions = list(loaded["predictions"])
+    manifest = build_prediction_run_evidence(
+        database_path,
+        run_id=run_id,
+        predictions_csv_path=predictions_path,
+    )
+    predictions = list(manifest["predictions"])
     pd.DataFrame(predictions).to_csv(predictions_path, index=False)
-    summary = database_summary(database_path)
-    manifest = {
-        "schema_version": "aerospace-prognostics/prediction-run-evidence/v1",
-        "exported_at_utc": _now(),
-        "database": {
-            "path": str(Path(database_path)),
-            "schema_version": summary["schema_version"],
-        },
-        "run": loaded["run"],
-        "predictions": predictions,
-        "audit_events": loaded["audit_events"],
-        "files": {
-            "predictions_csv": {
-                "path": str(predictions_path),
-                "sha256": _file_sha256(predictions_path),
-                "rows": len(predictions),
-            },
-        },
-    }
+    manifest["files"]["predictions_csv"]["sha256"] = _file_sha256(predictions_path)
     write_json_payload(manifest, evidence_path, default=str)
     outcome_count = sum(1 for row in predictions if row.get("actual_rul") is not None)
     return {
@@ -869,7 +852,41 @@ def export_prediction_run_evidence(
         "predictions_sha256": _file_sha256(predictions_path),
         "prediction_count": len(predictions),
         "outcome_count": outcome_count,
-        "audit_event_count": len(loaded["audit_events"]),
+        "audit_event_count": len(manifest["audit_events"]),
+    }
+
+
+def build_prediction_run_evidence(
+    database_path: str | Path,
+    *,
+    run_id: str,
+    predictions_csv_path: str | Path | None = None,
+    read_only: bool = False,
+) -> dict[str, Any]:
+    """Build a portable prediction-run evidence payload without writing files."""
+
+    loaded = load_prediction_run(database_path, run_id, read_only=read_only)
+    if loaded is None:
+        raise ValueError(f"unknown prediction run: {run_id}")
+
+    predictions = list(loaded["predictions"])
+    summary = database_summary(database_path, read_only=read_only)
+    csv_file: dict[str, Any] = {"rows": len(predictions)}
+    if predictions_csv_path is not None:
+        csv_file["path"] = str(Path(predictions_csv_path))
+    return {
+        "schema_version": "aerospace-prognostics/prediction-run-evidence/v1",
+        "exported_at_utc": _now(),
+        "database": {
+            "path": str(Path(database_path)),
+            "schema_version": summary["schema_version"],
+        },
+        "run": loaded["run"],
+        "predictions": predictions,
+        "audit_events": loaded["audit_events"],
+        "files": {
+            "predictions_csv": csv_file,
+        },
     }
 
 

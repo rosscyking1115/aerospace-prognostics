@@ -48,9 +48,10 @@ API-backed prediction requests.
 Set `AEROSPACE_PROGNOSTICS_CONSOLE_READ_ONLY=true` for hosted demos or review
 environments where users should inspect evidence without mutating app state.
 Read-only mode disables telemetry upload, prediction persistence, outcome
-imports, operator decisions, run-evidence exports, and automatic quickstart
-database seeding. Existing dashboards, registry records, evidence, history, and
-downloads remain visible.
+imports, operator decisions, file-writing run-evidence exports, and automatic
+quickstart database seeding. Existing dashboards, registry records, evidence,
+history, and in-memory downloads remain visible, including prediction rows,
+outcome templates, and evidence JSON for stored runs.
 
 ```powershell
 $env:AEROSPACE_PROGNOSTICS_CONSOLE_READ_ONLY="true"
@@ -105,11 +106,13 @@ signed error, and interval coverage against observed RUL.
 
 ## Run Evidence Exports
 
-Persisted prediction runs can be exported from the History tab or from the CLI
-for review, incident follow-up, or handoff to another engineer. The export
-writes a JSON evidence document with the run metadata, prediction rows,
-outcomes, and audit events, plus a separate prediction-row CSV for spreadsheet
-inspection.
+Persisted prediction runs can be downloaded as JSON evidence from the History
+tab without writing to the database or filesystem, which keeps hosted read-only
+reviews useful. In writable local mode, they can also be exported from the
+History tab or from the CLI for incident follow-up or handoff to another
+engineer. The file export writes a JSON evidence document with the run metadata,
+prediction rows, outcomes, and audit events, plus a separate prediction-row CSV
+for spreadsheet inspection.
 
 ```powershell
 uv run aerospace-prognostics app-export-run `

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import os
 from io import BytesIO
 from pathlib import Path
@@ -23,6 +24,7 @@ from aerospace_prognostics.app.dashboard_state import (
     predict_cmapss_telemetry,
 )
 from aerospace_prognostics.app.store import (
+    build_prediction_run_evidence,
     database_summary,
     export_prediction_run_evidence,
     initialize_app_database,
@@ -426,6 +428,22 @@ def _render_history_tab(st: Any, database_path: Path, read_only: bool) -> None:
             mime="text/csv",
         )
     with export_columns[2]:
+        try:
+            evidence_payload = build_prediction_run_evidence(
+                database_path,
+                run_id=selected_run_id,
+                read_only=read_only,
+            )
+        except ValueError as exc:
+            st.error(str(exc))
+        else:
+            st.download_button(
+                "Download Evidence JSON",
+                data=_json_download_bytes(evidence_payload),
+                file_name=f"{selected_run_id}_evidence.json",
+                mime="application/json",
+            )
+    with export_columns[3]:
         if st.button("Export Run Evidence", disabled=read_only):
             try:
                 result = export_prediction_run_evidence(
@@ -451,7 +469,7 @@ def _render_history_tab(st: Any, database_path: Path, read_only: bool) -> None:
             }
         )
         st.download_button(
-            "Download Evidence JSON",
+            "Download Exported Evidence JSON",
             data=evidence_path.read_bytes(),
             file_name=evidence_path.name,
             mime="application/json",
@@ -872,6 +890,10 @@ def _outcome_template_frame(predictions: pd.DataFrame) -> pd.DataFrame:
     template = predictions.reindex(columns=["unit_number"]).copy()
     template["actual_rul"] = ""
     return template
+
+
+def _json_download_bytes(payload: Any) -> bytes:
+    return json.dumps(payload, indent=2, sort_keys=True, default=str).encode("utf-8")
 
 
 def _failed_gates_frame(failed_gates: list[Any]) -> pd.DataFrame:

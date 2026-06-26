@@ -10,6 +10,7 @@ import aerospace_prognostics.app.store as store
 from aerospace_prognostics.app.dashboard_state import QuickstartWorkspace
 from aerospace_prognostics.app.store import (
     SCHEMA_VERSION,
+    build_prediction_run_evidence,
     database_summary,
     export_prediction_outcome_template,
     export_prediction_run_evidence,
@@ -504,12 +505,32 @@ def test_export_prediction_run_evidence_writes_json_and_prediction_csv(tmp_path)
     )
     assert manifest["run"]["run_id"] == run_id
     assert manifest["files"]["predictions_csv"]["rows"] == 2
+    assert manifest["files"]["predictions_csv"]["sha256"] == result["predictions_sha256"]
     assert len(manifest["predictions"]) == 2
     assert len(manifest["audit_events"]) == 3
     assert list(exported_predictions["unit_number"]) == [
         row["unit_number"] for row in manifest["predictions"]
     ]
     assert "actual_rul" in exported_predictions.columns
+
+
+def test_build_prediction_run_evidence_is_read_only_safe(tmp_path) -> None:
+    database_path, run_id = _write_prediction_run(tmp_path)
+
+    manifest = build_prediction_run_evidence(
+        database_path,
+        run_id=run_id,
+        read_only=True,
+    )
+
+    assert manifest["schema_version"] == (
+        "aerospace-prognostics/prediction-run-evidence/v1"
+    )
+    assert manifest["database"]["schema_version"] == SCHEMA_VERSION
+    assert manifest["run"]["run_id"] == run_id
+    assert len(manifest["predictions"]) == 2
+    assert len(manifest["audit_events"]) == 1
+    assert manifest["files"]["predictions_csv"] == {"rows": 2}
 
 
 def test_export_prediction_outcome_template_writes_fillable_csv(tmp_path) -> None:
