@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import pandas as pd
+import pytest
 
 from aerospace_prognostics.app.api_client import ApiEndpointStatus, ApiServiceStatus
 from aerospace_prognostics.app.dashboard_state import (
@@ -18,11 +19,12 @@ from aerospace_prognostics.app.streamlit_app import (
     _model_artifacts_frame,
     _percent_display,
     _prediction_runs_frame,
+    _read_telemetry_csv,
     _release_evidence_frame,
     _telemetry_records,
     _with_api_artifact_metadata,
 )
-from aerospace_prognostics.data.cmapss import load_cmapss_subset
+from aerospace_prognostics.data.cmapss import CMAPSS_COLUMNS, load_cmapss_subset
 from aerospace_prognostics.deployment.artifacts import (
     save_cmapss_model_artifact,
     train_cmapss_hgb_policy_artifact,
@@ -65,6 +67,55 @@ def test_telemetry_records_preserves_rows_for_api_payload() -> None:
     )
 
     assert records == [{"unit_number": 1, "time_in_cycles": 2, "sensor_1": 3.5}]
+
+
+def test_read_telemetry_csv_accepts_cmapss_contract(tmp_path) -> None:
+    telemetry = pd.DataFrame([{column: 1.0 for column in CMAPSS_COLUMNS}])
+    telemetry["unit_number"] = 1
+    telemetry["time_in_cycles"] = 2
+    telemetry_path = tmp_path / "telemetry.csv"
+    telemetry.to_csv(telemetry_path, index=False)
+
+    loaded = _read_telemetry_csv(telemetry_path)
+
+    assert list(loaded.columns) == CMAPSS_COLUMNS
+    assert loaded.iloc[0]["unit_number"] == 1
+
+
+def test_read_telemetry_csv_rejects_missing_required_columns() -> None:
+    with pytest.raises(ValueError) as exc_info:
+        _read_telemetry_csv(b"unit_number,time_in_cycles\n1,2\n")
+
+    assert "telemetry CSV is missing required columns" in str(exc_info.value)
+    assert "op_setting_1" in str(exc_info.value)
+
+
+def test_read_telemetry_csv_rejects_empty_csv() -> None:
+    header_only = ",".join(CMAPSS_COLUMNS).encode("utf-8") + b"\n"
+
+    with pytest.raises(ValueError, match="telemetry CSV must contain at least one row"):
+        _read_telemetry_csv(header_only)
+
+
+@pytest.mark.parametrize(
+    ("unit_number", "time_in_cycles", "expected_message"),
+    [
+        ("", "2", "unit_number and time_in_cycles must be numeric and non-null"),
+        ("1", "0", "time_in_cycles values must be positive"),
+    ],
+)
+def test_read_telemetry_csv_rejects_invalid_identity_values(
+    unit_number: str,
+    time_in_cycles: str,
+    expected_message: str,
+) -> None:
+    row = {column: "1.0" for column in CMAPSS_COLUMNS}
+    row["unit_number"] = unit_number
+    row["time_in_cycles"] = time_in_cycles
+    telemetry = pd.DataFrame([row])
+
+    with pytest.raises(ValueError, match=expected_message):
+        _read_telemetry_csv(telemetry.to_csv(index=False).encode("utf-8"))
 
 
 def test_with_api_artifact_metadata_adds_readiness_identity() -> None:

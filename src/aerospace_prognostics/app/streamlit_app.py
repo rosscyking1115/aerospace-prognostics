@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any
 
 import pandas as pd
+from pandas.errors import EmptyDataError, ParserError
 
 from aerospace_prognostics.app.api_client import (
     ApiEndpointStatus,
@@ -34,6 +35,7 @@ from aerospace_prognostics.app.store import (
     record_prediction_run_event,
     seed_quickstart_workspace,
 )
+from aerospace_prognostics.data.cmapss import CMAPSS_COLUMNS
 
 DEFAULT_WORKSPACE = Path("artifacts") / "quickstart_cmapss"
 DEFAULT_DATABASE = Path("artifacts") / "app" / "aerospace_prognostics.sqlite"
@@ -171,16 +173,20 @@ def _render_predict_tab(
 ) -> None:
     st.subheader("Batch Prediction")
     uploaded = st.file_uploader("Telemetry CSV", type=["csv"], disabled=read_only)
-    if uploaded is None and workspace.telemetry_csv_path.exists():
-        st.caption(f"Using sample telemetry: {workspace.telemetry_csv_path}")
-        telemetry = pd.read_csv(workspace.telemetry_csv_path)
-        source_name = str(workspace.telemetry_csv_path)
-    elif uploaded is not None:
-        telemetry = pd.read_csv(BytesIO(uploaded.getvalue()))
-        source_name = uploaded.name
-    else:
-        telemetry = None
-        source_name = "unknown"
+    try:
+        if uploaded is None and workspace.telemetry_csv_path.exists():
+            st.caption(f"Using sample telemetry: {workspace.telemetry_csv_path}")
+            telemetry = _read_telemetry_csv(workspace.telemetry_csv_path)
+            source_name = str(workspace.telemetry_csv_path)
+        elif uploaded is not None:
+            telemetry = _read_telemetry_csv(uploaded.getvalue())
+            source_name = uploaded.name
+        else:
+            telemetry = None
+            source_name = "unknown"
+    except ValueError as exc:
+        st.error(str(exc))
+        return
 
     if telemetry is None:
         st.info("No telemetry loaded.")
@@ -873,6 +879,37 @@ def _decision_status_index(status: Any) -> int:
 def _telemetry_records(telemetry: pd.DataFrame) -> list[dict[str, Any]]:
     sanitized = telemetry.astype(object).where(pd.notna(telemetry), None)
     return sanitized.to_dict(orient="records")
+
+
+def _read_telemetry_csv(source: bytes | Path) -> pd.DataFrame:
+    try:
+        telemetry = (
+            pd.read_csv(BytesIO(source))
+            if isinstance(source, bytes)
+            else pd.read_csv(source)
+        )
+    except (EmptyDataError, ParserError, UnicodeDecodeError) as exc:
+        raise ValueError("telemetry CSV could not be read as a valid CSV") from exc
+    _validate_telemetry_frame(telemetry)
+    return telemetry
+
+
+def _validate_telemetry_frame(telemetry: pd.DataFrame) -> None:
+    if telemetry.empty:
+        raise ValueError("telemetry CSV must contain at least one row")
+    missing = [column for column in CMAPSS_COLUMNS if column not in telemetry.columns]
+    if missing:
+        preview = ", ".join(missing[:5])
+        suffix = f" (+{len(missing) - 5} more)" if len(missing) > 5 else ""
+        raise ValueError(f"telemetry CSV is missing required columns: {preview}{suffix}")
+    identity_columns = telemetry[["unit_number", "time_in_cycles"]].apply(
+        pd.to_numeric,
+        errors="coerce",
+    )
+    if identity_columns.isna().any().any():
+        raise ValueError("unit_number and time_in_cycles must be numeric and non-null")
+    if (identity_columns["time_in_cycles"] < 1).any():
+        raise ValueError("time_in_cycles values must be positive")
 
 
 def _with_api_artifact_metadata(
