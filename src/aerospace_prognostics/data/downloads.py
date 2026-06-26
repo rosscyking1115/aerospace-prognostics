@@ -11,7 +11,7 @@ from datetime import UTC, datetime
 from io import BytesIO
 from pathlib import Path
 
-from aerospace_prognostics.artifact_io import write_json_payload
+from aerospace_prognostics.artifact_io import prepare_output_path, write_json_payload
 from aerospace_prognostics.data.cmapss import CMAPSS_SUBSETS
 
 NASA_CMAPSS_URL = (
@@ -61,8 +61,9 @@ def download_cmapss_dataset(
     destination = Path(output_dir)
     destination.mkdir(parents=True, exist_ok=True)
 
-    archive = Path(archive_path) if archive_path is not None else destination / "cmapss_nasa.zip"
-    archive.parent.mkdir(parents=True, exist_ok=True)
+    archive = prepare_output_path(
+        archive_path if archive_path is not None else destination / "cmapss_nasa.zip"
+    )
 
     if archive.exists() and not force:
         raise FileExistsError(f"archive already exists: {archive}")
@@ -98,12 +99,9 @@ def download_smap_msl_dataset(
     destination = Path(output_dir)
     destination.mkdir(parents=True, exist_ok=True)
 
-    archive = (
-        Path(archive_path)
-        if archive_path is not None
-        else destination / "smap_msl_telemanom.zip"
+    archive = prepare_output_path(
+        archive_path if archive_path is not None else destination / "smap_msl_telemanom.zip"
     )
-    archive.parent.mkdir(parents=True, exist_ok=True)
     if force or not archive.exists():
         try:
             urllib.request.urlretrieve(source_url, archive)
@@ -239,8 +237,7 @@ def _extract_smap_msl_zip(
             split = _smap_msl_member_split(member_path)
             if split is None:
                 continue
-            output_path = destination / "data" / split / member_path.name
-            output_path.parent.mkdir(parents=True, exist_ok=True)
+            output_path = prepare_output_path(destination / "data" / split / member_path.name)
             if output_path.exists() and not force:
                 raise FileExistsError(f"raw SMAP/MSL array already exists: {output_path}")
             with (
@@ -260,7 +257,7 @@ def _extract_smap_msl_labels(archive: Path, labels_path: Path, *, force: bool) -
         for member in zip_file.infolist():
             if Path(member.filename).name != "labeled_anomalies.csv":
                 continue
-            labels_path.parent.mkdir(parents=True, exist_ok=True)
+            labels_path = prepare_output_path(labels_path)
             if labels_path.exists() and not force:
                 return True
             with (

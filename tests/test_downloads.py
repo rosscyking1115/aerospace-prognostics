@@ -30,6 +30,8 @@ def test_download_cmapss_dataset_extracts_required_files_from_zip(tmp_path) -> N
 
     assert (result.output_dir / "train_FD001.txt").exists()
     assert (result.output_dir / "RUL_FD004.txt").exists()
+    assert result.archive_path == tmp_path / "downloads" / "cmapss.zip"
+    assert result.archive_path.exists()
     assert result.metadata_path.exists()
     assert len(result.extracted_files) == 13
 
@@ -109,6 +111,8 @@ def test_download_smap_msl_dataset_extracts_arrays_and_labels(tmp_path) -> None:
 
     assert (result.output_dir / "data" / "train" / "P-1.npy").exists()
     assert (result.output_dir / "data" / "test" / "P-1.npy").exists()
+    assert result.archive_path == tmp_path / "downloads" / "smap_msl.zip"
+    assert result.archive_path.exists()
     assert result.labels_path.exists()
     assert len(result.extracted_arrays) == 2
     metadata = json.loads(result.metadata_path.read_text(encoding="utf-8"))
