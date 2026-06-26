@@ -103,6 +103,7 @@ def test_write_cmapss_model_comparison_outputs_csv_and_markdown(tmp_path) -> Non
     assert csv_rows[0]["model_name"] == "transformer"
     assert "# C-MAPSS Model Comparison" in markdown
     assert "`transformer`" in markdown
+    assert markdown.endswith("\n")
 
 
 def test_render_cmapss_model_comparison_markdown_rejects_empty_rows() -> None:

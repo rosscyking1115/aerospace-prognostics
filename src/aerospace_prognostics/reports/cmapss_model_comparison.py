@@ -7,6 +7,7 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
 
+from aerospace_prognostics.artifact_io import prepare_output_path
 from aerospace_prognostics.metrics import nasa_rul_score, rmse
 
 
@@ -51,9 +52,7 @@ def build_cmapss_model_comparison(
 
     baseline_results = _read_result_rows(baseline_csv)
     candidate_results = [
-        result
-        for candidate_csv in candidate_csvs
-        for result in _read_result_rows(candidate_csv)
+        result for candidate_csv in candidate_csvs for result in _read_result_rows(candidate_csv)
     ]
     prediction_results = [
         result
@@ -122,7 +121,7 @@ def write_cmapss_model_comparison_csv(
 
     if not rows:
         raise ValueError("rows must contain at least one item")
-    output_path = _prepare_output_path(path)
+    output_path = prepare_output_path(path)
     with output_path.open("w", encoding="utf-8", newline="") as file:
         writer = csv.DictWriter(file, fieldnames=list(rows[0].to_dict()))
         writer.writeheader()
@@ -135,7 +134,7 @@ def write_cmapss_model_comparison_markdown(
 ) -> None:
     """Write comparison rows as a compact Markdown table."""
 
-    output_path = _prepare_output_path(path)
+    output_path = prepare_output_path(path)
     output_path.write_text(render_cmapss_model_comparison_markdown(rows), encoding="utf-8")
 
 
@@ -241,9 +240,3 @@ def _single_result_by_subset(
             raise ValueError(f"baseline CSV has multiple rows for subset {subset}: {source_path}")
         results_by_subset[subset] = row
     return results_by_subset
-
-
-def _prepare_output_path(path: str | Path) -> Path:
-    output_path = Path(path)
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    return output_path
