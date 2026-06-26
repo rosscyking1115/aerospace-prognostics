@@ -100,7 +100,11 @@ def predict_telemetry(
             response_payload = _json_payload(response.read())
             if not 200 <= int(response.status) < 300:
                 raise ApiRequestError(
-                    f"API prediction failed with status {response.status}",
+                    _api_error_message(
+                        "API prediction failed",
+                        status_code=int(response.status),
+                        payload=response_payload,
+                    ),
                     status_code=int(response.status),
                     payload=response_payload,
                 )
@@ -108,7 +112,11 @@ def predict_telemetry(
     except urllib.error.HTTPError as exc:
         payload = _json_payload(exc.read())
         raise ApiRequestError(
-            f"API prediction failed with status {exc.code}",
+            _api_error_message(
+                "API prediction failed",
+                status_code=int(exc.code),
+                payload=payload,
+            ),
             status_code=int(exc.code),
             payload=payload,
         ) from exc
@@ -133,7 +141,11 @@ def _get_json(url: str, *, timeout_seconds: float) -> ApiEndpointStatus:
             ok=False,
             status_code=int(exc.code),
             payload=payload,
-            error=str(exc),
+            error=_api_error_message(
+                "API probe failed",
+                status_code=int(exc.code),
+                payload=payload,
+            ),
         )
     except (OSError, TimeoutError) as exc:
         return ApiEndpointStatus(
@@ -152,3 +164,24 @@ def _json_payload(raw: bytes) -> dict[str, Any]:
     except (UnicodeDecodeError, json.JSONDecodeError):
         return {}
     return payload if isinstance(payload, dict) else {}
+
+
+def _api_error_message(
+    prefix: str,
+    *,
+    status_code: int,
+    payload: dict[str, Any],
+) -> str:
+    message = f"{prefix} with status {status_code}"
+    detail = payload.get("detail")
+    if isinstance(detail, str) and detail:
+        return f"{message}: {detail}"
+    if isinstance(detail, list) and detail:
+        first_detail = detail[0]
+        if isinstance(first_detail, dict):
+            first_message = first_detail.get("msg")
+            if isinstance(first_message, str) and first_message:
+                remaining = len(detail) - 1
+                suffix = f" ({remaining} more validation errors)" if remaining else ""
+                return f"{message}: {first_message}{suffix}"
+    return message

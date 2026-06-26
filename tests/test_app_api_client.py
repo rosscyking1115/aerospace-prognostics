@@ -55,6 +55,7 @@ def test_check_api_service_reports_unready_health_and_readiness() -> None:
     assert not status.model_loaded
     assert status.readiness.status_code == 503
     assert status.readiness.payload["status"] == "missing_model"
+    assert status.readiness.error == "API probe failed with status 503"
 
 
 def test_check_api_service_reports_unreachable_service() -> None:
@@ -121,6 +122,37 @@ def test_predict_telemetry_raises_request_error_for_http_error() -> None:
 
     assert exc_info.value.status_code == 401
     assert exc_info.value.payload["detail"] == "invalid or missing API key"
+    assert str(exc_info.value) == (
+        "API prediction failed with status 401: invalid or missing API key"
+    )
+
+
+def test_predict_telemetry_summarizes_validation_error_details() -> None:
+    error = urllib.error.HTTPError(
+        "http://api:8000/predict",
+        422,
+        "Unprocessable Entity",
+        hdrs=None,
+        fp=io.BytesIO(
+            b'{"detail":[{"loc":["body","telemetry"],"msg":"Field required"},'
+            b'{"loc":["body","other"],"msg":"Extra inputs are not permitted"}]}'
+        ),
+    )
+
+    with (
+        patch("urllib.request.urlopen", side_effect=error),
+        pytest.raises(ApiRequestError) as exc_info,
+    ):
+        predict_telemetry(
+            "http://api:8000",
+            telemetry=[],
+        )
+
+    assert exc_info.value.status_code == 422
+    assert str(exc_info.value) == (
+        "API prediction failed with status 422: "
+        "Field required (1 more validation errors)"
+    )
 
 
 def test_predict_telemetry_raises_request_error_for_unreachable_service() -> None:
