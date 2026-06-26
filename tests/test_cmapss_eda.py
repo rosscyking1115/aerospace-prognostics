@@ -40,6 +40,7 @@ def test_cmapss_eda_report_writes_json(tmp_path) -> None:
     assert payload["subset"] == "FD001"
     assert payload["sensor_summaries"][0]["sensor"] == "sensor_1"
     assert payload["operating_regime_clusters"][0]["cluster_id"] == 0
+    assert output_path.read_text(encoding="utf-8").endswith("\n")
 
 
 def test_select_informative_cmapss_sensors_filters_flat_channels(tmp_path) -> None:

@@ -2,13 +2,13 @@
 
 from __future__ import annotations
 
-import json
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
 
 from sklearn.cluster import KMeans
 
+from aerospace_prognostics.artifact_io import write_json_payload
 from aerospace_prognostics.data.cmapss import (
     OPERATIONAL_SETTING_COLUMNS,
     SENSOR_COLUMNS,
@@ -65,9 +65,7 @@ class CmapssEdaReport:
     def write_json(self, path: str | Path) -> None:
         """Write this report as pretty JSON."""
 
-        output_path = Path(path)
-        output_path.parent.mkdir(parents=True, exist_ok=True)
-        output_path.write_text(json.dumps(self.to_dict(), indent=2, sort_keys=True) + "\n")
+        write_json_payload(self.to_dict(), path)
 
 
 def build_cmapss_eda_report(
