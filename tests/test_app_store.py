@@ -435,6 +435,27 @@ def test_app_record_outcomes_command_attaches_observed_rul_csv(tmp_path, capsys)
     assert loaded_after["audit_events"][0]["actor"] == "reliability-engineer"
 
 
+def test_app_record_outcomes_command_rejects_malformed_csv(tmp_path) -> None:
+    outcomes_csv = tmp_path / "bad_outcomes.csv"
+    outcomes_csv.write_text('unit_number,actual_rul\n"1,12\n', encoding="utf-8")
+
+    with pytest.raises(
+        ValueError,
+        match="outcomes CSV could not be read as a valid CSV",
+    ):
+        main(
+            [
+                "app-record-outcomes",
+                "--database",
+                str(tmp_path / "app.sqlite"),
+                "--run-id",
+                "run-1",
+                "--outcomes-csv",
+                str(outcomes_csv),
+            ]
+        )
+
+
 def test_export_prediction_run_evidence_writes_json_and_prediction_csv(tmp_path) -> None:
     database_path, run_id = _write_prediction_run(tmp_path)
     loaded_before = load_prediction_run(database_path, run_id)

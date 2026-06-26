@@ -7,6 +7,9 @@ import json
 from pathlib import Path
 from typing import Any
 
+import pandas as pd
+from pandas.errors import EmptyDataError, ParserError
+
 from aerospace_prognostics.app.dashboard_state import load_quickstart_workspace
 from aerospace_prognostics.app.store import (
     database_summary,
@@ -142,9 +145,7 @@ def handle_app_command(args: argparse.Namespace) -> int | None:
         return 0
 
     if args.command == "app-record-outcomes":
-        import pandas as pd
-
-        outcomes = pd.read_csv(args.outcomes_csv)
+        outcomes = _read_outcomes_csv(args.outcomes_csv)
         result = record_prediction_outcomes(
             args.database,
             run_id=args.run_id,
@@ -188,3 +189,10 @@ def _read_json_file(path: Path) -> dict[str, object]:
     if not isinstance(payload, dict):
         raise ValueError(f"JSON file must contain an object: {path}")
     return payload
+
+
+def _read_outcomes_csv(path: Path) -> pd.DataFrame:
+    try:
+        return pd.read_csv(path)
+    except (EmptyDataError, ParserError, UnicodeDecodeError) as exc:
+        raise ValueError(f"outcomes CSV could not be read as a valid CSV: {path}") from exc
