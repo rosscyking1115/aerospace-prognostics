@@ -108,6 +108,24 @@ uv run aerospace-prognostics app-record-outcomes `
 After import, the History and Registry tabs report outcome availability, MAE,
 signed error, and interval coverage against observed RUL.
 
+## Operator Decisions
+
+Operator decisions can be appended from the History tab or CLI when a prediction
+run needs review, acceptance, watch-listing, escalation, or rejection. The CLI
+path is useful for incident workflows and automation because it records the
+same auditable event stream as the console.
+
+```powershell
+uv run aerospace-prognostics app-record-decision `
+  --database artifacts/app/aerospace_prognostics.sqlite `
+  --run-id run-... `
+  --status escalated `
+  --actor flight-ops `
+  --note "Escalate to reliability engineering" `
+  --ticket PHM-99 `
+  --severity high
+```
+
 ## Run Evidence Exports
 
 Persisted prediction runs can be downloaded as JSON evidence from the History

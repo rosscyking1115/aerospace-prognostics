@@ -17,6 +17,7 @@ from aerospace_prognostics.app.store import (
     export_prediction_run_evidence,
     initialize_app_database,
     record_prediction_outcomes,
+    record_prediction_run_event,
     register_model_artifact_evidence,
     seed_quickstart_workspace,
 )
@@ -25,6 +26,7 @@ APP_COMMANDS = {
     "app-init-db",
     "app-register-artifact",
     "app-record-outcomes",
+    "app-record-decision",
     "app-export-outcome-template",
     "app-export-run",
 }
@@ -77,6 +79,27 @@ def register_app_commands(subparsers: Any) -> None:
     app_record_outcomes.add_argument("--source-name")
     app_record_outcomes.add_argument("--actor", default="operator")
     app_record_outcomes.add_argument("--observed-at-utc")
+
+    app_record_decision = subparsers.add_parser(
+        "app-record-decision",
+        help="Append an auditable operator decision to a persisted prediction run",
+    )
+    app_record_decision.add_argument(
+        "--database",
+        type=Path,
+        default=Path("artifacts") / "app" / "aerospace_prognostics.sqlite",
+    )
+    app_record_decision.add_argument("--run-id", required=True)
+    app_record_decision.add_argument(
+        "--status",
+        required=True,
+        choices=("review_required", "accepted", "watch", "escalated", "rejected"),
+    )
+    app_record_decision.add_argument("--actor", default="operator")
+    app_record_decision.add_argument("--note")
+    app_record_decision.add_argument("--ticket")
+    app_record_decision.add_argument("--severity")
+    app_record_decision.add_argument("--payload-json", type=Path)
 
     app_export_outcome_template = subparsers.add_parser(
         "app-export-outcome-template",
@@ -177,6 +200,30 @@ def handle_app_command(args: argparse.Namespace) -> int | None:
         print(f"prediction_outcomes={summary['prediction_outcomes']}")
         return 0
 
+    if args.command == "app-record-decision":
+        payload = _decision_payload(
+            payload_json=args.payload_json,
+            ticket=args.ticket,
+            severity=args.severity,
+        )
+        event_id = record_prediction_run_event(
+            args.database,
+            run_id=args.run_id,
+            event_type="operator_decision",
+            status=args.status,
+            actor=args.actor,
+            note=args.note,
+            payload=payload,
+        )
+        summary = database_summary(args.database)
+        print(f"database={args.database}")
+        print(f"run_id={args.run_id}")
+        print(f"event_id={event_id}")
+        print(f"decision_status={args.status}")
+        print(f"actor={args.actor}")
+        print(f"prediction_run_events={summary['prediction_run_events']}")
+        return 0
+
     if args.command == "app-export-outcome-template":
         output_csv = args.output_csv or (
             Path("artifacts") / "app_exports" / f"{args.run_id}_outcomes_template.csv"
@@ -218,6 +265,20 @@ def _read_json_file(path: Path) -> dict[str, object]:
     payload = json.loads(path.read_text(encoding="utf-8"))
     if not isinstance(payload, dict):
         raise ValueError(f"JSON file must contain an object: {path}")
+    return payload
+
+
+def _decision_payload(
+    *,
+    payload_json: Path | None,
+    ticket: str | None,
+    severity: str | None,
+) -> dict[str, object]:
+    payload = _read_json_file(payload_json) if payload_json is not None else {}
+    if ticket:
+        payload["ticket"] = ticket
+    if severity:
+        payload["severity"] = severity
     return payload
 
 

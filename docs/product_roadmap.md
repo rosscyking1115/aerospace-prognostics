@@ -55,10 +55,11 @@ and inspect stored model artifacts with their release evidence, recent
 prediction usage, release-gate report cards, operational interval diagnostics,
 and observed-outcome calibration summaries. The console can run in read-only
 mode for hosted demos. Custom model artifact and release evidence registration,
-outcome-template export, outcome CSV import, and prediction-run evidence export
-are now available through the CLI, with outcome-template download, outcome
-import, in-memory run evidence and model-review bundle download, and file-based
-run evidence export also available in the console.
+outcome-template export, outcome CSV import, operator-decision capture, and
+prediction-run evidence export are now available through the CLI, with
+outcome-template download, outcome import, in-memory run evidence and
+model-review bundle download, and file-based run evidence export also available
+in the console.
 
 3. Local deployment stack
    - Docker Compose with FastAPI inference service, dashboard, mounted model

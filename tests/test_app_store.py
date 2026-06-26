@@ -800,6 +800,57 @@ def test_prediction_run_events_append_operator_decisions(tmp_path) -> None:
     assert events[0]["payload"] == {"ticket": "PHM-42"}
 
 
+def test_app_record_decision_command_appends_operator_event(
+    tmp_path,
+    capsys,
+) -> None:
+    database_path, run_id = _write_prediction_run(tmp_path)
+    payload_json = tmp_path / "decision_payload.json"
+    payload_json.write_text('{"shift": "night"}', encoding="utf-8")
+
+    exit_code = main(
+        [
+            "app-record-decision",
+            "--database",
+            str(database_path),
+            "--run-id",
+            run_id,
+            "--status",
+            "escalated",
+            "--actor",
+            "flight-ops",
+            "--note",
+            "Escalate to reliability engineering",
+            "--ticket",
+            "PHM-99",
+            "--severity",
+            "high",
+            "--payload-json",
+            str(payload_json),
+        ]
+    )
+    output = capsys.readouterr().out
+    runs = list_prediction_runs(database_path)
+    events = list_prediction_run_events(database_path, run_id)
+
+    assert exit_code == 0
+    assert f"database={database_path}" in output
+    assert f"run_id={run_id}" in output
+    assert "event_id=event-" in output
+    assert "decision_status=escalated" in output
+    assert "actor=flight-ops" in output
+    assert "prediction_run_events=2" in output
+    assert runs[0]["decision_status"] == "escalated"
+    assert runs[0]["decision_note"] == "Escalate to reliability engineering"
+    assert events[0]["event_type"] == "operator_decision"
+    assert events[0]["actor"] == "flight-ops"
+    assert events[0]["payload"] == {
+        "shift": "night",
+        "ticket": "PHM-99",
+        "severity": "high",
+    }
+
+
 def test_prediction_run_event_rejects_unknown_run(tmp_path) -> None:
     database_path = initialize_app_database(tmp_path / "app.sqlite")
 

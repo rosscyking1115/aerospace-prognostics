@@ -61,6 +61,7 @@ The working plan is tracked in [Aerospace_Prognostics_Project_Plan.md](Aerospace
 - `aerospace-prognostics app-init-db` CLI for initializing and seeding the local app database from quickstart artifacts.
 - `aerospace-prognostics app-register-artifact` CLI for registering custom model artifacts and release evidence JSON files in the local app database.
 - `aerospace-prognostics app-record-outcomes` CLI for attaching observed RUL outcome CSVs to persisted prediction runs and updating calibration diagnostics.
+- `aerospace-prognostics app-record-decision` CLI for appending auditable operator decisions, tickets, severity, and structured payload context to persisted prediction runs.
 - `aerospace-prognostics app-export-outcome-template` CLI for exporting fillable observed-RUL outcome CSV templates from persisted prediction runs.
 - `aerospace-prognostics app-export-run` CLI for exporting portable prediction-run evidence JSON and prediction-row CSV files for review.
 - Promotion evidence reports that combine validation, benchmark, model-card, and SBOM gates.
