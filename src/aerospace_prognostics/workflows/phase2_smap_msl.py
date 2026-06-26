@@ -14,6 +14,7 @@ from pathlib import Path
 
 from aerospace_prognostics.anomaly.baselines import CLASSICAL_ANOMALY_BASELINE_METHODS
 from aerospace_prognostics.anomaly.forecasting import DynamicThresholdConfig
+from aerospace_prognostics.artifact_io import prepare_output_path, write_json_payload
 from aerospace_prognostics.data.integrity import file_sha256
 from aerospace_prognostics.experiments.smap_msl_anomaly import (
     SmapMslClassicalBaselineRun,
@@ -565,9 +566,9 @@ def write_phase2_smap_msl_manifest_audit_markdown(
     else:
         lines.append("- None")
 
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
-    return path
+    output_path = prepare_output_path(path)
+    output_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    return output_path
 
 
 def _write_phase2_smap_msl_summary(
@@ -582,7 +583,7 @@ def _write_phase2_smap_msl_summary(
     run_manifest_path: Path,
     comparison_rows: tuple[AnomalyModelComparisonRow, ...],
 ) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
+    output_path = prepare_output_path(path)
     lines = [
         "# Phase 2 SMAP/MSL Summary",
         "",
@@ -636,7 +637,7 @@ def _write_phase2_smap_msl_summary(
         heading="Average Metrics By Source And Model",
         count_header="Rows",
     )
-    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    output_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
 def _read_run_manifest_payload(path: Path, problems: list[str]) -> dict[str, object] | None:
@@ -767,8 +768,7 @@ def _resolve_manifest_path(path: str, root: Path) -> Path:
 
 
 def _write_phase2_smap_msl_run_manifest(path: Path, payload: dict[str, object]) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    write_json_payload(payload, path)
 
 
 def _artifact_integrity_payload(artifacts: dict[str, str | None]) -> dict[str, dict[str, object]]:

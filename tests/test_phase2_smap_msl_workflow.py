@@ -57,6 +57,7 @@ def test_run_phase2_smap_msl_workflow_writes_expected_artifacts(tmp_path) -> Non
 
     classical_payload = json.loads(result.classical_json_path.read_text(encoding="utf-8"))
     run_manifest = json.loads(result.run_manifest_path.read_text(encoding="utf-8"))
+    run_manifest_text = result.run_manifest_path.read_text(encoding="utf-8")
     summary = result.summary_markdown_path.read_text(encoding="utf-8")
 
     assert {row["channel_id"] for row in classical_payload} == {"P-1", "M-1"}
@@ -81,6 +82,8 @@ def test_run_phase2_smap_msl_workflow_writes_expected_artifacts(tmp_path) -> Non
     assert "| classical | robust_zscore |" in summary
     assert "Robust threshold policy table" in summary
     assert "Run manifest" in summary
+    assert summary.endswith("\n")
+    assert run_manifest_text.endswith("\n")
 
     verification = verify_phase2_smap_msl_run_manifest(result.run_manifest_path)
     assert verification.ok
@@ -99,6 +102,7 @@ def test_run_phase2_smap_msl_workflow_writes_expected_artifacts(tmp_path) -> Non
     assert "| classical_csv | yes |" in audit_markdown
     assert "## Problems" in audit_markdown
     assert "- None" in audit_markdown
+    assert audit_markdown.endswith("\n")
 
     with result.classical_csv_path.open("a", encoding="utf-8") as file:
         file.write("tampered\n")
