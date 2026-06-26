@@ -8,6 +8,7 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
 
+from aerospace_prognostics.artifact_io import prepare_output_path
 from aerospace_prognostics.metrics import nasa_rul_score
 from aerospace_prognostics.reports.cmapss_prediction_diagnostics import (
     CmapssPredictionDiagnosticRow,
@@ -230,7 +231,7 @@ def write_cmapss_affine_prediction_calibration_csv(
     calibration_rows = tuple(calibrations)
     if not calibration_rows:
         raise ValueError("calibrations must contain at least one item")
-    output_path = _prepare_output_path(path)
+    output_path = prepare_output_path(path)
     fieldnames = _calibration_fieldnames(calibration_rows)
     with output_path.open("w", encoding="utf-8", newline="") as file:
         writer = csv.DictWriter(
@@ -264,7 +265,7 @@ def write_cmapss_affine_calibrated_predictions_csv(
         for calibration in calibration_rows
         if isinstance(calibration, CmapssPredictedRulBinResidualCalibration)
     }
-    output_path = _prepare_output_path(output_csv)
+    output_path = prepare_output_path(output_csv)
     output_fieldnames = _calibrated_prediction_fieldnames(fieldnames)
 
     with output_path.open("w", encoding="utf-8", newline="") as file:
@@ -705,12 +706,6 @@ def _mean(values: Iterable[float]) -> float:
 
 def _float(value: Any) -> float:
     return float(value)
-
-
-def _prepare_output_path(path: str | Path) -> Path:
-    output_path = Path(path)
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    return output_path
 
 
 _REQUIRED_PREDICTION_COLUMNS = {

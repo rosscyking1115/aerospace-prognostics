@@ -90,6 +90,8 @@ def test_calibrate_cmapss_deep_predictions_writes_recomputed_reports(tmp_path) -
     assert output_diagnostics_csv.exists()
     assert output_rul_bins_csv.exists()
     assert output_unit_diagnostics_csv.exists()
+    assert output_csv.read_text(encoding="utf-8").endswith("\n")
+    assert output_calibration_csv.read_text(encoding="utf-8").endswith("\n")
     assert result.unit_diagnostics
     markdown = output_markdown.read_text(encoding="utf-8")
     assert "# C-MAPSS Deep Prediction Diagnostics" in markdown
