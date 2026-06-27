@@ -94,6 +94,27 @@ def register_app_commands(subparsers: Any) -> None:
         type=Path,
         default=Path("artifacts") / "app_exports",
     )
+    app_export_fleet_assets.add_argument(
+        "--risk-level",
+        action="append",
+        choices=("critical", "watch", "nominal", "unknown"),
+        help="Filter exported assets by latest risk level; repeat for multiple values",
+    )
+    app_export_fleet_assets.add_argument(
+        "--domain",
+        action="append",
+        help="Filter exported assets by domain; repeat for multiple values",
+    )
+    app_export_fleet_assets.add_argument(
+        "--status",
+        action="append",
+        help="Filter exported assets by latest status; repeat for multiple values",
+    )
+    app_export_fleet_assets.add_argument(
+        "--attention-only",
+        action="store_true",
+        help="Export only assets with critical/watch risk or attention reasons",
+    )
 
     app_record_outcomes = subparsers.add_parser(
         "app-record-outcomes",
@@ -249,6 +270,10 @@ def handle_app_command(args: argparse.Namespace) -> int | None:
         result = export_fleet_asset_registry(
             args.database,
             output_dir=args.output_dir,
+            risk_levels=args.risk_level,
+            domains=args.domain,
+            statuses=args.status,
+            attention_only=args.attention_only,
         )
         print(f"database={args.database}")
         print(f"output_dir={result['output_dir']}")
@@ -257,6 +282,7 @@ def handle_app_command(args: argparse.Namespace) -> int | None:
         print(f"assets_csv={result['assets_csv']}")
         print(f"assets_sha256={result['assets_sha256']}")
         print(f"asset_count={result['asset_count']}")
+        print(f"filters={json.dumps(result['filters'], sort_keys=True)}")
         return 0
 
     if args.command == "app-record-decision":

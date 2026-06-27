@@ -184,10 +184,44 @@ def _render_fleet_tab(
                 f"{result['updated_assets']} assets."
             )
             st.rerun()
-    assets_registry = list_fleet_assets(database_path, limit=100, read_only=read_only)
-    if not assets_registry:
+    all_registry_assets = list_fleet_assets(
+        database_path,
+        limit=1000,
+        read_only=read_only,
+    )
+    if not all_registry_assets:
         st.info("No persisted fleet assets yet. Run and store a prediction first.")
         return
+    filter_columns = st.columns([1, 1, 1, 1])
+    with filter_columns[0]:
+        selected_risks = st.multiselect(
+            "Risk",
+            ["critical", "watch", "nominal", "unknown"],
+            default=[],
+        )
+    with filter_columns[1]:
+        selected_domains = st.multiselect(
+            "Domain",
+            _filter_options(all_registry_assets, "domain"),
+            default=[],
+        )
+    with filter_columns[2]:
+        selected_statuses = st.multiselect(
+            "Status",
+            _filter_options(all_registry_assets, "latest_status"),
+            default=[],
+        )
+    with filter_columns[3]:
+        attention_only = st.checkbox("Attention Only", value=False)
+    assets_registry = list_fleet_assets(
+        database_path,
+        limit=100,
+        risk_levels=selected_risks,
+        domains=selected_domains,
+        statuses=selected_statuses,
+        attention_only=attention_only,
+        read_only=read_only,
+    )
     assets_registry_frame = _fleet_assets_frame(assets_registry)
     with registry_columns[1]:
         st.download_button(
@@ -199,6 +233,10 @@ def _render_fleet_tab(
     with registry_columns[2]:
         registry_bundle = build_fleet_asset_registry_bundle(
             database_path,
+            risk_levels=selected_risks,
+            domains=selected_domains,
+            statuses=selected_statuses,
+            attention_only=attention_only,
             read_only=read_only,
         )
         st.download_button(
@@ -212,9 +250,16 @@ def _render_fleet_tab(
             result = export_fleet_asset_registry(
                 database_path,
                 output_dir=DEFAULT_EXPORT_DIR,
+                risk_levels=selected_risks,
+                domains=selected_domains,
+                statuses=selected_statuses,
+                attention_only=attention_only,
             )
             st.session_state["fleet-registry-export"] = result
             st.success("Fleet registry export generated.")
+    if assets_registry_frame.empty:
+        st.info("No fleet assets match the selected filters.")
+        return
     st.dataframe(
         assets_registry_frame,
         use_container_width=True,
@@ -941,6 +986,16 @@ def _fleet_assets_frame(assets: list[dict[str, Any]]) -> pd.DataFrame:
             }
         )
     return pd.DataFrame(rows)
+
+
+def _filter_options(rows: list[dict[str, Any]], key: str) -> list[str]:
+    return sorted(
+        {
+            str(row.get(key))
+            for row in rows
+            if row.get(key) is not None and str(row.get(key)).strip()
+        }
+    )
 
 
 def _prediction_runs_frame(runs: list[dict[str, Any]]) -> pd.DataFrame:

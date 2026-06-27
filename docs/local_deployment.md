@@ -91,7 +91,9 @@ registry currently treats C-MAPSS units as turbofan RUL assets and keeps the
 schema open for future spacecraft anomaly channels through `domain`,
 `asset_type`, and structured metadata fields.
 The Fleet tab can download the current registry as CSV or JSON without writing
-files, which keeps hosted read-only reviews useful.
+files, which keeps hosted read-only reviews useful. The registry view and
+exports can be filtered by risk level, domain, status, or attention-required
+assets.
 
 Use the sync command to backfill or refresh assets from existing runs:
 
@@ -114,6 +116,16 @@ For local review handoff, export both JSON evidence and flat CSV rows:
 uv run aerospace-prognostics app-export-fleet-assets `
   --database artifacts/app/aerospace_prognostics.sqlite `
   --output-dir artifacts/app_exports
+```
+
+For a narrower review set:
+
+```powershell
+uv run aerospace-prognostics app-export-fleet-assets `
+  --database artifacts/app/aerospace_prognostics.sqlite `
+  --output-dir artifacts/app_exports `
+  --risk-level critical `
+  --attention-only
 ```
 
 ## Outcome Imports

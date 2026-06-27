@@ -503,15 +503,34 @@ def list_fleet_assets(
     database_path: str | Path,
     *,
     limit: int = 100,
+    risk_levels: Iterable[str] | None = None,
+    domains: Iterable[str] | None = None,
+    statuses: Iterable[str] | None = None,
+    attention_only: bool = False,
     read_only: bool = False,
 ) -> list[dict[str, Any]]:
     """Return the current fleet asset registry ordered by operational priority."""
 
     db_path = _prepare_database(database_path, read_only=read_only)
+    where_clauses: list[str] = []
+    parameters: list[Any] = []
+    _extend_in_filter(
+        where_clauses,
+        parameters,
+        column="latest_risk_level",
+        values=risk_levels,
+    )
+    _extend_in_filter(where_clauses, parameters, column="domain", values=domains)
+    _extend_in_filter(where_clauses, parameters, column="latest_status", values=statuses)
+    if attention_only:
+        where_clauses.append(
+            "(latest_risk_level in ('critical', 'watch') or latest_attention_json != '[]')"
+        )
+    where_sql = f"where {' and '.join(where_clauses)}" if where_clauses else ""
     with _connect(db_path, read_only=read_only) as connection:
         connection.row_factory = sqlite3.Row
         rows = connection.execute(
-            """
+            f"""
             select
                 asset_id,
                 asset_type,
@@ -530,6 +549,7 @@ def list_fleet_assets(
                 last_seen_at_utc,
                 metadata_json
             from fleet_assets
+            {where_sql}
             order by
                 case latest_risk_level
                     when 'critical' then 0
@@ -541,7 +561,7 @@ def list_fleet_assets(
                 last_seen_at_utc desc
             limit ?
             """,
-            (int(limit),),
+            (*parameters, int(limit)),
         ).fetchall()
     return [_fleet_asset_from_row(row) for row in rows]
 
@@ -550,11 +570,29 @@ def build_fleet_asset_registry_bundle(
     database_path: str | Path,
     *,
     assets_csv_path: str | Path | None = None,
+    risk_levels: Iterable[str] | None = None,
+    domains: Iterable[str] | None = None,
+    statuses: Iterable[str] | None = None,
+    attention_only: bool = False,
     read_only: bool = False,
 ) -> dict[str, Any]:
     """Build a portable fleet-asset registry payload without writing files."""
 
-    assets = list_fleet_assets(database_path, limit=10000, read_only=read_only)
+    normalized_filters = _fleet_asset_filters(
+        risk_levels=risk_levels,
+        domains=domains,
+        statuses=statuses,
+        attention_only=attention_only,
+    )
+    assets = list_fleet_assets(
+        database_path,
+        limit=10000,
+        risk_levels=normalized_filters["risk_levels"],
+        domains=normalized_filters["domains"],
+        statuses=normalized_filters["statuses"],
+        attention_only=bool(normalized_filters["attention_only"]),
+        read_only=read_only,
+    )
     summary = database_summary(database_path, read_only=read_only)
     csv_file: dict[str, Any] = {"rows": len(assets)}
     if assets_csv_path is not None:
@@ -566,6 +604,7 @@ def build_fleet_asset_registry_bundle(
             "path": str(Path(database_path)),
             "schema_version": summary["schema_version"],
         },
+        "filters": normalized_filters,
         "summary": _fleet_asset_registry_summary(assets),
         "assets": assets,
         "files": {
@@ -578,6 +617,10 @@ def export_fleet_asset_registry(
     database_path: str | Path,
     *,
     output_dir: str | Path,
+    risk_levels: Iterable[str] | None = None,
+    domains: Iterable[str] | None = None,
+    statuses: Iterable[str] | None = None,
+    attention_only: bool = False,
 ) -> dict[str, Any]:
     """Export the fleet asset registry as JSON evidence and CSV rows."""
 
@@ -589,6 +632,10 @@ def export_fleet_asset_registry(
     bundle = build_fleet_asset_registry_bundle(
         database_path,
         assets_csv_path=assets_path,
+        risk_levels=risk_levels,
+        domains=domains,
+        statuses=statuses,
+        attention_only=attention_only,
     )
     assets = list(bundle["assets"])
     pd.DataFrame(_fleet_asset_export_rows(assets)).to_csv(assets_path, index=False)
@@ -601,6 +648,7 @@ def export_fleet_asset_registry(
         "assets_csv": str(assets_path),
         "assets_sha256": _file_sha256(assets_path),
         "asset_count": len(assets),
+        "filters": bundle["filters"],
         "risk_counts": bundle["summary"]["risk_counts"],
     }
 
@@ -1407,6 +1455,42 @@ def _fleet_asset_from_row(row: sqlite3.Row) -> dict[str, Any]:
     )
     asset["metadata"] = _json_loads(asset.pop("metadata_json"))
     return asset
+
+
+def _extend_in_filter(
+    where_clauses: list[str],
+    parameters: list[Any],
+    *,
+    column: str,
+    values: Iterable[str] | None,
+) -> None:
+    normalized = _normalized_filter_values(values)
+    if not normalized:
+        return
+    placeholders = ", ".join("?" for _ in normalized)
+    where_clauses.append(f"{column} in ({placeholders})")
+    parameters.extend(normalized)
+
+
+def _fleet_asset_filters(
+    *,
+    risk_levels: Iterable[str] | None,
+    domains: Iterable[str] | None,
+    statuses: Iterable[str] | None,
+    attention_only: bool,
+) -> dict[str, Any]:
+    return {
+        "risk_levels": _normalized_filter_values(risk_levels),
+        "domains": _normalized_filter_values(domains),
+        "statuses": _normalized_filter_values(statuses),
+        "attention_only": bool(attention_only),
+    }
+
+
+def _normalized_filter_values(values: Iterable[str] | None) -> list[str]:
+    if values is None:
+        return []
+    return sorted({str(value).strip() for value in values if str(value).strip()})
 
 
 def _fleet_asset_registry_summary(assets: list[dict[str, Any]]) -> dict[str, Any]:

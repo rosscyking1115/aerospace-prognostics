@@ -428,6 +428,32 @@ def test_build_fleet_asset_registry_bundle_is_read_only_safe(tmp_path) -> None:
     assert {asset["latest_run_id"] for asset in bundle["assets"]} == {run_id}
 
 
+def test_fleet_asset_registry_filters_assets_for_review(tmp_path) -> None:
+    database_path, run_id = _write_prediction_run(tmp_path)
+    labels = _label_fleet_assets_for_filtering(database_path)
+
+    critical_assets = list_fleet_assets(database_path, risk_levels=("critical",))
+    attention_assets = list_fleet_assets(database_path, attention_only=True)
+    bundle = build_fleet_asset_registry_bundle(
+        database_path,
+        risk_levels=("critical",),
+        statuses=("maintenance_review",),
+        attention_only=True,
+    )
+
+    assert [asset["asset_id"] for asset in critical_assets] == [labels["critical"]]
+    assert [asset["asset_id"] for asset in attention_assets] == [labels["critical"]]
+    assert bundle["filters"] == {
+        "risk_levels": ["critical"],
+        "domains": [],
+        "statuses": ["maintenance_review"],
+        "attention_only": True,
+    }
+    assert bundle["summary"]["asset_count"] == 1
+    assert bundle["assets"][0]["asset_id"] == labels["critical"]
+    assert bundle["assets"][0]["latest_run_id"] == run_id
+
+
 def test_export_fleet_asset_registry_writes_json_and_csv(tmp_path) -> None:
     database_path, run_id = _write_prediction_run(tmp_path)
     output_dir = tmp_path / "registry_exports"
@@ -458,6 +484,7 @@ def test_app_export_fleet_assets_command_writes_registry_evidence(
     capsys,
 ) -> None:
     database_path, _run_id = _write_prediction_run(tmp_path)
+    labels = _label_fleet_assets_for_filtering(database_path)
     output_dir = tmp_path / "fleet_exports"
 
     exit_code = main(
@@ -467,16 +494,25 @@ def test_app_export_fleet_assets_command_writes_registry_evidence(
             str(database_path),
             "--output-dir",
             str(output_dir),
+            "--risk-level",
+            "critical",
+            "--attention-only",
         ]
     )
     output = capsys.readouterr().out
+    bundle = json.loads(
+        (output_dir / "fleet_asset_registry.json").read_text(encoding="utf-8")
+    )
 
     assert exit_code == 0
     assert f"database={database_path}" in output
     assert f"output_dir={output_dir}" in output
     assert "registry_json=" in output
     assert "assets_csv=" in output
-    assert "asset_count=2" in output
+    assert "asset_count=1" in output
+    assert '"risk_levels": ["critical"]' in output
+    assert bundle["filters"]["attention_only"] is True
+    assert bundle["assets"][0]["asset_id"] == labels["critical"]
     assert (output_dir / "fleet_asset_registry.json").exists()
     assert (output_dir / "fleet_assets.csv").exists()
 
@@ -993,6 +1029,43 @@ def test_load_prediction_run_returns_none_for_unknown_run(tmp_path) -> None:
     loaded = load_prediction_run(database_path, "run-missing")
 
     assert loaded is None
+
+
+def _label_fleet_assets_for_filtering(database_path):
+    with sqlite3.connect(database_path) as connection:
+        asset_ids = [
+            str(row[0])
+            for row in connection.execute(
+                "select asset_id from fleet_assets order by asset_id asc"
+            ).fetchall()
+        ]
+        critical_asset, nominal_asset = asset_ids
+        connection.execute(
+            """
+            update fleet_assets
+            set latest_risk_level = ?,
+                latest_status = ?,
+                latest_attention_json = ?
+            where asset_id = ?
+            """,
+            (
+                "critical",
+                "maintenance_review",
+                json.dumps(["RUL at or below critical threshold"]),
+                critical_asset,
+            ),
+        )
+        connection.execute(
+            """
+            update fleet_assets
+            set latest_risk_level = ?,
+                latest_status = ?,
+                latest_attention_json = ?
+            where asset_id = ?
+            """,
+            ("nominal", "nominal", json.dumps([]), nominal_asset),
+        )
+    return {"critical": critical_asset, "nominal": nominal_asset}
 
 
 def _write_prediction_run(tmp_path):
