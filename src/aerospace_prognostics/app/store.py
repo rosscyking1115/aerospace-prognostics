@@ -25,6 +25,7 @@ REQUIRED_TABLES = (
     "predictions",
     "prediction_outcomes",
     "prediction_run_events",
+    "fleet_assets",
 )
 
 
@@ -121,6 +122,25 @@ def initialize_app_database(database_path: str | Path) -> Path:
                 note text,
                 payload_json text,
                 created_at_utc text not null
+            );
+
+            create table if not exists fleet_assets (
+                asset_id text primary key,
+                asset_type text not null,
+                domain text not null,
+                source_dataset text,
+                source_subset text,
+                external_id text,
+                latest_run_id text references prediction_runs(run_id),
+                latest_rul_prediction real,
+                latest_rul_lower real,
+                latest_rul_upper real,
+                latest_risk_level text,
+                latest_status text,
+                latest_attention_json text not null,
+                first_seen_at_utc text not null,
+                last_seen_at_utc text not null,
+                metadata_json text not null
             );
             """
         )
@@ -318,6 +338,7 @@ def record_prediction_run(
                 for row in predictions
             ),
         )
+        _upsert_fleet_assets_for_run(connection, run_id=run_id, timestamp=timestamp)
         _insert_prediction_run_event(
             connection,
             run_id=run_id,
@@ -440,6 +461,89 @@ def record_prediction_outcomes(
             timestamp=timestamp,
         )
     return {"outcome_count": len(outcome_rows), "event_id": event_id}
+
+
+def sync_fleet_assets_from_prediction_run(
+    database_path: str | Path,
+    *,
+    run_id: str | None = None,
+) -> dict[str, Any]:
+    """Refresh fleet-asset registry rows from one or all prediction runs."""
+
+    db_path = initialize_app_database(database_path)
+    timestamp = _now()
+    with _connect(db_path) as connection:
+        if run_id is not None and not _prediction_run_exists(connection, run_id):
+            raise ValueError(f"unknown prediction run: {run_id}")
+        run_ids = (
+            [run_id]
+            if run_id is not None
+            else [
+                str(row[0])
+                for row in connection.execute(
+                    "select run_id from prediction_runs order by created_at_utc asc"
+                ).fetchall()
+            ]
+        )
+        updated_assets = 0
+        for current_run_id in run_ids:
+            updated_assets += _upsert_fleet_assets_for_run(
+                connection,
+                run_id=str(current_run_id),
+                timestamp=timestamp,
+            )
+    return {
+        "run_id": run_id,
+        "runs_synced": len(run_ids),
+        "updated_assets": updated_assets,
+    }
+
+
+def list_fleet_assets(
+    database_path: str | Path,
+    *,
+    limit: int = 100,
+    read_only: bool = False,
+) -> list[dict[str, Any]]:
+    """Return the current fleet asset registry ordered by operational priority."""
+
+    db_path = _prepare_database(database_path, read_only=read_only)
+    with _connect(db_path, read_only=read_only) as connection:
+        connection.row_factory = sqlite3.Row
+        rows = connection.execute(
+            """
+            select
+                asset_id,
+                asset_type,
+                domain,
+                source_dataset,
+                source_subset,
+                external_id,
+                latest_run_id,
+                latest_rul_prediction,
+                latest_rul_lower,
+                latest_rul_upper,
+                latest_risk_level,
+                latest_status,
+                latest_attention_json,
+                first_seen_at_utc,
+                last_seen_at_utc,
+                metadata_json
+            from fleet_assets
+            order by
+                case latest_risk_level
+                    when 'critical' then 0
+                    when 'watch' then 1
+                    when 'nominal' then 2
+                    else 3
+                end,
+                latest_rul_prediction asc,
+                last_seen_at_utc desc
+            limit ?
+            """,
+            (int(limit),),
+        ).fetchall()
+    return [_fleet_asset_from_row(row) for row in rows]
 
 
 def list_model_artifacts(
@@ -968,6 +1072,7 @@ def database_summary(
             "predictions",
             "prediction_outcomes",
             "prediction_run_events",
+            "fleet_assets",
         ):
             summary[table_name] = int(
                 connection.execute(f"select count(*) from {table_name}").fetchone()[0]
@@ -1111,6 +1216,186 @@ def _insert_prediction_run_event(
         ),
     )
     return event_id
+
+
+def _upsert_fleet_assets_for_run(
+    connection: sqlite3.Connection,
+    *,
+    run_id: str,
+    timestamp: str,
+) -> int:
+    connection.row_factory = sqlite3.Row
+    run = connection.execute(
+        """
+        select
+            prediction_runs.run_id,
+            prediction_runs.dataset,
+            prediction_runs.subset,
+            prediction_runs.model_name,
+            prediction_runs.artifact_id,
+            prediction_runs.created_at_utc,
+            telemetry_uploads.source_name,
+            telemetry_uploads.content_sha256
+        from prediction_runs
+        join telemetry_uploads on telemetry_uploads.upload_id = prediction_runs.upload_id
+        where prediction_runs.run_id = ?
+        """,
+        (run_id,),
+    ).fetchone()
+    if run is None:
+        return 0
+    rows = connection.execute(
+        """
+        select
+            asset_id,
+            unit_number,
+            predicted_rul,
+            predicted_rul_lower,
+            predicted_rul_upper,
+            interval_method,
+            interval_confidence
+        from predictions
+        where run_id = ?
+        """,
+        (run_id,),
+    ).fetchall()
+    updated = 0
+    for row in rows:
+        risk_level = _fleet_asset_risk_level(
+            predicted_rul=float(row["predicted_rul"]),
+            predicted_rul_lower=_optional_float(row["predicted_rul_lower"]),
+        )
+        attention = _fleet_asset_attention_reasons(
+            predicted_rul=float(row["predicted_rul"]),
+            predicted_rul_lower=_optional_float(row["predicted_rul_lower"]),
+            predicted_rul_upper=_optional_float(row["predicted_rul_upper"]),
+            risk_level=risk_level,
+        )
+        metadata = {
+            "unit_number": int(row["unit_number"]),
+            "model_name": run["model_name"],
+            "artifact_id": run["artifact_id"],
+            "source_name": run["source_name"],
+            "input_sha256": run["content_sha256"],
+            "interval_method": row["interval_method"],
+            "interval_confidence": row["interval_confidence"],
+        }
+        cursor = connection.execute(
+            """
+            insert into fleet_assets (
+                asset_id,
+                asset_type,
+                domain,
+                source_dataset,
+                source_subset,
+                external_id,
+                latest_run_id,
+                latest_rul_prediction,
+                latest_rul_lower,
+                latest_rul_upper,
+                latest_risk_level,
+                latest_status,
+                latest_attention_json,
+                first_seen_at_utc,
+                last_seen_at_utc,
+                metadata_json
+            )
+            values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            on conflict(asset_id) do update set
+                asset_type = excluded.asset_type,
+                domain = excluded.domain,
+                source_dataset = excluded.source_dataset,
+                source_subset = excluded.source_subset,
+                external_id = excluded.external_id,
+                latest_run_id = excluded.latest_run_id,
+                latest_rul_prediction = excluded.latest_rul_prediction,
+                latest_rul_lower = excluded.latest_rul_lower,
+                latest_rul_upper = excluded.latest_rul_upper,
+                latest_risk_level = excluded.latest_risk_level,
+                latest_status = excluded.latest_status,
+                latest_attention_json = excluded.latest_attention_json,
+                last_seen_at_utc = excluded.last_seen_at_utc,
+                metadata_json = excluded.metadata_json
+            where excluded.last_seen_at_utc >= fleet_assets.last_seen_at_utc
+            """,
+            (
+                row["asset_id"],
+                "engine",
+                "turbofan_rul",
+                run["dataset"],
+                run["subset"],
+                str(row["unit_number"]),
+                run_id,
+                float(row["predicted_rul"]),
+                _optional_float(row["predicted_rul_lower"]),
+                _optional_float(row["predicted_rul_upper"]),
+                risk_level,
+                _fleet_asset_status(risk_level),
+                _json_dumps(attention),
+                run["created_at_utc"] or timestamp,
+                run["created_at_utc"] or timestamp,
+                _json_dumps(metadata),
+            ),
+        )
+        updated += max(0, cursor.rowcount)
+    return updated
+
+
+def _fleet_asset_from_row(row: sqlite3.Row) -> dict[str, Any]:
+    asset = dict(row)
+    asset["latest_attention_reasons"] = _json_loads(
+        asset.pop("latest_attention_json")
+    )
+    asset["metadata"] = _json_loads(asset.pop("metadata_json"))
+    return asset
+
+
+def _fleet_asset_risk_level(
+    *,
+    predicted_rul: float,
+    predicted_rul_lower: float | None,
+) -> str:
+    risk_floor = (
+        min(predicted_rul, predicted_rul_lower)
+        if predicted_rul_lower is not None
+        else predicted_rul
+    )
+    if risk_floor <= 20:
+        return "critical"
+    if risk_floor <= 50:
+        return "watch"
+    return "nominal"
+
+
+def _fleet_asset_attention_reasons(
+    *,
+    predicted_rul: float,
+    predicted_rul_lower: float | None,
+    predicted_rul_upper: float | None,
+    risk_level: str,
+) -> list[str]:
+    reasons: list[str] = []
+    if risk_level == "critical":
+        reasons.append("RUL at or below critical threshold")
+    elif risk_level == "watch":
+        reasons.append("RUL inside watch threshold")
+    if predicted_rul_lower is not None and predicted_rul_lower <= 20 < predicted_rul:
+        reasons.append("Interval lower bound crosses critical threshold")
+    if (
+        predicted_rul_lower is not None
+        and predicted_rul_upper is not None
+        and predicted_rul_upper - predicted_rul_lower >= 30
+    ):
+        reasons.append("Wide RUL interval")
+    return reasons
+
+
+def _fleet_asset_status(risk_level: str) -> str:
+    return {
+        "critical": "maintenance_review",
+        "watch": "monitor",
+        "nominal": "nominal",
+    }.get(risk_level, "unknown")
 
 
 def _upsert_model_artifact(

@@ -45,13 +45,15 @@ together. The next gap is hosted deployment and deeper operator workflows.
      product data model.
 
 Current status: initial SQLite persistence is active for model artifacts, release
-evidence, telemetry uploads, prediction runs, and per-asset predictions. The
+evidence, telemetry uploads, prediction runs, per-asset predictions, and a
+persisted fleet asset registry derived from stored prediction runs. The
 console can inspect recent runs, download fillable observed-outcome templates,
 read-only-safe run evidence JSON, and model-review bundles, attach observed RUL
 outcomes, export persisted prediction rows and file-based run evidence bundles,
 append operator decisions, display an audit log for each run,
 summarize interval availability and width, report outcome-backed MAE/coverage,
-and inspect stored model artifacts with their release evidence, recent
+inspect persisted asset state with latest RUL/risk/status context, and inspect
+stored model artifacts with their release evidence, recent
 prediction usage, release-gate report cards, operational interval diagnostics,
 and observed-outcome calibration summaries. The console can run in read-only
 mode for hosted demos. Custom model artifact and release evidence registration,
@@ -59,7 +61,8 @@ outcome-template export, outcome CSV import, operator-decision capture, and
 prediction-run evidence export are now available through the CLI, with
 outcome-template download, outcome import, in-memory run evidence and
 model-review bundle download, and file-based run evidence export also available
-in the console.
+in the console. Fleet-asset sync/backfill is available through the CLI and
+automatically refreshes when new prediction runs are stored.
 
 3. Local deployment stack
    - Docker Compose with FastAPI inference service, dashboard, mounted model
@@ -94,6 +97,11 @@ need to run together.
      operator decisions, and audit events.
    - Fleet asset registry that can combine C-MAPSS engine RUL and spacecraft
      anomaly alerts in one console.
+
+Current status: the first registry slice persists C-MAPSS engine assets from
+stored prediction runs with latest RUL, interval bounds, risk level, status,
+source run, and attention reasons. The remaining gap is adding spacecraft
+anomaly assets into the same registry and defining cross-domain prioritization.
 
 ## Near-Term Decision
 

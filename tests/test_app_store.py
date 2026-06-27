@@ -16,6 +16,7 @@ from aerospace_prognostics.app.store import (
     export_prediction_outcome_template,
     export_prediction_run_evidence,
     initialize_app_database,
+    list_fleet_assets,
     list_model_artifacts,
     list_prediction_run_events,
     list_prediction_runs,
@@ -26,6 +27,7 @@ from aerospace_prognostics.app.store import (
     record_prediction_run_event,
     register_model_artifact_evidence,
     seed_quickstart_workspace,
+    sync_fleet_assets_from_prediction_run,
 )
 from aerospace_prognostics.cli import main
 from aerospace_prognostics.data.cmapss import load_cmapss_subset
@@ -45,6 +47,7 @@ def test_initialize_app_database_creates_schema(tmp_path) -> None:
     assert summary["model_artifacts"] == 0
     assert summary["prediction_runs"] == 0
     assert summary["prediction_outcomes"] == 0
+    assert summary["fleet_assets"] == 0
 
 
 def test_app_init_db_command_creates_database_without_seed(tmp_path, capsys) -> None:
@@ -65,6 +68,7 @@ def test_app_init_db_command_creates_database_without_seed(tmp_path, capsys) -> 
     assert f"database={database_path}" in output
     assert f"schema_version={SCHEMA_VERSION}" in output
     assert "prediction_outcomes=0" in output
+    assert "fleet_assets=0" in output
 
 
 def test_seed_quickstart_workspace_persists_model_and_evidence(tmp_path) -> None:
@@ -260,6 +264,7 @@ def test_read_only_queries_use_existing_database_without_initializing(
     runs = store.list_prediction_runs(database_path, read_only=True)
     loaded_run = store.load_prediction_run(database_path, run_id, read_only=True)
     events = store.list_prediction_run_events(database_path, run_id, read_only=True)
+    assets = store.list_fleet_assets(database_path, read_only=True)
     review_bundle = store.build_model_artifact_review_bundle(
         database_path,
         artifact_id="fd001-demo",
@@ -275,6 +280,7 @@ def test_read_only_queries_use_existing_database_without_initializing(
     assert loaded_run is not None
     assert loaded_run["run"]["run_id"] == run_id
     assert events[0]["event_type"] == "prediction_recorded"
+    assert assets[0]["latest_run_id"] == run_id
     assert review_bundle["artifact"]["artifact_id"] == "fd001-demo"
 
 
@@ -320,6 +326,7 @@ def test_record_prediction_run_persists_upload_run_and_prediction_rows(tmp_path)
         source_name="test.csv",
     )
     summary = database_summary(database_path)
+    assets = list_fleet_assets(database_path)
 
     assert run_id.startswith("run-")
     assert summary["telemetry_uploads"] == 1
@@ -327,6 +334,14 @@ def test_record_prediction_run_persists_upload_run_and_prediction_rows(tmp_path)
     assert summary["predictions"] == 2
     assert summary["prediction_outcomes"] == 0
     assert summary["prediction_run_events"] == 1
+    assert summary["fleet_assets"] == 2
+    assert len(assets) == 2
+    assert {asset["latest_run_id"] for asset in assets} == {run_id}
+    assert {asset["asset_type"] for asset in assets} == {"engine"}
+    assert {asset["domain"] for asset in assets} == {"turbofan_rul"}
+    assert assets[0]["metadata"]["artifact_id"] == (
+        packaged.artifact.promotion_metadata["artifact_id"]
+    )
     with sqlite3.connect(database_path) as connection:
         stored_run_id = connection.execute("select run_id from prediction_runs").fetchone()[0]
     assert stored_run_id == run_id
@@ -358,6 +373,36 @@ def test_prediction_run_history_loads_recent_runs_and_predictions(tmp_path) -> N
     assert loaded["audit_events"][0]["event_type"] == "prediction_recorded"
     assert len(loaded["predictions"]) == 2
     assert loaded["predictions"][0]["predicted_rul"] <= loaded["predictions"][1]["predicted_rul"]
+
+
+def test_app_sync_fleet_assets_command_refreshes_prediction_assets(
+    tmp_path,
+    capsys,
+) -> None:
+    database_path, run_id = _write_prediction_run(tmp_path)
+
+    result = sync_fleet_assets_from_prediction_run(database_path, run_id=run_id)
+    exit_code = main(
+        [
+            "app-sync-fleet-assets",
+            "--database",
+            str(database_path),
+            "--run-id",
+            run_id,
+        ]
+    )
+    output = capsys.readouterr().out
+    assets = list_fleet_assets(database_path)
+
+    assert result == {"run_id": run_id, "runs_synced": 1, "updated_assets": 2}
+    assert exit_code == 0
+    assert f"database={database_path}" in output
+    assert f"run_id={run_id}" in output
+    assert "runs_synced=1" in output
+    assert "updated_assets=2" in output
+    assert "fleet_assets=2" in output
+    assert len(assets) == 2
+    assert all(asset["latest_run_id"] == run_id for asset in assets)
 
 
 def test_prediction_outcomes_attach_actuals_and_calibration_metrics(tmp_path) -> None:

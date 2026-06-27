@@ -20,11 +20,13 @@ from aerospace_prognostics.app.store import (
     record_prediction_run_event,
     register_model_artifact_evidence,
     seed_quickstart_workspace,
+    sync_fleet_assets_from_prediction_run,
 )
 
 APP_COMMANDS = {
     "app-init-db",
     "app-register-artifact",
+    "app-sync-fleet-assets",
     "app-record-outcomes",
     "app-record-decision",
     "app-export-outcome-template",
@@ -64,6 +66,17 @@ def register_app_commands(subparsers: Any) -> None:
     app_register_artifact.add_argument("--provenance-json", type=Path)
     app_register_artifact.add_argument("--promotion-json", type=Path)
     app_register_artifact.add_argument("--dashboard-payload-json", type=Path)
+
+    app_sync_fleet_assets = subparsers.add_parser(
+        "app-sync-fleet-assets",
+        help="Refresh fleet asset registry rows from persisted prediction runs",
+    )
+    app_sync_fleet_assets.add_argument(
+        "--database",
+        type=Path,
+        default=Path("artifacts") / "app" / "aerospace_prognostics.sqlite",
+    )
+    app_sync_fleet_assets.add_argument("--run-id")
 
     app_record_outcomes = subparsers.add_parser(
         "app-record-outcomes",
@@ -150,6 +163,7 @@ def handle_app_command(args: argparse.Namespace) -> int | None:
         print(f"prediction_runs={summary['prediction_runs']}")
         print(f"predictions={summary['predictions']}")
         print(f"prediction_outcomes={summary['prediction_outcomes']}")
+        print(f"fleet_assets={summary['fleet_assets']}")
         return 0
 
     if args.command == "app-register-artifact":
@@ -198,6 +212,20 @@ def handle_app_command(args: argparse.Namespace) -> int | None:
         print(f"outcome_count={result['outcome_count']}")
         print(f"event_id={result['event_id']}")
         print(f"prediction_outcomes={summary['prediction_outcomes']}")
+        return 0
+
+    if args.command == "app-sync-fleet-assets":
+        result = sync_fleet_assets_from_prediction_run(
+            args.database,
+            run_id=args.run_id,
+        )
+        summary = database_summary(args.database)
+        print(f"database={args.database}")
+        if args.run_id is not None:
+            print(f"run_id={args.run_id}")
+        print(f"runs_synced={result['runs_synced']}")
+        print(f"updated_assets={result['updated_assets']}")
+        print(f"fleet_assets={summary['fleet_assets']}")
         return 0
 
     if args.command == "app-record-decision":

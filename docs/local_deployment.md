@@ -27,6 +27,10 @@ coverage/MAE diagnostics in the shared SQLite database. The Registry tab reads
 the same database to show stored model artifacts, release evidence,
 release-gate report cards, recent prediction usage, operational interval
 availability, and observed-outcome calibration summaries for each artifact.
+The Fleet tab combines the release dashboard payload with a persisted asset
+registry derived from stored prediction runs, so operators can track latest
+RUL, interval bounds, risk level, status, source run, and attention reasons by
+asset.
 
 ## Endpoints
 
@@ -78,6 +82,28 @@ uv run aerospace-prognostics app-register-artifact `
   --provenance-json artifacts/release/cmapss_fd001_provenance.json `
   --promotion-json artifacts/models/cmapss_fd001_hgb_policy_promotion.json `
   --dashboard-payload-json artifacts/dashboard/fleet_payload.json
+```
+
+## Fleet Asset Registry
+
+Stored prediction runs automatically refresh the `fleet_assets` table. The
+registry currently treats C-MAPSS units as turbofan RUL assets and keeps the
+schema open for future spacecraft anomaly channels through `domain`,
+`asset_type`, and structured metadata fields.
+
+Use the sync command to backfill or refresh assets from existing runs:
+
+```powershell
+uv run aerospace-prognostics app-sync-fleet-assets `
+  --database artifacts/app/aerospace_prognostics.sqlite
+```
+
+To refresh only one run:
+
+```powershell
+uv run aerospace-prognostics app-sync-fleet-assets `
+  --database artifacts/app/aerospace_prognostics.sqlite `
+  --run-id run-...
 ```
 
 ## Outcome Imports

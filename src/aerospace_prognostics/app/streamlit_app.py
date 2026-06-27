@@ -29,6 +29,7 @@ from aerospace_prognostics.app.store import (
     database_summary,
     export_prediction_run_evidence,
     initialize_app_database,
+    list_fleet_assets,
     list_model_artifacts,
     list_prediction_runs,
     load_model_artifact,
@@ -37,6 +38,7 @@ from aerospace_prognostics.app.store import (
     record_prediction_run,
     record_prediction_run_event,
     seed_quickstart_workspace,
+    sync_fleet_assets_from_prediction_run,
 )
 from aerospace_prognostics.data.cmapss import CMAPSS_COLUMNS
 
@@ -115,7 +117,7 @@ def main() -> None:
         ["Fleet", "Predict", "History", "Registry", "Evidence", "System", "Roadmap"],
     )
     with fleet_tab:
-        _render_fleet_tab(st, workspace)
+        _render_fleet_tab(st, workspace, database_path, read_only)
     with predict_tab:
         _render_predict_tab(st, workspace, database_path, api_status, api_key, read_only)
     with history_tab:
@@ -130,7 +132,12 @@ def main() -> None:
         _render_roadmap_tab(st)
 
 
-def _render_fleet_tab(st: Any, workspace: QuickstartWorkspace) -> None:
+def _render_fleet_tab(
+    st: Any,
+    workspace: QuickstartWorkspace,
+    database_path: Path,
+    read_only: bool,
+) -> None:
     payload = workspace.dashboard_payload or {}
     summary = payload.get("summary") if isinstance(payload.get("summary"), dict) else {}
     assets = payload.get("assets") if isinstance(payload.get("assets"), list) else []
@@ -164,6 +171,40 @@ def _render_fleet_tab(st: Any, workspace: QuickstartWorkspace) -> None:
             [{"risk_level": key, "assets": value} for key, value in risk_counts.items()]
         )
         st.bar_chart(risk_frame, x="risk_level", y="assets", horizontal=True)
+
+    st.subheader("Persisted Asset Registry")
+    registry_columns = st.columns([1, 3])
+    with registry_columns[0]:
+        if st.button("Sync Assets", disabled=read_only):
+            result = sync_fleet_assets_from_prediction_run(database_path)
+            st.success(
+                f"Synced {result['runs_synced']} runs and refreshed "
+                f"{result['updated_assets']} assets."
+            )
+            st.rerun()
+    assets_registry = list_fleet_assets(database_path, limit=100, read_only=read_only)
+    if not assets_registry:
+        st.info("No persisted fleet assets yet. Run and store a prediction first.")
+        return
+    st.dataframe(
+        _fleet_assets_frame(assets_registry),
+        use_container_width=True,
+        hide_index=True,
+        column_config={
+            "last_seen_at_utc": st.column_config.DatetimeColumn("Last Seen"),
+            "asset_id": st.column_config.TextColumn("Asset"),
+            "asset_type": st.column_config.TextColumn("Type"),
+            "domain": st.column_config.TextColumn("Domain"),
+            "source_subset": st.column_config.TextColumn("Subset"),
+            "latest_risk_level": st.column_config.TextColumn("Risk"),
+            "latest_rul_prediction": st.column_config.NumberColumn("RUL", format="%.1f"),
+            "latest_rul_lower": st.column_config.NumberColumn("Lower", format="%.1f"),
+            "latest_rul_upper": st.column_config.NumberColumn("Upper", format="%.1f"),
+            "latest_status": st.column_config.TextColumn("Status"),
+            "latest_run_id": st.column_config.TextColumn("Run"),
+            "attention": st.column_config.TextColumn("Attention"),
+        },
+    )
 
 
 def _render_predict_tab(
@@ -805,6 +846,7 @@ def _render_roadmap_tab(st: Any) -> None:
     st.markdown(
         """
         - Persist prediction runs, uploads, artifact records, and release evidence in SQLite.
+        - Maintain a persisted fleet asset registry from stored prediction runs.
         - Make prediction history filterable by model, asset, risk, date, and drift status.
         - Surface API, dashboard, mounted model storage, and database status in one console.
         - Promote the dashboard to a hosted product surface with authentication and audit logs.
@@ -831,6 +873,31 @@ def _assets_frame(assets: list[Any]) -> pd.DataFrame:
                 "rul_upper": interval.get("upper"),
                 "status": asset.get("status"),
                 "attention": "; ".join(str(reason) for reason in reasons or []),
+            }
+        )
+    return pd.DataFrame(rows)
+
+
+def _fleet_assets_frame(assets: list[dict[str, Any]]) -> pd.DataFrame:
+    rows: list[dict[str, Any]] = []
+    for asset in assets:
+        reasons = asset.get("latest_attention_reasons")
+        if not isinstance(reasons, list):
+            reasons = []
+        rows.append(
+            {
+                "last_seen_at_utc": asset.get("last_seen_at_utc"),
+                "asset_id": asset.get("asset_id"),
+                "asset_type": asset.get("asset_type"),
+                "domain": asset.get("domain"),
+                "source_subset": asset.get("source_subset"),
+                "latest_risk_level": asset.get("latest_risk_level"),
+                "latest_rul_prediction": asset.get("latest_rul_prediction"),
+                "latest_rul_lower": asset.get("latest_rul_lower"),
+                "latest_rul_upper": asset.get("latest_rul_upper"),
+                "latest_status": asset.get("latest_status"),
+                "latest_run_id": asset.get("latest_run_id"),
+                "attention": "; ".join(str(reason) for reason in reasons),
             }
         )
     return pd.DataFrame(rows)
