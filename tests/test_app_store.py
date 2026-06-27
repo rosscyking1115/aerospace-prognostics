@@ -10,9 +10,11 @@ import aerospace_prognostics.app.store as store
 from aerospace_prognostics.app.dashboard_state import QuickstartWorkspace
 from aerospace_prognostics.app.store import (
     SCHEMA_VERSION,
+    build_fleet_asset_registry_bundle,
     build_model_artifact_review_bundle,
     build_prediction_run_evidence,
     database_summary,
+    export_fleet_asset_registry,
     export_prediction_outcome_template,
     export_prediction_run_evidence,
     initialize_app_database,
@@ -265,6 +267,10 @@ def test_read_only_queries_use_existing_database_without_initializing(
     loaded_run = store.load_prediction_run(database_path, run_id, read_only=True)
     events = store.list_prediction_run_events(database_path, run_id, read_only=True)
     assets = store.list_fleet_assets(database_path, read_only=True)
+    fleet_bundle = store.build_fleet_asset_registry_bundle(
+        database_path,
+        read_only=True,
+    )
     review_bundle = store.build_model_artifact_review_bundle(
         database_path,
         artifact_id="fd001-demo",
@@ -281,6 +287,8 @@ def test_read_only_queries_use_existing_database_without_initializing(
     assert loaded_run["run"]["run_id"] == run_id
     assert events[0]["event_type"] == "prediction_recorded"
     assert assets[0]["latest_run_id"] == run_id
+    assert fleet_bundle["summary"]["asset_count"] == 2
+    assert fleet_bundle["assets"][0]["latest_run_id"] == run_id
     assert review_bundle["artifact"]["artifact_id"] == "fd001-demo"
 
 
@@ -403,6 +411,74 @@ def test_app_sync_fleet_assets_command_refreshes_prediction_assets(
     assert "fleet_assets=2" in output
     assert len(assets) == 2
     assert all(asset["latest_run_id"] == run_id for asset in assets)
+
+
+def test_build_fleet_asset_registry_bundle_is_read_only_safe(tmp_path) -> None:
+    database_path, run_id = _write_prediction_run(tmp_path)
+
+    bundle = build_fleet_asset_registry_bundle(database_path, read_only=True)
+
+    assert bundle["schema_version"] == (
+        "aerospace-prognostics/fleet-asset-registry/v1"
+    )
+    assert bundle["database"]["schema_version"] == SCHEMA_VERSION
+    assert bundle["summary"]["asset_count"] == 2
+    assert bundle["summary"]["domain_counts"] == {"turbofan_rul": 2}
+    assert bundle["files"]["assets_csv"] == {"rows": 2}
+    assert {asset["latest_run_id"] for asset in bundle["assets"]} == {run_id}
+
+
+def test_export_fleet_asset_registry_writes_json_and_csv(tmp_path) -> None:
+    database_path, run_id = _write_prediction_run(tmp_path)
+    output_dir = tmp_path / "registry_exports"
+
+    result = export_fleet_asset_registry(database_path, output_dir=output_dir)
+    bundle = json.loads(
+        (output_dir / "fleet_asset_registry.json").read_text(encoding="utf-8")
+    )
+    exported_assets = pd.read_csv(result["assets_csv"])
+
+    assert result["output_dir"] == str(output_dir)
+    assert result["asset_count"] == 2
+    assert result["registry_sha256"]
+    assert result["assets_sha256"]
+    assert bundle["schema_version"] == (
+        "aerospace-prognostics/fleet-asset-registry/v1"
+    )
+    assert bundle["summary"]["asset_count"] == 2
+    assert bundle["files"]["assets_csv"]["rows"] == 2
+    assert bundle["files"]["assets_csv"]["sha256"] == result["assets_sha256"]
+    assert {asset["latest_run_id"] for asset in bundle["assets"]} == {run_id}
+    assert list(exported_assets["latest_run_id"]) == [run_id, run_id]
+    assert "attention_reasons" in exported_assets.columns
+
+
+def test_app_export_fleet_assets_command_writes_registry_evidence(
+    tmp_path,
+    capsys,
+) -> None:
+    database_path, _run_id = _write_prediction_run(tmp_path)
+    output_dir = tmp_path / "fleet_exports"
+
+    exit_code = main(
+        [
+            "app-export-fleet-assets",
+            "--database",
+            str(database_path),
+            "--output-dir",
+            str(output_dir),
+        ]
+    )
+    output = capsys.readouterr().out
+
+    assert exit_code == 0
+    assert f"database={database_path}" in output
+    assert f"output_dir={output_dir}" in output
+    assert "registry_json=" in output
+    assert "assets_csv=" in output
+    assert "asset_count=2" in output
+    assert (output_dir / "fleet_asset_registry.json").exists()
+    assert (output_dir / "fleet_assets.csv").exists()
 
 
 def test_prediction_outcomes_attach_actuals_and_calibration_metrics(tmp_path) -> None:

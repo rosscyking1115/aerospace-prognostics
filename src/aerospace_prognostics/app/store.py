@@ -546,6 +546,65 @@ def list_fleet_assets(
     return [_fleet_asset_from_row(row) for row in rows]
 
 
+def build_fleet_asset_registry_bundle(
+    database_path: str | Path,
+    *,
+    assets_csv_path: str | Path | None = None,
+    read_only: bool = False,
+) -> dict[str, Any]:
+    """Build a portable fleet-asset registry payload without writing files."""
+
+    assets = list_fleet_assets(database_path, limit=10000, read_only=read_only)
+    summary = database_summary(database_path, read_only=read_only)
+    csv_file: dict[str, Any] = {"rows": len(assets)}
+    if assets_csv_path is not None:
+        csv_file["path"] = str(Path(assets_csv_path))
+    return {
+        "schema_version": "aerospace-prognostics/fleet-asset-registry/v1",
+        "exported_at_utc": _now(),
+        "database": {
+            "path": str(Path(database_path)),
+            "schema_version": summary["schema_version"],
+        },
+        "summary": _fleet_asset_registry_summary(assets),
+        "assets": assets,
+        "files": {
+            "assets_csv": csv_file,
+        },
+    }
+
+
+def export_fleet_asset_registry(
+    database_path: str | Path,
+    *,
+    output_dir: str | Path,
+) -> dict[str, Any]:
+    """Export the fleet asset registry as JSON evidence and CSV rows."""
+
+    export_dir = Path(output_dir)
+    export_dir.mkdir(parents=True, exist_ok=True)
+    assets_path = export_dir / "fleet_assets.csv"
+    evidence_path = export_dir / "fleet_asset_registry.json"
+
+    bundle = build_fleet_asset_registry_bundle(
+        database_path,
+        assets_csv_path=assets_path,
+    )
+    assets = list(bundle["assets"])
+    pd.DataFrame(_fleet_asset_export_rows(assets)).to_csv(assets_path, index=False)
+    bundle["files"]["assets_csv"]["sha256"] = _file_sha256(assets_path)
+    write_json_payload(bundle, evidence_path, default=str)
+    return {
+        "output_dir": str(export_dir),
+        "registry_json": str(evidence_path),
+        "registry_sha256": _file_sha256(evidence_path),
+        "assets_csv": str(assets_path),
+        "assets_sha256": _file_sha256(assets_path),
+        "asset_count": len(assets),
+        "risk_counts": bundle["summary"]["risk_counts"],
+    }
+
+
 def list_model_artifacts(
     database_path: str | Path,
     *,
@@ -1348,6 +1407,65 @@ def _fleet_asset_from_row(row: sqlite3.Row) -> dict[str, Any]:
     )
     asset["metadata"] = _json_loads(asset.pop("metadata_json"))
     return asset
+
+
+def _fleet_asset_registry_summary(assets: list[dict[str, Any]]) -> dict[str, Any]:
+    risk_counts: dict[str, int] = {}
+    domain_counts: dict[str, int] = {}
+    status_counts: dict[str, int] = {}
+    for asset in assets:
+        risk = str(asset.get("latest_risk_level") or "unknown")
+        domain = str(asset.get("domain") or "unknown")
+        status = str(asset.get("latest_status") or "unknown")
+        risk_counts[risk] = risk_counts.get(risk, 0) + 1
+        domain_counts[domain] = domain_counts.get(domain, 0) + 1
+        status_counts[status] = status_counts.get(status, 0) + 1
+    attention_required_count = sum(
+        1
+        for asset in assets
+        if str(asset.get("latest_risk_level")) in {"critical", "watch"}
+        or bool(asset.get("latest_attention_reasons"))
+    )
+    return {
+        "asset_count": len(assets),
+        "attention_required_count": attention_required_count,
+        "risk_counts": dict(sorted(risk_counts.items())),
+        "domain_counts": dict(sorted(domain_counts.items())),
+        "status_counts": dict(sorted(status_counts.items())),
+    }
+
+
+def _fleet_asset_export_rows(assets: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    for asset in assets:
+        metadata = asset.get("metadata")
+        metadata = metadata if isinstance(metadata, dict) else {}
+        reasons = asset.get("latest_attention_reasons")
+        reasons = reasons if isinstance(reasons, list) else []
+        rows.append(
+            {
+                "asset_id": asset.get("asset_id"),
+                "asset_type": asset.get("asset_type"),
+                "domain": asset.get("domain"),
+                "source_dataset": asset.get("source_dataset"),
+                "source_subset": asset.get("source_subset"),
+                "external_id": asset.get("external_id"),
+                "latest_run_id": asset.get("latest_run_id"),
+                "latest_rul_prediction": asset.get("latest_rul_prediction"),
+                "latest_rul_lower": asset.get("latest_rul_lower"),
+                "latest_rul_upper": asset.get("latest_rul_upper"),
+                "latest_risk_level": asset.get("latest_risk_level"),
+                "latest_status": asset.get("latest_status"),
+                "attention_reasons": "; ".join(str(reason) for reason in reasons),
+                "first_seen_at_utc": asset.get("first_seen_at_utc"),
+                "last_seen_at_utc": asset.get("last_seen_at_utc"),
+                "model_name": metadata.get("model_name"),
+                "artifact_id": metadata.get("artifact_id"),
+                "source_name": metadata.get("source_name"),
+                "input_sha256": metadata.get("input_sha256"),
+            }
+        )
+    return rows
 
 
 def _fleet_asset_risk_level(

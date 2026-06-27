@@ -90,6 +90,8 @@ Stored prediction runs automatically refresh the `fleet_assets` table. The
 registry currently treats C-MAPSS units as turbofan RUL assets and keeps the
 schema open for future spacecraft anomaly channels through `domain`,
 `asset_type`, and structured metadata fields.
+The Fleet tab can download the current registry as CSV or JSON without writing
+files, which keeps hosted read-only reviews useful.
 
 Use the sync command to backfill or refresh assets from existing runs:
 
@@ -104,6 +106,14 @@ To refresh only one run:
 uv run aerospace-prognostics app-sync-fleet-assets `
   --database artifacts/app/aerospace_prognostics.sqlite `
   --run-id run-...
+```
+
+For local review handoff, export both JSON evidence and flat CSV rows:
+
+```powershell
+uv run aerospace-prognostics app-export-fleet-assets `
+  --database artifacts/app/aerospace_prognostics.sqlite `
+  --output-dir artifacts/app_exports
 ```
 
 ## Outcome Imports

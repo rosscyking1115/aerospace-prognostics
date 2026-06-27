@@ -29,6 +29,7 @@ def test_hosted_demo_docs_describe_private_read_only_deployment() -> None:
     assert "Keep the GitHub repository private" in docs
     assert "run evidence JSON" in docs
     assert "model-review bundles" in docs
+    assert "fleet registry JSON/CSV" in docs
     assert "/_stcore/health" in docs
 
 

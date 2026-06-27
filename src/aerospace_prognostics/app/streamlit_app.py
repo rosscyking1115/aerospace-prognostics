@@ -24,9 +24,11 @@ from aerospace_prognostics.app.dashboard_state import (
     predict_cmapss_telemetry,
 )
 from aerospace_prognostics.app.store import (
+    build_fleet_asset_registry_bundle,
     build_model_artifact_review_bundle,
     build_prediction_run_evidence,
     database_summary,
+    export_fleet_asset_registry,
     export_prediction_run_evidence,
     initialize_app_database,
     list_fleet_assets,
@@ -173,7 +175,7 @@ def _render_fleet_tab(
         st.bar_chart(risk_frame, x="risk_level", y="assets", horizontal=True)
 
     st.subheader("Persisted Asset Registry")
-    registry_columns = st.columns([1, 3])
+    registry_columns = st.columns([1, 1, 1, 1])
     with registry_columns[0]:
         if st.button("Sync Assets", disabled=read_only):
             result = sync_fleet_assets_from_prediction_run(database_path)
@@ -186,8 +188,35 @@ def _render_fleet_tab(
     if not assets_registry:
         st.info("No persisted fleet assets yet. Run and store a prediction first.")
         return
+    assets_registry_frame = _fleet_assets_frame(assets_registry)
+    with registry_columns[1]:
+        st.download_button(
+            "Download Assets CSV",
+            data=assets_registry_frame.to_csv(index=False).encode("utf-8"),
+            file_name="fleet_assets.csv",
+            mime="text/csv",
+        )
+    with registry_columns[2]:
+        registry_bundle = build_fleet_asset_registry_bundle(
+            database_path,
+            read_only=read_only,
+        )
+        st.download_button(
+            "Download Registry JSON",
+            data=_json_download_bytes(registry_bundle),
+            file_name="fleet_asset_registry.json",
+            mime="application/json",
+        )
+    with registry_columns[3]:
+        if st.button("Export Registry", disabled=read_only):
+            result = export_fleet_asset_registry(
+                database_path,
+                output_dir=DEFAULT_EXPORT_DIR,
+            )
+            st.session_state["fleet-registry-export"] = result
+            st.success("Fleet registry export generated.")
     st.dataframe(
-        _fleet_assets_frame(assets_registry),
+        assets_registry_frame,
         use_container_width=True,
         hide_index=True,
         column_config={
@@ -205,6 +234,17 @@ def _render_fleet_tab(
             "attention": st.column_config.TextColumn("Attention"),
         },
     )
+    export_result = st.session_state.get("fleet-registry-export")
+    if isinstance(export_result, dict):
+        st.json(
+            {
+                "registry_json": export_result["registry_json"],
+                "registry_sha256": export_result["registry_sha256"],
+                "assets_csv": export_result["assets_csv"],
+                "assets_sha256": export_result["assets_sha256"],
+                "asset_count": export_result["asset_count"],
+            }
+        )
 
 
 def _render_predict_tab(

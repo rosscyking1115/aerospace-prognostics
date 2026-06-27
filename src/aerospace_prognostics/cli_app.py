@@ -13,6 +13,7 @@ from pandas.errors import EmptyDataError, ParserError
 from aerospace_prognostics.app.dashboard_state import load_quickstart_workspace
 from aerospace_prognostics.app.store import (
     database_summary,
+    export_fleet_asset_registry,
     export_prediction_outcome_template,
     export_prediction_run_evidence,
     initialize_app_database,
@@ -27,6 +28,7 @@ APP_COMMANDS = {
     "app-init-db",
     "app-register-artifact",
     "app-sync-fleet-assets",
+    "app-export-fleet-assets",
     "app-record-outcomes",
     "app-record-decision",
     "app-export-outcome-template",
@@ -77,6 +79,21 @@ def register_app_commands(subparsers: Any) -> None:
         default=Path("artifacts") / "app" / "aerospace_prognostics.sqlite",
     )
     app_sync_fleet_assets.add_argument("--run-id")
+
+    app_export_fleet_assets = subparsers.add_parser(
+        "app-export-fleet-assets",
+        help="Export the persisted fleet asset registry as review evidence",
+    )
+    app_export_fleet_assets.add_argument(
+        "--database",
+        type=Path,
+        default=Path("artifacts") / "app" / "aerospace_prognostics.sqlite",
+    )
+    app_export_fleet_assets.add_argument(
+        "--output-dir",
+        type=Path,
+        default=Path("artifacts") / "app_exports",
+    )
 
     app_record_outcomes = subparsers.add_parser(
         "app-record-outcomes",
@@ -226,6 +243,20 @@ def handle_app_command(args: argparse.Namespace) -> int | None:
         print(f"runs_synced={result['runs_synced']}")
         print(f"updated_assets={result['updated_assets']}")
         print(f"fleet_assets={summary['fleet_assets']}")
+        return 0
+
+    if args.command == "app-export-fleet-assets":
+        result = export_fleet_asset_registry(
+            args.database,
+            output_dir=args.output_dir,
+        )
+        print(f"database={args.database}")
+        print(f"output_dir={result['output_dir']}")
+        print(f"registry_json={result['registry_json']}")
+        print(f"registry_sha256={result['registry_sha256']}")
+        print(f"assets_csv={result['assets_csv']}")
+        print(f"assets_sha256={result['assets_sha256']}")
+        print(f"asset_count={result['asset_count']}")
         return 0
 
     if args.command == "app-record-decision":
