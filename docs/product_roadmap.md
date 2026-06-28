@@ -110,13 +110,14 @@ need to run together.
 Current status: the registry persists C-MAPSS engine assets from stored
 prediction runs with latest RUL, interval bounds, risk level, status, source
 run, and attention reasons. It also ingests ranked SMAP/MSL anomaly comparison
-rows as spacecraft channel assets. Combined registry exports are available as
-JSON evidence and CSV triage rows, with filtered console and CLI views for
-focused operational review. Registry rows include a cross-domain priority score
-and priority explanations derived from RUL floors, interval width, anomaly
-detections, miss rate, false-alarm rate, and anomaly F1. The remaining gap is
-live spacecraft anomaly event ingestion and validating the priority policy
-against richer operational scenarios.
+rows and operational anomaly event CSVs as spacecraft channel assets. Combined
+registry exports are available as JSON evidence and CSV triage rows, with
+filtered console and CLI views for focused operational review. Registry rows
+include a cross-domain priority score and priority explanations derived from RUL
+floors, interval width, anomaly detections, live event severity, active event
+flags, threshold crossings, miss rate, false-alarm rate, and anomaly F1. The
+remaining gap is validating the priority policy against richer operational
+scenarios.
 
 ## Near-Term Decision
 

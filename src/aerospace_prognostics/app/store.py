@@ -531,6 +531,39 @@ def sync_fleet_assets_from_anomaly_comparison(
     }
 
 
+def sync_fleet_assets_from_anomaly_events(
+    database_path: str | Path,
+    *,
+    events_csv: str | Path,
+    source_name: str | None = None,
+) -> dict[str, Any]:
+    """Refresh spacecraft anomaly channel assets from operational event rows."""
+
+    events_path = Path(events_csv)
+    if not events_path.exists():
+        raise FileNotFoundError(f"anomaly events CSV not found: {events_path}")
+    rows, event_count = _latest_anomaly_event_rows(events_path)
+    db_path = initialize_app_database(database_path)
+    timestamp = _now()
+    with _connect(db_path) as connection:
+        updated_assets = 0
+        for row in rows:
+            updated_assets += _upsert_anomaly_event_fleet_asset(
+                connection,
+                row=row,
+                events_path=events_path,
+                source_name=source_name or str(events_path),
+                timestamp=timestamp,
+            )
+    return {
+        "source_path": str(events_path),
+        "source_name": source_name or str(events_path),
+        "events_processed": event_count,
+        "channels_synced": len(rows),
+        "updated_assets": updated_assets,
+    }
+
+
 def list_fleet_assets(
     database_path: str | Path,
     *,
@@ -1733,6 +1766,11 @@ def _fleet_asset_export_rows(assets: list[dict[str, Any]]) -> list[dict[str, Any
                 "input_sha256": metadata.get("input_sha256"),
                 "channel_id": metadata.get("channel_id"),
                 "spacecraft": metadata.get("spacecraft"),
+                "event_time_utc": metadata.get("event_time_utc"),
+                "severity": metadata.get("severity"),
+                "active": metadata.get("active"),
+                "anomaly_score": metadata.get("anomaly_score"),
+                "threshold": metadata.get("threshold"),
                 "anomaly_source": metadata.get("source"),
                 "f1": metadata.get("f1"),
                 "point_adjusted_f1": metadata.get("point_adjusted_f1"),
@@ -1798,6 +1836,8 @@ def _spacecraft_anomaly_priority_modifier(
     metadata = asset.get("metadata")
     metadata = metadata if isinstance(metadata, dict) else {}
     modifier = 0.0
+    if _metadata_has_live_anomaly_event(metadata):
+        modifier += _spacecraft_anomaly_event_priority_modifier(metadata, reasons)
     predicted_positives = _optional_int(metadata.get("predicted_positives")) or 0
     if predicted_positives > 0:
         modifier += min(40.0, predicted_positives * 5.0)
@@ -1814,6 +1854,52 @@ def _spacecraft_anomaly_priority_modifier(
     if f1 is not None and f1 < 0.6:
         modifier += min(50.0, (0.6 - f1) * 100.0)
         reasons.append(f"Low anomaly F1 {f1:.3f}")
+    return modifier
+
+
+def _metadata_has_live_anomaly_event(metadata: dict[str, Any]) -> bool:
+    return (
+        metadata.get("event_kind") == "live_anomaly_event"
+        or "severity" in metadata
+        or "active" in metadata
+        or "anomaly_score" in metadata
+        or "threshold" in metadata
+    )
+
+
+def _spacecraft_anomaly_event_priority_modifier(
+    metadata: dict[str, Any],
+    reasons: list[str],
+) -> float:
+    modifier = 0.0
+    severity = str(metadata.get("severity") or "").strip().lower()
+    severity_weights = {
+        "critical": 90.0,
+        "high": 70.0,
+        "medium": 35.0,
+        "warning": 35.0,
+        "low": 10.0,
+        "info": 0.0,
+    }
+    if severity:
+        modifier += severity_weights.get(severity, 15.0)
+        reasons.append(f"Live anomaly severity {severity}")
+    if bool(metadata.get("active")):
+        modifier += 60.0
+        reasons.append("Active live anomaly event")
+    score = _optional_float(metadata.get("anomaly_score"))
+    threshold = _optional_float(metadata.get("threshold"))
+    if score is not None and threshold is not None:
+        margin = score - threshold
+        if margin >= 0:
+            modifier += min(50.0, 20.0 + margin * 30.0)
+            reasons.append(f"Anomaly score {score:.3f} crossed threshold {threshold:.3f}")
+        else:
+            modifier += min(15.0, max(0.0, score) * 5.0)
+            reasons.append(f"Anomaly score {score:.3f} below threshold {threshold:.3f}")
+    elif score is not None:
+        modifier += min(40.0, max(0.0, score) * 10.0)
+        reasons.append(f"Anomaly score {score:.3f}")
     return modifier
 
 
@@ -2023,6 +2109,154 @@ def _upsert_anomaly_fleet_asset(
     return max(0, cursor.rowcount)
 
 
+def _latest_anomaly_event_rows(path: Path) -> tuple[list[dict[str, Any]], int]:
+    frame = pd.read_csv(path)
+    if frame.empty:
+        raise ValueError(f"anomaly events CSV has no rows: {path}")
+    required_columns = {"channel_id", "spacecraft"}
+    missing_columns = required_columns.difference(frame.columns)
+    if missing_columns:
+        missing = ", ".join(sorted(missing_columns))
+        raise ValueError(f"anomaly events CSV is missing required columns: {missing}")
+    rows = [_anomaly_event_row(row) for row in frame.to_dict("records")]
+    indexed_rows = [
+        {
+            **row,
+            "_source_order": index,
+            "_sort_time": _anomaly_event_sort_time(row),
+        }
+        for index, row in enumerate(rows)
+    ]
+    latest_rows = (
+        pd.DataFrame(indexed_rows)
+        .sort_values(
+            by=["spacecraft", "channel_id", "_sort_time", "_source_order"],
+            ascending=[True, True, True, True],
+        )
+        .groupby(["spacecraft", "channel_id"], sort=True)
+        .tail(1)
+        .sort_values(by=["spacecraft", "channel_id"])
+        .to_dict("records")
+    )
+    cleaned = [
+        {key: value for key, value in row.items() if not key.startswith("_")}
+        for row in latest_rows
+    ]
+    return cleaned, len(rows)
+
+
+def _anomaly_event_row(row: dict[str, Any]) -> dict[str, Any]:
+    event_time = _optional_text(
+        row.get("event_time_utc")
+        or row.get("observed_at_utc")
+        or row.get("timestamp_utc")
+        or row.get("timestamp")
+    )
+    active = _optional_bool(
+        row.get("active", row.get("prediction", row.get("is_anomaly")))
+    )
+    anomaly_score = _optional_float(
+        row.get("anomaly_score", row.get("score", row.get("severity_score")))
+    )
+    threshold = _optional_float(row.get("threshold", row.get("alert_threshold")))
+    severity = _normalized_anomaly_event_severity(row.get("severity"))
+    return {
+        "event_kind": "live_anomaly_event",
+        "channel_id": str(row["channel_id"]),
+        "spacecraft": str(row["spacecraft"]),
+        "event_time_utc": event_time,
+        "severity": severity,
+        "active": active,
+        "anomaly_score": anomaly_score,
+        "threshold": threshold,
+        "model_name": _optional_text(row.get("model_name")),
+        "source": _optional_text(row.get("source")),
+        "note": _optional_text(row.get("note") or row.get("description")),
+    }
+
+
+def _anomaly_event_sort_time(row: dict[str, Any]) -> str:
+    return str(row.get("event_time_utc") or "")
+
+
+def _upsert_anomaly_event_fleet_asset(
+    connection: sqlite3.Connection,
+    *,
+    row: dict[str, Any],
+    events_path: Path,
+    source_name: str,
+    timestamp: str,
+) -> int:
+    risk_level = _anomaly_event_risk_level(row)
+    attention = _anomaly_event_attention_reasons(row, risk_level=risk_level)
+    metadata = {
+        **row,
+        "source_name": source_name,
+        "events_csv": str(events_path),
+        "events_sha256": _file_sha256(events_path),
+    }
+    last_seen_at = str(row.get("event_time_utc") or timestamp)
+    asset_id = _anomaly_asset_id(row["spacecraft"], row["channel_id"])
+    cursor = connection.execute(
+        """
+        insert into fleet_assets (
+            asset_id,
+            asset_type,
+            domain,
+            source_dataset,
+            source_subset,
+            external_id,
+            latest_run_id,
+            latest_rul_prediction,
+            latest_rul_lower,
+            latest_rul_upper,
+            latest_risk_level,
+            latest_status,
+            latest_attention_json,
+            first_seen_at_utc,
+            last_seen_at_utc,
+            metadata_json
+        )
+        values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        on conflict(asset_id) do update set
+            asset_type = excluded.asset_type,
+            domain = excluded.domain,
+            source_dataset = excluded.source_dataset,
+            source_subset = excluded.source_subset,
+            external_id = excluded.external_id,
+            latest_run_id = excluded.latest_run_id,
+            latest_rul_prediction = excluded.latest_rul_prediction,
+            latest_rul_lower = excluded.latest_rul_lower,
+            latest_rul_upper = excluded.latest_rul_upper,
+            latest_risk_level = excluded.latest_risk_level,
+            latest_status = excluded.latest_status,
+            latest_attention_json = excluded.latest_attention_json,
+            last_seen_at_utc = excluded.last_seen_at_utc,
+            metadata_json = excluded.metadata_json
+        where excluded.last_seen_at_utc >= fleet_assets.last_seen_at_utc
+        """,
+        (
+            asset_id,
+            "spacecraft_channel",
+            "spacecraft_anomaly",
+            "SMAP/MSL",
+            row["spacecraft"],
+            row["channel_id"],
+            None,
+            None,
+            None,
+            None,
+            risk_level,
+            _anomaly_asset_status(risk_level),
+            _json_dumps(attention),
+            last_seen_at,
+            last_seen_at,
+            _json_dumps(metadata),
+        ),
+    )
+    return max(0, cursor.rowcount)
+
+
 def _anomaly_asset_id(spacecraft: str, channel_id: str) -> str:
     return f"{spacecraft.lower()}-channel-{channel_id.lower()}"
 
@@ -2062,6 +2296,56 @@ def _anomaly_asset_status(risk_level: str) -> str:
         "watch": "monitor",
         "nominal": "nominal",
     }.get(risk_level, "unknown")
+
+
+def _anomaly_event_risk_level(row: dict[str, Any]) -> str:
+    severity = str(row.get("severity") or "").strip().lower()
+    threshold_crossed = _anomaly_event_threshold_crossed(row)
+    active = bool(row.get("active"))
+    if severity in {"critical", "high"}:
+        return "critical"
+    if severity in {"medium", "warning"} or active or threshold_crossed:
+        return "watch"
+    return "nominal"
+
+
+def _anomaly_event_attention_reasons(
+    row: dict[str, Any],
+    *,
+    risk_level: str,
+) -> list[str]:
+    reasons: list[str] = []
+    severity = str(row.get("severity") or "").strip().lower()
+    if severity and severity not in {"info", "nominal"}:
+        reasons.append(f"Severity {severity}")
+    if bool(row.get("active")):
+        reasons.append("Active anomaly event")
+    if _anomaly_event_threshold_crossed(row):
+        reasons.append("Anomaly score crossed alert threshold")
+    if risk_level == "critical" and not reasons:
+        reasons.append("Critical anomaly event")
+    return reasons
+
+
+def _anomaly_event_threshold_crossed(row: dict[str, Any]) -> bool:
+    score = _optional_float(row.get("anomaly_score"))
+    threshold = _optional_float(row.get("threshold"))
+    return score is not None and threshold is not None and score >= threshold
+
+
+def _normalized_anomaly_event_severity(value: Any) -> str | None:
+    severity = _optional_text(value)
+    if severity is None:
+        return None
+    normalized = severity.strip().lower()
+    return {
+        "warn": "warning",
+        "warning": "warning",
+        "med": "medium",
+        "moderate": "medium",
+        "crit": "critical",
+        "severe": "critical",
+    }.get(normalized, normalized)
 
 
 def _upsert_model_artifact(
@@ -2264,10 +2548,33 @@ def _optional_int(value: Any) -> int | None:
 def _optional_float(value: Any) -> float | None:
     if value is None:
         return None
+    if pd.isna(value):
+        return None
     try:
         return float(value)
     except (TypeError, ValueError):
         return None
+
+
+def _optional_text(value: Any) -> str | None:
+    if value is None:
+        return None
+    if pd.isna(value):
+        return None
+    text = str(value).strip()
+    return text or None
+
+
+def _optional_bool(value: Any) -> bool:
+    if value is None:
+        return False
+    if pd.isna(value):
+        return False
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)):
+        return bool(value)
+    return str(value).strip().lower() in {"1", "true", "yes", "y", "active", "anomaly"}
 
 
 def _event_from_row(row: sqlite3.Row) -> dict[str, Any]:

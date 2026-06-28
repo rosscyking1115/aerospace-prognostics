@@ -30,6 +30,7 @@ from aerospace_prognostics.app.store import (
     register_model_artifact_evidence,
     seed_quickstart_workspace,
     sync_fleet_assets_from_anomaly_comparison,
+    sync_fleet_assets_from_anomaly_events,
     sync_fleet_assets_from_prediction_run,
 )
 from aerospace_prognostics.cli import main
@@ -581,6 +582,53 @@ def test_fleet_asset_registry_prioritizes_cross_domain_review_queue(
     assert "priority_reasons" in exported[0]
 
 
+def test_sync_fleet_assets_from_anomaly_events_updates_live_channel_assets(
+    tmp_path,
+) -> None:
+    database_path = initialize_app_database(tmp_path / "app.sqlite")
+    events_csv = _write_anomaly_events_csv(tmp_path / "events.csv")
+
+    result = sync_fleet_assets_from_anomaly_events(
+        database_path,
+        events_csv=events_csv,
+        source_name="ops_stream",
+    )
+    assets = list_fleet_assets(database_path, domains=("spacecraft_anomaly",))
+    exported_rows = store._fleet_asset_export_rows(assets)
+
+    assert result == {
+        "source_path": str(events_csv),
+        "source_name": "ops_stream",
+        "events_processed": 3,
+        "channels_synced": 2,
+        "updated_assets": 2,
+    }
+    assert [asset["asset_id"] for asset in assets] == [
+        "smap-channel-p-1",
+        "msl-channel-m-1",
+    ]
+    assert assets[0]["latest_risk_level"] == "critical"
+    assert assets[0]["latest_status"] == "anomaly_review"
+    assert assets[0]["metadata"]["event_kind"] == "live_anomaly_event"
+    assert assets[0]["metadata"]["event_time_utc"] == "2026-01-02T00:00:00+00:00"
+    assert assets[0]["metadata"]["source_name"] == "ops_stream"
+    assert assets[0]["metadata"]["active"] is True
+    assert assets[0]["metadata"]["anomaly_score"] == 0.95
+    assert "Severity critical" in assets[0]["latest_attention_reasons"]
+    assert "Active anomaly event" in assets[0]["latest_attention_reasons"]
+    assert any(
+        "Live anomaly severity critical" in reason
+        for reason in assets[0]["priority_reasons"]
+    )
+    assert any("crossed threshold" in reason for reason in assets[0]["priority_reasons"])
+    assert assets[1]["latest_risk_level"] == "nominal"
+    assert exported_rows[0]["event_time_utc"] == "2026-01-02T00:00:00+00:00"
+    assert exported_rows[0]["severity"] == "critical"
+    assert exported_rows[0]["active"] is True
+    assert exported_rows[0]["anomaly_score"] == 0.95
+    assert exported_rows[0]["threshold"] == 0.8
+
+
 def test_app_sync_anomaly_assets_command_refreshes_spacecraft_assets(
     tmp_path,
     capsys,
@@ -606,6 +654,38 @@ def test_app_sync_anomaly_assets_command_refreshes_spacecraft_assets(
     assert f"database={database_path}" in output
     assert f"comparison_csv={comparison_csv}" in output
     assert "source_name=phase2_smap_msl" in output
+    assert "channels_synced=2" in output
+    assert "updated_assets=2" in output
+    assert "fleet_assets=2" in output
+    assert {asset["asset_type"] for asset in assets} == {"spacecraft_channel"}
+
+
+def test_app_sync_anomaly_events_command_refreshes_live_spacecraft_assets(
+    tmp_path,
+    capsys,
+) -> None:
+    database_path = initialize_app_database(tmp_path / "app.sqlite")
+    events_csv = _write_anomaly_events_csv(tmp_path / "events.csv")
+
+    exit_code = main(
+        [
+            "app-sync-anomaly-events",
+            "--database",
+            str(database_path),
+            "--events-csv",
+            str(events_csv),
+            "--source-name",
+            "ops_stream",
+        ]
+    )
+    output = capsys.readouterr().out
+    assets = list_fleet_assets(database_path, domains=("spacecraft_anomaly",))
+
+    assert exit_code == 0
+    assert f"database={database_path}" in output
+    assert f"events_csv={events_csv}" in output
+    assert "source_name=ops_stream" in output
+    assert "events_processed=3" in output
     assert "channels_synced=2" in output
     assert "updated_assets=2" in output
     assert "fleet_assets=2" in output
@@ -1435,6 +1515,51 @@ def _write_anomaly_comparison_csv(path):
             "train_rows": 10,
             "test_rows": 12,
             "anomaly_points": 3,
+        },
+    ]
+    frame = pd.DataFrame(rows)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    frame.to_csv(path, index=False)
+    return path
+
+
+def _write_anomaly_events_csv(path):
+    rows = [
+        {
+            "channel_id": "P-1",
+            "spacecraft": "SMAP",
+            "event_time_utc": "2026-01-01T00:00:00+00:00",
+            "severity": "medium",
+            "active": False,
+            "anomaly_score": 0.5,
+            "threshold": 0.8,
+            "model_name": "robust_zscore",
+            "source": "ops",
+            "note": "earlier cleared event",
+        },
+        {
+            "channel_id": "P-1",
+            "spacecraft": "SMAP",
+            "event_time_utc": "2026-01-02T00:00:00+00:00",
+            "severity": "critical",
+            "active": True,
+            "anomaly_score": 0.95,
+            "threshold": 0.8,
+            "model_name": "robust_zscore",
+            "source": "ops",
+            "note": "battery telemetry excursion",
+        },
+        {
+            "channel_id": "M-1",
+            "spacecraft": "MSL",
+            "event_time_utc": "2026-01-02T01:00:00+00:00",
+            "severity": "info",
+            "active": False,
+            "anomaly_score": 0.1,
+            "threshold": 0.8,
+            "model_name": "pca_reconstruction",
+            "source": "ops",
+            "note": "nominal heartbeat",
         },
     ]
     frame = pd.DataFrame(rows)

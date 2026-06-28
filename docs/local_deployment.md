@@ -92,8 +92,9 @@ uv run aerospace-prognostics app-register-artifact `
 
 Stored prediction runs automatically refresh the `fleet_assets` table. The
 registry treats C-MAPSS units as turbofan RUL assets, and ranked SMAP/MSL
-anomaly comparison reports can be synced as spacecraft channel assets through
-the same `domain`, `asset_type`, and structured metadata fields.
+anomaly comparison reports or operational anomaly event CSVs can be synced as
+spacecraft channel assets through the same `domain`, `asset_type`, and
+structured metadata fields.
 The Fleet tab can download the current registry as CSV or JSON without writing
 files, which keeps hosted read-only reviews useful. The registry view and
 exports can be filtered by risk level, domain, status, or attention-required
@@ -122,6 +123,18 @@ uv run aerospace-prognostics app-sync-anomaly-assets `
   --database artifacts/app/aerospace_prognostics.sqlite `
   --comparison-csv artifacts/results/smap_msl_anomaly_model_comparison.csv `
   --source-name phase2_smap_msl
+```
+
+To refresh spacecraft channel assets from operational anomaly events, provide a
+CSV with `channel_id` and `spacecraft` plus optional `event_time_utc`,
+`severity`, `active`, `anomaly_score`, `threshold`, `model_name`, `source`, and
+`note` columns:
+
+```powershell
+uv run aerospace-prognostics app-sync-anomaly-events `
+  --database artifacts/app/aerospace_prognostics.sqlite `
+  --events-csv artifacts/ops/spacecraft_anomaly_events.csv `
+  --source-name ops_stream
 ```
 
 For local review handoff, export both JSON evidence and flat CSV rows:

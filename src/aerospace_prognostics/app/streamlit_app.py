@@ -997,7 +997,7 @@ def _render_roadmap_tab(st: Any) -> None:
           drift, and decisions.
         - Surface API, dashboard, mounted model storage, and database status in one console.
         - Promote the dashboard to a hosted product surface with authentication and audit logs.
-        - Ingest live spacecraft anomaly events and refine cross-domain prioritization.
+        - Validate live spacecraft anomaly event prioritization with richer scenarios.
         """
     )
 

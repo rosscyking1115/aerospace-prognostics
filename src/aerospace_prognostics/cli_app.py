@@ -22,6 +22,7 @@ from aerospace_prognostics.app.store import (
     register_model_artifact_evidence,
     seed_quickstart_workspace,
     sync_fleet_assets_from_anomaly_comparison,
+    sync_fleet_assets_from_anomaly_events,
     sync_fleet_assets_from_prediction_run,
 )
 
@@ -30,6 +31,7 @@ APP_COMMANDS = {
     "app-register-artifact",
     "app-sync-fleet-assets",
     "app-sync-anomaly-assets",
+    "app-sync-anomaly-events",
     "app-export-fleet-assets",
     "app-record-outcomes",
     "app-record-decision",
@@ -93,6 +95,18 @@ def register_app_commands(subparsers: Any) -> None:
     )
     app_sync_anomaly_assets.add_argument("--comparison-csv", type=Path, required=True)
     app_sync_anomaly_assets.add_argument("--source-name")
+
+    app_sync_anomaly_events = subparsers.add_parser(
+        "app-sync-anomaly-events",
+        help="Refresh spacecraft anomaly channel assets from operational event CSV rows",
+    )
+    app_sync_anomaly_events.add_argument(
+        "--database",
+        type=Path,
+        default=Path("artifacts") / "app" / "aerospace_prognostics.sqlite",
+    )
+    app_sync_anomaly_events.add_argument("--events-csv", type=Path, required=True)
+    app_sync_anomaly_events.add_argument("--source-name")
 
     app_export_fleet_assets = subparsers.add_parser(
         "app-export-fleet-assets",
@@ -290,6 +304,22 @@ def handle_app_command(args: argparse.Namespace) -> int | None:
         print(f"database={args.database}")
         print(f"comparison_csv={result['source_path']}")
         print(f"source_name={result['source_name']}")
+        print(f"channels_synced={result['channels_synced']}")
+        print(f"updated_assets={result['updated_assets']}")
+        print(f"fleet_assets={summary['fleet_assets']}")
+        return 0
+
+    if args.command == "app-sync-anomaly-events":
+        result = sync_fleet_assets_from_anomaly_events(
+            args.database,
+            events_csv=args.events_csv,
+            source_name=args.source_name,
+        )
+        summary = database_summary(args.database)
+        print(f"database={args.database}")
+        print(f"events_csv={result['source_path']}")
+        print(f"source_name={result['source_name']}")
+        print(f"events_processed={result['events_processed']}")
         print(f"channels_synced={result['channels_synced']}")
         print(f"updated_assets={result['updated_assets']}")
         print(f"fleet_assets={summary['fleet_assets']}")
