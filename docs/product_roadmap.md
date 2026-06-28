@@ -69,6 +69,9 @@ both the console and CLI for review handoff, with risk, domain, status, and
 attention-required filters. Ranked SMAP/MSL anomaly comparison reports can now
 be synced into the same registry as spacecraft channel assets with anomaly F1,
 false-alarm, miss-rate, predicted-positive, and attention-reason metadata.
+Fleet assets now receive a computed cross-domain priority score, priority band,
+and explanatory priority reasons so engines and spacecraft channels can be
+reviewed in one ordered queue.
 
 3. Local deployment stack
    - Docker Compose with FastAPI inference service, dashboard, mounted model
@@ -109,8 +112,11 @@ prediction runs with latest RUL, interval bounds, risk level, status, source
 run, and attention reasons. It also ingests ranked SMAP/MSL anomaly comparison
 rows as spacecraft channel assets. Combined registry exports are available as
 JSON evidence and CSV triage rows, with filtered console and CLI views for
-focused operational review. The remaining gap is live spacecraft anomaly event
-ingestion and stronger cross-domain prioritization policy.
+focused operational review. Registry rows include a cross-domain priority score
+and priority explanations derived from RUL floors, interval width, anomaly
+detections, miss rate, false-alarm rate, and anomaly F1. The remaining gap is
+live spacecraft anomaly event ingestion and validating the priority policy
+against richer operational scenarios.
 
 ## Near-Term Decision
 

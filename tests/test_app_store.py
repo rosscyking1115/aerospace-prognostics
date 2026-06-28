@@ -525,6 +525,9 @@ def test_sync_fleet_assets_from_anomaly_comparison_adds_spacecraft_assets(
     assert assets[0]["latest_risk_level"] == "critical"
     assert assets[0]["latest_status"] == "anomaly_review"
     assert assets[0]["latest_run_id"] is None
+    assert assets[0]["priority_score"] > assets[1]["priority_score"]
+    assert assets[0]["priority_band"] == "immediate_review"
+    assert any("Miss rate" in reason for reason in assets[0]["priority_reasons"])
     assert assets[0]["metadata"]["model_name"] == "robust_zscore"
     assert assets[0]["metadata"]["source_name"] == "phase2_smap_msl"
     assert assets[0]["metadata"]["f1"] == 0.2
@@ -538,6 +541,44 @@ def test_sync_fleet_assets_from_anomaly_comparison_adds_spacecraft_assets(
     assert exported_rows[0]["spacecraft"] == "SMAP"
     assert exported_rows[0]["f1"] == 0.2
     assert exported_rows[0]["predicted_positives"] == 2
+    assert exported_rows[0]["priority_band"] == "immediate_review"
+    assert "Miss rate" in exported_rows[0]["priority_reasons"]
+
+
+def test_fleet_asset_registry_prioritizes_cross_domain_review_queue(
+    tmp_path,
+) -> None:
+    database_path = tmp_path / "app.sqlite"
+    _write_manual_prediction_run(
+        database_path,
+        subset="FD001",
+        model_name="hgb_policy",
+        artifact_id="artifact-critical-engine",
+        source_name="critical_engine.csv",
+        predicted_rul=15.0,
+        monitoring={"drift": {"alert_columns": []}},
+        created_at_utc="2026-01-01T00:00:00+00:00",
+    )
+    sync_fleet_assets_from_anomaly_comparison(
+        database_path,
+        comparison_csv=_write_anomaly_comparison_csv(tmp_path / "comparison.csv"),
+        source_name="phase2_smap_msl",
+    )
+
+    assets = list_fleet_assets(database_path)
+    exported = store._fleet_asset_export_rows(assets)
+
+    assert [asset["asset_id"] for asset in assets][:2] == [
+        "smap-channel-p-1",
+        "FD001-unit-1",
+    ]
+    assert assets[0]["domain"] == "spacecraft_anomaly"
+    assert assets[1]["domain"] == "turbofan_rul"
+    assert assets[0]["priority_score"] > assets[1]["priority_score"]
+    assert assets[1]["priority_band"] == "immediate_review"
+    assert any("RUL risk floor" in reason for reason in assets[1]["priority_reasons"])
+    assert exported[0]["priority_score"] == assets[0]["priority_score"]
+    assert "priority_reasons" in exported[0]
 
 
 def test_app_sync_anomaly_assets_command_refreshes_spacecraft_assets(

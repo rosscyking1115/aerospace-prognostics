@@ -32,7 +32,9 @@ summaries for each artifact.
 The Fleet tab combines the release dashboard payload with a persisted asset
 registry derived from stored prediction runs, so operators can track latest
 RUL, interval bounds, risk level, status, source run, and attention reasons by
-asset.
+asset. Registry rows include a computed priority score, priority band, and
+priority reasons so turbofan engines and spacecraft anomaly channels can be
+reviewed in one ordered queue.
 
 ## Endpoints
 
@@ -95,7 +97,8 @@ the same `domain`, `asset_type`, and structured metadata fields.
 The Fleet tab can download the current registry as CSV or JSON without writing
 files, which keeps hosted read-only reviews useful. The registry view and
 exports can be filtered by risk level, domain, status, or attention-required
-assets.
+assets. Exports include priority score, priority band, and priority reasons for
+review handoff.
 
 Use the sync command to backfill or refresh assets from existing runs:
 

@@ -582,20 +582,20 @@ def list_fleet_assets(
                 metadata_json
             from fleet_assets
             {where_sql}
-            order by
-                case latest_risk_level
-                    when 'critical' then 0
-                    when 'watch' then 1
-                    when 'nominal' then 2
-                    else 3
-                end,
-                latest_rul_prediction asc,
-                last_seen_at_utc desc
-            limit ?
+            order by last_seen_at_utc desc
             """,
-            (*parameters, int(limit)),
+            tuple(parameters),
         ).fetchall()
-    return [_fleet_asset_from_row(row) for row in rows]
+    assets = [_fleet_asset_from_row(row) for row in rows]
+    return sorted(
+        assets,
+        key=lambda asset: (
+            float(asset.get("priority_score") or 0),
+            str(asset.get("last_seen_at_utc") or ""),
+            str(asset.get("asset_id") or ""),
+        ),
+        reverse=True,
+    )[: int(limit)]
 
 
 def build_fleet_asset_registry_bundle(
@@ -1538,6 +1538,10 @@ def _fleet_asset_from_row(row: sqlite3.Row) -> dict[str, Any]:
         asset.pop("latest_attention_json")
     )
     asset["metadata"] = _json_loads(asset.pop("metadata_json"))
+    priority = _fleet_asset_priority(asset)
+    asset["priority_score"] = priority["score"]
+    asset["priority_band"] = priority["band"]
+    asset["priority_reasons"] = priority["reasons"]
     return asset
 
 
@@ -1715,6 +1719,11 @@ def _fleet_asset_export_rows(assets: list[dict[str, Any]]) -> list[dict[str, Any
                 "latest_rul_upper": asset.get("latest_rul_upper"),
                 "latest_risk_level": asset.get("latest_risk_level"),
                 "latest_status": asset.get("latest_status"),
+                "priority_score": asset.get("priority_score"),
+                "priority_band": asset.get("priority_band"),
+                "priority_reasons": "; ".join(
+                    str(reason) for reason in asset.get("priority_reasons") or []
+                ),
                 "attention_reasons": "; ".join(str(reason) for reason in reasons),
                 "first_seen_at_utc": asset.get("first_seen_at_utc"),
                 "last_seen_at_utc": asset.get("last_seen_at_utc"),
@@ -1734,6 +1743,93 @@ def _fleet_asset_export_rows(assets: list[dict[str, Any]]) -> list[dict[str, Any
             }
         )
     return rows
+
+
+def _fleet_asset_priority(asset: dict[str, Any]) -> dict[str, Any]:
+    risk_level = str(asset.get("latest_risk_level") or "unknown")
+    score = {
+        "critical": 300.0,
+        "watch": 200.0,
+        "nominal": 100.0,
+    }.get(risk_level, 0.0)
+    reasons = [f"Risk level is {risk_level}"]
+    domain = str(asset.get("domain") or "")
+    if domain == "turbofan_rul":
+        score += _turbofan_priority_modifier(asset, reasons)
+    elif domain == "spacecraft_anomaly":
+        score += _spacecraft_anomaly_priority_modifier(asset, reasons)
+
+    attention = asset.get("latest_attention_reasons")
+    attention_count = len(attention) if isinstance(attention, list) else 0
+    if attention_count:
+        score += min(25.0, attention_count * 5.0)
+        reasons.append(f"{attention_count} attention reason(s)")
+
+    rounded_score = round(score, 3)
+    return {
+        "score": rounded_score,
+        "band": _fleet_asset_priority_band(rounded_score),
+        "reasons": reasons,
+    }
+
+
+def _turbofan_priority_modifier(asset: dict[str, Any], reasons: list[str]) -> float:
+    modifier = 0.0
+    predicted_rul = _optional_float(asset.get("latest_rul_prediction"))
+    lower = _optional_float(asset.get("latest_rul_lower"))
+    upper = _optional_float(asset.get("latest_rul_upper"))
+    risk_floor = _minimum_present_float(predicted_rul, lower)
+    if risk_floor is not None:
+        urgency = max(0.0, 100.0 - risk_floor)
+        modifier += min(100.0, urgency)
+        reasons.append(f"RUL risk floor {risk_floor:.1f}")
+    if lower is not None and upper is not None:
+        width = upper - lower
+        if width >= 30:
+            modifier += min(25.0, width / 4.0)
+            reasons.append(f"Wide RUL interval {width:.1f}")
+    return modifier
+
+
+def _spacecraft_anomaly_priority_modifier(
+    asset: dict[str, Any],
+    reasons: list[str],
+) -> float:
+    metadata = asset.get("metadata")
+    metadata = metadata if isinstance(metadata, dict) else {}
+    modifier = 0.0
+    predicted_positives = _optional_int(metadata.get("predicted_positives")) or 0
+    if predicted_positives > 0:
+        modifier += min(40.0, predicted_positives * 5.0)
+        reasons.append(f"{predicted_positives} predicted anomaly point(s)")
+    miss_rate = _optional_float(metadata.get("miss_rate"))
+    if miss_rate is not None:
+        modifier += min(80.0, miss_rate * 80.0)
+        reasons.append(f"Miss rate {miss_rate:.3f}")
+    false_alarm_rate = _optional_float(metadata.get("false_alarm_rate"))
+    if false_alarm_rate is not None:
+        modifier += min(40.0, false_alarm_rate * 100.0)
+        reasons.append(f"False alarm rate {false_alarm_rate:.3f}")
+    f1 = _optional_float(metadata.get("f1"))
+    if f1 is not None and f1 < 0.6:
+        modifier += min(50.0, (0.6 - f1) * 100.0)
+        reasons.append(f"Low anomaly F1 {f1:.3f}")
+    return modifier
+
+
+def _minimum_present_float(*values: float | None) -> float | None:
+    present = [value for value in values if value is not None]
+    return min(present) if present else None
+
+
+def _fleet_asset_priority_band(score: float) -> str:
+    if score >= 300:
+        return "immediate_review"
+    if score >= 200:
+        return "review"
+    if score >= 100:
+        return "monitor"
+    return "unknown"
 
 
 def _fleet_asset_risk_level(
