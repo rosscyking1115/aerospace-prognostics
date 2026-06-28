@@ -12,20 +12,24 @@ from aerospace_prognostics.app.dashboard_state import (
 )
 from aerospace_prognostics.app.streamlit_app import (
     READ_ONLY_ENV,
+    _anomaly_event_template_frame,
     _artifact_prediction_runs_frame,
     _audit_events_frame,
     _decision_status_index,
     _env_flag,
     _failed_gates_frame,
+    _fleet_assets_frame,
     _float_display,
     _json_download_bytes,
     _model_artifacts_frame,
     _outcome_template_frame,
     _percent_display,
+    _persist_uploaded_csv,
     _prediction_runs_frame,
     _read_outcome_csv,
     _read_telemetry_csv,
     _release_evidence_frame,
+    _safe_upload_filename,
     _telemetry_records,
     _with_api_artifact_metadata,
 )
@@ -182,6 +186,24 @@ def test_outcome_template_frame_preserves_prediction_units() -> None:
     assert list(template["actual_rul"]) == ["", ""]
 
 
+def test_anomaly_event_template_frame_documents_ingest_contract() -> None:
+    template = _anomaly_event_template_frame()
+
+    assert list(template.columns) == [
+        "channel_id",
+        "spacecraft",
+        "event_time_utc",
+        "severity",
+        "active",
+        "anomaly_score",
+        "threshold",
+        "model_name",
+        "source",
+        "note",
+    ]
+    assert template.empty
+
+
 def test_json_download_bytes_writes_stable_json_payload() -> None:
     payload = {"run": {"run_id": "run-123"}, "predictions": [{"unit_number": 1}]}
 
@@ -189,6 +211,20 @@ def test_json_download_bytes_writes_stable_json_payload() -> None:
 
     assert json.loads(encoded.decode("utf-8")) == payload
     assert encoded.endswith(b"}")
+
+
+def test_persist_uploaded_csv_uses_safe_basename(tmp_path) -> None:
+    class UploadedFile:
+        name = "../Ops Events.csv"
+
+        def getvalue(self) -> bytes:
+            return b"channel_id,spacecraft\nP-1,SMAP\n"
+
+    target = _persist_uploaded_csv(UploadedFile(), upload_dir=tmp_path / "uploads")
+
+    assert target == tmp_path / "uploads" / "Ops_Events.csv"
+    assert target.read_bytes() == b"channel_id,spacecraft\nP-1,SMAP\n"
+    assert _safe_upload_filename("bad path/../events ?.csv") == "events_.csv"
 
 
 def test_with_api_artifact_metadata_adds_readiness_identity() -> None:
@@ -212,6 +248,39 @@ def test_with_api_artifact_metadata_adds_readiness_identity() -> None:
 
     assert enriched["artifact"]["artifact_id"] == "fd001-demo"
     assert enriched["artifact"]["artifact_sha256"] == "abc123"
+
+
+def test_fleet_assets_frame_includes_live_anomaly_event_fields() -> None:
+    frame = _fleet_assets_frame(
+        [
+            {
+                "last_seen_at_utc": "2026-01-02T00:00:00+00:00",
+                "asset_id": "smap-channel-p-1",
+                "asset_type": "spacecraft_channel",
+                "domain": "spacecraft_anomaly",
+                "source_subset": "SMAP",
+                "latest_risk_level": "critical",
+                "priority_score": 355.0,
+                "priority_band": "immediate_review",
+                "latest_status": "anomaly_review",
+                "latest_attention_reasons": ["Severity critical"],
+                "metadata": {
+                    "event_time_utc": "2026-01-02T00:00:00+00:00",
+                    "severity": "critical",
+                    "active": True,
+                    "anomaly_score": 0.95,
+                    "threshold": 0.8,
+                },
+            }
+        ]
+    )
+
+    assert frame.loc[0, "event_time_utc"] == "2026-01-02T00:00:00+00:00"
+    assert frame.loc[0, "severity"] == "critical"
+    assert bool(frame.loc[0, "active"]) is True
+    assert frame.loc[0, "anomaly_score"] == 0.95
+    assert frame.loc[0, "threshold"] == 0.8
+    assert frame.loc[0, "attention"] == "Severity critical"
 
 
 def test_audit_events_frame_preserves_operator_event_columns() -> None:

@@ -40,6 +40,7 @@ from aerospace_prognostics.app.store import (
     record_prediction_run,
     record_prediction_run_event,
     seed_quickstart_workspace,
+    sync_fleet_assets_from_anomaly_events,
     sync_fleet_assets_from_prediction_run,
 )
 from aerospace_prognostics.data.cmapss import CMAPSS_COLUMNS
@@ -47,6 +48,7 @@ from aerospace_prognostics.data.cmapss import CMAPSS_COLUMNS
 DEFAULT_WORKSPACE = Path("artifacts") / "quickstart_cmapss"
 DEFAULT_DATABASE = Path("artifacts") / "app" / "aerospace_prognostics.sqlite"
 DEFAULT_EXPORT_DIR = Path("artifacts") / "app_exports"
+DEFAULT_UPLOAD_DIR = Path("artifacts") / "app_uploads"
 DEFAULT_API_BASE_URL = "http://127.0.0.1:8000"
 API_BASE_URL_ENV = "AEROSPACE_PROGNOSTICS_API_BASE_URL"
 API_KEY_ENV = "AEROSPACE_PROGNOSTICS_API_KEY"
@@ -184,6 +186,53 @@ def _render_fleet_tab(
                 f"{result['updated_assets']} assets."
             )
             st.rerun()
+    with st.expander("Spacecraft Event Ingest"):
+        event_columns = st.columns([2, 1, 1])
+        with event_columns[0]:
+            anomaly_events_file = st.file_uploader(
+                "Anomaly Event CSV",
+                type=["csv"],
+                disabled=read_only,
+                key="fleet-anomaly-events-upload",
+            )
+        with event_columns[1]:
+            anomaly_source_name = st.text_input(
+                "Event Source",
+                value="ops_stream",
+                disabled=read_only,
+            )
+        with event_columns[2]:
+            st.download_button(
+                "Event CSV Template",
+                data=_anomaly_event_template_frame().to_csv(index=False).encode("utf-8"),
+                file_name="spacecraft_anomaly_events_template.csv",
+                mime="text/csv",
+            )
+            if st.button(
+                "Sync Events",
+                disabled=read_only or anomaly_events_file is None,
+            ):
+                events_path = _persist_uploaded_csv(
+                    anomaly_events_file,
+                    upload_dir=DEFAULT_UPLOAD_DIR / "anomaly_events",
+                )
+                result = sync_fleet_assets_from_anomaly_events(
+                    database_path,
+                    events_csv=events_path,
+                    source_name=anomaly_source_name or anomaly_events_file.name,
+                )
+                st.session_state["anomaly-event-sync"] = result
+                st.success(
+                    f"Processed {result['events_processed']} events and refreshed "
+                    f"{result['updated_assets']} assets."
+                )
+                st.rerun()
+    event_sync_result = st.session_state.get("anomaly-event-sync")
+    if isinstance(event_sync_result, dict):
+        st.caption(
+            f"Latest event sync: {event_sync_result['channels_synced']} channels "
+            f"from {event_sync_result['source_name']}"
+        )
     all_registry_assets = list_fleet_assets(
         database_path,
         limit=1000,
@@ -277,6 +326,11 @@ def _render_fleet_tab(
             "latest_rul_lower": st.column_config.NumberColumn("Lower", format="%.1f"),
             "latest_rul_upper": st.column_config.NumberColumn("Upper", format="%.1f"),
             "latest_status": st.column_config.TextColumn("Status"),
+            "event_time_utc": st.column_config.DatetimeColumn("Event Time"),
+            "severity": st.column_config.TextColumn("Severity"),
+            "active": st.column_config.CheckboxColumn("Active"),
+            "anomaly_score": st.column_config.NumberColumn("Score", format="%.3f"),
+            "threshold": st.column_config.NumberColumn("Threshold", format="%.3f"),
             "f1": st.column_config.NumberColumn("F1", format="%.3f"),
             "false_alarm_rate": st.column_config.NumberColumn("FAR", format="%.3f"),
             "miss_rate": st.column_config.NumberColumn("Miss", format="%.3f"),
@@ -1048,6 +1102,11 @@ def _fleet_assets_frame(assets: list[dict[str, Any]]) -> pd.DataFrame:
                 "latest_rul_upper": asset.get("latest_rul_upper"),
                 "latest_status": asset.get("latest_status"),
                 "latest_run_id": asset.get("latest_run_id"),
+                "event_time_utc": metadata.get("event_time_utc"),
+                "severity": metadata.get("severity"),
+                "active": metadata.get("active"),
+                "anomaly_score": metadata.get("anomaly_score"),
+                "threshold": metadata.get("threshold"),
                 "f1": metadata.get("f1"),
                 "false_alarm_rate": metadata.get("false_alarm_rate"),
                 "miss_rate": metadata.get("miss_rate"),
@@ -1056,6 +1115,40 @@ def _fleet_assets_frame(assets: list[dict[str, Any]]) -> pd.DataFrame:
             }
         )
     return pd.DataFrame(rows)
+
+
+def _anomaly_event_template_frame() -> pd.DataFrame:
+    return pd.DataFrame(
+        columns=[
+            "channel_id",
+            "spacecraft",
+            "event_time_utc",
+            "severity",
+            "active",
+            "anomaly_score",
+            "threshold",
+            "model_name",
+            "source",
+            "note",
+        ]
+    )
+
+
+def _persist_uploaded_csv(uploaded: Any, *, upload_dir: Path) -> Path:
+    upload_dir.mkdir(parents=True, exist_ok=True)
+    target = upload_dir / _safe_upload_filename(getattr(uploaded, "name", "upload.csv"))
+    target.write_bytes(uploaded.getvalue())
+    return target
+
+
+def _safe_upload_filename(name: str) -> str:
+    filename = Path(str(name)).name.replace(" ", "_")
+    safe = "".join(
+        character
+        for character in filename
+        if character.isalnum() or character in {"-", "_", "."}
+    )
+    return safe or "upload.csv"
 
 
 def _filter_options(rows: list[dict[str, Any]], key: str) -> list[str]:
