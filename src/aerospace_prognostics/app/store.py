@@ -703,6 +703,7 @@ def build_fleet_asset_registry_bundle(
         },
         "filters": normalized_filters,
         "summary": _fleet_asset_registry_summary(assets),
+        "priority_policy": _fleet_priority_policy_summary(assets),
         "assets": assets,
         "files": {
             "assets_csv": csv_file,
@@ -1760,6 +1761,40 @@ def _fleet_asset_registry_summary(assets: list[dict[str, Any]]) -> dict[str, Any
         "risk_counts": dict(sorted(risk_counts.items())),
         "domain_counts": dict(sorted(domain_counts.items())),
         "status_counts": dict(sorted(status_counts.items())),
+    }
+
+
+def _fleet_priority_policy_summary(assets: list[dict[str, Any]]) -> dict[str, Any]:
+    band_counts: dict[str, int] = {}
+    reason_counts: dict[str, int] = {}
+    review_queue_count = 0
+    for asset in assets:
+        band = str(asset.get("priority_band") or "unknown")
+        band_counts[band] = band_counts.get(band, 0) + 1
+        if band in {"immediate_review", "review"}:
+            review_queue_count += 1
+        reasons = asset.get("priority_reasons")
+        if not isinstance(reasons, list):
+            reasons = []
+        for reason in reasons:
+            reason_text = str(reason)
+            reason_counts[reason_text] = reason_counts.get(reason_text, 0) + 1
+    top_assets = [
+        {
+            "asset_id": asset.get("asset_id"),
+            "domain": asset.get("domain"),
+            "latest_risk_level": asset.get("latest_risk_level"),
+            "priority_score": asset.get("priority_score"),
+            "priority_band": asset.get("priority_band"),
+            "priority_reasons": asset.get("priority_reasons") or [],
+        }
+        for asset in assets[:10]
+    ]
+    return {
+        "review_queue_count": review_queue_count,
+        "band_counts": dict(sorted(band_counts.items())),
+        "reason_counts": dict(sorted(reason_counts.items())),
+        "top_assets": top_assets,
     }
 
 

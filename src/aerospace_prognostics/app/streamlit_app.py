@@ -361,6 +361,13 @@ def _render_fleet_tab(
             )
             st.session_state["fleet-registry-export"] = result
             st.success("Fleet registry export generated.")
+    priority_policy = registry_bundle.get("priority_policy", {})
+    if isinstance(priority_policy, dict):
+        st.caption(
+            "Priority policy: "
+            f"{priority_policy.get('review_queue_count', 0)} review-queue assets; "
+            f"bands {priority_policy.get('band_counts', {})}"
+        )
     if assets_registry_frame.empty:
         st.info("No fleet assets match the selected filters.")
         return
@@ -377,6 +384,7 @@ def _render_fleet_tab(
             "latest_risk_level": st.column_config.TextColumn("Risk"),
             "priority_score": st.column_config.NumberColumn("Priority", format="%.1f"),
             "priority_band": st.column_config.TextColumn("Priority Band"),
+            "priority_reasons": st.column_config.TextColumn("Priority Reasons"),
             "latest_rul_prediction": st.column_config.NumberColumn("RUL", format="%.1f"),
             "latest_rul_lower": st.column_config.NumberColumn("Lower", format="%.1f"),
             "latest_rul_upper": st.column_config.NumberColumn("Upper", format="%.1f"),
@@ -1152,6 +1160,9 @@ def _fleet_assets_frame(assets: list[dict[str, Any]]) -> pd.DataFrame:
                 "latest_risk_level": asset.get("latest_risk_level"),
                 "priority_score": asset.get("priority_score"),
                 "priority_band": asset.get("priority_band"),
+                "priority_reasons": "; ".join(
+                    str(reason) for reason in asset.get("priority_reasons") or []
+                ),
                 "latest_rul_prediction": asset.get("latest_rul_prediction"),
                 "latest_rul_lower": asset.get("latest_rul_lower"),
                 "latest_rul_upper": asset.get("latest_rul_upper"),

@@ -296,6 +296,10 @@ def test_fleet_assets_frame_includes_live_anomaly_event_fields() -> None:
                 "latest_risk_level": "critical",
                 "priority_score": 355.0,
                 "priority_band": "immediate_review",
+                "priority_reasons": [
+                    "Risk level is critical",
+                    "Live anomaly severity critical",
+                ],
                 "latest_status": "anomaly_review",
                 "latest_attention_reasons": ["Severity critical"],
                 "metadata": {
@@ -314,6 +318,9 @@ def test_fleet_assets_frame_includes_live_anomaly_event_fields() -> None:
     assert bool(frame.loc[0, "active"]) is True
     assert frame.loc[0, "anomaly_score"] == 0.95
     assert frame.loc[0, "threshold"] == 0.8
+    assert frame.loc[0, "priority_reasons"] == (
+        "Risk level is critical; Live anomaly severity critical"
+    )
     assert frame.loc[0, "attention"] == "Severity critical"
 
 

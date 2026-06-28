@@ -117,8 +117,9 @@ available as JSON evidence and CSV triage rows, with filtered console and CLI
 views for focused operational review. Registry rows include a cross-domain
 priority score and priority explanations derived from RUL floors, interval
 width, anomaly detections, live event severity, active event flags, threshold
-crossings, miss rate, false-alarm rate, and anomaly F1. The remaining gap is
-validating the priority policy against richer operational scenarios.
+crossings, miss rate, false-alarm rate, and anomaly F1. Registry evidence now
+also carries priority-policy summaries for review-queue audits. The remaining
+gap is validating the priority policy against richer operational scenarios.
 
 ## Near-Term Decision
 

@@ -728,6 +728,10 @@ def test_build_fleet_asset_registry_bundle_is_read_only_safe(tmp_path) -> None:
     assert bundle["database"]["schema_version"] == SCHEMA_VERSION
     assert bundle["summary"]["asset_count"] == 2
     assert bundle["summary"]["domain_counts"] == {"turbofan_rul": 2}
+    assert bundle["priority_policy"]["band_counts"] == {"immediate_review": 2}
+    assert bundle["priority_policy"]["review_queue_count"] == 2
+    assert len(bundle["priority_policy"]["top_assets"]) == 2
+    assert "Risk level is critical" in bundle["priority_policy"]["reason_counts"]
     assert bundle["files"]["assets_csv"] == {"rows": 2}
     assert {asset["latest_run_id"] for asset in bundle["assets"]} == {run_id}
 
@@ -776,6 +780,8 @@ def test_export_fleet_asset_registry_writes_json_and_csv(tmp_path) -> None:
         "aerospace-prognostics/fleet-asset-registry/v1"
     )
     assert bundle["summary"]["asset_count"] == 2
+    assert bundle["priority_policy"]["top_assets"][0]["priority_reasons"]
+    assert "band_counts" in bundle["priority_policy"]
     assert bundle["files"]["assets_csv"]["rows"] == 2
     assert bundle["files"]["assets_csv"]["sha256"] == result["assets_sha256"]
     assert {asset["latest_run_id"] for asset in bundle["assets"]} == {run_id}
