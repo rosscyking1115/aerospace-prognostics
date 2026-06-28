@@ -371,9 +371,63 @@ def _render_predict_tab(
 
 def _render_history_tab(st: Any, database_path: Path, read_only: bool) -> None:
     st.subheader("Prediction History")
-    runs = list_prediction_runs(database_path, limit=100, read_only=read_only)
-    if not runs:
+    all_runs = list_prediction_runs(database_path, limit=1000, read_only=read_only)
+    if not all_runs:
         st.info("No prediction runs stored yet.")
+        return
+
+    filter_columns = st.columns([1, 1, 1, 1])
+    with filter_columns[0]:
+        selected_models = st.multiselect(
+            "Model",
+            _filter_options(all_runs, "model_name"),
+            default=[],
+        )
+    with filter_columns[1]:
+        selected_artifacts = st.multiselect(
+            "Artifact",
+            _filter_options(all_runs, "artifact_id"),
+            default=[],
+        )
+    with filter_columns[2]:
+        selected_risks = st.multiselect(
+            "Risk",
+            ["critical", "watch", "nominal", "unknown"],
+            default=[],
+        )
+    with filter_columns[3]:
+        selected_decisions = st.multiselect(
+            "Decision",
+            _filter_options(all_runs, "decision_status"),
+            default=[],
+        )
+
+    advanced_columns = st.columns([1, 1, 1, 1])
+    with advanced_columns[0]:
+        asset_filter_text = st.text_input("Asset", value="")
+    with advanced_columns[1]:
+        start_date = st.text_input("Created From", value="")
+    with advanced_columns[2]:
+        end_date = st.text_input("Created To", value="")
+    with advanced_columns[3]:
+        drift_only = st.checkbox("Drift Only", value=False)
+
+    selected_assets = _csv_filter_values(asset_filter_text)
+    runs = list_prediction_runs(
+        database_path,
+        limit=100,
+        model_names=selected_models,
+        artifact_ids=selected_artifacts,
+        asset_ids=selected_assets,
+        risk_levels=selected_risks,
+        decision_statuses=selected_decisions,
+        start_created_at_utc=_history_date_bound(start_date, end_of_day=False),
+        end_created_at_utc=_history_date_bound(end_date, end_of_day=True),
+        drift_only=drift_only,
+        read_only=read_only,
+    )
+    if not runs:
+        st.info("No prediction runs match the selected filters.")
         return
 
     runs_frame = _prediction_runs_frame(runs)
@@ -937,7 +991,8 @@ def _render_roadmap_tab(st: Any) -> None:
         - Persist prediction runs, uploads, artifact records, and release evidence in SQLite.
         - Maintain a persisted fleet asset registry from stored prediction runs.
         - Add ranked spacecraft anomaly channels beside C-MAPSS engines in the same fleet view.
-        - Make prediction history filterable by model, asset, risk, date, and drift status.
+        - Use prediction-history filters for model, artifact, asset, risk, date,
+          drift, and decisions.
         - Surface API, dashboard, mounted model storage, and database status in one console.
         - Promote the dashboard to a hosted product surface with authentication and audit logs.
         - Ingest live spacecraft anomaly events and refine cross-domain prioritization.
@@ -1007,6 +1062,20 @@ def _filter_options(rows: list[dict[str, Any]], key: str) -> list[str]:
             if row.get(key) is not None and str(row.get(key)).strip()
         }
     )
+
+
+def _csv_filter_values(value: str) -> list[str]:
+    return [item.strip() for item in value.split(",") if item.strip()]
+
+
+def _history_date_bound(value: str, *, end_of_day: bool) -> str | None:
+    normalized = value.strip()
+    if not normalized:
+        return None
+    if "T" in normalized:
+        return normalized
+    suffix = "T23:59:59.999999+00:00" if end_of_day else "T00:00:00+00:00"
+    return f"{normalized}{suffix}"
 
 
 def _prediction_runs_frame(runs: list[dict[str, Any]]) -> pd.DataFrame:

@@ -880,15 +880,66 @@ def list_prediction_runs(
     database_path: str | Path,
     *,
     limit: int = 50,
+    model_names: Iterable[str] | None = None,
+    artifact_ids: Iterable[str] | None = None,
+    asset_ids: Iterable[str] | None = None,
+    risk_levels: Iterable[str] | None = None,
+    decision_statuses: Iterable[str] | None = None,
+    start_created_at_utc: str | None = None,
+    end_created_at_utc: str | None = None,
+    drift_only: bool = False,
     read_only: bool = False,
 ) -> list[dict[str, Any]]:
     """Return recent prediction runs with upload and aggregate prediction context."""
 
     db_path = _prepare_database(database_path, read_only=read_only)
+    where_clauses: list[str] = []
+    parameters: list[Any] = []
+    _extend_in_filter(
+        where_clauses,
+        parameters,
+        column="prediction_runs.model_name",
+        values=model_names,
+    )
+    _extend_in_filter(
+        where_clauses,
+        parameters,
+        column="prediction_runs.artifact_id",
+        values=artifact_ids,
+    )
+    if start_created_at_utc:
+        where_clauses.append("prediction_runs.created_at_utc >= ?")
+        parameters.append(start_created_at_utc)
+    if end_created_at_utc:
+        where_clauses.append("prediction_runs.created_at_utc <= ?")
+        parameters.append(end_created_at_utc)
+    _extend_prediction_run_asset_filter(where_clauses, parameters, asset_ids=asset_ids)
+    _extend_prediction_run_risk_filter(where_clauses, parameters, risk_levels=risk_levels)
+    _extend_prediction_run_decision_filter(
+        where_clauses,
+        parameters,
+        decision_statuses=decision_statuses,
+    )
+    if drift_only:
+        where_clauses.append(
+            """
+            (
+                (
+                    prediction_runs.monitoring_json like '%"alert_columns":[%'
+                    and prediction_runs.monitoring_json not like '%"alert_columns":[]%'
+                )
+                or (
+                    prediction_runs.monitoring_json like '%"alerts":[%'
+                    and prediction_runs.monitoring_json not like '%"alerts":[]%'
+                )
+            )
+            """
+        )
+    where_sql = f"where {' and '.join(where_clauses)}" if where_clauses else ""
     with _connect(db_path, read_only=read_only) as connection:
         connection.row_factory = sqlite3.Row
         rows = connection.execute(
-            """
+            f"""
             select
                 prediction_runs.run_id,
                 prediction_runs.created_at_utc,
@@ -968,11 +1019,12 @@ def list_prediction_runs(
             left join prediction_outcomes
                 on prediction_outcomes.run_id = predictions.run_id
                 and prediction_outcomes.unit_number = predictions.unit_number
+            {where_sql}
             group by prediction_runs.run_id
             order by prediction_runs.created_at_utc desc
             limit ?
             """,
-            (int(limit),),
+            (*parameters, int(limit)),
         ).fetchall()
     return [_run_summary_from_row(row) for row in rows]
 
@@ -1501,6 +1553,97 @@ def _extend_in_filter(
         return
     placeholders = ", ".join("?" for _ in normalized)
     where_clauses.append(f"{column} in ({placeholders})")
+    parameters.extend(normalized)
+
+
+def _extend_prediction_run_asset_filter(
+    where_clauses: list[str],
+    parameters: list[Any],
+    *,
+    asset_ids: Iterable[str] | None,
+) -> None:
+    normalized = _normalized_filter_values(asset_ids)
+    if not normalized:
+        return
+    placeholders = ", ".join("?" for _ in normalized)
+    where_clauses.append(
+        f"""
+        exists (
+            select 1
+            from predictions asset_filter_predictions
+            where asset_filter_predictions.run_id = prediction_runs.run_id
+                and asset_filter_predictions.asset_id in ({placeholders})
+        )
+        """
+    )
+    parameters.extend(normalized)
+
+
+def _extend_prediction_run_risk_filter(
+    where_clauses: list[str],
+    parameters: list[Any],
+    *,
+    risk_levels: Iterable[str] | None,
+) -> None:
+    normalized = _normalized_filter_values(risk_levels)
+    if not normalized:
+        return
+    risk_conditions: list[str] = []
+    risk_floor_sql = """
+        case
+            when risk_filter_predictions.predicted_rul_lower is not null
+                and risk_filter_predictions.predicted_rul_lower
+                    < risk_filter_predictions.predicted_rul
+            then risk_filter_predictions.predicted_rul_lower
+            else risk_filter_predictions.predicted_rul
+        end
+    """
+    if "critical" in normalized:
+        risk_conditions.append(f"({risk_floor_sql}) <= 20")
+    if "watch" in normalized:
+        risk_conditions.append(
+            f"({risk_floor_sql}) > 20 and ({risk_floor_sql}) <= 50"
+        )
+    if "nominal" in normalized:
+        risk_conditions.append(f"({risk_floor_sql}) > 50")
+    if "unknown" in normalized:
+        risk_conditions.append("risk_filter_predictions.predicted_rul is null")
+    if not risk_conditions:
+        return
+    where_clauses.append(
+        f"""
+        exists (
+            select 1
+            from predictions risk_filter_predictions
+            where risk_filter_predictions.run_id = prediction_runs.run_id
+                and ({" or ".join(risk_conditions)})
+        )
+        """
+    )
+
+
+def _extend_prediction_run_decision_filter(
+    where_clauses: list[str],
+    parameters: list[Any],
+    *,
+    decision_statuses: Iterable[str] | None,
+) -> None:
+    normalized = _normalized_filter_values(decision_statuses)
+    if not normalized:
+        return
+    placeholders = ", ".join("?" for _ in normalized)
+    where_clauses.append(
+        f"""
+        (
+            select status
+            from prediction_run_events decision_filter_events
+            where decision_filter_events.run_id = prediction_runs.run_id
+                and decision_filter_events.event_type = 'operator_decision'
+            order by decision_filter_events.created_at_utc desc
+            limit 1
+        ) in ({placeholders})
+        """
+    )
     parameters.extend(normalized)
 
 

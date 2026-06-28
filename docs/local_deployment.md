@@ -23,10 +23,12 @@ The Predict tab can score telemetry through the API service when it is ready, or
 fall back to direct local-artifact inference. The History tab persists run
 records, prediction rows, optional observed RUL outcomes, operator decisions,
 audit events, interval availability and width diagnostics, and outcome-backed
-coverage/MAE diagnostics in the shared SQLite database. The Registry tab reads
-the same database to show stored model artifacts, release evidence,
-release-gate report cards, recent prediction usage, operational interval
-availability, and observed-outcome calibration summaries for each artifact.
+coverage/MAE diagnostics in the shared SQLite database. It can filter runs by
+model, artifact, asset, risk, operator decision, date bounds, and drift-alert
+presence. The Registry tab reads the same database to show stored model
+artifacts, release evidence, release-gate report cards, recent prediction
+usage, operational interval availability, and observed-outcome calibration
+summaries for each artifact.
 The Fleet tab combines the release dashboard payload with a persisted asset
 registry derived from stored prediction runs, so operators can track latest
 RUL, interval bounds, risk level, status, source run, and attention reasons by

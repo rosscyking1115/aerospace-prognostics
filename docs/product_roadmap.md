@@ -61,13 +61,14 @@ outcome-template export, outcome CSV import, operator-decision capture, and
 prediction-run evidence export are now available through the CLI, with
 outcome-template download, outcome import, in-memory run evidence and
 model-review bundle download, and file-based run evidence export also available
-in the console. Fleet-asset sync/backfill is available through the CLI and
-automatically refreshes when new prediction runs are stored. Fleet-registry
-JSON/CSV export is available from both the console and CLI for review handoff,
-with risk, domain, status, and attention-required filters. Ranked SMAP/MSL
-anomaly comparison reports can now be synced into the same registry as
-spacecraft channel assets with anomaly F1, false-alarm, miss-rate,
-predicted-positive, and attention-reason metadata.
+in the console. Prediction history can be filtered by model, artifact, asset,
+risk band, decision status, date bounds, and drift-alert presence. Fleet-asset
+sync/backfill is available through the CLI and automatically refreshes when new
+prediction runs are stored. Fleet-registry JSON/CSV export is available from
+both the console and CLI for review handoff, with risk, domain, status, and
+attention-required filters. Ranked SMAP/MSL anomaly comparison reports can now
+be synced into the same registry as spacecraft channel assets with anomaly F1,
+false-alarm, miss-rate, predicted-positive, and attention-reason metadata.
 
 3. Local deployment stack
    - Docker Compose with FastAPI inference service, dashboard, mounted model

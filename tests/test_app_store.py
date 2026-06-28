@@ -384,6 +384,82 @@ def test_prediction_run_history_loads_recent_runs_and_predictions(tmp_path) -> N
     assert loaded["predictions"][0]["predicted_rul"] <= loaded["predictions"][1]["predicted_rul"]
 
 
+def test_prediction_run_history_filters_operational_review_views(tmp_path) -> None:
+    database_path = tmp_path / "app.sqlite"
+    critical_run_id = _write_manual_prediction_run(
+        database_path,
+        subset="FD001",
+        model_name="hgb_policy",
+        artifact_id="artifact-critical",
+        source_name="critical.csv",
+        predicted_rul=15.0,
+        monitoring={"drift": {"alert_columns": ["sensor_2"]}},
+        created_at_utc="2026-01-01T00:00:00+00:00",
+    )
+    nominal_run_id = _write_manual_prediction_run(
+        database_path,
+        subset="FD002",
+        model_name="lstm_forecast",
+        artifact_id="artifact-nominal",
+        source_name="nominal.csv",
+        predicted_rul=90.0,
+        monitoring={"drift": {"alert_columns": []}},
+        created_at_utc="2026-02-01T00:00:00+00:00",
+    )
+    record_prediction_run_event(
+        database_path,
+        run_id=nominal_run_id,
+        event_type="operator_decision",
+        status="accepted",
+        actor="ops",
+    )
+
+    assert [
+        run["run_id"]
+        for run in list_prediction_runs(database_path, model_names=("hgb_policy",))
+    ] == [critical_run_id]
+    assert [
+        run["run_id"]
+        for run in list_prediction_runs(
+            database_path,
+            artifact_ids=("artifact-nominal",),
+        )
+    ] == [nominal_run_id]
+    assert [
+        run["run_id"]
+        for run in list_prediction_runs(database_path, asset_ids=("FD001-unit-1",))
+    ] == [critical_run_id]
+    assert [
+        run["run_id"]
+        for run in list_prediction_runs(database_path, risk_levels=("critical",))
+    ] == [critical_run_id]
+    assert [
+        run["run_id"]
+        for run in list_prediction_runs(database_path, risk_levels=("nominal",))
+    ] == [nominal_run_id]
+    assert [
+        run["run_id"]
+        for run in list_prediction_runs(database_path, decision_statuses=("accepted",))
+    ] == [nominal_run_id]
+    assert [
+        run["run_id"]
+        for run in list_prediction_runs(
+            database_path,
+            start_created_at_utc="2026-01-15T00:00:00+00:00",
+        )
+    ] == [nominal_run_id]
+    assert [
+        run["run_id"]
+        for run in list_prediction_runs(
+            database_path,
+            end_created_at_utc="2026-01-15T00:00:00+00:00",
+        )
+    ] == [critical_run_id]
+    assert [
+        run["run_id"] for run in list_prediction_runs(database_path, drift_only=True)
+    ] == [critical_run_id]
+
+
 def test_app_sync_fleet_assets_command_refreshes_prediction_assets(
     tmp_path,
     capsys,
@@ -1204,6 +1280,63 @@ def _write_prediction_run_for_artifact(tmp_path, *, database_path, artifact_id: 
         model_artifact_path=artifact_path,
         source_name="test.csv",
     )
+
+
+def _write_manual_prediction_run(
+    database_path,
+    *,
+    subset: str,
+    model_name: str,
+    artifact_id: str,
+    source_name: str,
+    predicted_rul: float,
+    monitoring: dict[str, object],
+    created_at_utc: str,
+) -> str:
+    telemetry = pd.DataFrame({"unit_number": [1], "time_in_cycles": [10]})
+    prediction_document = {
+        "dataset": "C-MAPSS",
+        "subset": subset,
+        "model_name": model_name,
+        "artifact": {"artifact_id": artifact_id},
+        "monitoring": monitoring,
+        "predictions": [
+            {
+                "unit_number": 1,
+                "predicted_rul": predicted_rul,
+                "predicted_rul_lower": predicted_rul,
+                "predicted_rul_upper": predicted_rul + 10,
+                "interval_method": "fixture",
+                "interval_confidence": 0.9,
+            }
+        ],
+    }
+    run_id = record_prediction_run(
+        database_path,
+        telemetry=telemetry,
+        prediction_document=prediction_document,
+        model_artifact_path=f"models/{artifact_id}.joblib",
+        source_name=source_name,
+    )
+    with sqlite3.connect(database_path) as connection:
+        connection.execute(
+            "update prediction_runs set created_at_utc = ? where run_id = ?",
+            (created_at_utc, run_id),
+        )
+        connection.execute(
+            "update predictions set created_at_utc = ? where run_id = ?",
+            (created_at_utc, run_id),
+        )
+        connection.execute(
+            """
+            update fleet_assets
+            set first_seen_at_utc = ?,
+                last_seen_at_utc = ?
+            where latest_run_id = ?
+            """,
+            (created_at_utc, created_at_utc, run_id),
+        )
+    return run_id
 
 
 def _write_anomaly_comparison_csv(path):
