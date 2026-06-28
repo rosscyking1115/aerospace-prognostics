@@ -160,6 +160,15 @@ uv run aerospace-prognostics app-export-fleet-assets `
   --attention-only
 ```
 
+To produce a priority-policy validation artifact for review or release
+evidence, export the JSON report and Markdown summary:
+
+```powershell
+uv run aerospace-prognostics app-export-priority-policy `
+  --database artifacts/app/aerospace_prognostics.sqlite `
+  --output-dir artifacts/app_exports
+```
+
 ## Outcome Imports
 
 Observed RUL outcomes can be attached through the History tab or imported from

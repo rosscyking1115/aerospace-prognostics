@@ -11,10 +11,12 @@ from aerospace_prognostics.app.dashboard_state import QuickstartWorkspace
 from aerospace_prognostics.app.store import (
     SCHEMA_VERSION,
     build_fleet_asset_registry_bundle,
+    build_fleet_priority_policy_validation,
     build_model_artifact_review_bundle,
     build_prediction_run_evidence,
     database_summary,
     export_fleet_asset_registry,
+    export_fleet_priority_policy_validation,
     export_prediction_outcome_template,
     export_prediction_run_evidence,
     initialize_app_database,
@@ -827,6 +829,80 @@ def test_app_export_fleet_assets_command_writes_registry_evidence(
     assert (output_dir / "fleet_assets.csv").exists()
 
 
+def test_fleet_priority_policy_validation_checks_cross_domain_queue(
+    tmp_path,
+) -> None:
+    database_path = _write_priority_policy_validation_fleet(tmp_path)
+    output_dir = tmp_path / "policy_exports"
+
+    report = build_fleet_priority_policy_validation(database_path, read_only=True)
+    result = export_fleet_priority_policy_validation(
+        database_path,
+        output_dir=output_dir,
+    )
+    exported = json.loads(
+        (output_dir / "fleet_priority_policy_validation.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    markdown = (output_dir / "fleet_priority_policy_validation.md").read_text(
+        encoding="utf-8"
+    )
+    checks = {check["check_id"]: check for check in report["scenario_checks"]}
+
+    assert report["schema_version"] == (
+        "aerospace-prognostics/fleet-priority-policy-validation/v1"
+    )
+    assert report["overall_status"] == "pass"
+    assert report["asset_count"] == 3
+    assert checks["critical_assets_are_immediate_review"]["status"] == "pass"
+    assert checks["watch_assets_are_review_or_better"]["status"] == "pass"
+    assert checks["priority_order_is_descending"]["status"] == "pass"
+    assert checks["cross_domain_review_queue"]["applicable"] is True
+    assert checks["cross_domain_review_queue"]["status"] == "pass"
+    assert checks["live_anomaly_events_are_explained"]["status"] == "pass"
+    assert result["overall_status"] == "pass"
+    assert result["validation_sha256"]
+    assert result["markdown_sha256"]
+    assert exported["failed_checks"] == []
+    assert "# Fleet Priority Policy Validation" in markdown
+
+
+def test_app_export_priority_policy_command_writes_validation_evidence(
+    tmp_path,
+    capsys,
+) -> None:
+    database_path = _write_priority_policy_validation_fleet(tmp_path)
+    output_dir = tmp_path / "policy_exports"
+
+    exit_code = main(
+        [
+            "app-export-priority-policy",
+            "--database",
+            str(database_path),
+            "--output-dir",
+            str(output_dir),
+        ]
+    )
+    output = capsys.readouterr().out
+    report = json.loads(
+        (output_dir / "fleet_priority_policy_validation.json").read_text(
+            encoding="utf-8"
+        )
+    )
+
+    assert exit_code == 0
+    assert f"database={database_path}" in output
+    assert f"output_dir={output_dir}" in output
+    assert "validation_json=" in output
+    assert "validation_markdown=" in output
+    assert "overall_status=pass" in output
+    assert "failed_checks=[]" in output
+    assert "asset_count=3" in output
+    assert report["overall_status"] == "pass"
+    assert (output_dir / "fleet_priority_policy_validation.md").exists()
+
+
 def test_prediction_outcomes_attach_actuals_and_calibration_metrics(tmp_path) -> None:
     workspace = _write_fake_workspace(tmp_path / "quickstart")
     database_path = tmp_path / "app.sqlite"
@@ -1339,6 +1415,26 @@ def test_load_prediction_run_returns_none_for_unknown_run(tmp_path) -> None:
     loaded = load_prediction_run(database_path, "run-missing")
 
     assert loaded is None
+
+
+def _write_priority_policy_validation_fleet(tmp_path):
+    database_path = initialize_app_database(tmp_path / "app.sqlite")
+    _write_manual_prediction_run(
+        database_path,
+        subset="FD001",
+        model_name="hist_gradient_boosting",
+        artifact_id="fd001-critical",
+        source_name="critical_engine.csv",
+        predicted_rul=5.0,
+        monitoring={"risk": {"critical_threshold": 20.0, "watch_threshold": 60.0}},
+        created_at_utc="2026-01-02T02:00:00+00:00",
+    )
+    sync_fleet_assets_from_anomaly_events(
+        database_path,
+        events_csv=_write_anomaly_events_csv(tmp_path / "anomaly_events.csv"),
+        source_name="ops-console",
+    )
+    return database_path
 
 
 def _label_fleet_assets_for_filtering(database_path):

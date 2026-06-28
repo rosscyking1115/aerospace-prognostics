@@ -118,8 +118,10 @@ views for focused operational review. Registry rows include a cross-domain
 priority score and priority explanations derived from RUL floors, interval
 width, anomaly detections, live event severity, active event flags, threshold
 crossings, miss rate, false-alarm rate, and anomaly F1. Registry evidence now
-also carries priority-policy summaries for review-queue audits. The remaining
-gap is validating the priority policy against richer operational scenarios.
+also carries priority-policy summaries for review-queue audits, plus JSON and
+Markdown validation evidence for core cross-domain priority-policy scenarios.
+The remaining gap is calibrating those rules with richer operator feedback and
+larger operational scenarios.
 
 ## Near-Term Decision
 

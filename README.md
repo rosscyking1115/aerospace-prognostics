@@ -66,6 +66,7 @@ The working plan is tracked in [Aerospace_Prognostics_Project_Plan.md](Aerospace
 - `aerospace-prognostics app-sync-anomaly-assets` CLI for adding ranked SMAP/MSL spacecraft anomaly channels to the same fleet registry.
 - `aerospace-prognostics app-sync-anomaly-events` CLI for refreshing spacecraft channel assets from operational anomaly event CSVs.
 - `aerospace-prognostics app-export-fleet-assets` CLI for exporting filtered fleet registry JSON evidence and CSV triage rows.
+- `aerospace-prognostics app-export-priority-policy` CLI for exporting JSON and Markdown validation evidence for cross-domain fleet priority rules.
 - `aerospace-prognostics app-record-outcomes` CLI for attaching observed RUL outcome CSVs to persisted prediction runs and updating calibration diagnostics.
 - `aerospace-prognostics app-record-decision` CLI for appending auditable operator decisions, tickets, severity, and structured payload context to persisted prediction runs.
 - `aerospace-prognostics app-export-outcome-template` CLI for exporting fillable observed-RUL outcome CSV templates from persisted prediction runs.

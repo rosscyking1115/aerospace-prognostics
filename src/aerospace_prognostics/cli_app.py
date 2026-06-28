@@ -14,6 +14,7 @@ from aerospace_prognostics.app.dashboard_state import load_quickstart_workspace
 from aerospace_prognostics.app.store import (
     database_summary,
     export_fleet_asset_registry,
+    export_fleet_priority_policy_validation,
     export_prediction_outcome_template,
     export_prediction_run_evidence,
     initialize_app_database,
@@ -33,6 +34,7 @@ APP_COMMANDS = {
     "app-sync-anomaly-assets",
     "app-sync-anomaly-events",
     "app-export-fleet-assets",
+    "app-export-priority-policy",
     "app-record-outcomes",
     "app-record-decision",
     "app-export-outcome-template",
@@ -142,6 +144,21 @@ def register_app_commands(subparsers: Any) -> None:
         "--attention-only",
         action="store_true",
         help="Export only assets with critical/watch risk or attention reasons",
+    )
+
+    app_export_priority_policy = subparsers.add_parser(
+        "app-export-priority-policy",
+        help="Export fleet priority policy validation evidence",
+    )
+    app_export_priority_policy.add_argument(
+        "--database",
+        type=Path,
+        default=Path("artifacts") / "app" / "aerospace_prognostics.sqlite",
+    )
+    app_export_priority_policy.add_argument(
+        "--output-dir",
+        type=Path,
+        default=Path("artifacts") / "app_exports",
     )
 
     app_record_outcomes = subparsers.add_parser(
@@ -342,6 +359,22 @@ def handle_app_command(args: argparse.Namespace) -> int | None:
         print(f"assets_sha256={result['assets_sha256']}")
         print(f"asset_count={result['asset_count']}")
         print(f"filters={json.dumps(result['filters'], sort_keys=True)}")
+        return 0
+
+    if args.command == "app-export-priority-policy":
+        result = export_fleet_priority_policy_validation(
+            args.database,
+            output_dir=args.output_dir,
+        )
+        print(f"database={args.database}")
+        print(f"output_dir={result['output_dir']}")
+        print(f"validation_json={result['validation_json']}")
+        print(f"validation_sha256={result['validation_sha256']}")
+        print(f"validation_markdown={result['validation_markdown']}")
+        print(f"markdown_sha256={result['markdown_sha256']}")
+        print(f"overall_status={result['overall_status']}")
+        print(f"failed_checks={json.dumps(result['failed_checks'])}")
+        print(f"asset_count={result['asset_count']}")
         return 0
 
     if args.command == "app-record-decision":

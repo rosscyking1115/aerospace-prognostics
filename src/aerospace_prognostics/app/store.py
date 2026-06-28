@@ -751,6 +751,66 @@ def export_fleet_asset_registry(
     }
 
 
+def build_fleet_priority_policy_validation(
+    database_path: str | Path,
+    *,
+    read_only: bool = False,
+) -> dict[str, Any]:
+    """Build validation evidence for the fleet review-priority policy."""
+
+    assets = list_fleet_assets(database_path, limit=10000, read_only=read_only)
+    summary = database_summary(database_path, read_only=read_only)
+    checks = _fleet_priority_policy_validation_checks(assets)
+    failed_checks = [
+        check["check_id"] for check in checks if check.get("status") == "fail"
+    ]
+    return {
+        "schema_version": (
+            "aerospace-prognostics/fleet-priority-policy-validation/v1"
+        ),
+        "exported_at_utc": _now(),
+        "database": {
+            "path": str(Path(database_path)),
+            "schema_version": summary["schema_version"],
+        },
+        "asset_count": len(assets),
+        "priority_policy": _fleet_priority_policy_summary(assets),
+        "scenario_checks": checks,
+        "failed_checks": failed_checks,
+        "overall_status": "fail" if failed_checks else "pass",
+    }
+
+
+def export_fleet_priority_policy_validation(
+    database_path: str | Path,
+    *,
+    output_dir: str | Path,
+) -> dict[str, Any]:
+    """Export priority-policy validation evidence as JSON and Markdown."""
+
+    export_dir = Path(output_dir)
+    export_dir.mkdir(parents=True, exist_ok=True)
+    validation_json = export_dir / "fleet_priority_policy_validation.json"
+    validation_markdown = export_dir / "fleet_priority_policy_validation.md"
+
+    report = build_fleet_priority_policy_validation(database_path)
+    write_json_payload(report, validation_json, default=str)
+    validation_markdown.write_text(
+        _render_fleet_priority_policy_validation_markdown(report),
+        encoding="utf-8",
+    )
+    return {
+        "output_dir": str(export_dir),
+        "validation_json": str(validation_json),
+        "validation_sha256": _file_sha256(validation_json),
+        "validation_markdown": str(validation_markdown),
+        "markdown_sha256": _file_sha256(validation_markdown),
+        "overall_status": report["overall_status"],
+        "failed_checks": report["failed_checks"],
+        "asset_count": report["asset_count"],
+    }
+
+
 def list_model_artifacts(
     database_path: str | Path,
     *,
@@ -1796,6 +1856,239 @@ def _fleet_priority_policy_summary(assets: list[dict[str, Any]]) -> dict[str, An
         "reason_counts": dict(sorted(reason_counts.items())),
         "top_assets": top_assets,
     }
+
+
+def _fleet_priority_policy_validation_checks(
+    assets: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    critical_assets = [
+        asset
+        for asset in assets
+        if str(asset.get("latest_risk_level") or "") == "critical"
+    ]
+    critical_misses = [
+        asset
+        for asset in critical_assets
+        if str(asset.get("priority_band") or "") != "immediate_review"
+    ]
+    watch_assets = [
+        asset for asset in assets if str(asset.get("latest_risk_level") or "") == "watch"
+    ]
+    watch_misses = [
+        asset
+        for asset in watch_assets
+        if str(asset.get("priority_band") or "") not in {"immediate_review", "review"}
+    ]
+    scores = [float(asset.get("priority_score") or 0.0) for asset in assets]
+    attention_assets = [
+        asset
+        for asset in assets
+        if str(asset.get("latest_risk_level") or "") in {"critical", "watch"}
+        or bool(asset.get("latest_attention_reasons"))
+    ]
+    unexplained_attention = [
+        asset for asset in attention_assets if not asset.get("priority_reasons")
+    ]
+    domains = {str(asset.get("domain") or "") for asset in assets}
+    operational_domains_present = {"turbofan_rul", "spacecraft_anomaly"}.issubset(
+        domains
+    )
+    top_domains = {str(asset.get("domain") or "") for asset in assets[:10]}
+    live_event_assets = [
+        asset
+        for asset in assets
+        if _asset_metadata(asset).get("event_kind") == "live_anomaly_event"
+    ]
+    unexplained_live_events = [
+        asset
+        for asset in live_event_assets
+        if not any(
+            str(reason).startswith(("Live anomaly", "Anomaly score"))
+            for reason in asset.get("priority_reasons") or []
+        )
+    ]
+    return [
+        _fleet_priority_policy_check(
+            "critical_assets_are_immediate_review",
+            title="Critical assets enter immediate review",
+            applicable=bool(critical_assets),
+            passed=not critical_misses,
+            observed_assets=critical_assets,
+            failed_assets=critical_misses,
+        ),
+        _fleet_priority_policy_check(
+            "watch_assets_are_review_or_better",
+            title="Watch assets enter the review queue",
+            applicable=bool(watch_assets),
+            passed=not watch_misses,
+            observed_assets=watch_assets,
+            failed_assets=watch_misses,
+        ),
+        {
+            "check_id": "priority_order_is_descending",
+            "title": "Assets are sorted by descending priority score",
+            "status": "pass"
+            if scores == sorted(scores, reverse=True)
+            else "fail",
+            "applicable": bool(assets),
+            "observed_count": len(assets),
+            "failed_asset_ids": [],
+            "evidence": {
+                "first_scores": scores[:10],
+            },
+        },
+        _fleet_priority_policy_check(
+            "attention_assets_have_explanations",
+            title="Attention assets have operator-readable explanations",
+            applicable=bool(attention_assets),
+            passed=not unexplained_attention,
+            observed_assets=attention_assets,
+            failed_assets=unexplained_attention,
+        ),
+        {
+            "check_id": "cross_domain_review_queue",
+            "title": "Cross-domain fleets keep both domains visible in the top queue",
+            "status": (
+                "pass"
+                if not operational_domains_present
+                or {"turbofan_rul", "spacecraft_anomaly"}.issubset(top_domains)
+                else "fail"
+            ),
+            "applicable": operational_domains_present,
+            "observed_count": len(assets),
+            "failed_asset_ids": []
+            if not operational_domains_present
+            or {"turbofan_rul", "spacecraft_anomaly"}.issubset(top_domains)
+            else _asset_ids(assets[:10]),
+            "evidence": {
+                "domains": sorted(domains),
+                "top_queue_domains": sorted(top_domains),
+            },
+        },
+        _fleet_priority_policy_check(
+            "live_anomaly_events_are_explained",
+            title="Live anomaly event assets preserve event-specific reasons",
+            applicable=bool(live_event_assets),
+            passed=not unexplained_live_events,
+            observed_assets=live_event_assets,
+            failed_assets=unexplained_live_events,
+        ),
+    ]
+
+
+def _fleet_priority_policy_check(
+    check_id: str,
+    *,
+    title: str,
+    applicable: bool,
+    passed: bool,
+    observed_assets: list[dict[str, Any]],
+    failed_assets: list[dict[str, Any]],
+) -> dict[str, Any]:
+    status = "pass" if not applicable or passed else "fail"
+    return {
+        "check_id": check_id,
+        "title": title,
+        "status": status,
+        "applicable": applicable,
+        "observed_count": len(observed_assets),
+        "failed_asset_ids": _asset_ids(failed_assets),
+        "evidence": {
+            "sample_asset_ids": _asset_ids(observed_assets[:10]),
+            "failed_count": len(failed_assets),
+        },
+    }
+
+
+def _render_fleet_priority_policy_validation_markdown(
+    report: dict[str, Any],
+) -> str:
+    policy = report.get("priority_policy")
+    policy = policy if isinstance(policy, dict) else {}
+    lines = [
+        "# Fleet Priority Policy Validation",
+        "",
+        f"- Overall status: {_markdown_inline(report.get('overall_status'))}",
+        f"- Exported at UTC: {_markdown_inline(report.get('exported_at_utc'))}",
+        f"- Asset count: {_markdown_inline(report.get('asset_count'))}",
+        f"- Review queue count: {_markdown_inline(policy.get('review_queue_count'))}",
+        "",
+        "## Scenario Checks",
+        "",
+        "| Check | Status | Applicable | Observed | Failed assets |",
+        "| --- | --- | --- | ---: | --- |",
+    ]
+    checks = report.get("scenario_checks")
+    checks = checks if isinstance(checks, list) else []
+    for check in checks:
+        check = check if isinstance(check, dict) else {}
+        failed_asset_ids = check.get("failed_asset_ids")
+        failed_asset_ids = failed_asset_ids if isinstance(failed_asset_ids, list) else []
+        lines.append(
+            "| "
+            + " | ".join(
+                [
+                    _markdown_cell(check.get("title")),
+                    _markdown_cell(check.get("status")),
+                    _markdown_cell(check.get("applicable")),
+                    _markdown_cell(check.get("observed_count")),
+                    _markdown_cell(", ".join(str(asset) for asset in failed_asset_ids)),
+                ]
+            )
+            + " |"
+        )
+    lines.extend(
+        [
+            "",
+            "## Priority Bands",
+            "",
+            "| Band | Count |",
+            "| --- | ---: |",
+        ]
+    )
+    band_counts = policy.get("band_counts")
+    band_counts = band_counts if isinstance(band_counts, dict) else {}
+    for band, count in sorted(band_counts.items()):
+        lines.append(f"| {_markdown_cell(band)} | {_markdown_cell(count)} |")
+    lines.extend(
+        [
+            "",
+            "## Top Assets",
+            "",
+            "| Asset | Domain | Risk | Score | Band | Reasons |",
+            "| --- | --- | --- | ---: | --- | --- |",
+        ]
+    )
+    top_assets = policy.get("top_assets")
+    top_assets = top_assets if isinstance(top_assets, list) else []
+    for asset in top_assets:
+        asset = asset if isinstance(asset, dict) else {}
+        reasons = asset.get("priority_reasons")
+        reasons = reasons if isinstance(reasons, list) else []
+        lines.append(
+            "| "
+            + " | ".join(
+                [
+                    _markdown_cell(asset.get("asset_id")),
+                    _markdown_cell(asset.get("domain")),
+                    _markdown_cell(asset.get("latest_risk_level")),
+                    _markdown_cell(asset.get("priority_score")),
+                    _markdown_cell(asset.get("priority_band")),
+                    _markdown_cell("; ".join(str(reason) for reason in reasons)),
+                ]
+            )
+            + " |"
+        )
+    return "\n".join(lines) + "\n"
+
+
+def _asset_ids(assets: list[dict[str, Any]]) -> list[str]:
+    return [str(asset.get("asset_id")) for asset in assets if asset.get("asset_id")]
+
+
+def _asset_metadata(asset: dict[str, Any]) -> dict[str, Any]:
+    metadata = asset.get("metadata")
+    return metadata if isinstance(metadata, dict) else {}
 
 
 def _fleet_asset_export_rows(assets: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -2853,6 +3146,19 @@ def _file_sha256(path: Path) -> str:
 
 def _sha256_text(text: str) -> str:
     return hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+
+def _markdown_inline(value: object, *, default: str = "unknown") -> str:
+    if value is None:
+        return default
+    text = str(value)
+    if not text:
+        return default
+    return text.replace("\n", " ").replace("`", "'")
+
+
+def _markdown_cell(value: object) -> str:
+    return _markdown_inline(value, default="").replace("|", "\\|")
 
 
 def _json_dumps(payload: Any) -> str:
