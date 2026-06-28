@@ -31,6 +31,7 @@ from aerospace_prognostics.app.store import (
     export_fleet_asset_registry,
     export_prediction_run_evidence,
     initialize_app_database,
+    inspect_anomaly_events_csv,
     list_fleet_assets,
     list_model_artifacts,
     list_prediction_runs,
@@ -187,6 +188,9 @@ def _render_fleet_tab(
             )
             st.rerun()
     with st.expander("Spacecraft Event Ingest"):
+        event_ingest_ready = False
+        events_path: Path | None = None
+        event_preview: dict[str, Any] | None = None
         event_columns = st.columns([2, 1, 1])
         with event_columns[0]:
             anomaly_events_file = st.file_uploader(
@@ -208,25 +212,76 @@ def _render_fleet_tab(
                 file_name="spacecraft_anomaly_events_template.csv",
                 mime="text/csv",
             )
-            if st.button(
-                "Sync Events",
-                disabled=read_only or anomaly_events_file is None,
-            ):
+        if anomaly_events_file is not None:
+            try:
                 events_path = _persist_uploaded_csv(
                     anomaly_events_file,
                     upload_dir=DEFAULT_UPLOAD_DIR / "anomaly_events",
                 )
-                result = sync_fleet_assets_from_anomaly_events(
-                    database_path,
-                    events_csv=events_path,
-                    source_name=anomaly_source_name or anomaly_events_file.name,
+                event_preview = inspect_anomaly_events_csv(events_path)
+            except (OSError, ValueError, EmptyDataError, ParserError) as exc:
+                st.error(f"Anomaly event CSV is not ready to sync: {exc}")
+            else:
+                event_ingest_ready = True
+                preview_columns = st.columns(4)
+                preview_columns[0].metric(
+                    "Events",
+                    _display(event_preview["events_processed"]),
                 )
-                st.session_state["anomaly-event-sync"] = result
-                st.success(
-                    f"Processed {result['events_processed']} events and refreshed "
-                    f"{result['updated_assets']} assets."
+                preview_columns[1].metric(
+                    "Channels",
+                    _display(event_preview["channels_synced"]),
                 )
-                st.rerun()
+                preview_columns[2].metric(
+                    "Active",
+                    _display(event_preview["active_events"]),
+                )
+                preview_columns[3].metric(
+                    "Threshold Crossings",
+                    _display(event_preview["threshold_crossings"]),
+                )
+                st.dataframe(
+                    _anomaly_event_preview_frame(event_preview["latest_events"]),
+                    use_container_width=True,
+                    hide_index=True,
+                    column_config={
+                        "event_time_utc": st.column_config.DatetimeColumn("Event Time"),
+                        "spacecraft": st.column_config.TextColumn("Spacecraft"),
+                        "channel_id": st.column_config.TextColumn("Channel"),
+                        "severity": st.column_config.TextColumn("Severity"),
+                        "active": st.column_config.CheckboxColumn("Active"),
+                        "anomaly_score": st.column_config.NumberColumn(
+                            "Score",
+                            format="%.3f",
+                        ),
+                        "threshold": st.column_config.NumberColumn(
+                            "Threshold",
+                            format="%.3f",
+                        ),
+                        "model_name": st.column_config.TextColumn("Model"),
+                        "source": st.column_config.TextColumn("Source"),
+                    },
+                )
+        with event_columns[2]:
+            if st.button(
+                "Sync Events",
+                disabled=read_only or anomaly_events_file is None or not event_ingest_ready,
+            ):
+                try:
+                    result = sync_fleet_assets_from_anomaly_events(
+                        database_path,
+                        events_csv=events_path,
+                        source_name=anomaly_source_name or anomaly_events_file.name,
+                    )
+                except (OSError, ValueError, EmptyDataError, ParserError) as exc:
+                    st.error(f"Anomaly event sync failed: {exc}")
+                else:
+                    st.session_state["anomaly-event-sync"] = result
+                    st.success(
+                        f"Processed {result['events_processed']} events and refreshed "
+                        f"{result['updated_assets']} assets."
+                    )
+                    st.rerun()
     event_sync_result = st.session_state.get("anomaly-event-sync")
     if isinstance(event_sync_result, dict):
         st.caption(
@@ -1132,6 +1187,22 @@ def _anomaly_event_template_frame() -> pd.DataFrame:
             "note",
         ]
     )
+
+
+def _anomaly_event_preview_frame(events: list[dict[str, Any]]) -> pd.DataFrame:
+    columns = [
+        "event_time_utc",
+        "spacecraft",
+        "channel_id",
+        "severity",
+        "active",
+        "anomaly_score",
+        "threshold",
+        "model_name",
+        "source",
+    ]
+    rows = [{column: event.get(column) for column in columns} for event in events]
+    return pd.DataFrame(rows, columns=columns)
 
 
 def _persist_uploaded_csv(uploaded: Any, *, upload_dir: Path) -> Path:

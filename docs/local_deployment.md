@@ -101,7 +101,8 @@ exports can be filtered by risk level, domain, status, or attention-required
 assets. Exports include priority score, priority band, and priority reasons for
 review handoff. In writable local mode, the Fleet tab can also upload a
 spacecraft anomaly event CSV, download the expected event schema template, and
-refresh spacecraft channel assets without leaving the console.
+preview event counts, channel counts, active alerts, and threshold crossings
+before refreshing spacecraft channel assets without leaving the console.
 
 Use the sync command to backfill or refresh assets from existing runs:
 

@@ -18,6 +18,7 @@ from aerospace_prognostics.app.store import (
     export_prediction_outcome_template,
     export_prediction_run_evidence,
     initialize_app_database,
+    inspect_anomaly_events_csv,
     list_fleet_assets,
     list_model_artifacts,
     list_prediction_run_events,
@@ -627,6 +628,30 @@ def test_sync_fleet_assets_from_anomaly_events_updates_live_channel_assets(
     assert exported_rows[0]["active"] is True
     assert exported_rows[0]["anomaly_score"] == 0.95
     assert exported_rows[0]["threshold"] == 0.8
+
+
+def test_inspect_anomaly_events_csv_summarizes_ingest_preview(tmp_path) -> None:
+    events_csv = _write_anomaly_events_csv(tmp_path / "events.csv")
+
+    preview = inspect_anomaly_events_csv(events_csv)
+
+    assert preview["source_path"] == str(events_csv)
+    assert preview["events_processed"] == 3
+    assert preview["channels_synced"] == 2
+    assert preview["risk_counts"] == {"critical": 1, "nominal": 1}
+    assert preview["severity_counts"] == {"critical": 1, "info": 1}
+    assert preview["active_events"] == 1
+    assert preview["threshold_crossings"] == 1
+    assert [event["channel_id"] for event in preview["latest_events"]] == ["M-1", "P-1"]
+    assert preview["latest_events"][1]["event_time_utc"] == "2026-01-02T00:00:00+00:00"
+
+
+def test_inspect_anomaly_events_csv_rejects_missing_required_columns(tmp_path) -> None:
+    events_csv = tmp_path / "events.csv"
+    pd.DataFrame([{"channel_id": "P-1"}]).to_csv(events_csv, index=False)
+
+    with pytest.raises(ValueError, match="missing required columns: spacecraft"):
+        inspect_anomaly_events_csv(events_csv)
 
 
 def test_app_sync_anomaly_assets_command_refreshes_spacecraft_assets(

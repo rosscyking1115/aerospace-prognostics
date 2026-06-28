@@ -564,6 +564,38 @@ def sync_fleet_assets_from_anomaly_events(
     }
 
 
+def inspect_anomaly_events_csv(events_csv: str | Path) -> dict[str, Any]:
+    """Validate and summarize operational spacecraft anomaly event rows."""
+
+    events_path = Path(events_csv)
+    if not events_path.exists():
+        raise FileNotFoundError(f"anomaly events CSV not found: {events_path}")
+    rows, event_count = _latest_anomaly_event_rows(events_path)
+    risk_counts: dict[str, int] = {}
+    severity_counts: dict[str, int] = {}
+    active_events = 0
+    threshold_crossings = 0
+    for row in rows:
+        risk_level = _anomaly_event_risk_level(row)
+        risk_counts[risk_level] = risk_counts.get(risk_level, 0) + 1
+        severity = str(row.get("severity") or "unspecified")
+        severity_counts[severity] = severity_counts.get(severity, 0) + 1
+        if bool(row.get("active")):
+            active_events += 1
+        if _anomaly_event_threshold_crossed(row):
+            threshold_crossings += 1
+    return {
+        "source_path": str(events_path),
+        "events_processed": event_count,
+        "channels_synced": len(rows),
+        "risk_counts": dict(sorted(risk_counts.items())),
+        "severity_counts": dict(sorted(severity_counts.items())),
+        "active_events": active_events,
+        "threshold_crossings": threshold_crossings,
+        "latest_events": rows,
+    }
+
+
 def list_fleet_assets(
     database_path: str | Path,
     *,

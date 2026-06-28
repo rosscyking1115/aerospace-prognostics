@@ -12,6 +12,7 @@ from aerospace_prognostics.app.dashboard_state import (
 )
 from aerospace_prognostics.app.streamlit_app import (
     READ_ONLY_ENV,
+    _anomaly_event_preview_frame,
     _anomaly_event_template_frame,
     _artifact_prediction_runs_frame,
     _audit_events_frame,
@@ -202,6 +203,39 @@ def test_anomaly_event_template_frame_documents_ingest_contract() -> None:
         "note",
     ]
     assert template.empty
+
+
+def test_anomaly_event_preview_frame_keeps_operator_columns() -> None:
+    frame = _anomaly_event_preview_frame(
+        [
+            {
+                "event_time_utc": "2026-01-02T00:00:00+00:00",
+                "spacecraft": "SMAP",
+                "channel_id": "P-1",
+                "severity": "critical",
+                "active": True,
+                "anomaly_score": 0.95,
+                "threshold": 0.8,
+                "model_name": "robust_zscore",
+                "source": "ops",
+                "ignored": "not displayed",
+            }
+        ]
+    )
+
+    assert list(frame.columns) == [
+        "event_time_utc",
+        "spacecraft",
+        "channel_id",
+        "severity",
+        "active",
+        "anomaly_score",
+        "threshold",
+        "model_name",
+        "source",
+    ]
+    assert frame.loc[0, "spacecraft"] == "SMAP"
+    assert bool(frame.loc[0, "active"]) is True
 
 
 def test_json_download_bytes_writes_stable_json_payload() -> None:
