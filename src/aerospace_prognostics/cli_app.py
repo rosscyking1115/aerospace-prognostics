@@ -21,6 +21,7 @@ from aerospace_prognostics.app.store import (
     record_prediction_run_event,
     register_model_artifact_evidence,
     seed_quickstart_workspace,
+    sync_fleet_assets_from_anomaly_comparison,
     sync_fleet_assets_from_prediction_run,
 )
 
@@ -28,6 +29,7 @@ APP_COMMANDS = {
     "app-init-db",
     "app-register-artifact",
     "app-sync-fleet-assets",
+    "app-sync-anomaly-assets",
     "app-export-fleet-assets",
     "app-record-outcomes",
     "app-record-decision",
@@ -79,6 +81,18 @@ def register_app_commands(subparsers: Any) -> None:
         default=Path("artifacts") / "app" / "aerospace_prognostics.sqlite",
     )
     app_sync_fleet_assets.add_argument("--run-id")
+
+    app_sync_anomaly_assets = subparsers.add_parser(
+        "app-sync-anomaly-assets",
+        help="Refresh spacecraft anomaly channel assets from a ranked comparison CSV",
+    )
+    app_sync_anomaly_assets.add_argument(
+        "--database",
+        type=Path,
+        default=Path("artifacts") / "app" / "aerospace_prognostics.sqlite",
+    )
+    app_sync_anomaly_assets.add_argument("--comparison-csv", type=Path, required=True)
+    app_sync_anomaly_assets.add_argument("--source-name")
 
     app_export_fleet_assets = subparsers.add_parser(
         "app-export-fleet-assets",
@@ -262,6 +276,21 @@ def handle_app_command(args: argparse.Namespace) -> int | None:
         if args.run_id is not None:
             print(f"run_id={args.run_id}")
         print(f"runs_synced={result['runs_synced']}")
+        print(f"updated_assets={result['updated_assets']}")
+        print(f"fleet_assets={summary['fleet_assets']}")
+        return 0
+
+    if args.command == "app-sync-anomaly-assets":
+        result = sync_fleet_assets_from_anomaly_comparison(
+            args.database,
+            comparison_csv=args.comparison_csv,
+            source_name=args.source_name,
+        )
+        summary = database_summary(args.database)
+        print(f"database={args.database}")
+        print(f"comparison_csv={result['source_path']}")
+        print(f"source_name={result['source_name']}")
+        print(f"channels_synced={result['channels_synced']}")
         print(f"updated_assets={result['updated_assets']}")
         print(f"fleet_assets={summary['fleet_assets']}")
         return 0

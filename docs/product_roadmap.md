@@ -64,7 +64,10 @@ model-review bundle download, and file-based run evidence export also available
 in the console. Fleet-asset sync/backfill is available through the CLI and
 automatically refreshes when new prediction runs are stored. Fleet-registry
 JSON/CSV export is available from both the console and CLI for review handoff,
-with risk, domain, status, and attention-required filters.
+with risk, domain, status, and attention-required filters. Ranked SMAP/MSL
+anomaly comparison reports can now be synced into the same registry as
+spacecraft channel assets with anomaly F1, false-alarm, miss-rate,
+predicted-positive, and attention-reason metadata.
 
 3. Local deployment stack
    - Docker Compose with FastAPI inference service, dashboard, mounted model
@@ -100,12 +103,13 @@ need to run together.
    - Fleet asset registry that can combine C-MAPSS engine RUL and spacecraft
      anomaly alerts in one console.
 
-Current status: the first registry slice persists C-MAPSS engine assets from
-stored prediction runs with latest RUL, interval bounds, risk level, status,
-source run, and attention reasons. It can now be exported as JSON evidence and
-CSV triage rows, with filtered console and CLI views for focused operational
-review. The remaining gap is adding spacecraft anomaly assets into the same
-registry and defining cross-domain prioritization.
+Current status: the registry persists C-MAPSS engine assets from stored
+prediction runs with latest RUL, interval bounds, risk level, status, source
+run, and attention reasons. It also ingests ranked SMAP/MSL anomaly comparison
+rows as spacecraft channel assets. Combined registry exports are available as
+JSON evidence and CSV triage rows, with filtered console and CLI views for
+focused operational review. The remaining gap is live spacecraft anomaly event
+ingestion and stronger cross-domain prioritization policy.
 
 ## Near-Term Decision
 

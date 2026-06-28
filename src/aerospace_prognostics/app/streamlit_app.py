@@ -275,6 +275,10 @@ def _render_fleet_tab(
             "latest_rul_lower": st.column_config.NumberColumn("Lower", format="%.1f"),
             "latest_rul_upper": st.column_config.NumberColumn("Upper", format="%.1f"),
             "latest_status": st.column_config.TextColumn("Status"),
+            "f1": st.column_config.NumberColumn("F1", format="%.3f"),
+            "false_alarm_rate": st.column_config.NumberColumn("FAR", format="%.3f"),
+            "miss_rate": st.column_config.NumberColumn("Miss", format="%.3f"),
+            "predicted_positives": st.column_config.NumberColumn("Alerts"),
             "latest_run_id": st.column_config.TextColumn("Run"),
             "attention": st.column_config.TextColumn("Attention"),
         },
@@ -932,10 +936,11 @@ def _render_roadmap_tab(st: Any) -> None:
         """
         - Persist prediction runs, uploads, artifact records, and release evidence in SQLite.
         - Maintain a persisted fleet asset registry from stored prediction runs.
+        - Add ranked spacecraft anomaly channels beside C-MAPSS engines in the same fleet view.
         - Make prediction history filterable by model, asset, risk, date, and drift status.
         - Surface API, dashboard, mounted model storage, and database status in one console.
         - Promote the dashboard to a hosted product surface with authentication and audit logs.
-        - Add spacecraft anomaly assets beside C-MAPSS engines in the same fleet view.
+        - Ingest live spacecraft anomaly events and refine cross-domain prioritization.
         """
     )
 
@@ -969,6 +974,8 @@ def _fleet_assets_frame(assets: list[dict[str, Any]]) -> pd.DataFrame:
         reasons = asset.get("latest_attention_reasons")
         if not isinstance(reasons, list):
             reasons = []
+        metadata = asset.get("metadata")
+        metadata = metadata if isinstance(metadata, dict) else {}
         rows.append(
             {
                 "last_seen_at_utc": asset.get("last_seen_at_utc"),
@@ -982,6 +989,10 @@ def _fleet_assets_frame(assets: list[dict[str, Any]]) -> pd.DataFrame:
                 "latest_rul_upper": asset.get("latest_rul_upper"),
                 "latest_status": asset.get("latest_status"),
                 "latest_run_id": asset.get("latest_run_id"),
+                "f1": metadata.get("f1"),
+                "false_alarm_rate": metadata.get("false_alarm_rate"),
+                "miss_rate": metadata.get("miss_rate"),
+                "predicted_positives": metadata.get("predicted_positives"),
                 "attention": "; ".join(str(reason) for reason in reasons),
             }
         )

@@ -499,6 +499,38 @@ def sync_fleet_assets_from_prediction_run(
     }
 
 
+def sync_fleet_assets_from_anomaly_comparison(
+    database_path: str | Path,
+    *,
+    comparison_csv: str | Path,
+    source_name: str | None = None,
+) -> dict[str, Any]:
+    """Refresh spacecraft anomaly channel assets from a ranked comparison CSV."""
+
+    comparison_path = Path(comparison_csv)
+    if not comparison_path.exists():
+        raise FileNotFoundError(f"anomaly comparison CSV not found: {comparison_path}")
+    rows = _best_anomaly_asset_rows(comparison_path)
+    db_path = initialize_app_database(database_path)
+    timestamp = _now()
+    with _connect(db_path) as connection:
+        updated_assets = 0
+        for row in rows:
+            updated_assets += _upsert_anomaly_fleet_asset(
+                connection,
+                row=row,
+                comparison_path=comparison_path,
+                source_name=source_name or str(comparison_path),
+                timestamp=timestamp,
+            )
+    return {
+        "source_path": str(comparison_path),
+        "source_name": source_name or str(comparison_path),
+        "channels_synced": len(rows),
+        "updated_assets": updated_assets,
+    }
+
+
 def list_fleet_assets(
     database_path: str | Path,
     *,
@@ -1547,6 +1579,15 @@ def _fleet_asset_export_rows(assets: list[dict[str, Any]]) -> list[dict[str, Any
                 "artifact_id": metadata.get("artifact_id"),
                 "source_name": metadata.get("source_name"),
                 "input_sha256": metadata.get("input_sha256"),
+                "channel_id": metadata.get("channel_id"),
+                "spacecraft": metadata.get("spacecraft"),
+                "anomaly_source": metadata.get("source"),
+                "f1": metadata.get("f1"),
+                "point_adjusted_f1": metadata.get("point_adjusted_f1"),
+                "false_alarm_rate": metadata.get("false_alarm_rate"),
+                "miss_rate": metadata.get("miss_rate"),
+                "support": metadata.get("support"),
+                "predicted_positives": metadata.get("predicted_positives"),
             }
         )
     return rows
@@ -1595,6 +1636,190 @@ def _fleet_asset_attention_reasons(
 def _fleet_asset_status(risk_level: str) -> str:
     return {
         "critical": "maintenance_review",
+        "watch": "monitor",
+        "nominal": "nominal",
+    }.get(risk_level, "unknown")
+
+
+def _best_anomaly_asset_rows(path: Path) -> list[dict[str, Any]]:
+    frame = pd.read_csv(path)
+    if frame.empty:
+        raise ValueError(f"anomaly comparison CSV has no rows: {path}")
+    required_columns = {
+        "channel_id",
+        "spacecraft",
+        "source",
+        "model_name",
+        "precision",
+        "recall",
+        "f1",
+        "point_adjusted_f1",
+        "false_alarm_rate",
+        "miss_rate",
+        "support",
+        "predicted_positives",
+    }
+    missing_columns = required_columns.difference(frame.columns)
+    if missing_columns:
+        missing = ", ".join(sorted(missing_columns))
+        raise ValueError(f"anomaly comparison CSV is missing required columns: {missing}")
+    if "rank_by_f1" not in frame.columns:
+        frame = frame.sort_values(
+            by=["channel_id", "f1", "point_adjusted_f1", "false_alarm_rate"],
+            ascending=[True, False, False, True],
+        )
+        return [
+            _anomaly_asset_row(row)
+            for row in frame.groupby("channel_id", sort=True).head(1).to_dict("records")
+        ]
+    ranked = frame.copy()
+    ranked["rank_by_f1"] = pd.to_numeric(ranked["rank_by_f1"], errors="coerce")
+    if ranked["rank_by_f1"].isna().all():
+        raise ValueError("anomaly comparison CSV rank_by_f1 values must be numeric")
+    best = ranked.sort_values(
+        by=["channel_id", "rank_by_f1", "f1", "point_adjusted_f1"],
+        ascending=[True, True, False, False],
+    )
+    return [
+        _anomaly_asset_row(row)
+        for row in best.groupby("channel_id", sort=True).head(1).to_dict("records")
+    ]
+
+
+def _anomaly_asset_row(row: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "channel_id": str(row["channel_id"]),
+        "spacecraft": str(row["spacecraft"]),
+        "source": str(row["source"]),
+        "model_name": str(row["model_name"]),
+        "rank_by_f1": _optional_int(row.get("rank_by_f1")),
+        "precision": float(row["precision"]),
+        "recall": float(row["recall"]),
+        "f1": float(row["f1"]),
+        "point_adjusted_f1": float(row["point_adjusted_f1"]),
+        "false_alarm_rate": float(row["false_alarm_rate"]),
+        "miss_rate": float(row["miss_rate"]),
+        "support": int(row["support"]),
+        "predicted_positives": int(row["predicted_positives"]),
+        "train_rows": _optional_int(row.get("train_rows")),
+        "test_rows": _optional_int(row.get("test_rows")),
+        "anomaly_points": _optional_int(row.get("anomaly_points")),
+    }
+
+
+def _upsert_anomaly_fleet_asset(
+    connection: sqlite3.Connection,
+    *,
+    row: dict[str, Any],
+    comparison_path: Path,
+    source_name: str,
+    timestamp: str,
+) -> int:
+    risk_level = _anomaly_asset_risk_level(row)
+    attention = _anomaly_asset_attention_reasons(row, risk_level=risk_level)
+    metadata = {
+        **row,
+        "source_name": source_name,
+        "comparison_csv": str(comparison_path),
+        "comparison_sha256": _file_sha256(comparison_path),
+    }
+    asset_id = _anomaly_asset_id(row["spacecraft"], row["channel_id"])
+    cursor = connection.execute(
+        """
+        insert into fleet_assets (
+            asset_id,
+            asset_type,
+            domain,
+            source_dataset,
+            source_subset,
+            external_id,
+            latest_run_id,
+            latest_rul_prediction,
+            latest_rul_lower,
+            latest_rul_upper,
+            latest_risk_level,
+            latest_status,
+            latest_attention_json,
+            first_seen_at_utc,
+            last_seen_at_utc,
+            metadata_json
+        )
+        values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        on conflict(asset_id) do update set
+            asset_type = excluded.asset_type,
+            domain = excluded.domain,
+            source_dataset = excluded.source_dataset,
+            source_subset = excluded.source_subset,
+            external_id = excluded.external_id,
+            latest_run_id = excluded.latest_run_id,
+            latest_rul_prediction = excluded.latest_rul_prediction,
+            latest_rul_lower = excluded.latest_rul_lower,
+            latest_rul_upper = excluded.latest_rul_upper,
+            latest_risk_level = excluded.latest_risk_level,
+            latest_status = excluded.latest_status,
+            latest_attention_json = excluded.latest_attention_json,
+            last_seen_at_utc = excluded.last_seen_at_utc,
+            metadata_json = excluded.metadata_json
+        where excluded.last_seen_at_utc >= fleet_assets.last_seen_at_utc
+        """,
+        (
+            asset_id,
+            "spacecraft_channel",
+            "spacecraft_anomaly",
+            "SMAP/MSL",
+            row["spacecraft"],
+            row["channel_id"],
+            None,
+            None,
+            None,
+            None,
+            risk_level,
+            _anomaly_asset_status(risk_level),
+            _json_dumps(attention),
+            timestamp,
+            timestamp,
+            _json_dumps(metadata),
+        ),
+    )
+    return max(0, cursor.rowcount)
+
+
+def _anomaly_asset_id(spacecraft: str, channel_id: str) -> str:
+    return f"{spacecraft.lower()}-channel-{channel_id.lower()}"
+
+
+def _anomaly_asset_risk_level(row: dict[str, Any]) -> str:
+    if float(row["miss_rate"]) >= 0.5 or float(row["f1"]) < 0.25:
+        return "critical"
+    if (
+        int(row["predicted_positives"]) > 0
+        or float(row["false_alarm_rate"]) >= 0.1
+        or float(row["f1"]) < 0.5
+    ):
+        return "watch"
+    return "nominal"
+
+
+def _anomaly_asset_attention_reasons(
+    row: dict[str, Any],
+    *,
+    risk_level: str,
+) -> list[str]:
+    reasons: list[str] = []
+    if int(row["predicted_positives"]) > 0:
+        reasons.append("Anomaly detections present in evaluation window")
+    if float(row["miss_rate"]) >= 0.5:
+        reasons.append("High anomaly miss rate")
+    if float(row["false_alarm_rate"]) >= 0.1:
+        reasons.append("False alarm rate at or above review threshold")
+    if float(row["f1"]) < 0.5:
+        reasons.append("Low pointwise F1 for anomaly channel")
+    return reasons
+
+
+def _anomaly_asset_status(risk_level: str) -> str:
+    return {
+        "critical": "anomaly_review",
         "watch": "monitor",
         "nominal": "nominal",
     }.get(risk_level, "unknown")
@@ -1788,6 +2013,8 @@ def _with_interval_availability(row: dict[str, Any]) -> dict[str, Any]:
 
 def _optional_int(value: Any) -> int | None:
     if value is None:
+        return None
+    if pd.isna(value):
         return None
     try:
         return int(value)

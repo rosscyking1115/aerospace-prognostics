@@ -29,6 +29,7 @@ from aerospace_prognostics.app.store import (
     record_prediction_run_event,
     register_model_artifact_evidence,
     seed_quickstart_workspace,
+    sync_fleet_assets_from_anomaly_comparison,
     sync_fleet_assets_from_prediction_run,
 )
 from aerospace_prognostics.cli import main
@@ -411,6 +412,87 @@ def test_app_sync_fleet_assets_command_refreshes_prediction_assets(
     assert "fleet_assets=2" in output
     assert len(assets) == 2
     assert all(asset["latest_run_id"] == run_id for asset in assets)
+
+
+def test_sync_fleet_assets_from_anomaly_comparison_adds_spacecraft_assets(
+    tmp_path,
+) -> None:
+    database_path = initialize_app_database(tmp_path / "app.sqlite")
+    comparison_csv = _write_anomaly_comparison_csv(tmp_path / "comparison.csv")
+
+    result = sync_fleet_assets_from_anomaly_comparison(
+        database_path,
+        comparison_csv=comparison_csv,
+        source_name="phase2_smap_msl",
+    )
+    assets = list_fleet_assets(database_path, domains=("spacecraft_anomaly",))
+    attention_assets = list_fleet_assets(
+        database_path,
+        domains=("spacecraft_anomaly",),
+        attention_only=True,
+    )
+    bundle = build_fleet_asset_registry_bundle(
+        database_path,
+        domains=("spacecraft_anomaly",),
+    )
+    exported_rows = store._fleet_asset_export_rows(assets)
+
+    assert result["channels_synced"] == 2
+    assert result["updated_assets"] == 2
+    assert [asset["asset_id"] for asset in assets] == [
+        "smap-channel-p-1",
+        "msl-channel-m-1",
+    ]
+    assert assets[0]["asset_type"] == "spacecraft_channel"
+    assert assets[0]["domain"] == "spacecraft_anomaly"
+    assert assets[0]["source_dataset"] == "SMAP/MSL"
+    assert assets[0]["latest_risk_level"] == "critical"
+    assert assets[0]["latest_status"] == "anomaly_review"
+    assert assets[0]["latest_run_id"] is None
+    assert assets[0]["metadata"]["model_name"] == "robust_zscore"
+    assert assets[0]["metadata"]["source_name"] == "phase2_smap_msl"
+    assert assets[0]["metadata"]["f1"] == 0.2
+    assert "High anomaly miss rate" in assets[0]["latest_attention_reasons"]
+    assert assets[1]["latest_risk_level"] == "nominal"
+    assert assets[1]["latest_attention_reasons"] == []
+    assert [asset["asset_id"] for asset in attention_assets] == ["smap-channel-p-1"]
+    assert bundle["summary"]["domain_counts"] == {"spacecraft_anomaly": 2}
+    assert bundle["summary"]["attention_required_count"] == 1
+    assert exported_rows[0]["channel_id"] == "P-1"
+    assert exported_rows[0]["spacecraft"] == "SMAP"
+    assert exported_rows[0]["f1"] == 0.2
+    assert exported_rows[0]["predicted_positives"] == 2
+
+
+def test_app_sync_anomaly_assets_command_refreshes_spacecraft_assets(
+    tmp_path,
+    capsys,
+) -> None:
+    database_path = initialize_app_database(tmp_path / "app.sqlite")
+    comparison_csv = _write_anomaly_comparison_csv(tmp_path / "comparison.csv")
+
+    exit_code = main(
+        [
+            "app-sync-anomaly-assets",
+            "--database",
+            str(database_path),
+            "--comparison-csv",
+            str(comparison_csv),
+            "--source-name",
+            "phase2_smap_msl",
+        ]
+    )
+    output = capsys.readouterr().out
+    assets = list_fleet_assets(database_path, domains=("spacecraft_anomaly",))
+
+    assert exit_code == 0
+    assert f"database={database_path}" in output
+    assert f"comparison_csv={comparison_csv}" in output
+    assert "source_name=phase2_smap_msl" in output
+    assert "channels_synced=2" in output
+    assert "updated_assets=2" in output
+    assert "fleet_assets=2" in output
+    assert {asset["asset_type"] for asset in assets} == {"spacecraft_channel"}
 
 
 def test_build_fleet_asset_registry_bundle_is_read_only_safe(tmp_path) -> None:
@@ -1122,6 +1204,69 @@ def _write_prediction_run_for_artifact(tmp_path, *, database_path, artifact_id: 
         model_artifact_path=artifact_path,
         source_name="test.csv",
     )
+
+
+def _write_anomaly_comparison_csv(path):
+    rows = [
+        {
+            "channel_id": "P-1",
+            "spacecraft": "SMAP",
+            "source": "classical",
+            "model_name": "robust_zscore",
+            "rank_by_f1": 1,
+            "precision": 0.25,
+            "recall": 0.4,
+            "f1": 0.2,
+            "point_adjusted_f1": 0.6,
+            "false_alarm_rate": 0.2,
+            "miss_rate": 0.6,
+            "support": 5,
+            "predicted_positives": 2,
+            "train_rows": 10,
+            "test_rows": 12,
+            "anomaly_points": 5,
+        },
+        {
+            "channel_id": "P-1",
+            "spacecraft": "SMAP",
+            "source": "lstm",
+            "model_name": "lstm_forecast_dynamic_threshold",
+            "rank_by_f1": 2,
+            "precision": 0.5,
+            "recall": 0.5,
+            "f1": 0.5,
+            "point_adjusted_f1": 0.5,
+            "false_alarm_rate": 0.1,
+            "miss_rate": 0.5,
+            "support": 5,
+            "predicted_positives": 2,
+            "train_rows": 10,
+            "test_rows": 12,
+            "anomaly_points": 5,
+        },
+        {
+            "channel_id": "M-1",
+            "spacecraft": "MSL",
+            "source": "classical",
+            "model_name": "pca_reconstruction",
+            "rank_by_f1": 1,
+            "precision": 0.9,
+            "recall": 0.8,
+            "f1": 0.8,
+            "point_adjusted_f1": 0.9,
+            "false_alarm_rate": 0.01,
+            "miss_rate": 0.1,
+            "support": 3,
+            "predicted_positives": 0,
+            "train_rows": 10,
+            "test_rows": 12,
+            "anomaly_points": 3,
+        },
+    ]
+    frame = pd.DataFrame(rows)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    frame.to_csv(path, index=False)
+    return path
 
 
 def _write_fake_workspace(root):
