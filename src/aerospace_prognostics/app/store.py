@@ -55,6 +55,15 @@ from aerospace_prognostics.app.priority_policy import (
 from aerospace_prognostics.app.priority_policy import (
     render_fleet_priority_policy_validation_markdown,
 )
+from aerospace_prognostics.app.turbofan_assets import (
+    turbofan_asset_attention_reasons as _turbofan_asset_attention_reasons,
+)
+from aerospace_prognostics.app.turbofan_assets import (
+    turbofan_asset_risk_level as _turbofan_asset_risk_level,
+)
+from aerospace_prognostics.app.turbofan_assets import (
+    turbofan_asset_status as _turbofan_asset_status,
+)
 from aerospace_prognostics.artifact_io import write_json_payload
 
 SCHEMA_VERSION = "aerospace-prognostics/app-db/v1"
@@ -1620,11 +1629,11 @@ def _upsert_fleet_assets_for_run(
     ).fetchall()
     updated = 0
     for row in rows:
-        risk_level = _fleet_asset_risk_level(
+        risk_level = _turbofan_asset_risk_level(
             predicted_rul=float(row["predicted_rul"]),
             predicted_rul_lower=_optional_float(row["predicted_rul_lower"]),
         )
-        attention = _fleet_asset_attention_reasons(
+        attention = _turbofan_asset_attention_reasons(
             predicted_rul=float(row["predicted_rul"]),
             predicted_rul_lower=_optional_float(row["predicted_rul_lower"]),
             predicted_rul_upper=_optional_float(row["predicted_rul_upper"]),
@@ -1689,7 +1698,7 @@ def _upsert_fleet_assets_for_run(
                 _optional_float(row["predicted_rul_lower"]),
                 _optional_float(row["predicted_rul_upper"]),
                 risk_level,
-                _fleet_asset_status(risk_level),
+                _turbofan_asset_status(risk_level),
                 _json_dumps(attention),
                 run["created_at_utc"] or timestamp,
                 run["created_at_utc"] or timestamp,
@@ -1916,54 +1925,6 @@ def _fleet_asset_export_rows(assets: list[dict[str, Any]]) -> list[dict[str, Any
             }
         )
     return rows
-
-
-def _fleet_asset_risk_level(
-    *,
-    predicted_rul: float,
-    predicted_rul_lower: float | None,
-) -> str:
-    risk_floor = (
-        min(predicted_rul, predicted_rul_lower)
-        if predicted_rul_lower is not None
-        else predicted_rul
-    )
-    if risk_floor <= 20:
-        return "critical"
-    if risk_floor <= 50:
-        return "watch"
-    return "nominal"
-
-
-def _fleet_asset_attention_reasons(
-    *,
-    predicted_rul: float,
-    predicted_rul_lower: float | None,
-    predicted_rul_upper: float | None,
-    risk_level: str,
-) -> list[str]:
-    reasons: list[str] = []
-    if risk_level == "critical":
-        reasons.append("RUL at or below critical threshold")
-    elif risk_level == "watch":
-        reasons.append("RUL inside watch threshold")
-    if predicted_rul_lower is not None and predicted_rul_lower <= 20 < predicted_rul:
-        reasons.append("Interval lower bound crosses critical threshold")
-    if (
-        predicted_rul_lower is not None
-        and predicted_rul_upper is not None
-        and predicted_rul_upper - predicted_rul_lower >= 30
-    ):
-        reasons.append("Wide RUL interval")
-    return reasons
-
-
-def _fleet_asset_status(risk_level: str) -> str:
-    return {
-        "critical": "maintenance_review",
-        "watch": "monitor",
-        "nominal": "nominal",
-    }.get(risk_level, "unknown")
 
 
 def _upsert_anomaly_fleet_asset(
