@@ -39,10 +39,18 @@ def test_quickstart_release_evidence_demo_writes_review_artifacts(tmp_path) -> N
     assert release_bundle["status"] == "ok"
     assert "dashboard_html" in release_bundle["evidence"]
     assert provenance["summary"]["workflow"] == "local-quickstart"
+    policy_validation = json.loads(
+        (root / "release" / "fleet_priority_policy_validation.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    assert policy_validation["overall_status"] == "pass"
     assert (root / "predictions" / "fd001_input.csv").exists()
     assert (root / "dashboard" / "fleet_dashboard.html").exists()
     assert (root / "models" / "fd001_inspection.json").exists()
     assert (root / "models" / "fd001_model_card.md").exists()
+    assert (root / "release" / "fleet_priority_policy_validation.md").exists()
+    assert (root / "app" / "aerospace_prognostics.sqlite").exists()
 
 
 def test_quickstart_cmapss_demo_command_writes_review_artifacts(tmp_path) -> None:
@@ -79,6 +87,9 @@ def test_quickstart_cmapss_demo_command_writes_review_artifacts(tmp_path) -> Non
     assert release_bundle["release_name"] == "cli-quickstart-fd001-demo"
     assert release_bundle["status"] == "ok"
     assert provenance["summary"]["workflow"] == "cli-quickstart"
+    assert (
+        root / "release" / "fleet_priority_policy_validation.json"
+    ).exists()
     assert (root / "predictions" / "fd001_input.csv").exists()
     assert (root / "dashboard" / "fleet_dashboard.html").exists()
     assert (root / "models" / "fd001_inspection.json").exists()

@@ -6,6 +6,17 @@ import json
 from collections.abc import Callable
 from pathlib import Path
 
+import pandas as pd
+
+from aerospace_prognostics.app.dashboard_state import load_quickstart_workspace
+from aerospace_prognostics.app.store import (
+    build_fleet_priority_policy_validation,
+    export_fleet_priority_policy_validation,
+    initialize_app_database,
+    record_prediction_run,
+    seed_quickstart_workspace,
+    sync_fleet_assets_from_prediction_run,
+)
 from aerospace_prognostics.artifact_io import prepare_output_path
 
 
@@ -50,6 +61,9 @@ def run_cmapss_quickstart(
     release_bundle_markdown = root / "release" / "fd001_release_bundle.md"
     provenance_json = root / "release" / "fd001_provenance.json"
     provenance_markdown = root / "release" / "fd001_provenance.md"
+    policy_validation_json = root / "release" / "fleet_priority_policy_validation.json"
+    policy_validation_markdown = root / "release" / "fleet_priority_policy_validation.md"
+    app_database = root / "app" / "aerospace_prognostics.sqlite"
     sbom_json = sbom_dir / "cyclonedx.json"
     input_csv = prediction_dir / "fd001_input.csv"
     prediction_json = prediction_dir / "fd001_predictions.json"
@@ -225,6 +239,14 @@ def run_cmapss_quickstart(
         ],
         runner,
     )
+    _write_quickstart_policy_validation_evidence(
+        root=root,
+        app_database=app_database,
+        input_csv=input_csv,
+        prediction_json=prediction_json,
+        metadata_json=metadata_json,
+        artifact_path=artifact_path,
+    )
 
     promotion = json.loads(promotion_json.read_text(encoding="utf-8"))
     if promotion["status"] != "ok" or not all(promotion["gates"].values()):
@@ -258,15 +280,59 @@ def run_cmapss_quickstart(
     provenance = json.loads(provenance_json.read_text(encoding="utf-8"))
     if provenance["status"] != "ok":
         raise RuntimeError(f"release provenance smoke failed: {provenance!r}")
+    policy_validation = json.loads(policy_validation_json.read_text(encoding="utf-8"))
+    if policy_validation["overall_status"] != "pass":
+        raise RuntimeError(f"priority policy smoke failed: {policy_validation!r}")
+    if not policy_validation_markdown.exists():
+        raise RuntimeError(f"priority policy markdown is missing: {policy_validation_markdown}")
     print(f"artifact_inspection={inspection_json}")
     print(f"promotion_report={promotion_json}")
     print(f"dashboard_payload={dashboard_payload_json}")
     print(f"dashboard_html={dashboard_html}")
     print(f"release_bundle={release_bundle_json}")
     print(f"release_provenance={provenance_json}")
+    print(f"priority_policy_validation={policy_validation_json}")
     print(f"artifact_id={promotion['artifact_identity']['artifact_id']}")
     print(f"gates={len(promotion['gates'])}")
     return 0
+
+
+def _write_quickstart_policy_validation_evidence(
+    *,
+    root: Path,
+    app_database: Path,
+    input_csv: Path,
+    prediction_json: Path,
+    metadata_json: Path,
+    artifact_path: Path,
+) -> None:
+    workspace = load_quickstart_workspace(root)
+    initialize_app_database(app_database)
+    seed_quickstart_workspace(app_database, workspace)
+    telemetry = pd.read_csv(input_csv)
+    prediction_document = json.loads(prediction_json.read_text(encoding="utf-8"))
+    metadata = json.loads(metadata_json.read_text(encoding="utf-8"))
+    artifact_metadata = metadata.get("artifact")
+    artifact_metadata = artifact_metadata if isinstance(artifact_metadata, dict) else {}
+    promotion = artifact_metadata.get("promotion")
+    promotion = promotion if isinstance(promotion, dict) else {}
+    prediction_document["artifact"] = {
+        "schema_version": artifact_metadata.get("schema_version"),
+        "artifact_id": promotion.get("artifact_id"),
+        "stage": promotion.get("stage"),
+    }
+    run_id = record_prediction_run(
+        app_database,
+        telemetry=telemetry,
+        prediction_document=prediction_document,
+        model_artifact_path=artifact_path,
+        source_name=str(input_csv),
+    )
+    sync_fleet_assets_from_prediction_run(app_database, run_id=run_id)
+    export_fleet_priority_policy_validation(app_database, output_dir=root / "release")
+    validation = build_fleet_priority_policy_validation(app_database, read_only=True)
+    if validation["overall_status"] != "pass":
+        raise RuntimeError(f"priority policy validation failed: {validation!r}")
 
 
 def _run_cli(args: list[str], runner: Callable[[list[str]], int]) -> None:

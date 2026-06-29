@@ -104,6 +104,8 @@ jobs:
             artifacts/release/cmapss_fd001_release_bundle.md
             artifacts/release/cmapss_fd001_provenance.json
             artifacts/release/cmapss_fd001_provenance.md
+            artifacts/ci_release_evidence/release/fleet_priority_policy_validation.json
+            artifacts/ci_release_evidence/release/fleet_priority_policy_validation.md
             artifacts/ci_release_evidence/dashboard/fleet_payload.json
             artifacts/ci_release_evidence/dashboard/fleet_dashboard.html
             artifacts/ci_release_evidence/models/fd001_promotion.json

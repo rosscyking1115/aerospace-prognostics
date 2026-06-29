@@ -29,6 +29,14 @@ def test_ci_uploads_reviewable_release_evidence_without_model_binary() -> None:
     assert "ci-fd001-release-evidence" in upload_step
     assert "artifacts/release/cmapss_fd001_release_bundle.json" in upload_step
     assert "artifacts/release/cmapss_fd001_provenance.json" in upload_step
+    assert (
+        "artifacts/ci_release_evidence/release/fleet_priority_policy_validation.json"
+        in upload_step
+    )
+    assert (
+        "artifacts/ci_release_evidence/release/fleet_priority_policy_validation.md"
+        in upload_step
+    )
     assert "artifacts/ci_release_evidence/dashboard/fleet_dashboard.html" in upload_step
     assert "artifacts/container/serving_image_manifest.json" in upload_step
     assert ".joblib" not in upload_step
