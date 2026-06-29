@@ -169,6 +169,16 @@ uv run aerospace-prognostics app-export-priority-policy `
   --output-dir artifacts/app_exports
 ```
 
+For CI or release checks, make the command fail when any priority-policy
+scenario check fails:
+
+```powershell
+uv run aerospace-prognostics app-export-priority-policy `
+  --database artifacts/app/aerospace_prognostics.sqlite `
+  --output-dir artifacts/app_exports `
+  --fail-on-policy-fail
+```
+
 ## Outcome Imports
 
 Observed RUL outcomes can be attached through the History tab or imported from

@@ -908,6 +908,52 @@ def test_app_export_priority_policy_command_writes_validation_evidence(
     assert (output_dir / "fleet_priority_policy_validation.md").exists()
 
 
+def test_app_export_priority_policy_command_can_fail_release_gate(
+    tmp_path,
+    capsys,
+    monkeypatch,
+) -> None:
+    from aerospace_prognostics import cli_app
+
+    def fake_export(database_path, *, output_dir):
+        return {
+            "output_dir": str(output_dir),
+            "validation_json": str(output_dir / "fleet_priority_policy_validation.json"),
+            "validation_sha256": "sha",
+            "validation_markdown": str(
+                output_dir / "fleet_priority_policy_validation.md"
+            ),
+            "markdown_sha256": "markdown-sha",
+            "overall_status": "fail",
+            "failed_checks": ["critical_assets_are_immediate_review"],
+            "asset_count": 2,
+        }
+
+    database_path = tmp_path / "app.sqlite"
+    output_dir = tmp_path / "policy_exports"
+    monkeypatch.setattr(
+        cli_app,
+        "export_fleet_priority_policy_validation",
+        fake_export,
+    )
+
+    exit_code = main(
+        [
+            "app-export-priority-policy",
+            "--database",
+            str(database_path),
+            "--output-dir",
+            str(output_dir),
+            "--fail-on-policy-fail",
+        ]
+    )
+    output = capsys.readouterr().out
+
+    assert exit_code == 1
+    assert "overall_status=fail" in output
+    assert 'failed_checks=["critical_assets_are_immediate_review"]' in output
+
+
 def test_prediction_outcomes_attach_actuals_and_calibration_metrics(tmp_path) -> None:
     workspace = _write_fake_workspace(tmp_path / "quickstart")
     database_path = tmp_path / "app.sqlite"

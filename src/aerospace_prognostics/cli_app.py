@@ -160,6 +160,11 @@ def register_app_commands(subparsers: Any) -> None:
         type=Path,
         default=Path("artifacts") / "app_exports",
     )
+    app_export_priority_policy.add_argument(
+        "--fail-on-policy-fail",
+        action="store_true",
+        help="Exit with status 1 when the priority policy validation fails",
+    )
 
     app_record_outcomes = subparsers.add_parser(
         "app-record-outcomes",
@@ -375,6 +380,8 @@ def handle_app_command(args: argparse.Namespace) -> int | None:
         print(f"overall_status={result['overall_status']}")
         print(f"failed_checks={json.dumps(result['failed_checks'])}")
         print(f"asset_count={result['asset_count']}")
+        if args.fail_on_policy_fail and result["overall_status"] != "pass":
+            return 1
         return 0
 
     if args.command == "app-record-decision":
