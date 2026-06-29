@@ -31,6 +31,7 @@ from aerospace_prognostics.app.store import (
     record_prediction_run,
     record_prediction_run_event,
     register_model_artifact_evidence,
+    render_fleet_priority_policy_validation_markdown,
     seed_quickstart_workspace,
     sync_fleet_assets_from_anomaly_comparison,
     sync_fleet_assets_from_anomaly_events,
@@ -845,9 +846,10 @@ def test_fleet_priority_policy_validation_checks_cross_domain_queue(
             encoding="utf-8"
         )
     )
-    markdown = (output_dir / "fleet_priority_policy_validation.md").read_text(
-        encoding="utf-8"
-    )
+    markdown = render_fleet_priority_policy_validation_markdown(report)
+    exported_markdown = (
+        output_dir / "fleet_priority_policy_validation.md"
+    ).read_text(encoding="utf-8")
     checks = {check["check_id"]: check for check in report["scenario_checks"]}
 
     assert report["schema_version"] == (
@@ -866,6 +868,9 @@ def test_fleet_priority_policy_validation_checks_cross_domain_queue(
     assert result["markdown_sha256"]
     assert exported["failed_checks"] == []
     assert "# Fleet Priority Policy Validation" in markdown
+    assert exported_markdown == render_fleet_priority_policy_validation_markdown(
+        exported
+    )
 
 
 def test_app_export_priority_policy_command_writes_validation_evidence(

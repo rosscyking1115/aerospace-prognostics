@@ -796,7 +796,7 @@ def export_fleet_priority_policy_validation(
     report = build_fleet_priority_policy_validation(database_path)
     write_json_payload(report, validation_json, default=str)
     validation_markdown.write_text(
-        _render_fleet_priority_policy_validation_markdown(report),
+        render_fleet_priority_policy_validation_markdown(report),
         encoding="utf-8",
     )
     return {
@@ -2000,7 +2000,7 @@ def _fleet_priority_policy_check(
     }
 
 
-def _render_fleet_priority_policy_validation_markdown(
+def render_fleet_priority_policy_validation_markdown(
     report: dict[str, Any],
 ) -> str:
     policy = report.get("priority_policy")

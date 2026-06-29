@@ -25,10 +25,12 @@ from aerospace_prognostics.app.dashboard_state import (
 )
 from aerospace_prognostics.app.store import (
     build_fleet_asset_registry_bundle,
+    build_fleet_priority_policy_validation,
     build_model_artifact_review_bundle,
     build_prediction_run_evidence,
     database_summary,
     export_fleet_asset_registry,
+    export_fleet_priority_policy_validation,
     export_prediction_run_evidence,
     initialize_app_database,
     inspect_anomaly_events_csv,
@@ -40,6 +42,7 @@ from aerospace_prognostics.app.store import (
     record_prediction_outcomes,
     record_prediction_run,
     record_prediction_run_event,
+    render_fleet_priority_policy_validation_markdown,
     seed_quickstart_workspace,
     sync_fleet_assets_from_anomaly_events,
     sync_fleet_assets_from_prediction_run,
@@ -361,12 +364,44 @@ def _render_fleet_tab(
             )
             st.session_state["fleet-registry-export"] = result
             st.success("Fleet registry export generated.")
+    policy_validation = build_fleet_priority_policy_validation(
+        database_path,
+        read_only=read_only,
+    )
+    validation_columns = st.columns([1, 1, 1, 1])
+    with validation_columns[0]:
+        st.download_button(
+            "Download Policy JSON",
+            data=_json_download_bytes(policy_validation),
+            file_name="fleet_priority_policy_validation.json",
+            mime="application/json",
+        )
+    with validation_columns[1]:
+        st.download_button(
+            "Download Policy Markdown",
+            data=render_fleet_priority_policy_validation_markdown(
+                policy_validation
+            ).encode("utf-8"),
+            file_name="fleet_priority_policy_validation.md",
+            mime="text/markdown",
+        )
+    with validation_columns[2]:
+        if st.button("Export Policy", disabled=read_only):
+            result = export_fleet_priority_policy_validation(
+                database_path,
+                output_dir=DEFAULT_EXPORT_DIR,
+            )
+            st.session_state["fleet-priority-policy-export"] = result
+            st.success("Priority policy validation export generated.")
+    with validation_columns[3]:
+        st.metric("Policy Validation", str(policy_validation["overall_status"]).upper())
     priority_policy = registry_bundle.get("priority_policy", {})
     if isinstance(priority_policy, dict):
         st.caption(
             "Priority policy: "
             f"{priority_policy.get('review_queue_count', 0)} review-queue assets; "
-            f"bands {priority_policy.get('band_counts', {})}"
+            f"bands {priority_policy.get('band_counts', {})}; "
+            f"validation {policy_validation.get('overall_status')}"
         )
     if assets_registry_frame.empty:
         st.info("No fleet assets match the selected filters.")
@@ -411,6 +446,18 @@ def _render_fleet_tab(
                 "assets_csv": export_result["assets_csv"],
                 "assets_sha256": export_result["assets_sha256"],
                 "asset_count": export_result["asset_count"],
+            }
+        )
+    policy_export_result = st.session_state.get("fleet-priority-policy-export")
+    if isinstance(policy_export_result, dict):
+        st.json(
+            {
+                "validation_json": policy_export_result["validation_json"],
+                "validation_sha256": policy_export_result["validation_sha256"],
+                "validation_markdown": policy_export_result["validation_markdown"],
+                "markdown_sha256": policy_export_result["markdown_sha256"],
+                "overall_status": policy_export_result["overall_status"],
+                "failed_checks": policy_export_result["failed_checks"],
             }
         )
 
