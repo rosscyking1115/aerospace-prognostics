@@ -8,6 +8,7 @@ import pytest
 
 import aerospace_prognostics.app.store as store
 from aerospace_prognostics.app.dashboard_state import QuickstartWorkspace
+from aerospace_prognostics.app.fleet_registry import fleet_asset_export_rows
 from aerospace_prognostics.app.store import (
     SCHEMA_VERSION,
     build_fleet_asset_registry_bundle,
@@ -516,7 +517,7 @@ def test_sync_fleet_assets_from_anomaly_comparison_adds_spacecraft_assets(
         database_path,
         domains=("spacecraft_anomaly",),
     )
-    exported_rows = store._fleet_asset_export_rows(assets)
+    exported_rows = fleet_asset_export_rows(assets)
 
     assert result["channels_synced"] == 2
     assert result["updated_assets"] == 2
@@ -571,7 +572,7 @@ def test_fleet_asset_registry_prioritizes_cross_domain_review_queue(
     )
 
     assets = list_fleet_assets(database_path)
-    exported = store._fleet_asset_export_rows(assets)
+    exported = fleet_asset_export_rows(assets)
 
     assert [asset["asset_id"] for asset in assets][:2] == [
         "smap-channel-p-1",
@@ -598,7 +599,7 @@ def test_sync_fleet_assets_from_anomaly_events_updates_live_channel_assets(
         source_name="ops_stream",
     )
     assets = list_fleet_assets(database_path, domains=("spacecraft_anomaly",))
-    exported_rows = store._fleet_asset_export_rows(assets)
+    exported_rows = fleet_asset_export_rows(assets)
 
     assert result == {
         "source_path": str(events_csv),
