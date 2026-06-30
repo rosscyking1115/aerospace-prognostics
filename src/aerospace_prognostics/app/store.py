@@ -52,6 +52,21 @@ from aerospace_prognostics.app.fleet_registry import (
 from aerospace_prognostics.app.model_registry import (
     model_artifact_report_card as _model_report_card,
 )
+from aerospace_prognostics.app.prediction_runs import (
+    build_prediction_run_evidence_payload as _build_prediction_run_evidence_payload,
+)
+from aerospace_prognostics.app.prediction_runs import (
+    outcome_rows as _outcome_rows,
+)
+from aerospace_prognostics.app.prediction_runs import (
+    outcome_template_frame as _outcome_template_frame,
+)
+from aerospace_prognostics.app.prediction_runs import (
+    prediction_rows as _prediction_rows,
+)
+from aerospace_prognostics.app.prediction_runs import (
+    with_interval_availability as _with_interval_availability,
+)
 from aerospace_prognostics.app.priority_policy import (
     fleet_asset_priority as _fleet_asset_priority,
 )
@@ -1381,25 +1396,14 @@ def build_prediction_run_evidence(
     if loaded is None:
         raise ValueError(f"unknown prediction run: {run_id}")
 
-    predictions = list(loaded["predictions"])
     summary = database_summary(database_path, read_only=read_only)
-    csv_file: dict[str, Any] = {"rows": len(predictions)}
-    if predictions_csv_path is not None:
-        csv_file["path"] = str(Path(predictions_csv_path))
-    return {
-        "schema_version": "aerospace-prognostics/prediction-run-evidence/v1",
-        "exported_at_utc": _now(),
-        "database": {
-            "path": str(Path(database_path)),
-            "schema_version": summary["schema_version"],
-        },
-        "run": loaded["run"],
-        "predictions": predictions,
-        "audit_events": loaded["audit_events"],
-        "files": {
-            "predictions_csv": csv_file,
-        },
-    }
+    return _build_prediction_run_evidence_payload(
+        database_path=database_path,
+        database_schema_version=summary["schema_version"],
+        loaded_run=loaded,
+        exported_at_utc=_now(),
+        predictions_csv_path=predictions_csv_path,
+    )
 
 
 def export_prediction_outcome_template(
@@ -1415,8 +1419,7 @@ def export_prediction_outcome_template(
         raise ValueError(f"unknown prediction run: {run_id}")
 
     predictions = list(loaded["predictions"])
-    template = pd.DataFrame(predictions).reindex(columns=["unit_number"])
-    template["actual_rul"] = ""
+    template = _outcome_template_frame(predictions)
     output_path = Path(output_csv)
     output_path.parent.mkdir(parents=True, exist_ok=True)
     template.to_csv(output_path, index=False)
@@ -2106,93 +2109,11 @@ def _artifact_id_from_inspection(inspection: dict[str, Any], artifact_path: Path
     return f"artifact-{_sha256_text(str(artifact_path))[:16]}"
 
 
-def _prediction_rows(prediction_document: dict[str, Any]) -> list[dict[str, Any]]:
-    rows = prediction_document.get("predictions")
-    if not isinstance(rows, list):
-        raise ValueError("prediction_document['predictions'] must be a list")
-    parsed: list[dict[str, Any]] = []
-    for row in rows:
-        if not isinstance(row, dict):
-            raise ValueError("prediction rows must be JSON objects")
-        if "unit_number" not in row or "predicted_rul" not in row:
-            raise ValueError("prediction rows require unit_number and predicted_rul")
-        parsed.append(row)
-    return parsed
-
-
-def _outcome_rows(outcomes: pd.DataFrame) -> list[dict[str, Any]]:
-    required_columns = {"unit_number", "actual_rul"}
-    missing_columns = required_columns.difference(outcomes.columns)
-    if missing_columns:
-        missing = ", ".join(sorted(missing_columns))
-        raise ValueError(f"outcomes require columns: {missing}")
-    numeric_outcomes = outcomes[["unit_number", "actual_rul"]].apply(
-        pd.to_numeric,
-        errors="coerce",
-    )
-    if numeric_outcomes.empty:
-        raise ValueError("outcomes must contain at least one row")
-    if numeric_outcomes.isnull().any().any():
-        raise ValueError(
-            "outcome rows require numeric, non-null unit_number and actual_rul"
-        )
-    if (numeric_outcomes["unit_number"] % 1 != 0).any():
-        raise ValueError("outcome unit_number values must be whole numbers")
-    if (numeric_outcomes["actual_rul"] < 0).any():
-        raise ValueError("actual_rul values must be nonnegative")
-
-    parsed: list[dict[str, Any]] = []
-    for row in numeric_outcomes.to_dict(orient="records"):
-        parsed.append(
-            {
-                "unit_number": int(row["unit_number"]),
-                "actual_rul": float(row["actual_rul"]),
-            }
-        )
-    return parsed
-
-
 def _run_summary_from_row(row: sqlite3.Row) -> dict[str, Any]:
     result = dict(row)
     monitoring = _json_loads(result.pop("monitoring_json"))
     result["drift_alert_count"] = _drift_alert_count(monitoring)
     return _with_interval_availability(result)
-
-
-def _with_interval_availability(row: dict[str, Any]) -> dict[str, Any]:
-    result = dict(row)
-    prediction_count = _optional_int(result.get("prediction_count")) or 0
-    interval_count = _optional_int(result.get("interval_count")) or 0
-    result["interval_count"] = interval_count
-    result["interval_availability_rate"] = (
-        interval_count / prediction_count if prediction_count > 0 else None
-    )
-    outcome_count = _optional_int(result.get("outcome_count")) or 0
-    interval_outcome_count = _optional_int(result.get("interval_outcome_count")) or 0
-    interval_covered_count = _optional_int(result.get("interval_covered_count")) or 0
-    result["outcome_count"] = outcome_count
-    result["outcome_availability_rate"] = (
-        outcome_count / prediction_count if prediction_count > 0 else None
-    )
-    result["interval_outcome_count"] = interval_outcome_count
-    result["interval_covered_count"] = interval_covered_count
-    result["outcome_interval_coverage_rate"] = (
-        interval_covered_count / interval_outcome_count
-        if interval_outcome_count > 0
-        else None
-    )
-    return result
-
-
-def _optional_int(value: Any) -> int | None:
-    if value is None:
-        return None
-    if pd.isna(value):
-        return None
-    try:
-        return int(value)
-    except (TypeError, ValueError):
-        return None
 
 
 def _optional_float(value: Any) -> float | None:
