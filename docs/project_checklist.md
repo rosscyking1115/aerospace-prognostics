@@ -56,6 +56,8 @@ time, as a real aerospace PHM tool surface. It is not a notebook-only lab demo.
       `streamlit_app.py` into a focused tab module with renderer contract tests.
 - [x] Streamlit Evidence tab renderer extracted into the focused tab module with
       release-evidence renderer contract tests.
+- [x] Streamlit Registry tab renderer extracted into the focused tab module with
+      model-registry renderer contract tests.
 
 ## Active Workstream
 

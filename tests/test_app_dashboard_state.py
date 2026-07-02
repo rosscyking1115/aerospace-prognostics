@@ -14,25 +14,27 @@ from aerospace_prognostics.app.streamlit_app import (
     READ_ONLY_ENV,
     _anomaly_event_preview_frame,
     _anomaly_event_template_frame,
-    _artifact_prediction_runs_frame,
     _audit_events_frame,
     _decision_status_index,
     _env_flag,
-    _failed_gates_frame,
     _fleet_assets_frame,
     _float_display,
     _json_download_bytes,
-    _model_artifacts_frame,
     _outcome_template_frame,
     _percent_display,
     _persist_uploaded_csv,
     _prediction_runs_frame,
     _read_outcome_csv,
     _read_telemetry_csv,
-    _release_evidence_frame,
     _safe_upload_filename,
     _telemetry_records,
     _with_api_artifact_metadata,
+)
+from aerospace_prognostics.app.streamlit_tabs import (
+    _artifact_prediction_runs_frame,
+    _failed_gates_frame,
+    _model_artifacts_frame,
+    _release_evidence_frame,
 )
 from aerospace_prognostics.data.cmapss import CMAPSS_COLUMNS, load_cmapss_subset
 from aerospace_prognostics.deployment.artifacts import (
