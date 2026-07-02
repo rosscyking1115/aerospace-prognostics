@@ -102,8 +102,8 @@ The project already proves more than model training:
   Telemanom or ESA-ADB leaderboard claim.
 - Generated model binaries, raw telemetry, SQLite app state, and release outputs
   are intentionally excluded from Git.
-- Public launch still needs a hosted-demo URL, license decision, and final
-  launch copy before the private repository should be made public.
+- Public launch still needs a hosted-demo URL, final public license decision,
+  and launch copy before the private repository should be made public.
 
 ## Source Notes
 

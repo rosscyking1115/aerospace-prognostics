@@ -19,11 +19,11 @@ def test_pre_phase3_readiness_audit_separates_repo_gates_from_external_blockers(
     audit = run_pre_phase3_readiness_audit(repo)
 
     assert audit.status == "not_ready"
-    assert {gate.gate_id for gate in audit.blockers} == {
-        "license_posture",
-        "private_hosted_demo_url",
-    }
+    assert {gate.gate_id for gate in audit.blockers} == {"private_hosted_demo_url"}
     assert all(gate.category.startswith("external") for gate in audit.blockers)
+    license_gate = next(gate for gate in audit.gates if gate.gate_id == "license_posture")
+    assert license_gate.status == "ok"
+    assert "docs/license_posture.md" in license_gate.evidence
     assert all(
         gate.status == "ok"
         for gate in audit.gates
@@ -43,10 +43,9 @@ def test_pre_phase3_readiness_audit_separates_repo_gates_from_external_blockers(
     markdown = markdown_path.read_text(encoding="utf-8")
     assert payload["schema_version"] == "aerospace-prognostics/pre-phase3-readiness/v1"
     assert payload["status"] == "not_ready"
-    assert payload["summary"]["blockers"] == 2
+    assert payload["summary"]["blockers"] == 1
     assert "# Pre-Phase-3 Readiness Audit" in markdown
     assert "- Status: not_ready" in markdown
-    assert "license_posture" in markdown
     assert "private_hosted_demo_url" in markdown
 
 

@@ -84,6 +84,7 @@ Prioritize these features because they differentiate the project from typical C-
 
 - [ ] Keep the repository private until raw data, generated artifacts, and secrets are confirmed absent.
 - [ ] Add a license decision before launch.
+- [x] Document the current private-review-only license posture before Phase 3.
 - [x] Replace the development-heavy README with a public-facing README and move command catalogs into docs.
 - [x] Add architecture diagram and at least two visual result assets.
 - [x] Add a tiny fixture-based quickstart that runs without downloading NASA/JPL data.

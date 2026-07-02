@@ -15,8 +15,8 @@ The audit separates two kinds of work:
 - repo-local gates that the codebase can prove directly, such as launch docs,
   proof assets, CI-hosted-demo checks, artifact hygiene, and Phase 2 completion
   evidence;
-- external gates that need a decision or hosted environment, such as license
-  posture and a private hosted demo URL.
+- external gates that need a decision or hosted environment, such as a
+  private-review license posture and a private hosted demo URL.
 
 When a private hosted demo URL and internal license posture are available, pass
 them explicitly:
@@ -29,7 +29,10 @@ uv run aerospace-prognostics pre-phase3-readiness-audit `
 
 Current expected blockers before Phase 3:
 
-- choose the license/public-release posture, or document that the next phase is
-  still private-review-only;
 - create the private hosted read-only demo URL and capture fresh visual proof
   from that environment.
+
+The current license posture is tracked in
+[docs/license_posture.md](license_posture.md): private review only, not
+open-source licensed yet, and `UNLICENSED` until a public-launch license is
+chosen.

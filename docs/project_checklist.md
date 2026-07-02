@@ -118,7 +118,7 @@ Every active slice should stay small enough to finish with:
         research tracks.
 13. [x] Add a pre-Phase-3 readiness audit command that reports remaining launch
         and productization blockers.
-14. [ ] Choose the license/posture for public launch or document a private-only
+14. [x] Choose the license/posture for public launch or document a private-only
         license decision for the next internal phase.
 15. [ ] Create a private hosted read-only demo URL and capture fresh visual proof
         from that environment.
@@ -126,7 +126,8 @@ Every active slice should stay small enough to finish with:
 ## Later Milestones
 
 - [ ] Public-facing packaging:
-      final launch copy and public-hosted proof after the private demo is ready.
+      final public license, launch copy, and public-hosted proof after the
+      private demo is ready.
 - [ ] Hosted deployment:
       private hosted demo first, then public read-only demo when the repo is
       ready.

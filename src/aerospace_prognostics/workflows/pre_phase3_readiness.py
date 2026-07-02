@@ -94,6 +94,7 @@ def run_pre_phase3_readiness_audit(
                 "docs/public_results.md",
                 "docs/public_proof_assets.md",
                 "docs/pre_phase3_readiness.md",
+                "docs/license_posture.md",
                 "docs/architecture.md",
                 "docs/command_catalog.md",
             ),
@@ -292,6 +293,24 @@ def _license_gate(root: Path, license_decision: str | None) -> PrePhase3Readines
             evidence=f"Tracked license file: {tracked_license}",
             next_action="No action required.",
         )
+    posture_path = root / "docs" / "license_posture.md"
+    if posture_path.exists():
+        posture_text = posture_path.read_text(encoding="utf-8")
+        required_text = (
+            "private review only",
+            "not currently distributed under an open-source license",
+            "public-launch license",
+            "UNLICENSED",
+        )
+        missing = [item for item in required_text if item not in posture_text]
+        if not missing:
+            return PrePhase3ReadinessGate(
+                gate_id="license_posture",
+                category="external_decision",
+                status="ok",
+                evidence="Tracked private-review-only license posture in docs/license_posture.md.",
+                next_action="Choose and add a final license file before public launch.",
+            )
     if license_decision:
         return PrePhase3ReadinessGate(
             gate_id="license_posture",
