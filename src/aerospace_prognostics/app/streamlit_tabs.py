@@ -10,8 +10,15 @@ from typing import Any
 import pandas as pd
 from pandas.errors import EmptyDataError, ParserError
 
-from aerospace_prognostics.app.api_client import ApiServiceStatus
-from aerospace_prognostics.app.dashboard_state import QuickstartWorkspace
+from aerospace_prognostics.app.api_client import (
+    ApiRequestError,
+    ApiServiceStatus,
+    predict_telemetry,
+)
+from aerospace_prognostics.app.dashboard_state import (
+    QuickstartWorkspace,
+    predict_cmapss_telemetry,
+)
 from aerospace_prognostics.app.store import (
     build_model_artifact_review_bundle,
     build_prediction_run_evidence,
@@ -22,8 +29,10 @@ from aerospace_prognostics.app.store import (
     load_model_artifact,
     load_prediction_run,
     record_prediction_outcomes,
+    record_prediction_run,
     record_prediction_run_event,
 )
+from aerospace_prognostics.data.cmapss import CMAPSS_COLUMNS
 
 
 def render_system_tab(
@@ -126,6 +135,81 @@ def render_evidence_tab(
                 "provenance": provenance.get("summary"),
             }
         )
+
+
+def render_predict_tab(
+    st: Any,
+    workspace: QuickstartWorkspace,
+    database_path: Path,
+    api_status: ApiServiceStatus,
+    api_key: str,
+    read_only: bool,
+) -> None:
+    """Render batch prediction upload, backend selection, and run persistence."""
+
+    st.subheader("Batch Prediction")
+    uploaded = st.file_uploader("Telemetry CSV", type=["csv"], disabled=read_only)
+    try:
+        if uploaded is None and workspace.telemetry_csv_path.exists():
+            st.caption(f"Using sample telemetry: {workspace.telemetry_csv_path}")
+            telemetry = _read_telemetry_csv(workspace.telemetry_csv_path)
+            source_name = str(workspace.telemetry_csv_path)
+        elif uploaded is not None:
+            telemetry = _read_telemetry_csv(uploaded.getvalue())
+            source_name = uploaded.name
+        else:
+            telemetry = None
+            source_name = "unknown"
+    except ValueError as exc:
+        st.error(str(exc))
+        return
+
+    if telemetry is None:
+        st.info("No telemetry loaded.")
+        return
+
+    backend_options = ["API service", "Local artifact"]
+    backend_index = 0 if api_status.is_ready else 1
+    backend = st.radio("Inference backend", backend_options, index=backend_index, horizontal=True)
+    st.dataframe(telemetry.head(12), width="stretch", hide_index=True)
+    if st.button("Run Prediction", type="primary", disabled=read_only):
+        if backend == "API service":
+            if not api_status.is_ready:
+                st.error("API service is not ready.")
+                return
+            try:
+                prediction_document = predict_telemetry(
+                    api_status.base_url,
+                    telemetry=_telemetry_records(telemetry),
+                    api_key=api_key or None,
+                )
+            except ApiRequestError as exc:
+                st.error(str(exc))
+                if exc.payload:
+                    st.json(exc.payload)
+                return
+            prediction_document = _with_api_artifact_metadata(prediction_document, api_status)
+        else:
+            prediction_document = predict_cmapss_telemetry(
+                workspace.model_artifact_path,
+                telemetry,
+            )
+        run_id = record_prediction_run(
+            database_path,
+            telemetry=telemetry,
+            prediction_document=prediction_document,
+            model_artifact_path=workspace.model_artifact_path,
+            source_name=source_name,
+        )
+        st.session_state["selected_prediction_run_id"] = run_id
+        st.success(f"Stored {backend.lower()} prediction run: {run_id}")
+        predictions = pd.DataFrame(prediction_document["predictions"])
+        st.dataframe(predictions, width="stretch", hide_index=True)
+        monitoring = prediction_document.get("monitoring", {})
+        if isinstance(monitoring, dict):
+            prediction_summary = monitoring.get("predictions", {})
+            if isinstance(prediction_summary, dict):
+                st.json(prediction_summary)
 
 
 def render_history_tab(
@@ -729,6 +813,60 @@ def _artifact_prediction_runs_frame(runs: list[dict[str, Any]]) -> pd.DataFrame:
         frame,
         ["interval_availability_rate", "outcome_interval_coverage_rate"],
     )
+
+
+def _telemetry_records(telemetry: pd.DataFrame) -> list[dict[str, Any]]:
+    sanitized = telemetry.astype(object).where(pd.notna(telemetry), None)
+    return sanitized.to_dict(orient="records")
+
+
+def _read_telemetry_csv(source: bytes | Path) -> pd.DataFrame:
+    try:
+        telemetry = (
+            pd.read_csv(BytesIO(source))
+            if isinstance(source, bytes)
+            else pd.read_csv(source)
+        )
+    except (EmptyDataError, ParserError, UnicodeDecodeError) as exc:
+        raise ValueError("telemetry CSV could not be read as a valid CSV") from exc
+    _validate_telemetry_frame(telemetry)
+    return telemetry
+
+
+def _validate_telemetry_frame(telemetry: pd.DataFrame) -> None:
+    if telemetry.empty:
+        raise ValueError("telemetry CSV must contain at least one row")
+    missing = [column for column in CMAPSS_COLUMNS if column not in telemetry.columns]
+    if missing:
+        preview = ", ".join(missing[:5])
+        suffix = f" (+{len(missing) - 5} more)" if len(missing) > 5 else ""
+        raise ValueError(f"telemetry CSV is missing required columns: {preview}{suffix}")
+    identity_columns = telemetry[["unit_number", "time_in_cycles"]].apply(
+        pd.to_numeric,
+        errors="coerce",
+    )
+    if identity_columns.isna().any().any():
+        raise ValueError("unit_number and time_in_cycles must be numeric and non-null")
+    if (identity_columns["time_in_cycles"] < 1).any():
+        raise ValueError("time_in_cycles values must be positive")
+
+
+def _with_api_artifact_metadata(
+    prediction_document: dict[str, Any],
+    api_status: ApiServiceStatus,
+) -> dict[str, Any]:
+    if "artifact" in prediction_document:
+        return prediction_document
+    model = api_status.readiness.payload.get("model")
+    if not isinstance(model, dict):
+        return prediction_document
+    enriched = dict(prediction_document)
+    enriched["artifact"] = {
+        "artifact_id": model.get("artifact_id"),
+        "artifact_sha256": model.get("artifact_sha256"),
+        "stage": model.get("stage"),
+    }
+    return enriched
 
 
 def _prediction_runs_frame(runs: list[dict[str, Any]]) -> pd.DataFrame:

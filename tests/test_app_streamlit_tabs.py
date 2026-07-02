@@ -4,10 +4,13 @@ from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
 
+import pandas as pd
+
 from aerospace_prognostics.app.api_client import ApiEndpointStatus, ApiServiceStatus
 from aerospace_prognostics.app.streamlit_tabs import (
     render_evidence_tab,
     render_history_tab,
+    render_predict_tab,
     render_registry_tab,
     render_roadmap_tab,
     render_system_tab,
@@ -35,12 +38,14 @@ class _FakeStreamlit:
         self.successes: list[str] = []
         self.errors: list[str] = []
         self.warnings: list[str] = []
+        self.captions: list[str] = []
         self.markdowns: list[str] = []
         self.json_payloads: list[dict[str, Any]] = []
         self.column_groups: list[list[_FakeColumn]] = []
         self.dataframes: list[tuple[Any, dict[str, Any]]] = []
         self.downloads: list[dict[str, Any]] = []
         self.selected_options: dict[str, Any] = {}
+        self.radio_choices: dict[str, Any] = {}
         self.multiselects: list[tuple[str, list[str], list[str]]] = []
         self.text_inputs: dict[str, str] = {}
         self.checkboxes: dict[str, bool] = {}
@@ -70,6 +75,9 @@ class _FakeStreamlit:
     def warning(self, text: str) -> None:
         self.warnings.append(text)
 
+    def caption(self, text: str) -> None:
+        self.captions.append(text)
+
     def markdown(self, text: str) -> None:
         self.markdowns.append(text)
 
@@ -88,6 +96,13 @@ class _FakeStreamlit:
 
     def selectbox(self, label: str, options: list[str], **kwargs: Any) -> str:
         selected = self.selected_options.get(label)
+        if selected is not None:
+            return str(selected)
+        index = int(kwargs.get("index", 0))
+        return str(options[index])
+
+    def radio(self, label: str, options: list[str], **kwargs: Any) -> str:
+        selected = self.radio_choices.get(label)
         if selected is not None:
             return str(selected)
         index = int(kwargs.get("index", 0))
@@ -178,6 +193,83 @@ def test_render_evidence_tab_surfaces_release_evidence(
     assert st.json_payloads[0]["model"] == {"model_name": "hgb_policy"}
     assert st.json_payloads[1]["release"]["gates"] == ["inspection", "smoke"]
     assert st.json_payloads[1]["provenance"] == {"workflow": "ci"}
+
+
+def test_render_predict_tab_runs_local_artifact_and_records_run(
+    tmp_path: Path,
+    monkeypatch: Any,
+) -> None:
+    st = _FakeStreamlit()
+    st.radio_choices["Inference backend"] = "Local artifact"
+    st.buttons["Run Prediction"] = True
+    telemetry_path = tmp_path / "telemetry.csv"
+    telemetry_path.write_text("sample", encoding="utf-8")
+    model_artifact_path = tmp_path / "fd001.joblib"
+    workspace = SimpleNamespace(
+        telemetry_csv_path=telemetry_path,
+        model_artifact_path=model_artifact_path,
+    )
+    telemetry = pd.DataFrame(
+        [
+            {"unit_number": 1, "time_in_cycles": 20, "sensor_1": 0.5},
+            {"unit_number": 2, "time_in_cycles": 25, "sensor_1": 0.7},
+        ]
+    )
+    api_status = ApiServiceStatus(
+        base_url="http://127.0.0.1:8000",
+        health=ApiEndpointStatus(ok=True, status_code=200, payload={"status": "ok"}),
+        readiness=ApiEndpointStatus(ok=False, status_code=503, payload={}),
+    )
+
+    monkeypatch.setattr(
+        "aerospace_prognostics.app.streamlit_tabs._read_telemetry_csv",
+        lambda source: telemetry,
+    )
+    monkeypatch.setattr(
+        "aerospace_prognostics.app.streamlit_tabs.predict_cmapss_telemetry",
+        lambda artifact_path, frame: {
+            "predictions": [{"unit_number": 1, "predicted_rul": 42.0}],
+            "monitoring": {"predictions": {"count": len(frame)}},
+            "artifact": {"artifact_id": Path(artifact_path).stem},
+        },
+    )
+
+    def record_run(
+        database_path: Path,
+        *,
+        telemetry: pd.DataFrame,
+        prediction_document: dict[str, Any],
+        model_artifact_path: Path,
+        source_name: str,
+    ) -> str:
+        assert database_path == tmp_path / "app.sqlite"
+        assert len(telemetry) == 2
+        assert prediction_document["artifact"]["artifact_id"] == "fd001"
+        assert model_artifact_path == workspace.model_artifact_path
+        assert source_name == str(telemetry_path)
+        return "run-local-1"
+
+    monkeypatch.setattr(
+        "aerospace_prognostics.app.streamlit_tabs.record_prediction_run",
+        record_run,
+    )
+
+    render_predict_tab(
+        st,
+        workspace,  # type: ignore[arg-type]
+        tmp_path / "app.sqlite",
+        api_status,
+        api_key="",
+        read_only=False,
+    )
+
+    assert st.subheaders == ["Batch Prediction"]
+    assert st.captions == [f"Using sample telemetry: {telemetry_path}"]
+    assert st.successes == ["Stored local artifact prediction run: run-local-1"]
+    assert st.session_state["selected_prediction_run_id"] == "run-local-1"
+    assert st.dataframes[0][1]["width"] == "stretch"
+    assert st.dataframes[1][1]["width"] == "stretch"
+    assert st.json_payloads == [{"count": 2}]
 
 
 def test_render_registry_tab_surfaces_artifact_review(

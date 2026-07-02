@@ -60,6 +60,8 @@ time, as a real aerospace PHM tool surface. It is not a notebook-only lab demo.
       model-registry renderer contract tests.
 - [x] Streamlit History tab renderer extracted into the focused tab module with
       prediction-run history renderer contract tests.
+- [x] Streamlit Predict tab renderer extracted into the focused tab module with
+      batch-prediction renderer contract tests.
 
 ## Active Workstream
 
