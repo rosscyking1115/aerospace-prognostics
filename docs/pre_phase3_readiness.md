@@ -34,6 +34,11 @@ Current expected blockers before Phase 3:
 - create the private hosted read-only demo URL and capture fresh visual proof
   from that environment.
 
+The setup handoff is tracked in
+[docs/private_hosting_handoff.md](private_hosting_handoff.md). A hosted URL is
+not sufficient by itself; the final audit also requires the hosted proof asset
+passed with `--hosted-demo-proof`.
+
 The current license posture is tracked in
 [docs/license_posture.md](license_posture.md): private review only, not
 open-source licensed yet, and `UNLICENSED` until a public-launch license is

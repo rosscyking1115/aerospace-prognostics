@@ -148,6 +148,8 @@ See [docs/hosted_demo.md](docs/hosted_demo.md).
   license posture before public release.
 - [docs/pre_phase3_readiness.md](docs/pre_phase3_readiness.md): gate for
   finishing launch/productization work before Phase 3.
+- [docs/private_hosting_handoff.md](docs/private_hosting_handoff.md): private
+  hosted-demo setup handoff and proof checklist.
 - [docs/repo_launch_strategy.md](docs/repo_launch_strategy.md): public-launch
   strategy and evidence gaps.
 

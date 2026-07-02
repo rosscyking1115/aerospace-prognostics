@@ -80,6 +80,8 @@ time, as a real aerospace PHM tool surface. It is not a notebook-only lab demo.
       and limitation notes.
 - [x] Pre-Phase-3 readiness audit added to separate repo-local completion gates
       from external launch blockers before new research work starts.
+- [x] Private hosting handoff added with a Render Blueprint path, access-control
+      warning, and final hosted-proof readiness command.
 
 ## Active Workstream
 
@@ -120,7 +122,9 @@ Every active slice should stay small enough to finish with:
         and productization blockers.
 14. [x] Choose the license/posture for public launch or document a private-only
         license decision for the next internal phase.
-15. [ ] Create a private hosted read-only demo URL and capture fresh visual proof
+15. [x] Add a private hosting handoff and tracked Render Blueprint for the
+        read-only demo.
+16. [ ] Create a private hosted read-only demo URL and capture fresh visual proof
         from that environment.
 
 ## Later Milestones

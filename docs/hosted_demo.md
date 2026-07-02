@@ -38,7 +38,8 @@ visitors into database writers.
 
 1. Keep the GitHub repository private until the demo copy, screenshots, and
    license posture are ready for public release.
-2. Build from `Dockerfile.demo`.
+2. Build from `Dockerfile.demo`; for Render, use the tracked root
+   `render.yaml` blueprint.
 3. Set the service port to `8501`.
 4. Use `/_stcore/health` as the health check path.
 5. Keep `AEROSPACE_PROGNOSTICS_CONSOLE_READ_ONLY=true` in the service
@@ -47,6 +48,12 @@ visitors into database writers.
    `/tmp` for framework cache files.
 7. Add platform authentication or an allowlist for private review links.
 8. Rebuild the image whenever the quickstart evidence contract changes.
+
+The operational handoff is tracked in
+[private_hosting_handoff.md](private_hosting_handoff.md). It includes the
+recommended Render Blueprint path, the required access-control warning, and the
+final readiness command that supplies both the protected URL and hosted proof
+asset.
 
 For the fuller local product stack with both FastAPI and Streamlit, use
 `compose.yaml` instead. The demo image is intentionally single-service so it can
