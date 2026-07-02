@@ -9,6 +9,7 @@ import pandas as pd
 from aerospace_prognostics.app.api_client import ApiEndpointStatus, ApiServiceStatus
 from aerospace_prognostics.app.streamlit_tabs import (
     render_evidence_tab,
+    render_fleet_tab,
     render_history_tab,
     render_predict_tab,
     render_registry_tab,
@@ -31,6 +32,14 @@ class _FakeColumn:
         self.metrics.append((label, value))
 
 
+class _FakeExpander:
+    def __enter__(self) -> _FakeExpander:
+        return self
+
+    def __exit__(self, *_args: Any) -> None:
+        return None
+
+
 class _FakeStreamlit:
     def __init__(self) -> None:
         self.subheaders: list[str] = []
@@ -40,9 +49,12 @@ class _FakeStreamlit:
         self.warnings: list[str] = []
         self.captions: list[str] = []
         self.markdowns: list[str] = []
+        self.metrics: list[tuple[str, str]] = []
         self.json_payloads: list[dict[str, Any]] = []
         self.column_groups: list[list[_FakeColumn]] = []
         self.dataframes: list[tuple[Any, dict[str, Any]]] = []
+        self.bar_charts: list[tuple[Any, dict[str, Any]]] = []
+        self.expanders: list[str] = []
         self.downloads: list[dict[str, Any]] = []
         self.selected_options: dict[str, Any] = {}
         self.radio_choices: dict[str, Any] = {}
@@ -81,6 +93,9 @@ class _FakeStreamlit:
     def markdown(self, text: str) -> None:
         self.markdowns.append(text)
 
+    def metric(self, label: str, value: str) -> None:
+        self.metrics.append((label, value))
+
     def json(self, payload: dict[str, Any]) -> None:
         self.json_payloads.append(payload)
 
@@ -93,6 +108,13 @@ class _FakeStreamlit:
 
     def dataframe(self, frame: Any, **kwargs: Any) -> None:
         self.dataframes.append((frame, kwargs))
+
+    def bar_chart(self, data: Any, **kwargs: Any) -> None:
+        self.bar_charts.append((data, kwargs))
+
+    def expander(self, label: str) -> _FakeExpander:
+        self.expanders.append(label)
+        return _FakeExpander()
 
     def selectbox(self, label: str, options: list[str], **kwargs: Any) -> str:
         selected = self.selected_options.get(label)
@@ -270,6 +292,115 @@ def test_render_predict_tab_runs_local_artifact_and_records_run(
     assert st.dataframes[0][1]["width"] == "stretch"
     assert st.dataframes[1][1]["width"] == "stretch"
     assert st.json_payloads == [{"count": 2}]
+
+
+def test_render_fleet_tab_surfaces_registry_and_policy(
+    tmp_path: Path,
+    monkeypatch: Any,
+) -> None:
+    st = _FakeStreamlit()
+    database_path = tmp_path / "app.sqlite"
+    workspace = SimpleNamespace(
+        dashboard_payload={
+            "summary": {
+                "asset_count": 2,
+                "attention_required_count": 1,
+                "risk_counts": {"critical": 1, "watch": 1},
+            },
+            "assets": [
+                {
+                    "priority_rank": 1,
+                    "asset_id": "FD001-unit-1",
+                    "risk_level": "critical",
+                    "predicted_rul": 12.0,
+                    "rul_interval": {"lower": 9.0, "upper": 16.0},
+                    "status": "attention",
+                    "attention_reasons": ["low RUL"],
+                }
+            ],
+        }
+    )
+    registry_assets = [
+        {
+            "last_seen_at_utc": "2026-01-02T00:00:00Z",
+            "asset_id": "FD001-unit-1",
+            "asset_type": "turbofan",
+            "domain": "turbofan",
+            "source_subset": "FD001",
+            "latest_risk_level": "critical",
+            "priority_score": 98.0,
+            "priority_band": "review",
+            "priority_reasons": ["low RUL"],
+            "latest_rul_prediction": 12.0,
+            "latest_rul_lower": 9.0,
+            "latest_rul_upper": 16.0,
+            "latest_status": "attention",
+            "latest_run_id": "run-1",
+            "metadata": {"severity": "critical", "active": True},
+            "latest_attention_reasons": ["low RUL"],
+        }
+    ]
+
+    monkeypatch.setattr(
+        "aerospace_prognostics.app.streamlit_tabs.list_fleet_assets",
+        lambda *_args, **_kwargs: registry_assets,
+    )
+    monkeypatch.setattr(
+        "aerospace_prognostics.app.streamlit_tabs.build_fleet_asset_registry_bundle",
+        lambda *_args, **_kwargs: {
+            "asset_count": 1,
+            "priority_policy": {
+                "review_queue_count": 1,
+                "band_counts": {"review": 1},
+            },
+        },
+    )
+    monkeypatch.setattr(
+        "aerospace_prognostics.app.streamlit_tabs.build_fleet_priority_policy_validation",
+        lambda *_args, **_kwargs: {"overall_status": "passed", "failed_checks": []},
+    )
+    monkeypatch.setattr(
+        "aerospace_prognostics.app.streamlit_tabs."
+        "render_fleet_priority_policy_validation_markdown",
+        lambda payload: f"# Policy {payload['overall_status']}",
+    )
+
+    render_fleet_tab(
+        st,
+        workspace,  # type: ignore[arg-type]
+        database_path,
+        read_only=True,
+        export_dir=tmp_path / "exports",
+        upload_dir=tmp_path / "uploads",
+        display=str,
+        filter_options=lambda rows, key: sorted({str(row[key]) for row in rows if key in row}),
+        json_download_bytes=lambda payload: repr(payload).encode("utf-8"),
+    )
+
+    assert st.subheaders == ["Persisted Asset Registry"]
+    assert st.expanders == ["Spacecraft Event Ingest"]
+    assert len(st.bar_charts) == 1
+    assert len(st.dataframes) == 2
+    assert all(call_kwargs["width"] == "stretch" for _, call_kwargs in st.dataframes)
+    assert [download["label"] for download in st.downloads] == [
+        "Event CSV Template",
+        "Download Assets CSV",
+        "Download Registry JSON",
+        "Download Policy JSON",
+        "Download Policy Markdown",
+    ]
+    metrics = [
+        metric
+        for column_group in st.column_groups
+        for column in column_group
+        for metric in column.metrics
+    ]
+    assert ("Assets", "2") in metrics
+    assert ("Attention", "1") in metrics
+    assert st.metrics == [("Policy Validation", "PASSED")]
+    assert st.captions == [
+        "Priority policy: 1 review-queue assets; bands {'review': 1}; validation passed"
+    ]
 
 
 def test_render_registry_tab_surfaces_artifact_review(
