@@ -73,6 +73,13 @@ uv run aerospace-prognostics phase2-cmapss --data-dir data/raw/cmapss --artifact
 uv run aerospace-prognostics phase2-cmapss-verify-manifest --manifest artifacts/phase2/phase2_run_manifest.json --output-markdown artifacts/phase2/phase2_manifest_audit.md
 ```
 
+## Pre-Phase-3 Readiness
+
+```powershell
+uv run aerospace-prognostics pre-phase3-readiness-audit --output-json artifacts/pre_phase3_readiness.json --output-markdown artifacts/pre_phase3_readiness.md
+uv run aerospace-prognostics pre-phase3-readiness-audit --hosted-demo-url https://PRIVATE_REVIEW_URL --license-decision "private-review-only until public launch license is chosen"
+```
+
 ## SMAP/MSL Spacecraft Anomaly Workflows
 
 ```powershell

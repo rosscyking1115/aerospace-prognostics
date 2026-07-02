@@ -78,6 +78,8 @@ time, as a real aerospace PHM tool surface. It is not a notebook-only lab demo.
       evidence flow, runtime modes, and security controls.
 - [x] Public results summary added with C-MAPSS, SMAP/MSL, deployment-evidence,
       and limitation notes.
+- [x] Pre-Phase-3 readiness audit added to separate repo-local completion gates
+      from external launch blockers before new research work starts.
 
 ## Active Workstream
 
@@ -114,12 +116,17 @@ Every active slice should stay small enough to finish with:
 11. [x] Add a concise public results summary with honest limitations.
 12. [x] Add a combined Phase 2 completion audit command for both manifest-backed
         research tracks.
+13. [x] Add a pre-Phase-3 readiness audit command that reports remaining launch
+        and productization blockers.
+14. [ ] Choose the license/posture for public launch or document a private-only
+        license decision for the next internal phase.
+15. [ ] Create a private hosted read-only demo URL and capture fresh visual proof
+        from that environment.
 
 ## Later Milestones
 
 - [ ] Public-facing packaging:
-      shorter README, launch-ready screenshots, hosted-demo story, and final
-      launch copy.
+      final launch copy and public-hosted proof after the private demo is ready.
 - [ ] Hosted deployment:
       private hosted demo first, then public read-only demo when the repo is
       ready.

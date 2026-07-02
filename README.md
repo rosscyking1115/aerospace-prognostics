@@ -144,6 +144,8 @@ See [docs/hosted_demo.md](docs/hosted_demo.md).
   visuals and evidence-source notes.
 - [docs/project_checklist.md](docs/project_checklist.md): living execution
   checklist.
+- [docs/pre_phase3_readiness.md](docs/pre_phase3_readiness.md): gate for
+  finishing launch/productization work before Phase 3.
 - [docs/repo_launch_strategy.md](docs/repo_launch_strategy.md): public-launch
   strategy and evidence gaps.
 

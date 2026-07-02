@@ -187,6 +187,16 @@ def register_workflow_commands(
     phase2_completion_audit.add_argument("--output-json", type=Path)
     phase2_completion_audit.add_argument("--output-markdown", type=Path)
 
+    pre_phase3_readiness = subparsers.add_parser(
+        "pre-phase3-readiness-audit",
+        help="Audit launch and productization gates before Phase 3 work starts",
+    )
+    pre_phase3_readiness.add_argument("--root", type=Path, default=Path("."))
+    pre_phase3_readiness.add_argument("--hosted-demo-url")
+    pre_phase3_readiness.add_argument("--license-decision")
+    pre_phase3_readiness.add_argument("--output-json", type=Path)
+    pre_phase3_readiness.add_argument("--output-markdown", type=Path)
+
 
 def handle_workflow_command(
     args: argparse.Namespace,
@@ -448,6 +458,34 @@ def handle_workflow_command(
         for track in (audit.cmapss, audit.smap_msl):
             for problem in track.problems:
                 print(f"problem={track.track}: {problem}")
+        return 0 if audit.ok else 1
+
+    if args.command == "pre-phase3-readiness-audit":
+        from aerospace_prognostics.workflows.pre_phase3_readiness import (
+            run_pre_phase3_readiness_audit,
+            write_pre_phase3_readiness_json,
+            write_pre_phase3_readiness_markdown,
+        )
+
+        audit = run_pre_phase3_readiness_audit(
+            args.root,
+            hosted_demo_url=args.hosted_demo_url,
+            license_decision=args.license_decision,
+        )
+        if args.output_json is not None:
+            json_path = write_pre_phase3_readiness_json(audit, args.output_json)
+            print(f"audit_json={json_path}")
+        if args.output_markdown is not None:
+            markdown_path = write_pre_phase3_readiness_markdown(
+                audit,
+                args.output_markdown,
+            )
+            print(f"audit_markdown={markdown_path}")
+        print(f"status={audit.status}")
+        print(f"gates={len(audit.gates)}")
+        print(f"blockers={len(audit.blockers)}")
+        for gate in audit.blockers:
+            print(f"blocker={gate.gate_id}: {gate.next_action}")
         return 0 if audit.ok else 1
 
     return None
