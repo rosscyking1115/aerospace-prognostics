@@ -54,6 +54,8 @@ time, as a real aerospace PHM tool surface. It is not a notebook-only lab demo.
       the prediction-run helper module with direct contract tests.
 - [x] Streamlit System and Roadmap tab renderers extracted from
       `streamlit_app.py` into a focused tab module with renderer contract tests.
+- [x] Streamlit Evidence tab renderer extracted into the focused tab module with
+      release-evidence renderer contract tests.
 
 ## Active Workstream
 

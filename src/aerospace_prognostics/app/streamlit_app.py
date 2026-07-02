@@ -48,6 +48,7 @@ from aerospace_prognostics.app.store import (
     sync_fleet_assets_from_prediction_run,
 )
 from aerospace_prognostics.app.streamlit_tabs import (
+    render_evidence_tab,
     render_roadmap_tab,
     render_system_tab,
 )
@@ -137,7 +138,13 @@ def main() -> None:
     with registry_tab:
         _render_registry_tab(st, database_path, read_only)
     with evidence_tab:
-        _render_evidence_tab(st, workspace, database_path, read_only)
+        render_evidence_tab(
+            st,
+            workspace,
+            database_path,
+            read_only,
+            display=_display,
+        )
     with system_tab:
         render_system_tab(
             st,
@@ -1066,52 +1073,6 @@ def _render_registry_tab(st: Any, database_path: Path, read_only: bool) -> None:
                 "mean_absolute_error": st.column_config.NumberColumn("MAE", format="%.1f"),
                 "content_sha256": st.column_config.TextColumn("Input SHA-256"),
             },
-        )
-
-
-def _render_evidence_tab(
-    st: Any,
-    workspace: QuickstartWorkspace,
-    database_path: Path,
-    read_only: bool,
-) -> None:
-    inspection = workspace.artifact_inspection or {}
-    release_bundle = workspace.release_bundle or {}
-    provenance = workspace.provenance or {}
-    promotion_report = workspace.promotion_report or {}
-    summary = database_summary(database_path, read_only=read_only)
-
-    columns = st.columns(4)
-    identity = inspection.get("artifact_identity")
-    if not isinstance(identity, dict):
-        identity = {}
-    columns[0].metric("Artifact", _display(identity.get("artifact_id")))
-    columns[1].metric("Release", _display(release_bundle.get("status")))
-    columns[2].metric("Promotion", _display(promotion_report.get("status")))
-    columns[3].metric("DB Evidence", _display(summary["release_evidence"]))
-
-    evidence_columns = st.columns(2)
-    with evidence_columns[0]:
-        st.subheader("Artifact Contract")
-        st.json(
-            {
-                "model": inspection.get("model"),
-                "input_contract": inspection.get("input_contract"),
-                "checks": inspection.get("checks"),
-                "uncertainty": inspection.get("uncertainty"),
-            }
-        )
-    with evidence_columns[1]:
-        st.subheader("Release Evidence")
-        st.json(
-            {
-                "release": {
-                    "name": release_bundle.get("release_name"),
-                    "status": release_bundle.get("status"),
-                    "gates": release_bundle.get("gates"),
-                },
-                "provenance": provenance.get("summary"),
-            }
         )
 
 
