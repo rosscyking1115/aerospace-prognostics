@@ -46,6 +46,8 @@ time, as a real aerospace PHM tool surface. It is not a notebook-only lab demo.
       priority policy, model registry review card, anomaly assets, turbofan
       assets, fleet registry, prediction-run helpers, and prediction-run event
       helpers.
+- [x] App database schema/init helpers extracted from `store.py` into a focused
+      database module with direct schema validation tests.
 
 ## Active Workstream
 
@@ -63,7 +65,7 @@ Every active slice should stay small enough to finish with:
 
 ## Next Build Slices
 
-1. [ ] Extract app database schema/init helpers from `store.py`.
+1. [x] Extract app database schema/init helpers from `store.py`.
 2. [ ] Extract release evidence row helpers from `store.py`.
 3. [ ] Extract prediction-run query/report helpers from `store.py`.
 4. [ ] Split Streamlit tabs once store interfaces are stable.
