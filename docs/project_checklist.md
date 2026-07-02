@@ -64,12 +64,14 @@ time, as a real aerospace PHM tool surface. It is not a notebook-only lab demo.
       batch-prediction renderer contract tests.
 - [x] Streamlit Fleet tab renderer extracted into the focused tab module with
       fleet registry and priority-policy renderer contract tests.
+- [x] Public-facing README reshape completed, with detailed research,
+      deployment, and app commands moved into `docs/command_catalog.md`.
 
 ## Active Workstream
 
-- [ ] Continue architecture deepening by extracting app store responsibilities
-      into focused modules while preserving existing CLI, console, and database
-      behavior.
+- [ ] Prepare public-facing proof assets and launch packaging: visual evidence,
+      concise results, and a clean first-run story while keeping the repository
+      private until the demo story is ready.
 
 Every active slice should stay small enough to finish with:
 
@@ -85,7 +87,7 @@ Every active slice should stay small enough to finish with:
 2. [x] Extract release evidence row helpers from `store.py`.
 3. [x] Extract prediction-run query/report helpers from `store.py`.
 4. [x] Continue splitting Streamlit tabs once store interfaces are stable.
-5. [ ] Reshape the public README and move the long command catalog into focused
+5. [x] Reshape the public README and move the long command catalog into focused
        docs.
 6. [ ] Add visual proof assets: console screenshot/GIF plus a prediction or
        anomaly diagnostic plot.
