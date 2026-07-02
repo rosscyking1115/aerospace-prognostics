@@ -70,6 +70,8 @@ time, as a real aerospace PHM tool surface. It is not a notebook-only lab demo.
       quickstart RUL diagnostic plot, and evidence-source documentation.
 - [x] README visual proof replaced with a real read-only Streamlit console
       screenshot captured from local hosted-demo mode.
+- [x] First-run guide added with console-only, local Compose stack, and
+      read-only demo image paths for launch packaging.
 
 ## Active Workstream
 
@@ -98,7 +100,10 @@ Every active slice should stay small enough to finish with:
 7. [x] Replace the static README console proof snapshot with a real read-only
        Streamlit console screenshot after validating the desktop layout.
 8. [ ] Capture a short GIF or fresh screenshot from the actual hosted demo URL
-       once that public environment exists.
+       once that public environment exists. Blocked until the private hosted
+       demo URL is created.
+9. [x] Add a clear first-run guide that tells reviewers when to use the
+       console-only quickstart, local product stack, or read-only demo image.
 
 ## Later Milestones
 

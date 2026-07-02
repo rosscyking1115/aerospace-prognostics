@@ -48,7 +48,9 @@ uv run streamlit run src/aerospace_prognostics/app/streamlit_app.py
 The commands create dashboard, release, provenance, artifact-inspection,
 model-card, validation, benchmark, and SBOM artifacts under
 `artifacts/quickstart_cmapss`, then seed SQLite app state under `artifacts/app`.
-See [docs/quickstart.md](docs/quickstart.md).
+See [docs/first_run.md](docs/first_run.md) for the console-only, Compose, and
+read-only demo paths, or [docs/quickstart.md](docs/quickstart.md) for the
+fixture evidence details.
 
 ## Local Product Stack
 
@@ -74,6 +76,8 @@ See [docs/hosted_demo.md](docs/hosted_demo.md).
 
 ## Repository Map
 
+- [docs/first_run.md](docs/first_run.md): choose the console-only, Compose, or
+  read-only demo first-run path.
 - [docs/quickstart.md](docs/quickstart.md): no-download product quickstart.
 - [docs/deployment.md](docs/deployment.md): model packaging, serving, release
   evidence, and promotion workflow.
