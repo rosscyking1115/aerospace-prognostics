@@ -74,6 +74,8 @@ time, as a real aerospace PHM tool surface. It is not a notebook-only lab demo.
       read-only demo image paths for launch packaging.
 - [x] Architecture guide added with README diagram, system boundaries,
       evidence flow, runtime modes, and security controls.
+- [x] Public results summary added with C-MAPSS, SMAP/MSL, deployment-evidence,
+      and limitation notes.
 
 ## Active Workstream
 
@@ -107,12 +109,13 @@ Every active slice should stay small enough to finish with:
 9. [x] Add a clear first-run guide that tells reviewers when to use the
        console-only quickstart, local product stack, or read-only demo image.
 10. [x] Add a compact README architecture diagram and deeper architecture guide.
+11. [x] Add a concise public results summary with honest limitations.
 
 ## Later Milestones
 
 - [ ] Public-facing packaging:
-      shorter README, public result summary, launch-ready screenshots, and
-      hosted-demo story.
+      shorter README, launch-ready screenshots, hosted-demo story, and final
+      launch copy.
 - [ ] Hosted deployment:
       private hosted demo first, then public read-only demo when the repo is
       ready.

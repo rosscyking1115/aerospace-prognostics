@@ -52,6 +52,22 @@ flowchart LR
 See [docs/architecture.md](docs/architecture.md) for the full system boundary,
 evidence flow, runtime modes, and security controls.
 
+## Current Results
+
+The current deployable RUL leader is the validation-selected C-MAPSS HGB policy.
+On FD001 it reports official-test RMSE `13.012889` and NASA score
+`253.465322`. The strongest deep FD001 row so far is a calibrated Transformer
+with asymmetric late-error loss and monotonic regularization, at RMSE
+`14.246672` and NASA score `271.486206`.
+
+The SMAP/MSL anomaly track currently provides a baseline and alert-policy layer:
+the comparison-ready robust threshold policy lowers mean false-alarm rate from
+`0.187988` to `0.134247` versus the default robust z-score baseline, with mean
+point-wise F1 `0.160525`.
+
+See [docs/public_results.md](docs/public_results.md) for the concise result
+ledger and limitations.
+
 ## Visual Proof
 
 ![Aerospace PHM read-only operations console](docs/assets/public-proof/streamlit_readonly_console.png)
@@ -108,6 +124,8 @@ See [docs/hosted_demo.md](docs/hosted_demo.md).
   read-only demo first-run path.
 - [docs/architecture.md](docs/architecture.md): system boundaries, evidence
   flow, runtime modes, and security controls.
+- [docs/public_results.md](docs/public_results.md): concise benchmark and
+  deployment-evidence summary with limitations.
 - [docs/quickstart.md](docs/quickstart.md): no-download product quickstart.
 - [docs/deployment.md](docs/deployment.md): model packaging, serving, release
   evidence, and promotion workflow.

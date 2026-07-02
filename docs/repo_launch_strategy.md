@@ -84,7 +84,7 @@ Prioritize these features because they differentiate the project from typical C-
 
 - [ ] Keep the repository private until raw data, generated artifacts, and secrets are confirmed absent.
 - [ ] Add a license decision before launch.
-- [ ] Replace the development-heavy README with a public-facing README and move command catalogs into docs.
+- [x] Replace the development-heavy README with a public-facing README and move command catalogs into docs.
 - [x] Add architecture diagram and at least two visual result assets.
 - [x] Add a tiny fixture-based quickstart that runs without downloading NASA/JPL data.
 - [x] Publish one release candidate bundle from CI artifacts and document how to inspect it.
@@ -101,5 +101,5 @@ The next few project steps should serve both the roadmap and the public-launch s
 1. Build the dashboard skeleton against fixture/sample outputs so the user experience exists before final Phase 3 results.
 2. Add uncertainty intervals for the deployable C-MAPSS artifact or the leading Phase 2 model.
 3. Turn the current README command list into focused docs pages.
-4. Add a `docs/public_results.md` page with the current benchmark tables and honest limitations.
+4. Done: add a `docs/public_results.md` page with the current benchmark tables and honest limitations.
 5. Start ESA-ADB integration research before implementing it, because benchmark protocol correctness matters more than model novelty.
