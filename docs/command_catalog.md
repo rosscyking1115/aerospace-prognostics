@@ -87,6 +87,7 @@ uv run aerospace-prognostics smap-msl-lstm-forecast-baseline --data-dir data/raw
 uv run aerospace-prognostics smap-msl-compare-anomaly-results --result-csv artifacts/results/smap_msl_classical_baselines_sample.csv artifacts/results/smap_msl_lstm_forecast_sample.csv artifacts/results/smap_msl_lstm_dynamic_sample.csv --source-labels classical lstm_robust lstm_dynamic --output-csv artifacts/results/smap_msl_anomaly_model_comparison.csv --output-markdown artifacts/results/smap_msl_anomaly_model_comparison.md
 uv run aerospace-prognostics phase2-smap-msl --data-dir data/raw/smap_msl --artifact-dir artifacts/phase2_smap_msl --max-channels 5 --window-size 30 --epochs 10
 uv run aerospace-prognostics phase2-smap-msl-verify-manifest --manifest artifacts/phase2_smap_msl/phase2_smap_msl_run_manifest.json --output-markdown artifacts/phase2_smap_msl/phase2_smap_msl_manifest_audit.md
+uv run aerospace-prognostics phase2-completion-audit --cmapss-manifest artifacts/phase2/phase2_run_manifest.json --smap-msl-manifest artifacts/phase2_smap_msl/phase2_smap_msl_run_manifest.json --output-json artifacts/phase2_completion_audit.json --output-markdown artifacts/phase2_completion_audit.md
 ```
 
 Telemanom's current README points users to the Kaggle-hosted SMAP/MSL archive.

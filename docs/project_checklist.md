@@ -25,6 +25,8 @@ time, as a real aerospace PHM tool surface. It is not a notebook-only lab demo.
       calibration checks.
 - [x] SMAP/MSL spacecraft anomaly baseline workflow with classical, robust,
       Isolation Forest, and LSTM forecast baselines.
+- [x] Combined Phase 2 completion audit for C-MAPSS and SMAP/MSL run manifests,
+      with JSON/Markdown evidence that both track bundles verify together.
 - [x] Production deployment evidence pipeline with model packaging, artifact
       inspection, validation, benchmarking, model cards, SBOM, promotion reports,
       release bundles, and provenance.
@@ -110,6 +112,8 @@ Every active slice should stay small enough to finish with:
        console-only quickstart, local product stack, or read-only demo image.
 10. [x] Add a compact README architecture diagram and deeper architecture guide.
 11. [x] Add a concise public results summary with honest limitations.
+12. [x] Add a combined Phase 2 completion audit command for both manifest-backed
+        research tracks.
 
 ## Later Milestones
 

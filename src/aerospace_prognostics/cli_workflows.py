@@ -177,6 +177,16 @@ def register_workflow_commands(
     phase2_smap_msl_verify.add_argument("--root", type=Path, default=Path("."))
     phase2_smap_msl_verify.add_argument("--output-markdown", type=Path)
 
+    phase2_completion_audit = subparsers.add_parser(
+        "phase2-completion-audit",
+        help="Verify both Phase 2 track manifests and write a combined audit",
+    )
+    phase2_completion_audit.add_argument("--cmapss-manifest", type=Path, required=True)
+    phase2_completion_audit.add_argument("--smap-msl-manifest", type=Path, required=True)
+    phase2_completion_audit.add_argument("--root", type=Path, default=Path("."))
+    phase2_completion_audit.add_argument("--output-json", type=Path)
+    phase2_completion_audit.add_argument("--output-markdown", type=Path)
+
 
 def handle_workflow_command(
     args: argparse.Namespace,
@@ -410,6 +420,35 @@ def handle_workflow_command(
         for problem in result.problems:
             print(f"problem={problem}")
         return 0 if result.ok else 1
+
+    if args.command == "phase2-completion-audit":
+        from aerospace_prognostics.workflows.phase2_completion import (
+            run_phase2_completion_audit,
+            write_phase2_completion_audit_json,
+            write_phase2_completion_audit_markdown,
+        )
+
+        audit = run_phase2_completion_audit(
+            cmapss_manifest=args.cmapss_manifest,
+            smap_msl_manifest=args.smap_msl_manifest,
+            root=args.root,
+        )
+        if args.output_json is not None:
+            json_path = write_phase2_completion_audit_json(audit, args.output_json)
+            print(f"audit_json={json_path}")
+        if args.output_markdown is not None:
+            markdown_path = write_phase2_completion_audit_markdown(
+                audit,
+                args.output_markdown,
+            )
+            print(f"audit_markdown={markdown_path}")
+        print(f"status={audit.status}")
+        print(f"cmapss_artifacts_checked={audit.cmapss.artifacts_checked}")
+        print(f"smap_msl_artifacts_checked={audit.smap_msl.artifacts_checked}")
+        for track in (audit.cmapss, audit.smap_msl):
+            for problem in track.problems:
+                print(f"problem={track.track}: {problem}")
+        return 0 if audit.ok else 1
 
     return None
 
