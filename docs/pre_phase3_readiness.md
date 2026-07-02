@@ -16,14 +16,16 @@ The audit separates two kinds of work:
   proof assets, CI-hosted-demo checks, artifact hygiene, and Phase 2 completion
   evidence;
 - external gates that need a decision or hosted environment, such as a
-  private-review license posture and a private hosted demo URL.
+  private-review license posture plus a private hosted demo URL with fresh
+  visual proof from that environment.
 
-When a private hosted demo URL and internal license posture are available, pass
-them explicitly:
+When a private hosted demo URL, hosted proof asset, and internal license posture
+are available, pass them explicitly:
 
 ```powershell
 uv run aerospace-prognostics pre-phase3-readiness-audit `
   --hosted-demo-url https://PRIVATE_REVIEW_URL `
+  --hosted-demo-proof docs/assets/public-proof/hosted_demo_private_review.png `
   --license-decision "private-review-only until public launch license is chosen"
 ```
 

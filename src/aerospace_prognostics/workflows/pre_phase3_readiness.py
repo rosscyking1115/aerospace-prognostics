@@ -73,6 +73,7 @@ def run_pre_phase3_readiness_audit(
     root: str | Path = ".",
     *,
     hosted_demo_url: str | None = None,
+    hosted_demo_proof: str | Path | None = None,
     license_decision: str | None = None,
 ) -> PrePhase3ReadinessAudit:
     """Audit repo-local and external gates before Phase 3 starts."""
@@ -168,7 +169,7 @@ def run_pre_phase3_readiness_audit(
             "Keep raw data, generated artifacts, and model binaries out of Git.",
         ),
         _license_gate(repo_root, license_decision),
-        _hosted_demo_url_gate(hosted_demo_url),
+        _hosted_demo_gate(repo_root, hosted_demo_url, hosted_demo_proof),
     ]
     return PrePhase3ReadinessAudit(gates=tuple(gates))
 
@@ -328,14 +329,48 @@ def _license_gate(root: Path, license_decision: str | None) -> PrePhase3Readines
     )
 
 
-def _hosted_demo_url_gate(hosted_demo_url: str | None) -> PrePhase3ReadinessGate:
+def _hosted_demo_gate(
+    root: Path,
+    hosted_demo_url: str | None,
+    hosted_demo_proof: str | Path | None,
+) -> PrePhase3ReadinessGate:
+    if hosted_demo_url and hosted_demo_proof:
+        proof_path = Path(hosted_demo_proof)
+        if not proof_path.is_absolute():
+            proof_path = root / proof_path
+        if proof_path.exists():
+            return PrePhase3ReadinessGate(
+                gate_id="private_hosted_demo_url",
+                category="external_deployment",
+                status="ok",
+                evidence=(
+                    f"Private hosted demo URL supplied: {hosted_demo_url}; "
+                    f"proof asset: {proof_path.as_posix()}"
+                ),
+                next_action="No action required.",
+            )
+        return PrePhase3ReadinessGate(
+            gate_id="private_hosted_demo_url",
+            category="external_deployment",
+            status="blocker",
+            evidence=f"Hosted demo proof asset not found: {proof_path.as_posix()}",
+            next_action="Capture a fresh screenshot/GIF from the private hosted demo URL.",
+        )
     if hosted_demo_url:
         return PrePhase3ReadinessGate(
             gate_id="private_hosted_demo_url",
             category="external_deployment",
-            status="ok",
-            evidence=f"Private hosted demo URL supplied: {hosted_demo_url}",
-            next_action="Refresh the hosted-demo screenshot/GIF from this environment.",
+            status="blocker",
+            evidence=f"Private hosted demo URL supplied without proof: {hosted_demo_url}",
+            next_action="Capture a fresh screenshot/GIF from the private hosted demo URL.",
+        )
+    if hosted_demo_proof:
+        return PrePhase3ReadinessGate(
+            gate_id="private_hosted_demo_url",
+            category="external_deployment",
+            status="blocker",
+            evidence=f"Hosted demo proof supplied without URL: {hosted_demo_proof}",
+            next_action="Create the private hosted read-only demo URL.",
         )
     return PrePhase3ReadinessGate(
         gate_id="private_hosted_demo_url",

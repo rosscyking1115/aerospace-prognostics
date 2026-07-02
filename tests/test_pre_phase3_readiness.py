@@ -55,6 +55,8 @@ def test_pre_phase3_readiness_cli_can_pass_with_external_gate_inputs(
 ) -> None:
     output_json = tmp_path / "pre_phase3_ready.json"
     output_markdown = tmp_path / "pre_phase3_ready.md"
+    hosted_proof = tmp_path / "hosted_demo_proof.png"
+    hosted_proof.write_bytes(b"not a real png but enough for path evidence")
 
     exit_code = main(
         [
@@ -63,6 +65,8 @@ def test_pre_phase3_readiness_cli_can_pass_with_external_gate_inputs(
             str(_repo_root()),
             "--hosted-demo-url",
             "https://private-demo.example.invalid",
+            "--hosted-demo-proof",
+            str(hosted_proof),
             "--license-decision",
             "private-review-only until public launch license is chosen",
             "--output-json",
@@ -80,6 +84,38 @@ def test_pre_phase3_readiness_cli_can_pass_with_external_gate_inputs(
     assert "blockers=0" in output
     assert json.loads(output_json.read_text(encoding="utf-8"))["status"] == "ready"
     assert "- Status: ready" in output_markdown.read_text(encoding="utf-8")
+
+
+def test_pre_phase3_readiness_cli_requires_hosted_demo_proof_with_url(
+    tmp_path,
+    capsys,
+) -> None:
+    output_json = tmp_path / "pre_phase3_not_ready.json"
+
+    exit_code = main(
+        [
+            "pre-phase3-readiness-audit",
+            "--root",
+            str(_repo_root()),
+            "--hosted-demo-url",
+            "https://private-demo.example.invalid",
+            "--output-json",
+            str(output_json),
+        ]
+    )
+    output = capsys.readouterr().out
+
+    assert exit_code == 1
+    assert "status=not_ready" in output
+    assert "blockers=1" in output
+    payload = json.loads(output_json.read_text(encoding="utf-8"))
+    hosted_gate = next(
+        gate
+        for gate in payload["gates"]
+        if gate["gate_id"] == "private_hosted_demo_url"
+    )
+    assert hosted_gate["status"] == "blocker"
+    assert "without proof" in hosted_gate["evidence"]
 
 
 def _repo_root() -> Path:

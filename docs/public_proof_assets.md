@@ -56,5 +56,6 @@ read-only console before making the repository public.
 - These assets are public proof assets, not certification evidence.
 - The Streamlit screenshot is captured from local read-only hosted-demo mode, not
   from a public hosted URL.
-- Before public launch, capture a short GIF or fresh screenshot from the actual
-  hosted demo URL once that environment exists.
+- Before Phase 3 readiness is marked complete, capture a short GIF or fresh
+  screenshot from the private hosted demo URL and pass it to
+  `pre-phase3-readiness-audit` with `--hosted-demo-proof`.

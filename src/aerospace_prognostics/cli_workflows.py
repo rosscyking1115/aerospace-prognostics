@@ -193,6 +193,7 @@ def register_workflow_commands(
     )
     pre_phase3_readiness.add_argument("--root", type=Path, default=Path("."))
     pre_phase3_readiness.add_argument("--hosted-demo-url")
+    pre_phase3_readiness.add_argument("--hosted-demo-proof", type=Path)
     pre_phase3_readiness.add_argument("--license-decision")
     pre_phase3_readiness.add_argument("--output-json", type=Path)
     pre_phase3_readiness.add_argument("--output-markdown", type=Path)
@@ -470,6 +471,7 @@ def handle_workflow_command(
         audit = run_pre_phase3_readiness_audit(
             args.root,
             hosted_demo_url=args.hosted_demo_url,
+            hosted_demo_proof=args.hosted_demo_proof,
             license_decision=args.license_decision,
         )
         if args.output_json is not None:
