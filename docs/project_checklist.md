@@ -72,6 +72,8 @@ time, as a real aerospace PHM tool surface. It is not a notebook-only lab demo.
       screenshot captured from local hosted-demo mode.
 - [x] First-run guide added with console-only, local Compose stack, and
       read-only demo image paths for launch packaging.
+- [x] Architecture guide added with README diagram, system boundaries,
+      evidence flow, runtime modes, and security controls.
 
 ## Active Workstream
 
@@ -104,12 +106,13 @@ Every active slice should stay small enough to finish with:
        demo URL is created.
 9. [x] Add a clear first-run guide that tells reviewers when to use the
        console-only quickstart, local product stack, or read-only demo image.
+10. [x] Add a compact README architecture diagram and deeper architecture guide.
 
 ## Later Milestones
 
 - [ ] Public-facing packaging:
-      shorter README, public result summary, architecture diagram, launch-ready
-      screenshots, and clear first-run path.
+      shorter README, public result summary, launch-ready screenshots, and
+      hosted-demo story.
 - [ ] Hosted deployment:
       private hosted demo first, then public read-only demo when the repo is
       ready.

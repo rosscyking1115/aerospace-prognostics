@@ -24,6 +24,34 @@ Management workflows.
 - Supports Docker Compose for a local API plus console product stack, and a
   read-only hosted-demo image path with baked-in quickstart evidence.
 
+## Architecture
+
+```mermaid
+flowchart LR
+    data["Telemetry or fixture data"]
+    research["Research CLIs"]
+    artifact["Model artifact"]
+    evidence["Validation, SBOM, release bundle, provenance"]
+    api["FastAPI service"]
+    console["Streamlit console"]
+    db[("SQLite app state")]
+    demo["Read-only demo image"]
+
+    data --> research
+    research --> artifact
+    research --> evidence
+    artifact --> api
+    artifact --> console
+    evidence --> console
+    api --> console
+    console --> db
+    artifact --> demo
+    evidence --> demo
+```
+
+See [docs/architecture.md](docs/architecture.md) for the full system boundary,
+evidence flow, runtime modes, and security controls.
+
 ## Visual Proof
 
 ![Aerospace PHM read-only operations console](docs/assets/public-proof/streamlit_readonly_console.png)
@@ -78,6 +106,8 @@ See [docs/hosted_demo.md](docs/hosted_demo.md).
 
 - [docs/first_run.md](docs/first_run.md): choose the console-only, Compose, or
   read-only demo first-run path.
+- [docs/architecture.md](docs/architecture.md): system boundaries, evidence
+  flow, runtime modes, and security controls.
 - [docs/quickstart.md](docs/quickstart.md): no-download product quickstart.
 - [docs/deployment.md](docs/deployment.md): model packaging, serving, release
   evidence, and promotion workflow.
