@@ -24,6 +24,15 @@ Management workflows.
 - Supports Docker Compose for a local API plus console product stack, and a
   read-only hosted-demo image path with baked-in quickstart evidence.
 
+## Visual Proof
+
+![Aerospace PHM operations console snapshot](docs/assets/public-proof/fleet_console_snapshot.svg)
+
+The tracked public proof set includes this console snapshot and a quickstart RUL
+diagnostic plot in [docs/public_proof_assets.md](docs/public_proof_assets.md).
+They summarize the no-download quickstart evidence while the repository remains
+private.
+
 ## Run This First
 
 The no-download quickstart uses tiny fixture data to generate a complete local
@@ -79,6 +88,8 @@ See [docs/hosted_demo.md](docs/hosted_demo.md).
   SMAP/MSL anomaly experiments.
 - [docs/command_catalog.md](docs/command_catalog.md): detailed research,
   deployment, and app command catalog.
+- [docs/public_proof_assets.md](docs/public_proof_assets.md): launch proof
+  visuals and evidence-source notes.
 - [docs/project_checklist.md](docs/project_checklist.md): living execution
   checklist.
 - [docs/repo_launch_strategy.md](docs/repo_launch_strategy.md): public-launch

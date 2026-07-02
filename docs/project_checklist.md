@@ -66,6 +66,8 @@ time, as a real aerospace PHM tool surface. It is not a notebook-only lab demo.
       fleet registry and priority-policy renderer contract tests.
 - [x] Public-facing README reshape completed, with detailed research,
       deployment, and app commands moved into `docs/command_catalog.md`.
+- [x] Initial public proof assets added with a tracked console snapshot,
+      quickstart RUL diagnostic plot, and evidence-source documentation.
 
 ## Active Workstream
 
@@ -89,8 +91,10 @@ Every active slice should stay small enough to finish with:
 4. [x] Continue splitting Streamlit tabs once store interfaces are stable.
 5. [x] Reshape the public README and move the long command catalog into focused
        docs.
-6. [ ] Add visual proof assets: console screenshot/GIF plus a prediction or
-       anomaly diagnostic plot.
+6. [x] Add initial visual proof assets: static console proof snapshot plus a
+       prediction diagnostic plot.
+7. [ ] Replace the static console proof snapshot with a real hosted read-only
+       demo screenshot or short GIF after layout polish.
 
 ## Later Milestones
 
