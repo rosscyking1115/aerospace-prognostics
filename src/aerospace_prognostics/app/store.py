@@ -90,6 +90,12 @@ from aerospace_prognostics.app.priority_policy import (
 from aerospace_prognostics.app.priority_policy import (
     render_fleet_priority_policy_validation_markdown,
 )
+from aerospace_prognostics.app.release_evidence import (
+    evidence_from_row as _evidence_from_row,
+)
+from aerospace_prognostics.app.release_evidence import (
+    release_evidence_record as _release_evidence_record,
+)
 from aerospace_prognostics.app.turbofan_assets import (
     turbofan_asset_attention_reasons as _turbofan_asset_attention_reasons,
 )
@@ -1883,8 +1889,13 @@ def _insert_release_evidence(
     payload: dict[str, Any],
     timestamp: str,
 ) -> int:
-    evidence_id = f"{evidence_type}:{artifact_id}:{_file_sha256(path)}"
-    status = payload.get("status") if isinstance(payload.get("status"), str) else None
+    evidence = _release_evidence_record(
+        artifact_id=artifact_id,
+        evidence_type=evidence_type,
+        path=path,
+        payload=payload,
+        timestamp=timestamp,
+    )
     cursor = connection.execute(
         """
         insert into release_evidence (
@@ -1900,13 +1911,13 @@ def _insert_release_evidence(
         on conflict(evidence_id) do nothing
         """,
         (
-            evidence_id,
-            artifact_id,
-            evidence_type,
-            str(path),
-            status,
-            _json_dumps(payload),
-            timestamp,
+            evidence["evidence_id"],
+            evidence["artifact_id"],
+            evidence["evidence_type"],
+            evidence["source_path"],
+            evidence["status"],
+            evidence["payload_json"],
+            evidence["created_at_utc"],
         ),
     )
     return max(0, cursor.rowcount)
@@ -1965,12 +1976,6 @@ def _optional_bool(value: Any) -> bool:
     if isinstance(value, (int, float)):
         return bool(value)
     return str(value).strip().lower() in {"1", "true", "yes", "y", "active", "anomaly"}
-
-
-def _evidence_from_row(row: sqlite3.Row) -> dict[str, Any]:
-    evidence = dict(row)
-    evidence["payload"] = _json_loads(evidence.pop("payload_json"))
-    return evidence
 
 
 def _drift_alert_count(monitoring: Any) -> int:
