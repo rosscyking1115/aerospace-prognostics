@@ -73,7 +73,16 @@ from aerospace_prognostics.app.prediction_runs import (
     prediction_rows as _prediction_rows,
 )
 from aerospace_prognostics.app.prediction_runs import (
+    prediction_run_detail as _prediction_run_detail,
+)
+from aerospace_prognostics.app.prediction_runs import (
     prediction_run_event_record as _prediction_run_event_record,
+)
+from aerospace_prognostics.app.prediction_runs import (
+    prediction_run_export_summary as _prediction_run_export_summary,
+)
+from aerospace_prognostics.app.prediction_runs import (
+    run_summary_from_row as _run_summary_from_row,
 )
 from aerospace_prognostics.app.prediction_runs import (
     with_interval_availability as _with_interval_availability,
@@ -1213,13 +1222,11 @@ def load_prediction_run(
             """,
             (run_id,),
         ).fetchall()
-    run = dict(run_row)
-    run["monitoring"] = _json_loads(run.pop("monitoring_json"))
-    return {
-        "run": run,
-        "predictions": [dict(row) for row in prediction_rows],
-        "audit_events": [_event_from_row(row) for row in event_rows],
-    }
+    return _prediction_run_detail(
+        run_row=run_row,
+        prediction_rows=prediction_rows,
+        event_rows=event_rows,
+    )
 
 
 def export_prediction_run_evidence(
@@ -1244,18 +1251,15 @@ def export_prediction_run_evidence(
     pd.DataFrame(predictions).to_csv(predictions_path, index=False)
     manifest["files"]["predictions_csv"]["sha256"] = _file_sha256(predictions_path)
     write_json_payload(manifest, evidence_path, default=str)
-    outcome_count = sum(1 for row in predictions if row.get("actual_rul") is not None)
-    return {
-        "run_id": run_id,
-        "output_dir": str(export_dir),
-        "evidence_json": str(evidence_path),
-        "evidence_sha256": _file_sha256(evidence_path),
-        "predictions_csv": str(predictions_path),
-        "predictions_sha256": _file_sha256(predictions_path),
-        "prediction_count": len(predictions),
-        "outcome_count": outcome_count,
-        "audit_event_count": len(manifest["audit_events"]),
-    }
+    return _prediction_run_export_summary(
+        run_id=run_id,
+        output_dir=export_dir,
+        evidence_json_path=evidence_path,
+        evidence_sha256=_file_sha256(evidence_path),
+        predictions_csv_path=predictions_path,
+        predictions_sha256=_file_sha256(predictions_path),
+        manifest=manifest,
+    )
 
 
 def build_prediction_run_evidence(
@@ -1939,13 +1943,6 @@ def _artifact_id_from_inspection(inspection: dict[str, Any], artifact_path: Path
     return f"artifact-{_sha256_text(str(artifact_path))[:16]}"
 
 
-def _run_summary_from_row(row: sqlite3.Row) -> dict[str, Any]:
-    result = dict(row)
-    monitoring = _json_loads(result.pop("monitoring_json"))
-    result["drift_alert_count"] = _drift_alert_count(monitoring)
-    return _with_interval_availability(result)
-
-
 def _optional_float(value: Any) -> float | None:
     if value is None:
         return None
@@ -1976,21 +1973,6 @@ def _optional_bool(value: Any) -> bool:
     if isinstance(value, (int, float)):
         return bool(value)
     return str(value).strip().lower() in {"1", "true", "yes", "y", "active", "anomaly"}
-
-
-def _drift_alert_count(monitoring: Any) -> int:
-    if not isinstance(monitoring, dict):
-        return 0
-    drift = monitoring.get("drift")
-    if not isinstance(drift, dict):
-        return 0
-    alert_columns = drift.get("alert_columns")
-    if isinstance(alert_columns, list):
-        return len(alert_columns)
-    alerts = drift.get("alerts")
-    if isinstance(alerts, list):
-        return len(alerts)
-    return 0
 
 
 def _dataframe_sha256(frame: pd.DataFrame) -> str:

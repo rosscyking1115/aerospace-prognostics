@@ -73,6 +73,59 @@ def event_from_row(row: Any) -> dict[str, Any]:
     return event
 
 
+def run_summary_from_row(row: Any) -> dict[str, Any]:
+    """Convert a prediction-run aggregate DB row into the console list contract."""
+
+    result = dict(row)
+    monitoring = _json_loads(result.pop("monitoring_json"))
+    result["drift_alert_count"] = _drift_alert_count(monitoring)
+    return with_interval_availability(result)
+
+
+def prediction_run_detail(
+    *,
+    run_row: Any,
+    prediction_rows: list[Any],
+    event_rows: list[Any],
+) -> dict[str, Any]:
+    """Build the loaded prediction-run contract from persisted DB rows."""
+
+    run = dict(run_row)
+    run["monitoring"] = _json_loads(run.pop("monitoring_json"))
+    return {
+        "run": run,
+        "predictions": [dict(row) for row in prediction_rows],
+        "audit_events": [event_from_row(row) for row in event_rows],
+    }
+
+
+def prediction_run_export_summary(
+    *,
+    run_id: str,
+    output_dir: str | Path,
+    evidence_json_path: str | Path,
+    evidence_sha256: str,
+    predictions_csv_path: str | Path,
+    predictions_sha256: str,
+    manifest: dict[str, Any],
+) -> dict[str, Any]:
+    """Build the export result summary returned by the app-store API."""
+
+    predictions = list(manifest["predictions"])
+    outcome_count = sum(1 for row in predictions if row.get("actual_rul") is not None)
+    return {
+        "run_id": run_id,
+        "output_dir": str(Path(output_dir)),
+        "evidence_json": str(Path(evidence_json_path)),
+        "evidence_sha256": evidence_sha256,
+        "predictions_csv": str(Path(predictions_csv_path)),
+        "predictions_sha256": predictions_sha256,
+        "prediction_count": len(predictions),
+        "outcome_count": outcome_count,
+        "audit_event_count": len(manifest["audit_events"]),
+    }
+
+
 def outcome_rows(outcomes: pd.DataFrame) -> list[dict[str, Any]]:
     """Validate and normalize observed RUL outcome rows."""
 
@@ -181,6 +234,21 @@ def _optional_int(value: Any) -> int | None:
         return int(value)
     except (TypeError, ValueError):
         return None
+
+
+def _drift_alert_count(monitoring: Any) -> int:
+    if not isinstance(monitoring, dict):
+        return 0
+    drift = monitoring.get("drift")
+    if not isinstance(drift, dict):
+        return 0
+    alert_columns = drift.get("alert_columns")
+    if isinstance(alert_columns, list):
+        return len(alert_columns)
+    alerts = drift.get("alerts")
+    if isinstance(alerts, list):
+        return len(alerts)
+    return 0
 
 
 def _sha256_text(text: str) -> str:

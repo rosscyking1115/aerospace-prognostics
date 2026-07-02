@@ -50,6 +50,8 @@ time, as a real aerospace PHM tool surface. It is not a notebook-only lab demo.
       database module with direct schema validation tests.
 - [x] Release evidence row helpers extracted from `store.py` into a focused
       release-evidence module with direct row-building tests.
+- [x] Prediction-run query/report shaping helpers extracted from `store.py` into
+      the prediction-run helper module with direct contract tests.
 
 ## Active Workstream
 
@@ -69,7 +71,7 @@ Every active slice should stay small enough to finish with:
 
 1. [x] Extract app database schema/init helpers from `store.py`.
 2. [x] Extract release evidence row helpers from `store.py`.
-3. [ ] Extract prediction-run query/report helpers from `store.py`.
+3. [x] Extract prediction-run query/report helpers from `store.py`.
 4. [ ] Split Streamlit tabs once store interfaces are stable.
 5. [ ] Reshape the public README and move the long command catalog into focused
        docs.

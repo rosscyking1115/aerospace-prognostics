@@ -12,7 +12,10 @@ from aerospace_prognostics.app.prediction_runs import (
     outcome_rows,
     outcome_template_frame,
     prediction_rows,
+    prediction_run_detail,
     prediction_run_event_record,
+    prediction_run_export_summary,
+    run_summary_from_row,
     with_interval_availability,
 )
 
@@ -186,6 +189,62 @@ def test_with_interval_availability_tolerates_invalid_count_values() -> None:
     assert enriched["outcome_interval_coverage_rate"] is None
 
 
+def test_run_summary_from_row_decodes_monitoring_and_rates() -> None:
+    summary = run_summary_from_row(
+        {
+            "run_id": "run-1",
+            "prediction_count": 4,
+            "interval_count": 2,
+            "outcome_count": 1,
+            "interval_outcome_count": 1,
+            "interval_covered_count": 1,
+            "monitoring_json": '{"drift":{"alert_columns":["sensor_2","sensor_7"]}}',
+        }
+    )
+
+    assert summary["drift_alert_count"] == 2
+    assert summary["interval_availability_rate"] == 0.5
+    assert summary["outcome_availability_rate"] == 0.25
+    assert summary["outcome_interval_coverage_rate"] == 1.0
+    assert "monitoring_json" not in summary
+
+
+def test_prediction_run_detail_decodes_run_and_audit_events() -> None:
+    detail = prediction_run_detail(
+        run_row={
+            "run_id": "run-1",
+            "monitoring_json": '{"drift":{"alerts":["sensor drift"]}}',
+        },
+        prediction_rows=[
+            {"unit_number": 1, "predicted_rul": 10.0},
+            {"unit_number": 2, "predicted_rul": 20.0},
+        ],
+        event_rows=[
+            {
+                "event_id": "event-1",
+                "event_type": "operator_decision",
+                "payload_json": '{"decision":"accepted"}',
+            }
+        ],
+    )
+
+    assert detail["run"] == {
+        "run_id": "run-1",
+        "monitoring": {"drift": {"alerts": ["sensor drift"]}},
+    }
+    assert detail["predictions"] == [
+        {"unit_number": 1, "predicted_rul": 10.0},
+        {"unit_number": 2, "predicted_rul": 20.0},
+    ]
+    assert detail["audit_events"] == [
+        {
+            "event_id": "event-1",
+            "event_type": "operator_decision",
+            "payload": {"decision": "accepted"},
+        }
+    ]
+
+
 def test_build_prediction_run_evidence_payload_preserves_loaded_run_contract() -> None:
     payload = build_prediction_run_evidence_payload(
         database_path="app.sqlite",
@@ -208,6 +267,36 @@ def test_build_prediction_run_evidence_payload_preserves_loaded_run_contract() -
     assert payload["files"]["predictions_csv"] == {
         "rows": 1,
         "path": str(Path("exports/run-1.csv")),
+    }
+
+
+def test_prediction_run_export_summary_counts_predictions_and_outcomes() -> None:
+    summary = prediction_run_export_summary(
+        run_id="run-1",
+        output_dir="exports",
+        evidence_json_path="exports/run-1_evidence.json",
+        evidence_sha256="evidence-sha",
+        predictions_csv_path="exports/run-1_predictions.csv",
+        predictions_sha256="predictions-sha",
+        manifest={
+            "predictions": [
+                {"unit_number": 1, "actual_rul": 9.0},
+                {"unit_number": 2, "actual_rul": None},
+            ],
+            "audit_events": [{"event_id": "event-1"}],
+        },
+    )
+
+    assert summary == {
+        "run_id": "run-1",
+        "output_dir": str(Path("exports")),
+        "evidence_json": str(Path("exports/run-1_evidence.json")),
+        "evidence_sha256": "evidence-sha",
+        "predictions_csv": str(Path("exports/run-1_predictions.csv")),
+        "predictions_sha256": "predictions-sha",
+        "prediction_count": 2,
+        "outcome_count": 1,
+        "audit_event_count": 1,
     }
 
 
