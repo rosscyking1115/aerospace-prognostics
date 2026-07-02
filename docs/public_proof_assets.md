@@ -6,14 +6,21 @@ evidence rather than raw telemetry or generated model binaries.
 
 ## Assets
 
+![Read-only Streamlit console](assets/public-proof/streamlit_readonly_console.png)
+
+The read-only console screenshot was captured from the local Streamlit console
+with `AEROSPACE_PROGNOSTICS_CONSOLE_READ_ONLY=true`. It shows quickstart
+evidence loaded, the fleet triage table, critical RUL intervals, and the
+read-only sidebar state used by the hosted-demo image.
+
 ![Fleet console snapshot](assets/public-proof/fleet_console_snapshot.svg)
 
-The fleet console snapshot summarizes
+The static fleet console snapshot summarizes
 `artifacts/quickstart_cmapss/dashboard/fleet_payload.json` and
 `artifacts/quickstart_cmapss/models/fd001_benchmark.json`. It shows the product
 story we want reviewers and future users to understand quickly: a PHM operations
 surface with fleet triage, release gates, artifact identity, and latency
-evidence.
+evidence. It stays as a compact fallback asset for surfaces that prefer SVG.
 
 ![Quickstart RUL diagnostic](assets/public-proof/quickstart_rul_diagnostic.svg)
 
@@ -31,13 +38,23 @@ Use the quickstart command to regenerate the source evidence:
 uv run aerospace-prognostics quickstart-cmapss-demo
 ```
 
-Then refresh the visual proof assets from the regenerated quickstart payloads
-before making the repository public.
+To refresh the Streamlit screenshot, run the console in read-only mode and
+capture the Fleet tab:
+
+```bash
+AEROSPACE_PROGNOSTICS_CONSOLE_READ_ONLY=true \
+uv run streamlit run src/aerospace_prognostics/app/streamlit_app.py \
+  --server.port 8503 \
+  --server.headless true
+```
+
+Then refresh the visual proof assets from the regenerated quickstart payloads and
+read-only console before making the repository public.
 
 ## Current Limits
 
 - These assets are public proof assets, not certification evidence.
-- The screenshot-style console asset is a curated static snapshot from quickstart
-  evidence; the live Streamlit console remains the professional review surface.
-- Before public launch, capture a real hosted console screenshot or short GIF
-  from the read-only demo image and replace the static console snapshot.
+- The Streamlit screenshot is captured from local read-only hosted-demo mode, not
+  from a public hosted URL.
+- Before public launch, capture a short GIF or fresh screenshot from the actual
+  hosted demo URL once that environment exists.

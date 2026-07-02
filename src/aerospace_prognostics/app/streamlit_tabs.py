@@ -269,21 +269,28 @@ def render_fleet_tab(
             "Risk",
             ["critical", "watch", "nominal", "unknown"],
             default=[],
+            key="fleet_registry_risk_filter",
         )
     with filter_columns[1]:
         selected_domains = st.multiselect(
             "Domain",
             filter_options(all_registry_assets, "domain"),
             default=[],
+            key="fleet_registry_domain_filter",
         )
     with filter_columns[2]:
         selected_statuses = st.multiselect(
             "Status",
             filter_options(all_registry_assets, "latest_status"),
             default=[],
+            key="fleet_registry_status_filter",
         )
     with filter_columns[3]:
-        attention_only = st.checkbox("Attention Only", value=False)
+        attention_only = st.checkbox(
+            "Attention Only",
+            value=False,
+            key="fleet_registry_attention_only_filter",
+        )
     assets_registry = list_fleet_assets(
         database_path,
         limit=100,
@@ -575,35 +582,55 @@ def render_history_tab(
             "Model",
             filter_options(all_runs, "model_name"),
             default=[],
+            key="history_model_filter",
         )
     with filter_columns[1]:
         selected_artifacts = st.multiselect(
             "Artifact",
             filter_options(all_runs, "artifact_id"),
             default=[],
+            key="history_artifact_filter",
         )
     with filter_columns[2]:
         selected_risks = st.multiselect(
             "Risk",
             ["critical", "watch", "nominal", "unknown"],
             default=[],
+            key="history_risk_filter",
         )
     with filter_columns[3]:
         selected_decisions = st.multiselect(
             "Decision",
             filter_options(all_runs, "decision_status"),
             default=[],
+            key="history_decision_filter",
         )
 
     advanced_columns = st.columns([1, 1, 1, 1])
     with advanced_columns[0]:
-        asset_filter_text = st.text_input("Asset", value="")
+        asset_filter_text = st.text_input(
+            "Asset",
+            value="",
+            key="history_asset_filter",
+        )
     with advanced_columns[1]:
-        start_date = st.text_input("Created From", value="")
+        start_date = st.text_input(
+            "Created From",
+            value="",
+            key="history_created_from_filter",
+        )
     with advanced_columns[2]:
-        end_date = st.text_input("Created To", value="")
+        end_date = st.text_input(
+            "Created To",
+            value="",
+            key="history_created_to_filter",
+        )
     with advanced_columns[3]:
-        drift_only = st.checkbox("Drift Only", value=False)
+        drift_only = st.checkbox(
+            "Drift Only",
+            value=False,
+            key="history_drift_only_filter",
+        )
 
     selected_assets = _csv_filter_values(asset_filter_text)
     runs = list_prediction_runs(

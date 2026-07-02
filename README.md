@@ -26,12 +26,12 @@ Management workflows.
 
 ## Visual Proof
 
-![Aerospace PHM operations console snapshot](docs/assets/public-proof/fleet_console_snapshot.svg)
+![Aerospace PHM read-only operations console](docs/assets/public-proof/streamlit_readonly_console.png)
 
-The tracked public proof set includes this console snapshot and a quickstart RUL
-diagnostic plot in [docs/public_proof_assets.md](docs/public_proof_assets.md).
-They summarize the no-download quickstart evidence while the repository remains
-private.
+The tracked public proof set includes this read-only Streamlit console screenshot
+and a quickstart RUL diagnostic plot in
+[docs/public_proof_assets.md](docs/public_proof_assets.md). They summarize the
+no-download quickstart evidence while the repository remains private.
 
 ## Run This First
 

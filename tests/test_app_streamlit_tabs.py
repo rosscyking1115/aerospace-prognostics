@@ -58,9 +58,10 @@ class _FakeStreamlit:
         self.downloads: list[dict[str, Any]] = []
         self.selected_options: dict[str, Any] = {}
         self.radio_choices: dict[str, Any] = {}
-        self.multiselects: list[tuple[str, list[str], list[str]]] = []
+        self.multiselects: list[tuple[str, list[str], list[str], str | None]] = []
         self.text_inputs: dict[str, str] = {}
         self.checkboxes: dict[str, bool] = {}
+        self.widget_keys: list[str] = []
         self.buttons: dict[str, bool] = {}
         self.uploads: dict[str, Any] = {}
         self.session_state: dict[str, Any] = {}
@@ -135,15 +136,25 @@ class _FakeStreamlit:
         label: str,
         options: list[str],
         default: list[str] | None = None,
+        **kwargs: Any,
     ) -> list[str]:
         values = list(default or [])
-        self.multiselects.append((label, options, values))
+        key = kwargs.get("key")
+        if key is not None:
+            self.widget_keys.append(str(key))
+        self.multiselects.append((label, options, values, str(key) if key else None))
         return values
 
     def text_input(self, label: str, value: str = "", **_kwargs: Any) -> str:
+        key = _kwargs.get("key")
+        if key is not None:
+            self.widget_keys.append(str(key))
         return self.text_inputs.get(label, value)
 
     def checkbox(self, label: str, value: bool = False, **_kwargs: Any) -> bool:
+        key = _kwargs.get("key")
+        if key is not None:
+            self.widget_keys.append(str(key))
         return self.checkboxes.get(label, value)
 
     def file_uploader(self, label: str, **_kwargs: Any) -> Any:
@@ -401,6 +412,12 @@ def test_render_fleet_tab_surfaces_registry_and_policy(
     assert st.captions == [
         "Priority policy: 1 review-queue assets; bands {'review': 1}; validation passed"
     ]
+    assert {
+        "fleet_registry_risk_filter",
+        "fleet_registry_domain_filter",
+        "fleet_registry_status_filter",
+        "fleet_registry_attention_only_filter",
+    }.issubset(st.widget_keys)
 
 
 def test_render_registry_tab_surfaces_artifact_review(
@@ -644,6 +661,16 @@ def test_render_history_tab_surfaces_prediction_run_evidence(
     assert ("Dataset", "C-MAPSS") in metrics
     assert st.json_payloads[0]["run_id"] == run_id
     assert st.json_payloads[1] == {"drift": {"alerts": 0}}
+    assert {
+        "history_model_filter",
+        "history_artifact_filter",
+        "history_risk_filter",
+        "history_decision_filter",
+        "history_asset_filter",
+        "history_created_from_filter",
+        "history_created_to_filter",
+        "history_drift_only_filter",
+    }.issubset(st.widget_keys)
 
 
 def test_render_system_tab_surfaces_api_and_local_state(

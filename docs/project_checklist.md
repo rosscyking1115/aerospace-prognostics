@@ -68,6 +68,8 @@ time, as a real aerospace PHM tool surface. It is not a notebook-only lab demo.
       deployment, and app commands moved into `docs/command_catalog.md`.
 - [x] Initial public proof assets added with a tracked console snapshot,
       quickstart RUL diagnostic plot, and evidence-source documentation.
+- [x] README visual proof replaced with a real read-only Streamlit console
+      screenshot captured from local hosted-demo mode.
 
 ## Active Workstream
 
@@ -93,8 +95,10 @@ Every active slice should stay small enough to finish with:
        docs.
 6. [x] Add initial visual proof assets: static console proof snapshot plus a
        prediction diagnostic plot.
-7. [ ] Replace the static console proof snapshot with a real hosted read-only
-       demo screenshot or short GIF after layout polish.
+7. [x] Replace the static README console proof snapshot with a real read-only
+       Streamlit console screenshot after validating the desktop layout.
+8. [ ] Capture a short GIF or fresh screenshot from the actual hosted demo URL
+       once that public environment exists.
 
 ## Later Milestones
 
