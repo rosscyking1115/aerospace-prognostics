@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import hashlib
+import json
 from pathlib import Path
 from typing import Any
 
@@ -26,6 +28,49 @@ def prediction_rows(prediction_document: dict[str, Any]) -> list[dict[str, Any]]
             raise ValueError("prediction rows require unit_number and predicted_rul")
         parsed.append(row)
     return parsed
+
+
+def prediction_run_event_record(
+    *,
+    run_id: str,
+    event_type: str,
+    actor: str,
+    timestamp: str,
+    status: str | None = None,
+    note: str | None = None,
+    payload: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Build the stable DB record for one prediction-run audit event."""
+
+    normalized_payload = payload or {}
+    event_material = {
+        "run_id": run_id,
+        "event_type": event_type,
+        "status": status,
+        "actor": actor,
+        "note": note,
+        "payload": normalized_payload,
+        "timestamp": timestamp,
+    }
+    event_id = f"event-{_sha256_text(_json_dumps(event_material))[:16]}"
+    return {
+        "event_id": event_id,
+        "run_id": run_id,
+        "event_type": event_type,
+        "status": status,
+        "actor": actor,
+        "note": note,
+        "payload_json": _json_dumps(normalized_payload),
+        "created_at_utc": timestamp,
+    }
+
+
+def event_from_row(row: Any) -> dict[str, Any]:
+    """Convert a prediction_run_events DB row into the console event contract."""
+
+    event = dict(row)
+    event["payload"] = _json_loads(event.pop("payload_json"))
+    return event
 
 
 def outcome_rows(outcomes: pd.DataFrame) -> list[dict[str, Any]]:
@@ -136,3 +181,20 @@ def _optional_int(value: Any) -> int | None:
         return int(value)
     except (TypeError, ValueError):
         return None
+
+
+def _sha256_text(text: str) -> str:
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+
+def _json_dumps(payload: Any) -> str:
+    return json.dumps(payload, sort_keys=True, separators=(",", ":"), default=str)
+
+
+def _json_loads(payload: str | None) -> Any:
+    if not payload:
+        return {}
+    try:
+        return json.loads(payload)
+    except json.JSONDecodeError:
+        return {}

@@ -8,9 +8,11 @@ import pytest
 from aerospace_prognostics.app.prediction_runs import (
     PREDICTION_RUN_EVIDENCE_SCHEMA_VERSION,
     build_prediction_run_evidence_payload,
+    event_from_row,
     outcome_rows,
     outcome_template_frame,
     prediction_rows,
+    prediction_run_event_record,
     with_interval_availability,
 )
 
@@ -41,6 +43,56 @@ def test_prediction_rows_rejects_invalid_prediction_documents(
 ) -> None:
     with pytest.raises(ValueError, match=expected_message):
         prediction_rows(document)
+
+
+def test_prediction_run_event_record_is_stable_and_json_safe() -> None:
+    event = prediction_run_event_record(
+        run_id="run-1",
+        event_type="operator_decision",
+        status="watch",
+        actor="flight-ops",
+        note="Monitor on next cycle",
+        payload={"ticket": "PHM-42", "priority": 2},
+        timestamp="2026-01-01T00:00:00+00:00",
+    )
+    reordered = prediction_run_event_record(
+        run_id="run-1",
+        event_type="operator_decision",
+        status="watch",
+        actor="flight-ops",
+        note="Monitor on next cycle",
+        payload={"priority": 2, "ticket": "PHM-42"},
+        timestamp="2026-01-01T00:00:00+00:00",
+    )
+
+    assert event["event_id"] == "event-957040e1970f07f6"
+    assert reordered["event_id"] == event["event_id"]
+    assert event["payload_json"] == '{"priority":2,"ticket":"PHM-42"}'
+    assert event["created_at_utc"] == "2026-01-01T00:00:00+00:00"
+
+
+def test_event_from_row_decodes_payload_json_tolerantly() -> None:
+    event = event_from_row(
+        {
+            "event_id": "event-1",
+            "event_type": "operator_decision",
+            "payload_json": '{"ticket":"PHM-42"}',
+        }
+    )
+    fallback = event_from_row(
+        {
+            "event_id": "event-2",
+            "event_type": "operator_decision",
+            "payload_json": "{bad-json",
+        }
+    )
+
+    assert event == {
+        "event_id": "event-1",
+        "event_type": "operator_decision",
+        "payload": {"ticket": "PHM-42"},
+    }
+    assert fallback["payload"] == {}
 
 
 def test_outcome_rows_normalizes_numeric_outcomes() -> None:

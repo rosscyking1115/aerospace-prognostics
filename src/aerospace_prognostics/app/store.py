@@ -56,6 +56,9 @@ from aerospace_prognostics.app.prediction_runs import (
     build_prediction_run_evidence_payload as _build_prediction_run_evidence_payload,
 )
 from aerospace_prognostics.app.prediction_runs import (
+    event_from_row as _event_from_row,
+)
+from aerospace_prognostics.app.prediction_runs import (
     outcome_rows as _outcome_rows,
 )
 from aerospace_prognostics.app.prediction_runs import (
@@ -63,6 +66,9 @@ from aerospace_prognostics.app.prediction_runs import (
 )
 from aerospace_prognostics.app.prediction_runs import (
     prediction_rows as _prediction_rows,
+)
+from aerospace_prognostics.app.prediction_runs import (
+    prediction_run_event_record as _prediction_run_event_record,
 )
 from aerospace_prognostics.app.prediction_runs import (
     with_interval_availability as _with_interval_availability,
@@ -1560,16 +1566,15 @@ def _insert_prediction_run_event(
     note: str | None = None,
     payload: dict[str, Any] | None = None,
 ) -> str:
-    event_material = {
-        "run_id": run_id,
-        "event_type": event_type,
-        "status": status,
-        "actor": actor,
-        "note": note,
-        "payload": payload or {},
-        "timestamp": timestamp,
-    }
-    event_id = f"event-{_sha256_text(_json_dumps(event_material))[:16]}"
+    event = _prediction_run_event_record(
+        run_id=run_id,
+        event_type=event_type,
+        status=status,
+        actor=actor,
+        note=note,
+        payload=payload,
+        timestamp=timestamp,
+    )
     connection.execute(
         """
         insert into prediction_run_events (
@@ -1585,17 +1590,17 @@ def _insert_prediction_run_event(
         values (?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
-            event_id,
-            run_id,
-            event_type,
-            status,
-            actor,
-            note,
-            _json_dumps(payload or {}),
-            timestamp,
+            event["event_id"],
+            event["run_id"],
+            event["event_type"],
+            event["status"],
+            event["actor"],
+            event["note"],
+            event["payload_json"],
+            event["created_at_utc"],
         ),
     )
-    return event_id
+    return str(event["event_id"])
 
 
 def _upsert_fleet_assets_for_run(
@@ -2146,12 +2151,6 @@ def _optional_bool(value: Any) -> bool:
     if isinstance(value, (int, float)):
         return bool(value)
     return str(value).strip().lower() in {"1", "true", "yes", "y", "active", "anomaly"}
-
-
-def _event_from_row(row: sqlite3.Row) -> dict[str, Any]:
-    event = dict(row)
-    event["payload"] = _json_loads(event.pop("payload_json"))
-    return event
 
 
 def _evidence_from_row(row: sqlite3.Row) -> dict[str, Any]:
