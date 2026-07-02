@@ -7,6 +7,10 @@ workflows, deployment evidence, an API, a console, CI supply-chain checks, and a
 hosted demo image. The next work should deepen the architecture and sharpen the
 public product story before adding more modelling scope.
 
+The living execution checklist is tracked in
+[docs/project_checklist.md](project_checklist.md). Update it after each completed
+slice so the roadmap stays connected to shipped work.
+
 ## Current State
 
 The project already has these working surfaces:

@@ -95,6 +95,7 @@ The working plan is tracked in [Aerospace_Prognostics_Project_Plan.md](Aerospace
 - Repository public-launch strategy: [docs/repo_launch_strategy.md](docs/repo_launch_strategy.md)
 - Product roadmap: [docs/product_roadmap.md](docs/product_roadmap.md)
 - Restructure and replan: [docs/restructure_plan.md](docs/restructure_plan.md)
+- Living project checklist: [docs/project_checklist.md](docs/project_checklist.md)
 
 ## Developer Quickstart
 
