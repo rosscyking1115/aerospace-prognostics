@@ -7,6 +7,7 @@ from typing import Any
 from aerospace_prognostics.app.api_client import ApiEndpointStatus, ApiServiceStatus
 from aerospace_prognostics.app.streamlit_tabs import (
     render_evidence_tab,
+    render_history_tab,
     render_registry_tab,
     render_roadmap_tab,
     render_system_tab,
@@ -40,7 +41,15 @@ class _FakeStreamlit:
         self.dataframes: list[tuple[Any, dict[str, Any]]] = []
         self.downloads: list[dict[str, Any]] = []
         self.selected_options: dict[str, Any] = {}
+        self.multiselects: list[tuple[str, list[str], list[str]]] = []
+        self.text_inputs: dict[str, str] = {}
+        self.checkboxes: dict[str, bool] = {}
+        self.buttons: dict[str, bool] = {}
+        self.uploads: dict[str, Any] = {}
+        self.session_state: dict[str, Any] = {}
+        self.rerun_count = 0
         self.column_config = SimpleNamespace(
+            CheckboxColumn=lambda *args, **kwargs: ("CheckboxColumn", args, kwargs),
             DatetimeColumn=lambda *args, **kwargs: ("DatetimeColumn", args, kwargs),
             NumberColumn=lambda *args, **kwargs: ("NumberColumn", args, kwargs),
             TextColumn=lambda *args, **kwargs: ("TextColumn", args, kwargs),
@@ -67,7 +76,9 @@ class _FakeStreamlit:
     def json(self, payload: dict[str, Any]) -> None:
         self.json_payloads.append(payload)
 
-    def columns(self, count: int) -> list[_FakeColumn]:
+    def columns(self, count: int | list[int]) -> list[_FakeColumn]:
+        if isinstance(count, list):
+            count = len(count)
         columns = [_FakeColumn() for _ in range(count)]
         self.column_groups.append(columns)
         return columns
@@ -75,11 +86,40 @@ class _FakeStreamlit:
     def dataframe(self, frame: Any, **kwargs: Any) -> None:
         self.dataframes.append((frame, kwargs))
 
-    def selectbox(self, label: str, options: list[str]) -> str:
-        return str(self.selected_options.get(label, options[0]))
+    def selectbox(self, label: str, options: list[str], **kwargs: Any) -> str:
+        selected = self.selected_options.get(label)
+        if selected is not None:
+            return str(selected)
+        index = int(kwargs.get("index", 0))
+        return str(options[index])
+
+    def multiselect(
+        self,
+        label: str,
+        options: list[str],
+        default: list[str] | None = None,
+    ) -> list[str]:
+        values = list(default or [])
+        self.multiselects.append((label, options, values))
+        return values
+
+    def text_input(self, label: str, value: str = "", **_kwargs: Any) -> str:
+        return self.text_inputs.get(label, value)
+
+    def checkbox(self, label: str, value: bool = False, **_kwargs: Any) -> bool:
+        return self.checkboxes.get(label, value)
+
+    def file_uploader(self, label: str, **_kwargs: Any) -> Any:
+        return self.uploads.get(label)
+
+    def button(self, label: str, **_kwargs: Any) -> bool:
+        return self.buttons.get(label, False)
 
     def download_button(self, label: str, **kwargs: Any) -> None:
         self.downloads.append({"label": label, **kwargs})
+
+    def rerun(self) -> None:
+        self.rerun_count += 1
 
 
 def test_render_roadmap_tab_keeps_product_direction_visible() -> None:
@@ -263,6 +303,124 @@ def test_render_registry_tab_surfaces_artifact_review(
     assert st.json_payloads[0]["mean_absolute_error"] == 9.5
     assert st.json_payloads[1]["artifact_id"] == artifact_id
     assert st.json_payloads[2]["uncertainty"] == {"method": "interval"}
+
+
+def test_render_history_tab_surfaces_prediction_run_evidence(
+    tmp_path: Path,
+    monkeypatch: Any,
+) -> None:
+    st = _FakeStreamlit()
+    database_path = tmp_path / "app.sqlite"
+    run_id = "run-1"
+    runs = [
+        {
+            "created_at_utc": "2026-01-02T00:00:00Z",
+            "run_id": run_id,
+            "source_name": "telemetry.csv",
+            "model_name": "hgb_policy",
+            "artifact_id": "fd001-demo",
+            "prediction_count": 2,
+            "min_predicted_rul": 10.0,
+            "mean_predicted_rul": 15.0,
+            "max_predicted_rul": 20.0,
+            "interval_availability_rate": 1.0,
+            "mean_interval_width": 8.5,
+            "outcome_count": 1,
+            "outcome_interval_coverage_rate": 1.0,
+            "mean_absolute_error": 3.0,
+            "drift_alert_count": 0,
+            "decision_status": "watch",
+            "audit_event_count": 1,
+        }
+    ]
+
+    monkeypatch.setattr(
+        "aerospace_prognostics.app.streamlit_tabs.list_prediction_runs",
+        lambda *_args, **_kwargs: runs,
+    )
+    monkeypatch.setattr(
+        "aerospace_prognostics.app.streamlit_tabs.load_prediction_run",
+        lambda *_args, **_kwargs: {
+            "run": {
+                "run_id": run_id,
+                "created_at_utc": "2026-01-02T00:00:00Z",
+                "source_name": "telemetry.csv",
+                "content_sha256": "abc123",
+                "artifact_id": "fd001-demo",
+                "model_artifact_path": "models/fd001.joblib",
+                "row_count": 2,
+                "prediction_count": 2,
+                "dataset": "C-MAPSS",
+                "subset": "FD001",
+                "monitoring": {"drift": {"alerts": 0}},
+                "decision_status": "watch",
+            },
+            "predictions": [
+                {
+                    "asset_id": "FD001-unit-1",
+                    "unit_number": 1,
+                    "predicted_rul": 20.0,
+                    "predicted_rul_lower": 15.0,
+                    "predicted_rul_upper": 25.0,
+                    "interval_method": "quantile",
+                    "interval_confidence": 0.9,
+                    "actual_rul": 18.0,
+                    "signed_error": 2.0,
+                    "absolute_error": 2.0,
+                    "interval_covered": True,
+                    "outcome_source": "ops.csv",
+                }
+            ],
+            "audit_events": [
+                {
+                    "created_at_utc": "2026-01-02T00:01:00Z",
+                    "event_type": "operator_decision",
+                    "status": "watch",
+                    "actor": "operator",
+                    "note": "Monitor",
+                }
+            ],
+        },
+    )
+    monkeypatch.setattr(
+        "aerospace_prognostics.app.streamlit_tabs.build_prediction_run_evidence",
+        lambda *_args, **_kwargs: {"run_id": run_id, "status": "ready"},
+    )
+
+    render_history_tab(
+        st,
+        database_path,
+        read_only=True,
+        export_dir=tmp_path / "exports",
+        display=str,
+        filter_options=lambda rows, key: sorted({str(row[key]) for row in rows if key in row}),
+        json_download_bytes=lambda payload: repr(payload).encode("utf-8"),
+    )
+
+    assert st.subheaders == [
+        "Prediction History",
+        "Run Record",
+        "Monitoring",
+        "Audit Log",
+    ]
+    assert st.session_state["selected_prediction_run_id"] == run_id
+    assert len(st.dataframes) == 3
+    assert all(call_kwargs["width"] == "stretch" for _, call_kwargs in st.dataframes)
+    assert [download["label"] for download in st.downloads] == [
+        "Download Predictions",
+        "Download Outcome Template",
+        "Download Evidence JSON",
+    ]
+    metrics = [
+        metric
+        for column_group in st.column_groups
+        for column in column_group
+        for metric in column.metrics
+    ]
+    assert ("Rows", "2") in metrics
+    assert ("Dataset", "C-MAPSS") in metrics
+    assert st.json_payloads[0]["run_id"] == run_id
+    assert st.json_payloads[1] == {"drift": {"alerts": 0}}
 
 
 def test_render_system_tab_surfaces_api_and_local_state(
