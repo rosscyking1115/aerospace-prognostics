@@ -29,15 +29,23 @@ uv run aerospace-prognostics pre-phase3-readiness-audit `
   --license-decision "private-review-only until public launch license is chosen"
 ```
 
-Current expected blockers before Phase 3:
+Latest hosted-demo verification:
 
-- create the private hosted read-only demo URL and capture fresh visual proof
-  from that environment.
+- URL: <https://aerospace-prognostics-private-demo.onrender.com>
+- Health check: `/_stcore/health` returned `200 ok`.
+- Proof asset:
+  [docs/assets/public-proof/hosted_demo_private_review.png](assets/public-proof/hosted_demo_private_review.png)
+- Readiness audit with the hosted URL and proof asset reported
+  `status=ready`, `gates=10`, `blockers=0`.
 
 The setup handoff is tracked in
 [docs/private_hosting_handoff.md](private_hosting_handoff.md). A hosted URL is
 not sufficient by itself; the final audit also requires the hosted proof asset
 passed with `--hosted-demo-proof`.
+
+The default Render service URL is internet-reachable. Add Cloudflare Access or
+an equivalent allowlist before treating the deployment as a private reviewer
+URL.
 
 The current license posture is tracked in
 [docs/license_posture.md](license_posture.md): private review only, not

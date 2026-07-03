@@ -82,6 +82,8 @@ time, as a real aerospace PHM tool surface. It is not a notebook-only lab demo.
       from external launch blockers before new research work starts.
 - [x] Private hosting handoff added with a Render Blueprint path, access-control
       warning, and final hosted-proof readiness command.
+- [x] Render-hosted read-only demo URL verified with a live health check and a
+      fresh proof screenshot from the hosted environment.
 
 ## Active Workstream
 
@@ -109,9 +111,8 @@ Every active slice should stay small enough to finish with:
        prediction diagnostic plot.
 7. [x] Replace the static README console proof snapshot with a real read-only
        Streamlit console screenshot after validating the desktop layout.
-8. [ ] Capture a short GIF or fresh screenshot from the actual hosted demo URL
-       once that public environment exists. Blocked until the private hosted
-       demo URL is created.
+8. [x] Capture a short GIF or fresh screenshot from the actual hosted demo URL
+       once that public environment exists.
 9. [x] Add a clear first-run guide that tells reviewers when to use the
        console-only quickstart, local product stack, or read-only demo image.
 10. [x] Add a compact README architecture diagram and deeper architecture guide.
@@ -124,8 +125,11 @@ Every active slice should stay small enough to finish with:
         license decision for the next internal phase.
 15. [x] Add a private hosting handoff and tracked Render Blueprint for the
         read-only demo.
-16. [ ] Create a private hosted read-only demo URL and capture fresh visual proof
-        from that environment.
+16. [x] Create a hosted read-only demo URL and capture fresh visual proof from
+        that environment.
+17. [ ] Put the hosted demo behind private access control before sharing it
+        outside the owner account; the default Render service URL is
+        internet-reachable.
 
 ## Later Milestones
 
@@ -133,8 +137,8 @@ Every active slice should stay small enough to finish with:
       final public license, launch copy, and public-hosted proof after the
       private demo is ready.
 - [ ] Hosted deployment:
-      private hosted demo first, then public read-only demo when the repo is
-      ready.
+      access-protected private demo first, then public read-only demo when the
+      repo is ready.
 - [ ] Phase 3 research differentiators:
       calibrated uncertainty evidence, monotonic degradation diagnostics, and
       constrained losses only after diagnostics exist.
