@@ -84,6 +84,8 @@ time, as a real aerospace PHM tool surface. It is not a notebook-only lab demo.
       warning, and final hosted-proof readiness command.
 - [x] Render-hosted read-only demo URL verified with a live health check and a
       fresh proof screenshot from the hosted environment.
+- [x] Optional Streamlit app-level access token gate added for hosted demos,
+      with Render `sync: false` secret configuration.
 
 ## Active Workstream
 
@@ -127,7 +129,9 @@ Every active slice should stay small enough to finish with:
         read-only demo.
 16. [x] Create a hosted read-only demo URL and capture fresh visual proof from
         that environment.
-17. [ ] Put the hosted demo behind private access control before sharing it
+17. [x] Add an app-level token gate for the hosted Streamlit console and wire
+        the Render Blueprint to request the secret out of band.
+18. [ ] Put the hosted demo behind private access control before sharing it
         outside the owner account; the default Render service URL is
         internet-reachable.
 

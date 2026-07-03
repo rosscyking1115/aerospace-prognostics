@@ -7,6 +7,7 @@ import os
 from pathlib import Path
 from typing import Any
 
+from aerospace_prognostics.app.access_control import render_console_access_gate
 from aerospace_prognostics.app.api_client import (
     ApiEndpointStatus,
     ApiServiceStatus,
@@ -51,6 +52,9 @@ def main() -> None:
         layout="wide",
         initial_sidebar_state="expanded",
     )
+    if not render_console_access_gate(st):
+        st.stop()
+
     st.title("Aerospace PHM Console")
 
     with st.sidebar:

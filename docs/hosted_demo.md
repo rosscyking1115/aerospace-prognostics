@@ -44,10 +44,15 @@ visitors into database writers.
 4. Use `/_stcore/health` as the health check path.
 5. Keep `AEROSPACE_PROGNOSTICS_CONSOLE_READ_ONLY=true` in the service
    environment, even though the image already sets it by default.
-6. Run the container filesystem as read-only and provide a writable tmpfs at
+6. Set `AEROSPACE_PROGNOSTICS_CONSOLE_ACCESS_TOKEN` to a strong secret before
+   sharing the hosted URL. When this variable is set, the Streamlit console
+   shows a token gate before any PHM evidence screens render.
+7. Run the container filesystem as read-only and provide a writable tmpfs at
    `/tmp` for framework cache files.
-7. Add platform authentication or an allowlist for private review links.
-8. Rebuild the image whenever the quickstart evidence contract changes.
+8. Prefer platform authentication or an allowlist for private review links when
+   sharing outside the owner account; the app-level token is defense in depth,
+   not a replacement for edge access control on sensitive deployments.
+9. Rebuild the image whenever the quickstart evidence contract changes.
 
 The operational handoff is tracked in
 [private_hosting_handoff.md](private_hosting_handoff.md). It includes the

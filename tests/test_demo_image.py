@@ -26,6 +26,7 @@ def test_hosted_demo_docs_describe_private_read_only_deployment() -> None:
     assert "--read-only" in docs
     assert "--tmpfs /tmp:rw,nosuid,nodev,noexec,size=128m" in docs
     assert "AEROSPACE_PROGNOSTICS_CONSOLE_READ_ONLY=true" in docs
+    assert "AEROSPACE_PROGNOSTICS_CONSOLE_ACCESS_TOKEN" in docs
     assert "Keep the GitHub repository private" in docs
     assert "run evidence JSON" in docs
     assert "model-review bundles" in docs

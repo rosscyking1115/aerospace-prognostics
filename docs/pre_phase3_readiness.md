@@ -45,7 +45,9 @@ passed with `--hosted-demo-proof`.
 
 The default Render service URL is internet-reachable. Add Cloudflare Access or
 an equivalent allowlist before treating the deployment as a private reviewer
-URL.
+URL. The app also supports an optional token gate through
+`AEROSPACE_PROGNOSTICS_CONSOLE_ACCESS_TOKEN`, which should be set on Render as
+soon as the updated Blueprint deploys.
 
 The current license posture is tracked in
 [docs/license_posture.md](license_posture.md): private review only, not

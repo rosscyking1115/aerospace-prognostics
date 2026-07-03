@@ -14,6 +14,8 @@ def test_render_blueprint_targets_read_only_demo_image() -> None:
     assert "PORT" in text
     assert 'value: "8501"' in text
     assert "AEROSPACE_PROGNOSTICS_CONSOLE_READ_ONLY" in text
+    assert "AEROSPACE_PROGNOSTICS_CONSOLE_ACCESS_TOKEN" in text
+    assert "sync: false" in text
     assert 'value: "true"' in text
 
 
@@ -23,6 +25,8 @@ def test_private_hosting_handoff_names_proof_and_access_control() -> None:
     )
 
     assert "Cloudflare Access" in handoff
+    assert "AEROSPACE_PROGNOSTICS_CONSOLE_ACCESS_TOKEN" in handoff
+    assert "sync: false" in handoff
     assert "render.yaml" in handoff
     assert "docs/assets/public-proof/hosted_demo_private_review.png" in handoff
     assert "--hosted-demo-proof" in handoff
