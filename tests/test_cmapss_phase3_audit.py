@@ -50,6 +50,7 @@ def test_cmapss_phase3_audit_reports_interval_coverage_and_failures(tmp_path) ->
     assert result.failure_cases[0].failure_type == "late_uncovered"
     assert payload["schema_version"] == "aerospace-prognostics/cmapss-phase3-audit/v1"
     assert payload["uncertainty"]["summaries"][0]["coverage"] == pytest.approx(2 / 3)
+    assert "failure_notes" in payload["uncertainty"]
     assert "## Uncertainty Coverage" in output_markdown.read_text(encoding="utf-8")
 
 
@@ -133,6 +134,47 @@ def test_cmapss_phase3_audit_reports_predicted_bin_global_floor(
     assert result.predicted_bin_floor_uncertainty_summaries[0].coverage == pytest.approx(
         1.0
     )
+
+
+def test_cmapss_phase3_audit_adds_unit_failure_notes(tmp_path) -> None:
+    calibration_csv = tmp_path / "validation_predictions.csv"
+    predictions_csv = tmp_path / "official_predictions.csv"
+    output_markdown = tmp_path / "phase3_audit.md"
+    _write_predictions(
+        calibration_csv,
+        [
+            _prediction("FD001", "transformer", 1, 50.0, 51.0),
+            _prediction("FD001", "transformer", 2, 53.0, 55.0),
+            _prediction("FD001", "transformer", 3, 100.0, 120.0),
+            _prediction("FD001", "transformer", 4, 100.0, 130.0),
+        ],
+    )
+    _write_predictions(
+        predictions_csv,
+        [
+            _prediction("FD001", "transformer", 10, 70.0, 55.0),
+            _prediction("FD001", "transformer", 11, 70.0, 95.0),
+        ],
+    )
+
+    result = run_cmapss_phase3_audit(
+        calibration_csv=calibration_csv,
+        predictions_csv=predictions_csv,
+        output_markdown=output_markdown,
+        confidence=0.75,
+    )
+
+    notes = {row.unit_number: row for row in result.failure_notes}
+    assert notes[10].actual_rul_bin == "61-90"
+    assert notes[10].predicted_rul_bin == "31-60"
+    assert notes[10].global_covered is True
+    assert notes[10].predicted_bin_covered is False
+    assert notes[10].predicted_bin_floor_covered is True
+    assert notes[10].uncovered_strategy_count == 1
+    assert "predicted_bin" in notes[10].uncovered_strategies
+    assert notes[11].failure_type == "late_uncovered"
+    assert notes[11].uncovered_strategy_count == 3
+    assert "## Unit Failure Notes" in output_markdown.read_text(encoding="utf-8")
 
 
 def test_cmapss_phase3_audit_compares_raw_and_calibrated_monotonicity(

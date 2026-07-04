@@ -230,6 +230,7 @@ def handle_report_command(args: argparse.Namespace) -> int | None:
         print(f"uncertainty_summaries={len(result.uncertainty_summaries)}")
         print(f"uncertainty_bins={len(result.uncertainty_bins)}")
         print(f"failure_cases={len(result.failure_cases)}")
+        print(f"failure_notes={len(result.failure_notes)}")
         print(
             "predicted_bin_interval_calibrations="
             f"{len(result.predicted_bin_interval_calibrations)}"

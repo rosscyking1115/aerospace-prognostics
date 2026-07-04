@@ -169,8 +169,11 @@ Every active slice should stay small enough to finish with:
 23. [x] Add a high-RUL-aware interval calibration check for sparse predicted-bin
         tails, such as a coverage floor, tail fallback, or actual-RUL-bin
         diagnostic comparison that remains clearly marked as non-inference-safe.
-24. [ ] Add unit-level failure notes for the uncovered official-test cases so
+24. [x] Add unit-level failure notes for the uncovered official-test cases so
         interval-policy decisions are tied to concrete trajectories.
+25. [ ] Decide the next Phase 3 calibration policy experiment: keep global
+        intervals, add a conservative floor guardrail, or test a tail-specific
+        fallback before model-selection or training changes.
 
 ## Later Milestones
 

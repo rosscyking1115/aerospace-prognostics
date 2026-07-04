@@ -58,9 +58,11 @@ absolute residuals, then evaluates official-test coverage. It reports:
 3. Done: add a high-RUL-aware global-floor check for predicted-bin intervals.
    It restores nominal coverage but widens intervals and does not reduce
    uncovered late predictions.
-4. Add unit-level failure notes for the uncovered official-test cases so the
-   next policy decision is tied to concrete trajectory behavior.
-5. Decide whether the next experiment should be improved calibration, model
-   selection, or constrained training.
+4. Done: add unit-level failure notes for the uncovered official-test cases.
+   The two late-overestimate misses remain uncovered under all tested interval
+   strategies.
+5. Decide whether the next experiment should keep global intervals, add a
+   conservative floor as a guardrail, or test a stronger tail-specific fallback
+   before model-selection or training changes.
 6. Start ESA-ADB as a separate protocol intake only after the C-MAPSS Phase 3
    evidence loop is stable.

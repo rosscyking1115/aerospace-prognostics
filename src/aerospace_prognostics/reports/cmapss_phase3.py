@@ -116,6 +116,32 @@ class CmapssUncertaintyFailureRow:
 
 
 @dataclass(frozen=True)
+class CmapssFailureNoteRow:
+    """Unit-level interval failure note across audit strategies."""
+
+    rank: int
+    subset: str
+    model_name: str
+    unit_number: int
+    actual_rul: float
+    predicted_rul: float
+    error: float
+    absolute_error: float
+    actual_rul_bin: str
+    predicted_rul_bin: str
+    failure_type: str
+    global_covered: bool
+    predicted_bin_covered: bool
+    predicted_bin_floor_covered: bool
+    uncovered_strategy_count: int
+    uncovered_strategies: str
+    note: str
+
+    def to_dict(self) -> dict[str, str | int | float | bool]:
+        return asdict(self)
+
+
+@dataclass(frozen=True)
 class CmapssIntervalComparisonRow:
     """Global-vs-predicted-bin interval coverage comparison."""
 
@@ -164,6 +190,7 @@ class CmapssPhase3AuditResult:
     uncertainty_summaries: tuple[CmapssUncertaintySummaryRow, ...]
     uncertainty_bins: tuple[CmapssUncertaintyBinRow, ...]
     failure_cases: tuple[CmapssUncertaintyFailureRow, ...]
+    failure_notes: tuple[CmapssFailureNoteRow, ...]
     predicted_bin_interval_calibrations: tuple[
         CmapssPredictedBinIntervalCalibrationRow, ...
     ]
@@ -193,6 +220,7 @@ class CmapssPhase3AuditResult:
                 "summaries": [row.to_dict() for row in self.uncertainty_summaries],
                 "bins": [row.to_dict() for row in self.uncertainty_bins],
                 "failure_cases": [row.to_dict() for row in self.failure_cases],
+                "failure_notes": [row.to_dict() for row in self.failure_notes],
                 "predicted_bin_calibrations": [
                     row.to_dict()
                     for row in self.predicted_bin_interval_calibrations
@@ -292,6 +320,13 @@ def run_cmapss_phase3_audit(
         predicted_bin_summary_rows,
         predicted_bin_floor_summary_rows,
     )
+    failure_notes = build_cmapss_interval_failure_notes(
+        prediction_rows,
+        calibrations,
+        predicted_bin_calibrations,
+        top_n=top_n,
+        clip_min=clip_min,
+    )
     monotonicity_rows = tuple(
         build_cmapss_prediction_monotonicity_diagnostics(predictions_csv)
     )
@@ -311,6 +346,7 @@ def run_cmapss_phase3_audit(
         uncertainty_summaries=summary_rows,
         uncertainty_bins=bin_rows,
         failure_cases=failure_rows,
+        failure_notes=failure_notes,
         predicted_bin_interval_calibrations=predicted_bin_calibrations,
         predicted_bin_uncertainty_summaries=predicted_bin_summary_rows,
         predicted_bin_uncertainty_bins=predicted_bin_rows,
@@ -631,6 +667,79 @@ def compare_cmapss_interval_strategies(
     return tuple(comparisons)
 
 
+def build_cmapss_interval_failure_notes(
+    prediction_rows: Iterable[dict[str, str]],
+    calibrations: Iterable[CmapssIntervalCalibrationRow],
+    predicted_bin_calibrations: Iterable[CmapssPredictedBinIntervalCalibrationRow],
+    *,
+    top_n: int = 10,
+    clip_min: float = 0.0,
+) -> tuple[CmapssFailureNoteRow, ...]:
+    """Build unit-level notes for rows uncovered by any interval strategy."""
+
+    if top_n < 1:
+        raise ValueError("top_n must be at least 1")
+    global_by_key = {
+        (row.subset, row.model_name): row for row in tuple(calibrations)
+    }
+    predicted_bin_by_key = {
+        (row.subset, row.model_name, row.predicted_rul_bin): row
+        for row in tuple(predicted_bin_calibrations)
+    }
+    candidate_rows: list[dict[str, Any]] = []
+    for row in prediction_rows:
+        global_row = _annotated_interval_row(
+            row,
+            global_by_key,
+            clip_min=clip_min,
+        )
+        predicted_bin_row = _annotated_predicted_bin_interval_row(
+            row,
+            predicted_bin_by_key,
+            clip_min=clip_min,
+        )
+        predicted_bin_floor_row = _annotated_predicted_bin_interval_row(
+            row,
+            predicted_bin_by_key,
+            clip_min=clip_min,
+            floor_to_global=True,
+        )
+        uncovered_strategies = tuple(
+            strategy
+            for strategy, covered in (
+                ("global", global_row["covered"]),
+                ("predicted_bin", predicted_bin_row["covered"]),
+                ("predicted_bin_global_floor", predicted_bin_floor_row["covered"]),
+            )
+            if not covered
+        )
+        if uncovered_strategies:
+            candidate_rows.append(
+                {
+                    "global": global_row,
+                    "predicted_bin": predicted_bin_row,
+                    "predicted_bin_floor": predicted_bin_floor_row,
+                    "uncovered_strategies": uncovered_strategies,
+                }
+            )
+
+    sorted_rows = sorted(
+        candidate_rows,
+        key=lambda item: (
+            -len(item["uncovered_strategies"]),
+            0 if item["global"]["late_prediction"] else 1,
+            -item["global"]["absolute_error"],
+            item["global"]["subset"],
+            item["global"]["model_name"],
+            item["global"]["unit_number"],
+        ),
+    )
+    return tuple(
+        _failure_note_row(rank, row)
+        for rank, row in enumerate(sorted_rows[:top_n], start=1)
+    )
+
+
 def compare_cmapss_monotonicity(
     raw_predictions_csv: str | Path,
     calibrated_predictions_csv: str | Path,
@@ -759,6 +868,34 @@ def render_cmapss_phase3_audit_markdown(result: CmapssPhase3AuditResult) -> str:
                 f"{row.lower_bound:.6f}-{row.upper_bound:.6f} | "
                 f"{row.absolute_error:.6f} | "
                 f"{row.failure_type} |"
+            )
+    if result.failure_notes:
+        lines.extend(
+            [
+                "",
+                "## Unit Failure Notes",
+                "",
+                (
+                    "| Rank | Subset | Model | Unit | Actual Bin | Predicted Bin | "
+                    "Global | Predicted-Bin | Floor | Failure | Note |"
+                ),
+                "|---:|---|---|---:|---|---|---:|---:|---:|---|---|",
+            ]
+        )
+        for row in result.failure_notes:
+            lines.append(
+                "| "
+                f"{row.rank} | "
+                f"{row.subset} | "
+                f"`{row.model_name}` | "
+                f"{row.unit_number} | "
+                f"{row.actual_rul_bin} | "
+                f"{row.predicted_rul_bin} | "
+                f"{_covered_label(row.global_covered)} | "
+                f"{_covered_label(row.predicted_bin_covered)} | "
+                f"{_covered_label(row.predicted_bin_floor_covered)} | "
+                f"{row.failure_type} | "
+                f"{row.note} |"
             )
     lines.extend(
         [
@@ -1025,6 +1162,54 @@ def _bin_row(
     )
 
 
+def _failure_note_row(
+    rank: int,
+    row: dict[str, Any],
+) -> CmapssFailureNoteRow:
+    global_row = row["global"]
+    predicted_bin_row = row["predicted_bin"]
+    predicted_bin_floor_row = row["predicted_bin_floor"]
+    uncovered_strategies = tuple(row["uncovered_strategies"])
+    failure_type = _failure_type(global_row["error"], True)
+    if not global_row["covered"]:
+        failure_type = global_row["failure_type"]
+    elif not predicted_bin_row["covered"]:
+        failure_type = predicted_bin_row["failure_type"]
+    elif not predicted_bin_floor_row["covered"]:
+        failure_type = predicted_bin_floor_row["failure_type"]
+    return CmapssFailureNoteRow(
+        rank=rank,
+        subset=global_row["subset"],
+        model_name=global_row["model_name"],
+        unit_number=global_row["unit_number"],
+        actual_rul=global_row["actual_rul"],
+        predicted_rul=global_row["predicted_rul"],
+        error=global_row["error"],
+        absolute_error=global_row["absolute_error"],
+        actual_rul_bin=_actual_rul_bin(global_row["actual_rul"]),
+        predicted_rul_bin=_predicted_rul_bin(global_row["predicted_rul"]),
+        failure_type=failure_type,
+        global_covered=global_row["covered"],
+        predicted_bin_covered=predicted_bin_row["covered"],
+        predicted_bin_floor_covered=predicted_bin_floor_row["covered"],
+        uncovered_strategy_count=len(uncovered_strategies),
+        uncovered_strategies=", ".join(uncovered_strategies),
+        note=_failure_note_text(global_row, uncovered_strategies),
+    )
+
+
+def _failure_note_text(
+    row: dict[str, Any],
+    uncovered_strategies: tuple[str, ...],
+) -> str:
+    direction = "late overestimate" if row["error"] > 0 else "early underestimate"
+    return (
+        f"{direction}; actual bin {_actual_rul_bin(row['actual_rul'])}; "
+        f"predicted bin {_predicted_rul_bin(row['predicted_rul'])}; "
+        f"uncovered by {', '.join(uncovered_strategies)}"
+    )
+
+
 def _predicted_bin_interval_calibration_row(
     subset: str,
     model_name: str,
@@ -1089,6 +1274,10 @@ def _failure_type(error: float, covered: bool) -> str:
     if error < 0.0:
         return "early_uncovered"
     return "uncovered"
+
+
+def _covered_label(covered: bool) -> str:
+    return "covered" if covered else "uncovered"
 
 
 def _nearest_rank_quantile(values: list[float], quantile: float) -> float:

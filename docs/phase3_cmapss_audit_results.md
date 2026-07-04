@@ -32,6 +32,7 @@ The audit fit a `0.90` validation absolute-residual interval radius of
 | Late-prediction rows | `51` |
 | Late-prediction coverage | `0.960784` |
 | Uncovered late predictions | `2` |
+| Unit failure notes | `10` |
 | Predicted-bin interval coverage | `0.880000` |
 | Predicted-bin mean interval width | `43.826050` |
 | Predicted-bin global-floor coverage | `0.900000` |
@@ -85,6 +86,25 @@ but it widens intervals beyond the global baseline and still leaves the same two
 uncovered late predictions. That makes it a useful guardrail candidate, not a
 complete calibration improvement.
 
+## Unit Failure Notes
+
+The audit now records ranked unit-level notes for rows missed by any interval
+strategy. In the current FD001 run, the top 10 failure notes are missed by all
+three interval strategies: global interval, predicted-bin interval, and
+predicted-bin interval with global floor.
+
+The two highest-risk misses are late overestimates:
+
+| Unit | Actual RUL bin | Predicted RUL bin | Failure | Note |
+|---:|---|---|---|---|
+| `67` | `61-90` | `91-120` | `late_uncovered` | late overestimate; uncovered by all three strategies |
+| `16` | `61-90` | `91-120` | `late_uncovered` | late overestimate; uncovered by all three strategies |
+
+The remaining top notes are early underestimates, mostly cases where actual RUL
+is `91-120` or `121+` but the model compresses the prediction into `31-60`,
+`61-90`, or `91-120`. This reinforces that the main weakness is tail
+calibration/compression, not monotonicity.
+
 ## Interpretation
 
 The first Phase 3 audit does not justify adding a stronger constrained loss yet.
@@ -103,8 +123,10 @@ tail calibration:
 - the global-floor variant is safer than raw predicted-bin intervals but does
   not reduce high-risk late failures, so unit-level failure analysis is still
   needed before changing the deployed uncertainty policy.
+- unit-level notes show the two late-overestimate failures remain uncovered
+  under all tested interval policies.
 
-Next work should improve calibration and tail diagnostics before more training
-losses: add unit-level failure notes for the uncovered official-test cases,
-then decide whether calibration should remain global, adopt a conservative
-floor, or use another tail-specific fallback.
+Next work should decide the next calibration policy experiment: keep global
+intervals as the deployable baseline, adopt a conservative floor only as a
+safety guardrail, or test a stronger tail-specific fallback for the `61-90` to
+`121+` region.
