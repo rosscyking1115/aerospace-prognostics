@@ -55,9 +55,12 @@ absolute residuals, then evaluates official-test coverage. It reports:
 2. Done: compare validation-fitted predicted-bin interval widths against the
    global validation absolute-residual interval. The simple predicted-bin
    strategy narrowed intervals but reduced coverage, so it is diagnostic only.
-3. Add a high-RUL-aware interval calibration check that avoids losing coverage
-   when predicted-RUL bins are sparse or under-populated.
-4. Decide whether the next experiment should be improved calibration, model
+3. Done: add a high-RUL-aware global-floor check for predicted-bin intervals.
+   It restores nominal coverage but widens intervals and does not reduce
+   uncovered late predictions.
+4. Add unit-level failure notes for the uncovered official-test cases so the
+   next policy decision is tied to concrete trajectory behavior.
+5. Decide whether the next experiment should be improved calibration, model
    selection, or constrained training.
-5. Start ESA-ADB as a separate protocol intake only after the C-MAPSS Phase 3
+6. Start ESA-ADB as a separate protocol intake only after the C-MAPSS Phase 3
    evidence loop is stable.

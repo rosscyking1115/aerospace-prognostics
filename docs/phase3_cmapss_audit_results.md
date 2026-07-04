@@ -34,6 +34,8 @@ The audit fit a `0.90` validation absolute-residual interval radius of
 | Uncovered late predictions | `2` |
 | Predicted-bin interval coverage | `0.880000` |
 | Predicted-bin mean interval width | `43.826050` |
+| Predicted-bin global-floor coverage | `0.900000` |
+| Predicted-bin global-floor mean interval width | `50.679584` |
 | Raw monotonicity violation rate | `0.000000` |
 | Calibrated monotonicity violation rate | `0.000000` |
 
@@ -60,6 +62,7 @@ then evaluated the same official-test rows:
 |---|---:|---:|---:|
 | Global validation residual radius | `0.900000` | `48.665198` | `2` |
 | Predicted-bin validation residual radius | `0.880000` | `43.826050` | `2` |
+| Predicted-bin radius with global floor | `0.900000` | `50.679584` | `2` |
 
 Fitted predicted-bin radii:
 
@@ -76,6 +79,12 @@ bin, so high predicted-RUL cases fall back to the global radius. The simple
 predicted-bin strategy narrows intervals overall but does not reduce uncovered
 late cases and slightly worsens total coverage.
 
+The global-floor check keeps the predicted-bin strategy from shrinking any bin
+below the global validation radius. It restores total coverage to `0.900000`,
+but it widens intervals beyond the global baseline and still leaves the same two
+uncovered late predictions. That makes it a useful guardrail candidate, not a
+complete calibration improvement.
+
 ## Interpretation
 
 The first Phase 3 audit does not justify adding a stronger constrained loss yet.
@@ -91,8 +100,11 @@ tail calibration:
 - predicted-bin interval calibration is not enough because validation
   predictions do not provide a separate `121+` predicted-RUL radius and the
   narrower low/mid predicted-bin radii reduce overall coverage.
+- the global-floor variant is safer than raw predicted-bin intervals but does
+  not reduce high-risk late failures, so unit-level failure analysis is still
+  needed before changing the deployed uncertainty policy.
 
 Next work should improve calibration and tail diagnostics before more training
-losses: compare high-RUL-aware interval calibration, coverage-safe shrinkage or
-floors for predicted-bin radii, and unit-level failure notes for the uncovered
-official-test cases.
+losses: add unit-level failure notes for the uncovered official-test cases,
+then decide whether calibration should remain global, adopt a conservative
+floor, or use another tail-specific fallback.

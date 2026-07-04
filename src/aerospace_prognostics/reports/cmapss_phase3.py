@@ -128,8 +128,12 @@ class CmapssIntervalComparisonRow:
     global_mean_interval_width: float
     predicted_bin_mean_interval_width: float
     mean_interval_width_delta: float
+    predicted_bin_floor_coverage: float
+    predicted_bin_floor_mean_interval_width: float
+    predicted_bin_floor_mean_interval_width_delta: float
     global_uncovered_late_prediction_count: int
     predicted_bin_uncovered_late_prediction_count: int
+    predicted_bin_floor_uncovered_late_prediction_count: int
 
     def to_dict(self) -> dict[str, str | int | float]:
         return asdict(self)
@@ -166,6 +170,11 @@ class CmapssPhase3AuditResult:
     predicted_bin_uncertainty_summaries: tuple[CmapssUncertaintySummaryRow, ...]
     predicted_bin_uncertainty_bins: tuple[CmapssUncertaintyBinRow, ...]
     predicted_bin_failure_cases: tuple[CmapssUncertaintyFailureRow, ...]
+    predicted_bin_floor_uncertainty_summaries: tuple[
+        CmapssUncertaintySummaryRow, ...
+    ]
+    predicted_bin_floor_uncertainty_bins: tuple[CmapssUncertaintyBinRow, ...]
+    predicted_bin_floor_failure_cases: tuple[CmapssUncertaintyFailureRow, ...]
     interval_comparisons: tuple[CmapssIntervalComparisonRow, ...]
     monotonicity_diagnostics: tuple[CmapssPredictionMonotonicityDiagnosticRow, ...]
     unit_diagnostics: tuple[CmapssPredictionUnitDiagnosticRow, ...]
@@ -197,6 +206,18 @@ class CmapssPhase3AuditResult:
                 ],
                 "predicted_bin_failure_cases": [
                     row.to_dict() for row in self.predicted_bin_failure_cases
+                ],
+                "predicted_bin_floor_summaries": [
+                    row.to_dict()
+                    for row in self.predicted_bin_floor_uncertainty_summaries
+                ],
+                "predicted_bin_floor_bins": [
+                    row.to_dict()
+                    for row in self.predicted_bin_floor_uncertainty_bins
+                ],
+                "predicted_bin_floor_failure_cases": [
+                    row.to_dict()
+                    for row in self.predicted_bin_floor_failure_cases
                 ],
                 "global_vs_predicted_bin_comparison": [
                     row.to_dict() for row in self.interval_comparisons
@@ -255,9 +276,21 @@ def run_cmapss_phase3_audit(
         top_n=top_n,
         clip_min=clip_min,
     )
+    (
+        predicted_bin_floor_summary_rows,
+        predicted_bin_floor_rows,
+        predicted_bin_floor_failure_rows,
+    ) = build_cmapss_predicted_bin_uncertainty_audit(
+        prediction_rows,
+        predicted_bin_calibrations,
+        top_n=top_n,
+        clip_min=clip_min,
+        floor_to_global=True,
+    )
     interval_comparisons = compare_cmapss_interval_strategies(
         summary_rows,
         predicted_bin_summary_rows,
+        predicted_bin_floor_summary_rows,
     )
     monotonicity_rows = tuple(
         build_cmapss_prediction_monotonicity_diagnostics(predictions_csv)
@@ -282,6 +315,9 @@ def run_cmapss_phase3_audit(
         predicted_bin_uncertainty_summaries=predicted_bin_summary_rows,
         predicted_bin_uncertainty_bins=predicted_bin_rows,
         predicted_bin_failure_cases=predicted_bin_failure_rows,
+        predicted_bin_floor_uncertainty_summaries=predicted_bin_floor_summary_rows,
+        predicted_bin_floor_uncertainty_bins=predicted_bin_floor_rows,
+        predicted_bin_floor_failure_cases=predicted_bin_floor_failure_rows,
         interval_comparisons=interval_comparisons,
         monotonicity_diagnostics=monotonicity_rows,
         unit_diagnostics=unit_rows,
@@ -455,6 +491,7 @@ def build_cmapss_predicted_bin_uncertainty_audit(
     *,
     top_n: int = 10,
     clip_min: float = 0.0,
+    floor_to_global: bool = False,
 ) -> tuple[
     tuple[CmapssUncertaintySummaryRow, ...],
     tuple[CmapssUncertaintyBinRow, ...],
@@ -473,6 +510,7 @@ def build_cmapss_predicted_bin_uncertainty_audit(
             row,
             calibration_by_key,
             clip_min=clip_min,
+            floor_to_global=floor_to_global,
         )
         for row in prediction_rows
     ]
@@ -531,8 +569,9 @@ def build_cmapss_predicted_bin_uncertainty_audit(
 def compare_cmapss_interval_strategies(
     global_summaries: Iterable[CmapssUncertaintySummaryRow],
     predicted_bin_summaries: Iterable[CmapssUncertaintySummaryRow],
+    predicted_bin_floor_summaries: Iterable[CmapssUncertaintySummaryRow],
 ) -> tuple[CmapssIntervalComparisonRow, ...]:
-    """Compare global and predicted-bin interval audit summaries."""
+    """Compare global, predicted-bin, and global-floor interval summaries."""
 
     global_by_key = {
         (row.subset, row.model_name): row for row in tuple(global_summaries)
@@ -540,10 +579,20 @@ def compare_cmapss_interval_strategies(
     predicted_bin_by_key = {
         (row.subset, row.model_name): row for row in tuple(predicted_bin_summaries)
     }
+    predicted_bin_floor_by_key = {
+        (row.subset, row.model_name): row
+        for row in tuple(predicted_bin_floor_summaries)
+    }
     comparisons: list[CmapssIntervalComparisonRow] = []
-    for subset, model_name in sorted(global_by_key.keys() & predicted_bin_by_key.keys()):
+    comparable_keys = (
+        global_by_key.keys()
+        & predicted_bin_by_key.keys()
+        & predicted_bin_floor_by_key.keys()
+    )
+    for subset, model_name in sorted(comparable_keys):
         global_row = global_by_key[(subset, model_name)]
         predicted_bin_row = predicted_bin_by_key[(subset, model_name)]
+        predicted_bin_floor_row = predicted_bin_floor_by_key[(subset, model_name)]
         comparisons.append(
             CmapssIntervalComparisonRow(
                 subset=subset,
@@ -560,11 +609,22 @@ def compare_cmapss_interval_strategies(
                     predicted_bin_row.mean_interval_width
                     - global_row.mean_interval_width
                 ),
+                predicted_bin_floor_coverage=predicted_bin_floor_row.coverage,
+                predicted_bin_floor_mean_interval_width=(
+                    predicted_bin_floor_row.mean_interval_width
+                ),
+                predicted_bin_floor_mean_interval_width_delta=(
+                    predicted_bin_floor_row.mean_interval_width
+                    - global_row.mean_interval_width
+                ),
                 global_uncovered_late_prediction_count=(
                     global_row.uncovered_late_prediction_count
                 ),
                 predicted_bin_uncovered_late_prediction_count=(
                     predicted_bin_row.uncovered_late_prediction_count
+                ),
+                predicted_bin_floor_uncovered_late_prediction_count=(
+                    predicted_bin_floor_row.uncovered_late_prediction_count
                 ),
             )
         )
@@ -707,15 +767,20 @@ def render_cmapss_phase3_audit_markdown(result: CmapssPhase3AuditResult) -> str:
             "",
             (
                 "| Subset | Model | Rows | Global Coverage | Predicted-Bin Coverage | "
-                "Coverage Delta | Global Mean Width | Predicted-Bin Mean Width | "
-                "Late Failures Delta |"
+                "Floor Coverage | Coverage Delta | Global Mean Width | "
+                "Predicted-Bin Mean Width | Floor Mean Width | "
+                "Late Failures Delta | Floor Late Failures Delta |"
             ),
-            "|---|---|---:|---:|---:|---:|---:|---:|---:|",
+            "|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|",
         ]
     )
     for row in result.interval_comparisons:
         late_failure_delta = (
             row.predicted_bin_uncovered_late_prediction_count
+            - row.global_uncovered_late_prediction_count
+        )
+        floor_late_failure_delta = (
+            row.predicted_bin_floor_uncovered_late_prediction_count
             - row.global_uncovered_late_prediction_count
         )
         lines.append(
@@ -725,10 +790,13 @@ def render_cmapss_phase3_audit_markdown(result: CmapssPhase3AuditResult) -> str:
             f"{row.prediction_count} | "
             f"{row.global_coverage:.6f} | "
             f"{row.predicted_bin_coverage:.6f} | "
+            f"{row.predicted_bin_floor_coverage:.6f} | "
             f"{row.coverage_delta:.6f} | "
             f"{row.global_mean_interval_width:.6f} | "
             f"{row.predicted_bin_mean_interval_width:.6f} | "
-            f"{late_failure_delta} |"
+            f"{row.predicted_bin_floor_mean_interval_width:.6f} | "
+            f"{late_failure_delta} | "
+            f"{floor_late_failure_delta} |"
         )
     lines.extend(
         [
@@ -860,23 +928,35 @@ def _annotated_predicted_bin_interval_row(
     ],
     *,
     clip_min: float,
+    floor_to_global: bool = False,
 ) -> dict[str, Any]:
     subset = row["subset"]
     model_name = row["model_name"]
     bin_label = _predicted_rul_bin(_float(row["predicted_rul"]))
+    global_calibration = calibration_by_key.get((subset, model_name, "all"))
     calibration = calibration_by_key.get(
         (subset, model_name, bin_label),
-        calibration_by_key.get((subset, model_name, "all")),
+        global_calibration,
     )
     if calibration is None:
         raise ValueError(
             "missing predicted-bin interval calibration for prediction row: "
             f"subset={subset}, model_name={model_name}, predicted_rul_bin={bin_label}"
         )
+    interval_radius = calibration.interval_radius
+    method = calibration.method
+    if floor_to_global:
+        if global_calibration is None:
+            raise ValueError(
+                "missing global interval calibration for predicted-bin floor: "
+                f"subset={subset}, model_name={model_name}"
+            )
+        interval_radius = max(interval_radius, global_calibration.interval_radius)
+        method = f"{calibration.method}_global_floor"
     predicted_rul = _float(row["predicted_rul"])
     actual_rul = _float(row["actual_rul"])
-    lower_bound = max(clip_min, predicted_rul - calibration.interval_radius)
-    upper_bound = predicted_rul + calibration.interval_radius
+    lower_bound = max(clip_min, predicted_rul - interval_radius)
+    upper_bound = predicted_rul + interval_radius
     covered = lower_bound <= actual_rul <= upper_bound
     error = _float(row["error"])
     return {
@@ -893,9 +973,9 @@ def _annotated_predicted_bin_interval_row(
         "absolute_error": _float(row["absolute_error"]),
         "late_prediction": error > 0.0,
         "failure_type": _failure_type(error, covered),
-        "method": calibration.method,
+        "method": method,
         "confidence": calibration.confidence,
-        "interval_radius": calibration.interval_radius,
+        "interval_radius": interval_radius,
     }
 
 

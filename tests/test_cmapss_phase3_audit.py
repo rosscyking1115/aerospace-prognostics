@@ -94,6 +94,45 @@ def test_cmapss_phase3_audit_compares_predicted_bin_interval_coverage(
     assert comparison.coverage_delta == pytest.approx(2 / 3)
     assert comparison.global_uncovered_late_prediction_count == 1
     assert comparison.predicted_bin_uncovered_late_prediction_count == 0
+    assert comparison.predicted_bin_floor_coverage == pytest.approx(1.0)
+
+
+def test_cmapss_phase3_audit_reports_predicted_bin_global_floor(
+    tmp_path,
+) -> None:
+    calibration_csv = tmp_path / "validation_predictions.csv"
+    predictions_csv = tmp_path / "official_predictions.csv"
+    _write_predictions(
+        calibration_csv,
+        [
+            _prediction("FD001", "transformer", 1, 50.0, 51.0),
+            _prediction("FD001", "transformer", 2, 53.0, 55.0),
+            _prediction("FD001", "transformer", 3, 100.0, 120.0),
+            _prediction("FD001", "transformer", 4, 100.0, 130.0),
+        ],
+    )
+    _write_predictions(
+        predictions_csv,
+        [
+            _prediction("FD001", "transformer", 10, 70.0, 55.0),
+        ],
+    )
+
+    result = run_cmapss_phase3_audit(
+        calibration_csv=calibration_csv,
+        predictions_csv=predictions_csv,
+        confidence=0.75,
+    )
+
+    comparison = result.interval_comparisons[0]
+    assert comparison.global_coverage == pytest.approx(1.0)
+    assert comparison.predicted_bin_coverage == pytest.approx(0.0)
+    assert comparison.predicted_bin_floor_coverage == pytest.approx(1.0)
+    assert comparison.predicted_bin_mean_interval_width == pytest.approx(4.0)
+    assert comparison.predicted_bin_floor_mean_interval_width == pytest.approx(40.0)
+    assert result.predicted_bin_floor_uncertainty_summaries[0].coverage == pytest.approx(
+        1.0
+    )
 
 
 def test_cmapss_phase3_audit_compares_raw_and_calibrated_monotonicity(

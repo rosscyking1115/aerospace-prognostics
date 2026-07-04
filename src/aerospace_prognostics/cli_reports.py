@@ -234,6 +234,10 @@ def handle_report_command(args: argparse.Namespace) -> int | None:
             "predicted_bin_interval_calibrations="
             f"{len(result.predicted_bin_interval_calibrations)}"
         )
+        print(
+            "predicted_bin_floor_summaries="
+            f"{len(result.predicted_bin_floor_uncertainty_summaries)}"
+        )
         print(f"interval_comparisons={len(result.interval_comparisons)}")
         print(f"monotonicity_diagnostics={len(result.monotonicity_diagnostics)}")
         print(f"monotonicity_comparisons={len(result.monotonicity_comparisons)}")

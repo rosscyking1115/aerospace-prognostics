@@ -1195,6 +1195,7 @@ def test_cmapss_phase3_audit_command_writes_evidence(tmp_path, capsys) -> None:
     assert "interval_calibrations=1" in output
     assert "failure_cases=1" in output
     assert "predicted_bin_interval_calibrations=" in output
+    assert "predicted_bin_floor_summaries=1" in output
     assert "interval_comparisons=1" in output
     assert "monotonicity_comparisons=1" in output
     assert "training_recommendation=diagnostic_first:" in output

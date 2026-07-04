@@ -166,9 +166,11 @@ Every active slice should stay small enough to finish with:
 22. [x] Add a bin-specific interval calibration comparison for the Phase 3 audit
         so high-RUL and mid-RUL under-coverage can be diagnosed separately from
         the global interval radius.
-23. [ ] Add a high-RUL-aware interval calibration check for sparse predicted-bin
+23. [x] Add a high-RUL-aware interval calibration check for sparse predicted-bin
         tails, such as a coverage floor, tail fallback, or actual-RUL-bin
         diagnostic comparison that remains clearly marked as non-inference-safe.
+24. [ ] Add unit-level failure notes for the uncovered official-test cases so
+        interval-policy decisions are tied to concrete trajectories.
 
 ## Later Milestones
 
