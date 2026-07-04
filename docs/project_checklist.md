@@ -161,8 +161,11 @@ Every active slice should stay small enough to finish with:
 20. [x] Add the first Phase 3 C-MAPSS audit command for validation-fitted
         uncertainty intervals, official-test coverage evidence, late-risk
         failures, and raw-vs-calibrated monotonicity comparison.
-21. [ ] Run the Phase 3 audit on the current best Phase 2 artifacts and record
-        the result summary.
+21. [x] Run the Phase 3 audit on the current best Phase 2 artifacts and record
+        the result summary in `docs/phase3_cmapss_audit_results.md`.
+22. [ ] Add a bin-specific interval calibration comparison for the Phase 3 audit
+        so high-RUL and mid-RUL under-coverage can be diagnosed separately from
+        the global interval radius.
 
 ## Later Milestones
 
