@@ -1138,6 +1138,69 @@ def test_cmapss_calibrate_deep_predictions_command_supports_nasa_shift(
     assert output_calibration_csv.exists()
 
 
+def test_cmapss_phase3_audit_command_writes_evidence(tmp_path, capsys) -> None:
+    calibration_csv = tmp_path / "results" / "validation_predictions.csv"
+    predictions_csv = tmp_path / "results" / "official_predictions.csv"
+    calibrated_predictions_csv = tmp_path / "results" / "official_predictions_calibrated.csv"
+    output_json = tmp_path / "reports" / "phase3_audit.json"
+    output_markdown = tmp_path / "reports" / "phase3_audit.md"
+    _write_cli_predictions(
+        calibration_csv,
+        [
+            _cli_prediction("FD001", "transformer", 1, 50.0, 48.0),
+            _cli_prediction("FD001", "transformer", 2, 60.0, 56.0),
+            _cli_prediction("FD001", "transformer", 3, 70.0, 76.0),
+        ],
+    )
+    _write_cli_predictions(
+        predictions_csv,
+        [
+            _cli_prediction("FD001", "transformer", 10, 50.0, 45.0),
+            _cli_prediction("FD001", "transformer", 11, 40.0, 52.0),
+            _cli_prediction("FD001", "transformer", 12, 80.0, 77.0),
+        ],
+    )
+    _write_cli_predictions(
+        calibrated_predictions_csv,
+        [
+            _cli_prediction("FD001", "transformer", 10, 50.0, 45.0),
+            _cli_prediction("FD001", "transformer", 11, 40.0, 42.0),
+            _cli_prediction("FD001", "transformer", 12, 80.0, 77.0),
+        ],
+    )
+
+    exit_code = main(
+        [
+            "cmapss-phase3-audit",
+            "--calibration-csv",
+            str(calibration_csv),
+            "--predictions-csv",
+            str(predictions_csv),
+            "--calibrated-predictions-csv",
+            str(calibrated_predictions_csv),
+            "--output-json",
+            str(output_json),
+            "--output-markdown",
+            str(output_markdown),
+            "--confidence",
+            "0.67",
+            "--top-n",
+            "2",
+        ]
+    )
+
+    output = capsys.readouterr().out
+    assert exit_code == 0
+    assert "schema_version=aerospace-prognostics/cmapss-phase3-audit/v1" in output
+    assert "interval_calibrations=1" in output
+    assert "failure_cases=1" in output
+    assert "monotonicity_comparisons=1" in output
+    assert "training_recommendation=diagnostic_first:" in output
+    assert output_json.exists()
+    assert output_markdown.exists()
+    assert "## Uncertainty Coverage" in output_markdown.read_text(encoding="utf-8")
+
+
 def test_cmapss_compare_rul_results_command_writes_report_tables(
     tmp_path,
     capsys,

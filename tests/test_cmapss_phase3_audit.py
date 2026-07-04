@@ -1,0 +1,134 @@
+from __future__ import annotations
+
+import csv
+import json
+
+import pytest
+
+from aerospace_prognostics.reports.cmapss_phase3 import run_cmapss_phase3_audit
+
+
+def test_cmapss_phase3_audit_reports_interval_coverage_and_failures(tmp_path) -> None:
+    calibration_csv = tmp_path / "validation_predictions.csv"
+    predictions_csv = tmp_path / "official_predictions.csv"
+    output_json = tmp_path / "reports" / "phase3_audit.json"
+    output_markdown = tmp_path / "reports" / "phase3_audit.md"
+    _write_predictions(
+        calibration_csv,
+        [
+            _prediction("FD001", "transformer", 1, 50.0, 48.0),
+            _prediction("FD001", "transformer", 2, 60.0, 56.0),
+            _prediction("FD001", "transformer", 3, 70.0, 76.0),
+        ],
+    )
+    _write_predictions(
+        predictions_csv,
+        [
+            _prediction("FD001", "transformer", 10, 50.0, 45.0),
+            _prediction("FD001", "transformer", 11, 40.0, 52.0),
+            _prediction("FD001", "transformer", 12, 80.0, 77.0),
+        ],
+    )
+
+    result = run_cmapss_phase3_audit(
+        calibration_csv=calibration_csv,
+        predictions_csv=predictions_csv,
+        output_json=output_json,
+        output_markdown=output_markdown,
+        confidence=0.67,
+        top_n=2,
+    )
+
+    payload = json.loads(output_json.read_text(encoding="utf-8"))
+    summary = result.uncertainty_summaries[0]
+    assert summary.interval_radius == pytest.approx(6.0)
+    assert summary.coverage == pytest.approx(2 / 3)
+    assert summary.mean_interval_width == pytest.approx(12.0)
+    assert summary.late_prediction_count == 1
+    assert summary.late_prediction_coverage == pytest.approx(0.0)
+    assert result.failure_cases[0].unit_number == 11
+    assert result.failure_cases[0].failure_type == "late_uncovered"
+    assert payload["schema_version"] == "aerospace-prognostics/cmapss-phase3-audit/v1"
+    assert payload["uncertainty"]["summaries"][0]["coverage"] == pytest.approx(2 / 3)
+    assert "## Uncertainty Coverage" in output_markdown.read_text(encoding="utf-8")
+
+
+def test_cmapss_phase3_audit_compares_raw_and_calibrated_monotonicity(
+    tmp_path,
+) -> None:
+    calibration_csv = tmp_path / "validation_predictions.csv"
+    predictions_csv = tmp_path / "official_predictions.csv"
+    calibrated_predictions_csv = tmp_path / "calibrated_predictions.csv"
+    _write_predictions(
+        calibration_csv,
+        [
+            _prediction("FD001", "transformer", 1, 100.0, 95.0),
+            _prediction("FD001", "transformer", 2, 90.0, 86.0),
+        ],
+    )
+    _write_predictions(
+        predictions_csv,
+        [
+            _prediction("FD001", "transformer", 1, 100.0, 80.0, end_cycle=10),
+            _prediction("FD001", "transformer", 1, 99.0, 84.0, end_cycle=11),
+            _prediction("FD001", "transformer", 1, 98.0, 83.0, end_cycle=12),
+        ],
+    )
+    _write_predictions(
+        calibrated_predictions_csv,
+        [
+            _prediction("FD001", "transformer", 1, 100.0, 80.0, end_cycle=10),
+            _prediction("FD001", "transformer", 1, 99.0, 79.0, end_cycle=11),
+            _prediction("FD001", "transformer", 1, 98.0, 78.0, end_cycle=12),
+        ],
+    )
+
+    result = run_cmapss_phase3_audit(
+        calibration_csv=calibration_csv,
+        predictions_csv=predictions_csv,
+        calibrated_predictions_csv=calibrated_predictions_csv,
+    )
+
+    comparison = result.monotonicity_comparisons[0]
+    assert comparison.raw_violation_rate == pytest.approx(0.5)
+    assert comparison.calibrated_violation_rate == pytest.approx(0.0)
+    assert comparison.violation_rate_delta == pytest.approx(-0.5)
+    assert "diagnostic_first" in result.training_recommendation
+
+
+def _prediction(
+    subset: str,
+    model_name: str,
+    unit_number: int,
+    actual_rul: float,
+    predicted_rul: float,
+    *,
+    end_cycle: int | None = None,
+) -> dict[str, str | int | float]:
+    error = predicted_rul - actual_rul
+    return {
+        "dataset": "C-MAPSS-sequence",
+        "prediction_split": "validation_selection",
+        "subset": subset,
+        "model_name": model_name,
+        "selected_epoch": 1,
+        "unit_number": unit_number,
+        "end_cycle": end_cycle if end_cycle is not None else 10 + unit_number,
+        "actual_rul": actual_rul,
+        "predicted_rul": predicted_rul,
+        "error": error,
+        "absolute_error": abs(error),
+        "late_error": max(error, 0.0),
+        "early_error": max(-error, 0.0),
+    }
+
+
+def _write_predictions(
+    path,
+    rows: list[dict[str, str | int | float]],
+) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("w", encoding="utf-8", newline="") as file:
+        writer = csv.DictWriter(file, fieldnames=list(rows[0]))
+        writer.writeheader()
+        writer.writerows(rows)

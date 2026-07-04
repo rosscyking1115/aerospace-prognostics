@@ -1,0 +1,719 @@
+"""Phase 3 C-MAPSS uncertainty and monotonicity audit reports."""
+
+from __future__ import annotations
+
+import csv
+import math
+from collections.abc import Iterable
+from dataclasses import asdict, dataclass
+from pathlib import Path
+from typing import Any
+
+from aerospace_prognostics.artifact_io import prepare_output_path, write_json_payload
+from aerospace_prognostics.reports.cmapss_prediction_diagnostics import (
+    CmapssPredictionMonotonicityDiagnosticRow,
+    CmapssPredictionUnitDiagnosticRow,
+    build_cmapss_prediction_monotonicity_diagnostics,
+    build_cmapss_prediction_unit_diagnostics,
+)
+
+
+@dataclass(frozen=True)
+class CmapssIntervalCalibrationRow:
+    """Validation-fitted interval calibration for one subset/model pair."""
+
+    subset: str
+    model_name: str
+    method: str
+    confidence: float
+    calibration_count: int
+    interval_radius: float
+    mean_absolute_residual: float
+    max_absolute_residual: float
+
+    def to_dict(self) -> dict[str, str | int | float]:
+        return asdict(self)
+
+
+@dataclass(frozen=True)
+class CmapssUncertaintySummaryRow:
+    """Official-test interval coverage summary for one subset/model pair."""
+
+    subset: str
+    model_name: str
+    method: str
+    confidence: float
+    prediction_count: int
+    covered_count: int
+    coverage: float
+    interval_radius: float
+    mean_interval_width: float
+    median_interval_width: float
+    mean_absolute_error: float
+    late_prediction_count: int
+    late_prediction_coverage: float
+    uncovered_late_prediction_count: int
+
+    def to_dict(self) -> dict[str, str | int | float]:
+        return asdict(self)
+
+
+@dataclass(frozen=True)
+class CmapssUncertaintyBinRow:
+    """Official-test interval coverage by actual-RUL bin."""
+
+    subset: str
+    model_name: str
+    actual_rul_bin: str
+    prediction_count: int
+    covered_count: int
+    coverage: float
+    mean_interval_width: float
+    mean_absolute_error: float
+    late_prediction_rate: float
+
+    def to_dict(self) -> dict[str, str | int | float]:
+        return asdict(self)
+
+
+@dataclass(frozen=True)
+class CmapssUncertaintyFailureRow:
+    """Highest-risk uncovered interval case."""
+
+    rank: int
+    subset: str
+    model_name: str
+    unit_number: int
+    actual_rul: float
+    predicted_rul: float
+    lower_bound: float
+    upper_bound: float
+    interval_width: float
+    error: float
+    absolute_error: float
+    failure_type: str
+
+    def to_dict(self) -> dict[str, str | int | float]:
+        return asdict(self)
+
+
+@dataclass(frozen=True)
+class CmapssMonotonicityComparisonRow:
+    """Raw-vs-calibrated monotonicity comparison for one subset/model pair."""
+
+    subset: str
+    model_name: str
+    raw_violation_rate: float
+    calibrated_violation_rate: float
+    violation_rate_delta: float
+    raw_max_violation_magnitude: float
+    calibrated_max_violation_magnitude: float
+    max_violation_delta: float
+
+    def to_dict(self) -> dict[str, str | float]:
+        return asdict(self)
+
+
+@dataclass(frozen=True)
+class CmapssPhase3AuditResult:
+    """Phase 3 evidence bundle for C-MAPSS predictions."""
+
+    interval_calibrations: tuple[CmapssIntervalCalibrationRow, ...]
+    uncertainty_summaries: tuple[CmapssUncertaintySummaryRow, ...]
+    uncertainty_bins: tuple[CmapssUncertaintyBinRow, ...]
+    failure_cases: tuple[CmapssUncertaintyFailureRow, ...]
+    monotonicity_diagnostics: tuple[CmapssPredictionMonotonicityDiagnosticRow, ...]
+    unit_diagnostics: tuple[CmapssPredictionUnitDiagnosticRow, ...]
+    monotonicity_comparisons: tuple[CmapssMonotonicityComparisonRow, ...]
+    training_recommendation: str
+    output_json_path: Path | None = None
+    output_markdown_path: Path | None = None
+
+    def to_payload(self) -> dict[str, Any]:
+        return {
+            "schema_version": "aerospace-prognostics/cmapss-phase3-audit/v1",
+            "uncertainty": {
+                "calibrations": [
+                    row.to_dict() for row in self.interval_calibrations
+                ],
+                "summaries": [row.to_dict() for row in self.uncertainty_summaries],
+                "bins": [row.to_dict() for row in self.uncertainty_bins],
+                "failure_cases": [row.to_dict() for row in self.failure_cases],
+            },
+            "monotonicity": {
+                "diagnostics": [
+                    row.to_dict() for row in self.monotonicity_diagnostics
+                ],
+                "unit_diagnostics": [
+                    row.to_dict() for row in self.unit_diagnostics
+                ],
+                "calibrated_comparisons": [
+                    row.to_dict() for row in self.monotonicity_comparisons
+                ],
+            },
+            "training_recommendation": self.training_recommendation,
+        }
+
+
+def run_cmapss_phase3_audit(
+    *,
+    calibration_csv: str | Path,
+    predictions_csv: str | Path,
+    calibrated_predictions_csv: str | Path | None = None,
+    output_json: str | Path | None = None,
+    output_markdown: str | Path | None = None,
+    confidence: float = 0.9,
+    top_n: int = 10,
+    clip_min: float = 0.0,
+) -> CmapssPhase3AuditResult:
+    """Build Phase 3 interval and monotonicity evidence from prediction CSVs."""
+
+    calibrations = fit_cmapss_interval_calibrations(
+        calibration_csv,
+        confidence=confidence,
+    )
+    prediction_rows = _read_prediction_rows(predictions_csv)
+    summary_rows, bin_rows, failure_rows = build_cmapss_uncertainty_audit(
+        prediction_rows,
+        calibrations,
+        top_n=top_n,
+        clip_min=clip_min,
+    )
+    monotonicity_rows = tuple(
+        build_cmapss_prediction_monotonicity_diagnostics(predictions_csv)
+    )
+    unit_rows = tuple(build_cmapss_prediction_unit_diagnostics(predictions_csv))
+    monotonicity_comparisons = (
+        compare_cmapss_monotonicity(predictions_csv, calibrated_predictions_csv)
+        if calibrated_predictions_csv is not None
+        else ()
+    )
+    recommendation = _training_recommendation(
+        summary_rows,
+        monotonicity_rows,
+        monotonicity_comparisons,
+    )
+    result = CmapssPhase3AuditResult(
+        interval_calibrations=calibrations,
+        uncertainty_summaries=summary_rows,
+        uncertainty_bins=bin_rows,
+        failure_cases=failure_rows,
+        monotonicity_diagnostics=monotonicity_rows,
+        unit_diagnostics=unit_rows,
+        monotonicity_comparisons=monotonicity_comparisons,
+        training_recommendation=recommendation,
+        output_json_path=Path(output_json) if output_json else None,
+        output_markdown_path=Path(output_markdown) if output_markdown else None,
+    )
+    if output_json is not None:
+        write_json_payload(result.to_payload(), output_json)
+    if output_markdown is not None:
+        write_cmapss_phase3_audit_markdown(result, output_markdown)
+    return result
+
+
+def fit_cmapss_interval_calibrations(
+    calibration_csv: str | Path,
+    *,
+    confidence: float = 0.9,
+) -> tuple[CmapssIntervalCalibrationRow, ...]:
+    """Fit symmetric absolute-residual interval radii from validation predictions."""
+
+    if not 0.0 < confidence < 1.0:
+        raise ValueError("confidence must be between 0 and 1")
+    rows = _read_prediction_rows(calibration_csv)
+    grouped: dict[tuple[str, str], list[dict[str, str]]] = {}
+    for row in rows:
+        grouped.setdefault((row["subset"], row["model_name"]), []).append(row)
+
+    calibrations: list[CmapssIntervalCalibrationRow] = []
+    for subset, model_name in sorted(grouped):
+        group = grouped[(subset, model_name)]
+        residuals = sorted(_float(row["absolute_error"]) for row in group)
+        radius = _nearest_rank_quantile(residuals, confidence)
+        calibrations.append(
+            CmapssIntervalCalibrationRow(
+                subset=subset,
+                model_name=model_name,
+                method="validation_absolute_residual_quantile",
+                confidence=confidence,
+                calibration_count=len(group),
+                interval_radius=radius,
+                mean_absolute_residual=_mean(residuals),
+                max_absolute_residual=max(residuals),
+            )
+        )
+    return tuple(calibrations)
+
+
+def build_cmapss_uncertainty_audit(
+    prediction_rows: Iterable[dict[str, str]],
+    calibrations: Iterable[CmapssIntervalCalibrationRow],
+    *,
+    top_n: int = 10,
+    clip_min: float = 0.0,
+) -> tuple[
+    tuple[CmapssUncertaintySummaryRow, ...],
+    tuple[CmapssUncertaintyBinRow, ...],
+    tuple[CmapssUncertaintyFailureRow, ...],
+]:
+    """Summarize interval coverage and uncovered cases for prediction rows."""
+
+    if top_n < 1:
+        raise ValueError("top_n must be at least 1")
+    calibration_by_key = {
+        (row.subset, row.model_name): row for row in tuple(calibrations)
+    }
+    annotated_rows = [
+        _annotated_interval_row(row, calibration_by_key, clip_min=clip_min)
+        for row in prediction_rows
+    ]
+    grouped: dict[tuple[str, str], list[dict[str, Any]]] = {}
+    grouped_bins: dict[tuple[str, str, str], list[dict[str, Any]]] = {}
+    for row in annotated_rows:
+        model_key = (row["subset"], row["model_name"])
+        grouped.setdefault(model_key, []).append(row)
+        bin_label = _actual_rul_bin(row["actual_rul"])
+        grouped_bins.setdefault((*model_key, bin_label), []).append(row)
+
+    summary_rows = tuple(
+        _summary_row(subset, model_name, rows)
+        for subset, model_name in sorted(grouped)
+        for rows in (grouped[(subset, model_name)],)
+    )
+    bin_rows = tuple(
+        _bin_row(subset, model_name, bin_label, rows)
+        for subset, model_name, bin_label in sorted(
+            grouped_bins,
+            key=lambda key: (key[0], key[1], _actual_rul_bin_sort_key(key[2])),
+        )
+        for rows in (grouped_bins[(subset, model_name, bin_label)],)
+    )
+    failure_rows = tuple(
+        CmapssUncertaintyFailureRow(
+            rank=rank,
+            subset=row["subset"],
+            model_name=row["model_name"],
+            unit_number=row["unit_number"],
+            actual_rul=row["actual_rul"],
+            predicted_rul=row["predicted_rul"],
+            lower_bound=row["lower_bound"],
+            upper_bound=row["upper_bound"],
+            interval_width=row["interval_width"],
+            error=row["error"],
+            absolute_error=row["absolute_error"],
+            failure_type=row["failure_type"],
+        )
+        for rank, row in enumerate(
+            sorted(
+                (row for row in annotated_rows if not row["covered"]),
+                key=lambda item: (
+                    -item["absolute_error"],
+                    item["subset"],
+                    item["model_name"],
+                    item["unit_number"],
+                ),
+            )[:top_n],
+            start=1,
+        )
+    )
+    return summary_rows, bin_rows, failure_rows
+
+
+def compare_cmapss_monotonicity(
+    raw_predictions_csv: str | Path,
+    calibrated_predictions_csv: str | Path,
+) -> tuple[CmapssMonotonicityComparisonRow, ...]:
+    """Compare raw and calibrated monotonicity diagnostics by subset/model."""
+
+    raw_rows = {
+        (row.subset, row.model_name): row
+        for row in build_cmapss_prediction_monotonicity_diagnostics(raw_predictions_csv)
+    }
+    calibrated_rows = {
+        (row.subset, row.model_name): row
+        for row in build_cmapss_prediction_monotonicity_diagnostics(
+            calibrated_predictions_csv
+        )
+    }
+    comparisons: list[CmapssMonotonicityComparisonRow] = []
+    for subset, model_name in sorted(raw_rows.keys() & calibrated_rows.keys()):
+        raw = raw_rows[(subset, model_name)]
+        calibrated = calibrated_rows[(subset, model_name)]
+        comparisons.append(
+            CmapssMonotonicityComparisonRow(
+                subset=subset,
+                model_name=model_name,
+                raw_violation_rate=raw.violation_rate,
+                calibrated_violation_rate=calibrated.violation_rate,
+                violation_rate_delta=calibrated.violation_rate - raw.violation_rate,
+                raw_max_violation_magnitude=raw.max_violation_magnitude,
+                calibrated_max_violation_magnitude=(
+                    calibrated.max_violation_magnitude
+                ),
+                max_violation_delta=(
+                    calibrated.max_violation_magnitude
+                    - raw.max_violation_magnitude
+                ),
+            )
+        )
+    return tuple(comparisons)
+
+
+def write_cmapss_phase3_audit_markdown(
+    result: CmapssPhase3AuditResult,
+    path: str | Path,
+) -> Path:
+    """Write a compact Phase 3 audit Markdown report."""
+
+    output_path = prepare_output_path(path)
+    output_path.write_text(render_cmapss_phase3_audit_markdown(result), encoding="utf-8")
+    return output_path
+
+
+def render_cmapss_phase3_audit_markdown(result: CmapssPhase3AuditResult) -> str:
+    """Render Phase 3 uncertainty and monotonicity evidence as Markdown."""
+
+    lines = [
+        "# C-MAPSS Phase 3 Audit",
+        "",
+        "## Uncertainty Coverage",
+        "",
+        (
+            "| Subset | Model | Rows | Confidence | Coverage | Radius | "
+            "Mean Width | Late Rows | Late Coverage | Uncovered Late |"
+        ),
+        "|---|---|---:|---:|---:|---:|---:|---:|---:|---:|",
+    ]
+    for row in result.uncertainty_summaries:
+        lines.append(
+            "| "
+            f"{row.subset} | "
+            f"`{row.model_name}` | "
+            f"{row.prediction_count} | "
+            f"{row.confidence:.6f} | "
+            f"{row.coverage:.6f} | "
+            f"{row.interval_radius:.6f} | "
+            f"{row.mean_interval_width:.6f} | "
+            f"{row.late_prediction_count} | "
+            f"{row.late_prediction_coverage:.6f} | "
+            f"{row.uncovered_late_prediction_count} |"
+        )
+    lines.extend(
+        [
+            "",
+            "## Coverage By Actual RUL Bin",
+            "",
+            (
+                "| Subset | Model | Actual RUL Bin | Rows | Coverage | "
+                "Mean Width | Mean Abs Error | Late Rate |"
+            ),
+            "|---|---|---|---:|---:|---:|---:|---:|",
+        ]
+    )
+    for row in result.uncertainty_bins:
+        lines.append(
+            "| "
+            f"{row.subset} | "
+            f"`{row.model_name}` | "
+            f"{row.actual_rul_bin} | "
+            f"{row.prediction_count} | "
+            f"{row.coverage:.6f} | "
+            f"{row.mean_interval_width:.6f} | "
+            f"{row.mean_absolute_error:.6f} | "
+            f"{row.late_prediction_rate:.6f} |"
+        )
+    if result.failure_cases:
+        lines.extend(
+            [
+                "",
+                "## Uncovered Interval Cases",
+                "",
+                (
+                    "| Rank | Subset | Model | Unit | Actual | Predicted | "
+                    "Interval | Abs Error | Failure |"
+                ),
+                "|---:|---|---|---:|---:|---:|---|---:|---|",
+            ]
+        )
+        for row in result.failure_cases:
+            lines.append(
+                "| "
+                f"{row.rank} | "
+                f"{row.subset} | "
+                f"`{row.model_name}` | "
+                f"{row.unit_number} | "
+                f"{row.actual_rul:.6f} | "
+                f"{row.predicted_rul:.6f} | "
+                f"{row.lower_bound:.6f}-{row.upper_bound:.6f} | "
+                f"{row.absolute_error:.6f} | "
+                f"{row.failure_type} |"
+            )
+    lines.extend(
+        [
+            "",
+            "## Monotonicity Diagnostics",
+            "",
+            (
+                "| Subset | Model | Units | Transitions | Violations | "
+                "Violation Rate | Mean Violation | Max Violation |"
+            ),
+            "|---|---|---:|---:|---:|---:|---:|---:|",
+        ]
+    )
+    for row in result.monotonicity_diagnostics:
+        lines.append(
+            "| "
+            f"{row.subset} | "
+            f"`{row.model_name}` | "
+            f"{row.unit_count} | "
+            f"{row.transition_count} | "
+            f"{row.violation_count} | "
+            f"{row.violation_rate:.6f} | "
+            f"{row.mean_violation_magnitude:.6f} | "
+            f"{row.max_violation_magnitude:.6f} |"
+        )
+    if result.monotonicity_comparisons:
+        lines.extend(
+            [
+                "",
+                "## Raw Vs Calibrated Monotonicity",
+                "",
+                (
+                    "| Subset | Model | Raw Violation Rate | Calibrated Violation Rate | "
+                    "Delta | Raw Max Violation | Calibrated Max Violation |"
+                ),
+                "|---|---|---:|---:|---:|---:|---:|",
+            ]
+        )
+        for row in result.monotonicity_comparisons:
+            lines.append(
+                "| "
+                f"{row.subset} | "
+                f"`{row.model_name}` | "
+                f"{row.raw_violation_rate:.6f} | "
+                f"{row.calibrated_violation_rate:.6f} | "
+                f"{row.violation_rate_delta:.6f} | "
+                f"{row.raw_max_violation_magnitude:.6f} | "
+                f"{row.calibrated_max_violation_magnitude:.6f} |"
+            )
+    lines.extend(
+        [
+            "",
+            "## Training Recommendation",
+            "",
+            result.training_recommendation,
+        ]
+    )
+    return "\n".join(lines) + "\n"
+
+
+def _annotated_interval_row(
+    row: dict[str, str],
+    calibration_by_key: dict[tuple[str, str], CmapssIntervalCalibrationRow],
+    *,
+    clip_min: float,
+) -> dict[str, Any]:
+    subset = row["subset"]
+    model_name = row["model_name"]
+    calibration = calibration_by_key.get((subset, model_name))
+    if calibration is None:
+        raise ValueError(
+            "missing interval calibration for prediction row: "
+            f"subset={subset}, model_name={model_name}"
+        )
+    predicted_rul = _float(row["predicted_rul"])
+    actual_rul = _float(row["actual_rul"])
+    lower_bound = max(clip_min, predicted_rul - calibration.interval_radius)
+    upper_bound = predicted_rul + calibration.interval_radius
+    covered = lower_bound <= actual_rul <= upper_bound
+    error = _float(row["error"])
+    return {
+        "subset": subset,
+        "model_name": model_name,
+        "unit_number": int(row["unit_number"]),
+        "actual_rul": actual_rul,
+        "predicted_rul": predicted_rul,
+        "lower_bound": lower_bound,
+        "upper_bound": upper_bound,
+        "interval_width": upper_bound - lower_bound,
+        "covered": covered,
+        "error": error,
+        "absolute_error": _float(row["absolute_error"]),
+        "late_prediction": error > 0.0,
+        "failure_type": _failure_type(error, covered),
+        "method": calibration.method,
+        "confidence": calibration.confidence,
+        "interval_radius": calibration.interval_radius,
+    }
+
+
+def _summary_row(
+    subset: str,
+    model_name: str,
+    rows: list[dict[str, Any]],
+) -> CmapssUncertaintySummaryRow:
+    late_rows = [row for row in rows if row["late_prediction"]]
+    uncovered_late_rows = [row for row in late_rows if not row["covered"]]
+    return CmapssUncertaintySummaryRow(
+        subset=subset,
+        model_name=model_name,
+        method=rows[0]["method"],
+        confidence=rows[0]["confidence"],
+        prediction_count=len(rows),
+        covered_count=sum(1 for row in rows if row["covered"]),
+        coverage=_rate(row["covered"] for row in rows),
+        interval_radius=rows[0]["interval_radius"],
+        mean_interval_width=_mean(row["interval_width"] for row in rows),
+        median_interval_width=_median(row["interval_width"] for row in rows),
+        mean_absolute_error=_mean(row["absolute_error"] for row in rows),
+        late_prediction_count=len(late_rows),
+        late_prediction_coverage=(
+            _rate(row["covered"] for row in late_rows) if late_rows else 0.0
+        ),
+        uncovered_late_prediction_count=len(uncovered_late_rows),
+    )
+
+
+def _bin_row(
+    subset: str,
+    model_name: str,
+    bin_label: str,
+    rows: list[dict[str, Any]],
+) -> CmapssUncertaintyBinRow:
+    return CmapssUncertaintyBinRow(
+        subset=subset,
+        model_name=model_name,
+        actual_rul_bin=bin_label,
+        prediction_count=len(rows),
+        covered_count=sum(1 for row in rows if row["covered"]),
+        coverage=_rate(row["covered"] for row in rows),
+        mean_interval_width=_mean(row["interval_width"] for row in rows),
+        mean_absolute_error=_mean(row["absolute_error"] for row in rows),
+        late_prediction_rate=_rate(row["late_prediction"] for row in rows),
+    )
+
+
+def _training_recommendation(
+    summaries: tuple[CmapssUncertaintySummaryRow, ...],
+    monotonicity_rows: tuple[CmapssPredictionMonotonicityDiagnosticRow, ...],
+    comparisons: tuple[CmapssMonotonicityComparisonRow, ...],
+) -> str:
+    low_coverage = [
+        row
+        for row in summaries
+        if row.coverage + 1e-12 < row.confidence
+        or row.uncovered_late_prediction_count > 0
+    ]
+    monotonic_issues = [row for row in monotonicity_rows if row.violation_count > 0]
+    improved_by_calibration = [
+        row for row in comparisons if row.violation_rate_delta < 0.0
+    ]
+    if low_coverage or monotonic_issues:
+        details: list[str] = []
+        if low_coverage:
+            details.append("interval coverage or late-risk coverage is below target")
+        if monotonic_issues:
+            details.append("prediction trajectories still contain RUL increases")
+        if improved_by_calibration:
+            details.append("calibration changes monotonicity, so compare raw and calibrated traces")
+        return (
+            "diagnostic_first: do not add new constrained losses yet; "
+            + "; ".join(details)
+            + "."
+        )
+    return (
+        "diagnostic_first: current evidence does not justify a new constrained "
+        "loss before broader validation."
+    )
+
+
+def _failure_type(error: float, covered: bool) -> str:
+    if covered:
+        return "covered"
+    if error > 0.0:
+        return "late_uncovered"
+    if error < 0.0:
+        return "early_uncovered"
+    return "uncovered"
+
+
+def _nearest_rank_quantile(values: list[float], quantile: float) -> float:
+    if not values:
+        raise ValueError("cannot compute quantile for an empty sequence")
+    rank = max(1, math.ceil(quantile * len(values)))
+    return values[min(rank - 1, len(values) - 1)]
+
+
+def _read_prediction_rows(path: str | Path) -> list[dict[str, str]]:
+    prediction_path = Path(path)
+    if not prediction_path.exists():
+        raise FileNotFoundError(f"missing prediction CSV: {prediction_path}")
+    with prediction_path.open("r", encoding="utf-8", newline="") as file:
+        rows = list(csv.DictReader(file))
+    if not rows:
+        raise ValueError(f"prediction CSV has no rows: {prediction_path}")
+    missing_columns = _REQUIRED_PREDICTION_COLUMNS - set(rows[0])
+    if missing_columns:
+        missing = ", ".join(sorted(missing_columns))
+        raise ValueError(f"prediction CSV is missing required columns: {missing}")
+    return rows
+
+
+def _actual_rul_bin(actual_rul: float) -> str:
+    if actual_rul <= 30:
+        return "0-30"
+    if actual_rul <= 60:
+        return "31-60"
+    if actual_rul <= 90:
+        return "61-90"
+    if actual_rul <= 120:
+        return "91-120"
+    return "121+"
+
+
+def _actual_rul_bin_sort_key(label: str) -> int:
+    return {"0-30": 0, "31-60": 1, "61-90": 2, "91-120": 3, "121+": 4}[
+        label
+    ]
+
+
+def _mean(values: Iterable[float]) -> float:
+    sequence = tuple(values)
+    if not sequence:
+        raise ValueError("cannot average an empty metric sequence")
+    return sum(sequence) / len(sequence)
+
+
+def _median(values: Iterable[float]) -> float:
+    sequence = sorted(values)
+    if not sequence:
+        raise ValueError("cannot compute median for an empty sequence")
+    midpoint = len(sequence) // 2
+    if len(sequence) % 2:
+        return sequence[midpoint]
+    return (sequence[midpoint - 1] + sequence[midpoint]) / 2
+
+
+def _rate(values: Iterable[bool]) -> float:
+    sequence = tuple(values)
+    if not sequence:
+        raise ValueError("cannot compute a rate for an empty sequence")
+    return sum(1 for value in sequence if value) / len(sequence)
+
+
+def _float(value: Any) -> float:
+    return float(value)
+
+
+_REQUIRED_PREDICTION_COLUMNS = {
+    "subset",
+    "model_name",
+    "unit_number",
+    "actual_rul",
+    "predicted_rul",
+    "error",
+    "absolute_error",
+    "late_error",
+    "early_error",
+}

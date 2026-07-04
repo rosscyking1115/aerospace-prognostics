@@ -20,6 +20,7 @@ from aerospace_prognostics.reports.cmapss_model_comparison import (
     write_cmapss_model_comparison_csv,
     write_cmapss_model_comparison_markdown,
 )
+from aerospace_prognostics.reports.cmapss_phase3 import run_cmapss_phase3_audit
 from aerospace_prognostics.reports.cmapss_prediction_calibration import (
     calibrate_cmapss_deep_predictions,
 )
@@ -81,6 +82,36 @@ def register_cmapss_report_commands(subparsers: Any) -> None:
         default=1.0,
         help="Shift grid step for predicted-bin NASA-shift calibration",
     )
+
+    phase3_audit = subparsers.add_parser(
+        "cmapss-phase3-audit",
+        help=(
+            "Build Phase 3 C-MAPSS uncertainty and monotonicity evidence "
+            "from validation and official-test prediction CSVs"
+        ),
+    )
+    phase3_audit.add_argument(
+        "--calibration-csv",
+        type=Path,
+        required=True,
+        help="Validation-selection prediction CSV used to fit interval calibration",
+    )
+    phase3_audit.add_argument(
+        "--predictions-csv",
+        type=Path,
+        required=True,
+        help="Official-test or holdout prediction CSV to audit",
+    )
+    phase3_audit.add_argument(
+        "--calibrated-predictions-csv",
+        type=Path,
+        help="Optional calibrated prediction CSV for raw-vs-calibrated monotonicity",
+    )
+    phase3_audit.add_argument("--output-json", type=Path, required=True)
+    phase3_audit.add_argument("--output-markdown", type=Path)
+    phase3_audit.add_argument("--confidence", type=float, default=0.9)
+    phase3_audit.add_argument("--top-n", type=int, default=10)
+    phase3_audit.add_argument("--clip-min", type=float, default=0.0)
 
     compare_rul_results = subparsers.add_parser(
         "cmapss-compare-rul-results",
@@ -181,6 +212,31 @@ def handle_report_command(args: argparse.Namespace) -> int | None:
             print(f"unit_diagnostics_csv={result.unit_diagnostics_csv_path}")
         if result.diagnostics_markdown_path is not None:
             print(f"diagnostics_markdown={result.diagnostics_markdown_path}")
+        return 0
+
+    if args.command == "cmapss-phase3-audit":
+        result = run_cmapss_phase3_audit(
+            calibration_csv=args.calibration_csv,
+            predictions_csv=args.predictions_csv,
+            calibrated_predictions_csv=args.calibrated_predictions_csv,
+            output_json=args.output_json,
+            output_markdown=args.output_markdown,
+            confidence=args.confidence,
+            top_n=args.top_n,
+            clip_min=args.clip_min,
+        )
+        print("schema_version=aerospace-prognostics/cmapss-phase3-audit/v1")
+        print(f"interval_calibrations={len(result.interval_calibrations)}")
+        print(f"uncertainty_summaries={len(result.uncertainty_summaries)}")
+        print(f"uncertainty_bins={len(result.uncertainty_bins)}")
+        print(f"failure_cases={len(result.failure_cases)}")
+        print(f"monotonicity_diagnostics={len(result.monotonicity_diagnostics)}")
+        print(f"monotonicity_comparisons={len(result.monotonicity_comparisons)}")
+        print(f"training_recommendation={result.training_recommendation}")
+        if result.output_json_path is not None:
+            print(f"output_json={result.output_json_path}")
+        if result.output_markdown_path is not None:
+            print(f"output_markdown={result.output_markdown_path}")
         return 0
 
     if args.command == "cmapss-compare-rul-results":

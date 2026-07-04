@@ -109,8 +109,10 @@ repository remains private:
 
 ## Active Workstream
 
-- [ ] Start the next research/build slice from this reconciled plan, with
-      public-launch decisions kept separate from internal engineering readiness.
+- [ ] Execute Phase 3 C-MAPSS uncertainty and monotonicity evidence work from
+      [docs/phase3_uncertainty_monotonicity.md](phase3_uncertainty_monotonicity.md),
+      with public-launch decisions kept separate from internal engineering
+      readiness.
 
 Every active slice should stay small enough to finish with:
 
@@ -156,6 +158,11 @@ Every active slice should stay small enough to finish with:
         behind edge access control such as Cloudflare Access, Render inbound IP
         rules, or an equivalent allowlist. The default Render service URL
         remains internet-reachable at the network layer.
+20. [x] Add the first Phase 3 C-MAPSS audit command for validation-fitted
+        uncertainty intervals, official-test coverage evidence, late-risk
+        failures, and raw-vs-calibrated monotonicity comparison.
+21. [ ] Run the Phase 3 audit on the current best Phase 2 artifacts and record
+        the result summary.
 
 ## Later Milestones
 

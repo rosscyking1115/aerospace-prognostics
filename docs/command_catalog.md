@@ -80,6 +80,12 @@ uv run aerospace-prognostics pre-phase3-readiness-audit --output-json artifacts/
 uv run aerospace-prognostics pre-phase3-readiness-audit --hosted-demo-url https://PRIVATE_REVIEW_URL --hosted-demo-proof docs/assets/public-proof/hosted_demo_private_review.png --license-decision "private-review-only until public launch license is chosen"
 ```
 
+## Phase 3 C-MAPSS Evidence
+
+```powershell
+uv run aerospace-prognostics cmapss-phase3-audit --calibration-csv artifacts/PHASE2_RUN/results/cmapss_deep_validation_selection_predictions.csv --predictions-csv artifacts/PHASE2_RUN/results/cmapss_deep_predictions.csv --calibrated-predictions-csv artifacts/PHASE2_RUN/results/cmapss_deep_predictions_predicted_bin_nasa_shift_s500_calibrated.csv --output-json artifacts/PHASE2_RUN/results/cmapss_phase3_audit.json --output-markdown artifacts/PHASE2_RUN/results/cmapss_phase3_audit.md
+```
+
 ## SMAP/MSL Spacecraft Anomaly Workflows
 
 ```powershell
