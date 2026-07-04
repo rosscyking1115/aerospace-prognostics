@@ -32,6 +32,8 @@ The audit fit a `0.90` validation absolute-residual interval radius of
 | Late-prediction rows | `51` |
 | Late-prediction coverage | `0.960784` |
 | Uncovered late predictions | `2` |
+| Predicted-bin interval coverage | `0.880000` |
+| Predicted-bin mean interval width | `43.826050` |
 | Raw monotonicity violation rate | `0.000000` |
 | Calibrated monotonicity violation rate | `0.000000` |
 
@@ -49,6 +51,31 @@ The top uncovered cases are mostly early high-RUL compression errors. The two
 uncovered late cases are unit `67` and unit `16`, which remain important because
 late RUL overestimation is the higher-risk PHM failure mode.
 
+## Predicted-Bin Interval Comparison
+
+The follow-up comparison fit interval radii by validation predicted-RUL bin,
+then evaluated the same official-test rows:
+
+| Strategy | Coverage | Mean interval width | Uncovered late predictions |
+|---|---:|---:|---:|
+| Global validation residual radius | `0.900000` | `48.665198` | `2` |
+| Predicted-bin validation residual radius | `0.880000` | `43.826050` | `2` |
+
+Fitted predicted-bin radii:
+
+| Predicted RUL bin | Validation rows | Radius |
+|---|---:|---:|
+| `all` | 3109 | `25.308556` |
+| `0-30` | 61 | `13.360367` |
+| `31-60` | 515 | `18.449928` |
+| `61-90` | 661 | `32.023178` |
+| `91-120` | 1872 | `24.426781` |
+
+The validation predictions did not populate a separate `121+` predicted-RUL
+bin, so high predicted-RUL cases fall back to the global radius. The simple
+predicted-bin strategy narrows intervals overall but does not reduce uncovered
+late cases and slightly worsens total coverage.
+
 ## Interpretation
 
 The first Phase 3 audit does not justify adding a stronger constrained loss yet.
@@ -61,8 +88,11 @@ tail calibration:
 - mid-RUL `61-90` units are also under the nominal `0.90` coverage target;
 - late-risk coverage is better than overall coverage, but two uncovered late
   cases remain.
+- predicted-bin interval calibration is not enough because validation
+  predictions do not provide a separate `121+` predicted-RUL radius and the
+  narrower low/mid predicted-bin radii reduce overall coverage.
 
 Next work should improve calibration and tail diagnostics before more training
-losses: compare validation-fitted bin-specific interval widths, high-RUL-aware
-interval calibration, and unit-level failure notes for the uncovered official
-test cases.
+losses: compare high-RUL-aware interval calibration, coverage-safe shrinkage or
+floors for predicted-bin radii, and unit-level failure notes for the uncovered
+official-test cases.

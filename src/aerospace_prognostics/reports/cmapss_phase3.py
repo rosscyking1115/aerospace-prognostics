@@ -36,6 +36,24 @@ class CmapssIntervalCalibrationRow:
 
 
 @dataclass(frozen=True)
+class CmapssPredictedBinIntervalCalibrationRow:
+    """Validation-fitted interval calibration for one predicted-RUL bin."""
+
+    subset: str
+    model_name: str
+    predicted_rul_bin: str
+    method: str
+    confidence: float
+    calibration_count: int
+    interval_radius: float
+    mean_absolute_residual: float
+    max_absolute_residual: float
+
+    def to_dict(self) -> dict[str, str | int | float]:
+        return asdict(self)
+
+
+@dataclass(frozen=True)
 class CmapssUncertaintySummaryRow:
     """Official-test interval coverage summary for one subset/model pair."""
 
@@ -98,6 +116,26 @@ class CmapssUncertaintyFailureRow:
 
 
 @dataclass(frozen=True)
+class CmapssIntervalComparisonRow:
+    """Global-vs-predicted-bin interval coverage comparison."""
+
+    subset: str
+    model_name: str
+    prediction_count: int
+    global_coverage: float
+    predicted_bin_coverage: float
+    coverage_delta: float
+    global_mean_interval_width: float
+    predicted_bin_mean_interval_width: float
+    mean_interval_width_delta: float
+    global_uncovered_late_prediction_count: int
+    predicted_bin_uncovered_late_prediction_count: int
+
+    def to_dict(self) -> dict[str, str | int | float]:
+        return asdict(self)
+
+
+@dataclass(frozen=True)
 class CmapssMonotonicityComparisonRow:
     """Raw-vs-calibrated monotonicity comparison for one subset/model pair."""
 
@@ -122,6 +160,13 @@ class CmapssPhase3AuditResult:
     uncertainty_summaries: tuple[CmapssUncertaintySummaryRow, ...]
     uncertainty_bins: tuple[CmapssUncertaintyBinRow, ...]
     failure_cases: tuple[CmapssUncertaintyFailureRow, ...]
+    predicted_bin_interval_calibrations: tuple[
+        CmapssPredictedBinIntervalCalibrationRow, ...
+    ]
+    predicted_bin_uncertainty_summaries: tuple[CmapssUncertaintySummaryRow, ...]
+    predicted_bin_uncertainty_bins: tuple[CmapssUncertaintyBinRow, ...]
+    predicted_bin_failure_cases: tuple[CmapssUncertaintyFailureRow, ...]
+    interval_comparisons: tuple[CmapssIntervalComparisonRow, ...]
     monotonicity_diagnostics: tuple[CmapssPredictionMonotonicityDiagnosticRow, ...]
     unit_diagnostics: tuple[CmapssPredictionUnitDiagnosticRow, ...]
     monotonicity_comparisons: tuple[CmapssMonotonicityComparisonRow, ...]
@@ -139,6 +184,23 @@ class CmapssPhase3AuditResult:
                 "summaries": [row.to_dict() for row in self.uncertainty_summaries],
                 "bins": [row.to_dict() for row in self.uncertainty_bins],
                 "failure_cases": [row.to_dict() for row in self.failure_cases],
+                "predicted_bin_calibrations": [
+                    row.to_dict()
+                    for row in self.predicted_bin_interval_calibrations
+                ],
+                "predicted_bin_summaries": [
+                    row.to_dict()
+                    for row in self.predicted_bin_uncertainty_summaries
+                ],
+                "predicted_bin_bins": [
+                    row.to_dict() for row in self.predicted_bin_uncertainty_bins
+                ],
+                "predicted_bin_failure_cases": [
+                    row.to_dict() for row in self.predicted_bin_failure_cases
+                ],
+                "global_vs_predicted_bin_comparison": [
+                    row.to_dict() for row in self.interval_comparisons
+                ],
             },
             "monotonicity": {
                 "diagnostics": [
@@ -172,12 +234,30 @@ def run_cmapss_phase3_audit(
         calibration_csv,
         confidence=confidence,
     )
+    predicted_bin_calibrations = fit_cmapss_predicted_bin_interval_calibrations(
+        calibration_csv,
+        confidence=confidence,
+    )
     prediction_rows = _read_prediction_rows(predictions_csv)
     summary_rows, bin_rows, failure_rows = build_cmapss_uncertainty_audit(
         prediction_rows,
         calibrations,
         top_n=top_n,
         clip_min=clip_min,
+    )
+    (
+        predicted_bin_summary_rows,
+        predicted_bin_rows,
+        predicted_bin_failure_rows,
+    ) = build_cmapss_predicted_bin_uncertainty_audit(
+        prediction_rows,
+        predicted_bin_calibrations,
+        top_n=top_n,
+        clip_min=clip_min,
+    )
+    interval_comparisons = compare_cmapss_interval_strategies(
+        summary_rows,
+        predicted_bin_summary_rows,
     )
     monotonicity_rows = tuple(
         build_cmapss_prediction_monotonicity_diagnostics(predictions_csv)
@@ -198,6 +278,11 @@ def run_cmapss_phase3_audit(
         uncertainty_summaries=summary_rows,
         uncertainty_bins=bin_rows,
         failure_cases=failure_rows,
+        predicted_bin_interval_calibrations=predicted_bin_calibrations,
+        predicted_bin_uncertainty_summaries=predicted_bin_summary_rows,
+        predicted_bin_uncertainty_bins=predicted_bin_rows,
+        predicted_bin_failure_cases=predicted_bin_failure_rows,
+        interval_comparisons=interval_comparisons,
         monotonicity_diagnostics=monotonicity_rows,
         unit_diagnostics=unit_rows,
         monotonicity_comparisons=monotonicity_comparisons,
@@ -243,6 +328,50 @@ def fit_cmapss_interval_calibrations(
                 max_absolute_residual=max(residuals),
             )
         )
+    return tuple(calibrations)
+
+
+def fit_cmapss_predicted_bin_interval_calibrations(
+    calibration_csv: str | Path,
+    *,
+    confidence: float = 0.9,
+) -> tuple[CmapssPredictedBinIntervalCalibrationRow, ...]:
+    """Fit interval radii by inference-safe predicted-RUL bin."""
+
+    if not 0.0 < confidence < 1.0:
+        raise ValueError("confidence must be between 0 and 1")
+    rows = _read_prediction_rows(calibration_csv)
+    grouped: dict[tuple[str, str], list[dict[str, str]]] = {}
+    grouped_bins: dict[tuple[str, str, str], list[dict[str, str]]] = {}
+    for row in rows:
+        model_key = (row["subset"], row["model_name"])
+        grouped.setdefault(model_key, []).append(row)
+        bin_label = _predicted_rul_bin(_float(row["predicted_rul"]))
+        grouped_bins.setdefault((*model_key, bin_label), []).append(row)
+
+    calibrations: list[CmapssPredictedBinIntervalCalibrationRow] = []
+    for subset, model_name in sorted(grouped):
+        calibrations.append(
+            _predicted_bin_interval_calibration_row(
+                subset,
+                model_name,
+                "all",
+                grouped[(subset, model_name)],
+                confidence=confidence,
+            )
+        )
+        for bin_label in _PREDICTED_RUL_BIN_ORDER:
+            bin_key = (subset, model_name, bin_label)
+            if bin_key in grouped_bins:
+                calibrations.append(
+                    _predicted_bin_interval_calibration_row(
+                        subset,
+                        model_name,
+                        bin_label,
+                        grouped_bins[bin_key],
+                        confidence=confidence,
+                    )
+                )
     return tuple(calibrations)
 
 
@@ -318,6 +447,128 @@ def build_cmapss_uncertainty_audit(
         )
     )
     return summary_rows, bin_rows, failure_rows
+
+
+def build_cmapss_predicted_bin_uncertainty_audit(
+    prediction_rows: Iterable[dict[str, str]],
+    calibrations: Iterable[CmapssPredictedBinIntervalCalibrationRow],
+    *,
+    top_n: int = 10,
+    clip_min: float = 0.0,
+) -> tuple[
+    tuple[CmapssUncertaintySummaryRow, ...],
+    tuple[CmapssUncertaintyBinRow, ...],
+    tuple[CmapssUncertaintyFailureRow, ...],
+]:
+    """Summarize coverage using predicted-RUL-bin interval radii."""
+
+    if top_n < 1:
+        raise ValueError("top_n must be at least 1")
+    calibration_by_key = {
+        (row.subset, row.model_name, row.predicted_rul_bin): row
+        for row in tuple(calibrations)
+    }
+    annotated_rows = [
+        _annotated_predicted_bin_interval_row(
+            row,
+            calibration_by_key,
+            clip_min=clip_min,
+        )
+        for row in prediction_rows
+    ]
+    grouped: dict[tuple[str, str], list[dict[str, Any]]] = {}
+    grouped_bins: dict[tuple[str, str, str], list[dict[str, Any]]] = {}
+    for row in annotated_rows:
+        model_key = (row["subset"], row["model_name"])
+        grouped.setdefault(model_key, []).append(row)
+        bin_label = _actual_rul_bin(row["actual_rul"])
+        grouped_bins.setdefault((*model_key, bin_label), []).append(row)
+
+    summary_rows = tuple(
+        _summary_row(subset, model_name, rows)
+        for subset, model_name in sorted(grouped)
+        for rows in (grouped[(subset, model_name)],)
+    )
+    bin_rows = tuple(
+        _bin_row(subset, model_name, bin_label, rows)
+        for subset, model_name, bin_label in sorted(
+            grouped_bins,
+            key=lambda key: (key[0], key[1], _actual_rul_bin_sort_key(key[2])),
+        )
+        for rows in (grouped_bins[(subset, model_name, bin_label)],)
+    )
+    failure_rows = tuple(
+        CmapssUncertaintyFailureRow(
+            rank=rank,
+            subset=row["subset"],
+            model_name=row["model_name"],
+            unit_number=row["unit_number"],
+            actual_rul=row["actual_rul"],
+            predicted_rul=row["predicted_rul"],
+            lower_bound=row["lower_bound"],
+            upper_bound=row["upper_bound"],
+            interval_width=row["interval_width"],
+            error=row["error"],
+            absolute_error=row["absolute_error"],
+            failure_type=row["failure_type"],
+        )
+        for rank, row in enumerate(
+            sorted(
+                (row for row in annotated_rows if not row["covered"]),
+                key=lambda item: (
+                    -item["absolute_error"],
+                    item["subset"],
+                    item["model_name"],
+                    item["unit_number"],
+                ),
+            )[:top_n],
+            start=1,
+        )
+    )
+    return summary_rows, bin_rows, failure_rows
+
+
+def compare_cmapss_interval_strategies(
+    global_summaries: Iterable[CmapssUncertaintySummaryRow],
+    predicted_bin_summaries: Iterable[CmapssUncertaintySummaryRow],
+) -> tuple[CmapssIntervalComparisonRow, ...]:
+    """Compare global and predicted-bin interval audit summaries."""
+
+    global_by_key = {
+        (row.subset, row.model_name): row for row in tuple(global_summaries)
+    }
+    predicted_bin_by_key = {
+        (row.subset, row.model_name): row for row in tuple(predicted_bin_summaries)
+    }
+    comparisons: list[CmapssIntervalComparisonRow] = []
+    for subset, model_name in sorted(global_by_key.keys() & predicted_bin_by_key.keys()):
+        global_row = global_by_key[(subset, model_name)]
+        predicted_bin_row = predicted_bin_by_key[(subset, model_name)]
+        comparisons.append(
+            CmapssIntervalComparisonRow(
+                subset=subset,
+                model_name=model_name,
+                prediction_count=global_row.prediction_count,
+                global_coverage=global_row.coverage,
+                predicted_bin_coverage=predicted_bin_row.coverage,
+                coverage_delta=predicted_bin_row.coverage - global_row.coverage,
+                global_mean_interval_width=global_row.mean_interval_width,
+                predicted_bin_mean_interval_width=(
+                    predicted_bin_row.mean_interval_width
+                ),
+                mean_interval_width_delta=(
+                    predicted_bin_row.mean_interval_width
+                    - global_row.mean_interval_width
+                ),
+                global_uncovered_late_prediction_count=(
+                    global_row.uncovered_late_prediction_count
+                ),
+                predicted_bin_uncovered_late_prediction_count=(
+                    predicted_bin_row.uncovered_late_prediction_count
+                ),
+            )
+        )
+    return tuple(comparisons)
 
 
 def compare_cmapss_monotonicity(
@@ -452,6 +703,59 @@ def render_cmapss_phase3_audit_markdown(result: CmapssPhase3AuditResult) -> str:
     lines.extend(
         [
             "",
+            "## Global Vs Predicted-Bin Intervals",
+            "",
+            (
+                "| Subset | Model | Rows | Global Coverage | Predicted-Bin Coverage | "
+                "Coverage Delta | Global Mean Width | Predicted-Bin Mean Width | "
+                "Late Failures Delta |"
+            ),
+            "|---|---|---:|---:|---:|---:|---:|---:|---:|",
+        ]
+    )
+    for row in result.interval_comparisons:
+        late_failure_delta = (
+            row.predicted_bin_uncovered_late_prediction_count
+            - row.global_uncovered_late_prediction_count
+        )
+        lines.append(
+            "| "
+            f"{row.subset} | "
+            f"`{row.model_name}` | "
+            f"{row.prediction_count} | "
+            f"{row.global_coverage:.6f} | "
+            f"{row.predicted_bin_coverage:.6f} | "
+            f"{row.coverage_delta:.6f} | "
+            f"{row.global_mean_interval_width:.6f} | "
+            f"{row.predicted_bin_mean_interval_width:.6f} | "
+            f"{late_failure_delta} |"
+        )
+    lines.extend(
+        [
+            "",
+            "## Predicted-Bin Interval Calibration",
+            "",
+            (
+                "| Subset | Model | Predicted RUL Bin | Rows | Radius | "
+                "Mean Abs Residual | Max Abs Residual |"
+            ),
+            "|---|---|---|---:|---:|---:|---:|",
+        ]
+    )
+    for row in result.predicted_bin_interval_calibrations:
+        lines.append(
+            "| "
+            f"{row.subset} | "
+            f"`{row.model_name}` | "
+            f"{row.predicted_rul_bin} | "
+            f"{row.calibration_count} | "
+            f"{row.interval_radius:.6f} | "
+            f"{row.mean_absolute_residual:.6f} | "
+            f"{row.max_absolute_residual:.6f} |"
+        )
+    lines.extend(
+        [
+            "",
             "## Monotonicity Diagnostics",
             "",
             (
@@ -548,6 +852,53 @@ def _annotated_interval_row(
     }
 
 
+def _annotated_predicted_bin_interval_row(
+    row: dict[str, str],
+    calibration_by_key: dict[
+        tuple[str, str, str],
+        CmapssPredictedBinIntervalCalibrationRow,
+    ],
+    *,
+    clip_min: float,
+) -> dict[str, Any]:
+    subset = row["subset"]
+    model_name = row["model_name"]
+    bin_label = _predicted_rul_bin(_float(row["predicted_rul"]))
+    calibration = calibration_by_key.get(
+        (subset, model_name, bin_label),
+        calibration_by_key.get((subset, model_name, "all")),
+    )
+    if calibration is None:
+        raise ValueError(
+            "missing predicted-bin interval calibration for prediction row: "
+            f"subset={subset}, model_name={model_name}, predicted_rul_bin={bin_label}"
+        )
+    predicted_rul = _float(row["predicted_rul"])
+    actual_rul = _float(row["actual_rul"])
+    lower_bound = max(clip_min, predicted_rul - calibration.interval_radius)
+    upper_bound = predicted_rul + calibration.interval_radius
+    covered = lower_bound <= actual_rul <= upper_bound
+    error = _float(row["error"])
+    return {
+        "subset": subset,
+        "model_name": model_name,
+        "unit_number": int(row["unit_number"]),
+        "actual_rul": actual_rul,
+        "predicted_rul": predicted_rul,
+        "lower_bound": lower_bound,
+        "upper_bound": upper_bound,
+        "interval_width": upper_bound - lower_bound,
+        "covered": covered,
+        "error": error,
+        "absolute_error": _float(row["absolute_error"]),
+        "late_prediction": error > 0.0,
+        "failure_type": _failure_type(error, covered),
+        "method": calibration.method,
+        "confidence": calibration.confidence,
+        "interval_radius": calibration.interval_radius,
+    }
+
+
 def _summary_row(
     subset: str,
     model_name: str,
@@ -563,7 +914,7 @@ def _summary_row(
         prediction_count=len(rows),
         covered_count=sum(1 for row in rows if row["covered"]),
         coverage=_rate(row["covered"] for row in rows),
-        interval_radius=rows[0]["interval_radius"],
+        interval_radius=_mean(row["interval_radius"] for row in rows),
         mean_interval_width=_mean(row["interval_width"] for row in rows),
         median_interval_width=_median(row["interval_width"] for row in rows),
         mean_absolute_error=_mean(row["absolute_error"] for row in rows),
@@ -591,6 +942,28 @@ def _bin_row(
         mean_interval_width=_mean(row["interval_width"] for row in rows),
         mean_absolute_error=_mean(row["absolute_error"] for row in rows),
         late_prediction_rate=_rate(row["late_prediction"] for row in rows),
+    )
+
+
+def _predicted_bin_interval_calibration_row(
+    subset: str,
+    model_name: str,
+    predicted_rul_bin: str,
+    rows: list[dict[str, str]],
+    *,
+    confidence: float,
+) -> CmapssPredictedBinIntervalCalibrationRow:
+    residuals = sorted(_float(row["absolute_error"]) for row in rows)
+    return CmapssPredictedBinIntervalCalibrationRow(
+        subset=subset,
+        model_name=model_name,
+        predicted_rul_bin=predicted_rul_bin,
+        method="validation_predicted_rul_bin_absolute_residual_quantile",
+        confidence=confidence,
+        calibration_count=len(rows),
+        interval_radius=_nearest_rank_quantile(residuals, confidence),
+        mean_absolute_residual=_mean(residuals),
+        max_absolute_residual=max(residuals),
     )
 
 
@@ -672,6 +1045,18 @@ def _actual_rul_bin(actual_rul: float) -> str:
     return "121+"
 
 
+def _predicted_rul_bin(predicted_rul: float) -> str:
+    if predicted_rul <= 30:
+        return "0-30"
+    if predicted_rul <= 60:
+        return "31-60"
+    if predicted_rul <= 90:
+        return "61-90"
+    if predicted_rul <= 120:
+        return "91-120"
+    return "121+"
+
+
 def _actual_rul_bin_sort_key(label: str) -> int:
     return {"0-30": 0, "31-60": 1, "61-90": 2, "91-120": 3, "121+": 4}[
         label
@@ -717,3 +1102,5 @@ _REQUIRED_PREDICTION_COLUMNS = {
     "late_error",
     "early_error",
 }
+
+_PREDICTED_RUL_BIN_ORDER = ("0-30", "31-60", "61-90", "91-120", "121+")

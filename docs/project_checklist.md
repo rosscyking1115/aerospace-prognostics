@@ -163,9 +163,12 @@ Every active slice should stay small enough to finish with:
         failures, and raw-vs-calibrated monotonicity comparison.
 21. [x] Run the Phase 3 audit on the current best Phase 2 artifacts and record
         the result summary in `docs/phase3_cmapss_audit_results.md`.
-22. [ ] Add a bin-specific interval calibration comparison for the Phase 3 audit
+22. [x] Add a bin-specific interval calibration comparison for the Phase 3 audit
         so high-RUL and mid-RUL under-coverage can be diagnosed separately from
         the global interval radius.
+23. [ ] Add a high-RUL-aware interval calibration check for sparse predicted-bin
+        tails, such as a coverage floor, tail fallback, or actual-RUL-bin
+        diagnostic comparison that remains clearly marked as non-inference-safe.
 
 ## Later Milestones
 

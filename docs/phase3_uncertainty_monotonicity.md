@@ -52,9 +52,12 @@ absolute residuals, then evaluates official-test coverage. It reports:
 1. Done: run the audit on the current best Phase 2
    Transformer/asymmetric-loss artifacts and record the evidence summary in
    [docs/phase3_cmapss_audit_results.md](phase3_cmapss_audit_results.md).
-2. Compare validation-fitted bin-specific interval widths against the global
-   validation absolute-residual interval.
-3. Decide whether the next experiment should be improved calibration, model
+2. Done: compare validation-fitted predicted-bin interval widths against the
+   global validation absolute-residual interval. The simple predicted-bin
+   strategy narrowed intervals but reduced coverage, so it is diagnostic only.
+3. Add a high-RUL-aware interval calibration check that avoids losing coverage
+   when predicted-RUL bins are sparse or under-populated.
+4. Decide whether the next experiment should be improved calibration, model
    selection, or constrained training.
-4. Start ESA-ADB as a separate protocol intake only after the C-MAPSS Phase 3
+5. Start ESA-ADB as a separate protocol intake only after the C-MAPSS Phase 3
    evidence loop is stable.
