@@ -240,6 +240,12 @@ def handle_report_command(args: argparse.Namespace) -> int | None:
             f"{len(result.predicted_bin_floor_uncertainty_summaries)}"
         )
         print(f"interval_comparisons={len(result.interval_comparisons)}")
+        print(f"tail_fallback_calibrations={len(result.tail_fallback_calibrations)}")
+        print(f"tail_fallback_summaries={len(result.tail_fallback_summaries)}")
+        print(
+            "tail_fallback_failure_notes="
+            f"{len(result.tail_fallback_failure_notes)}"
+        )
         print(f"monotonicity_diagnostics={len(result.monotonicity_diagnostics)}")
         print(f"monotonicity_comparisons={len(result.monotonicity_comparisons)}")
         print(f"training_recommendation={result.training_recommendation}")

@@ -142,6 +142,27 @@ class CmapssFailureNoteRow:
 
 
 @dataclass(frozen=True)
+class CmapssTailFallbackCalibrationRow:
+    """Validation-fitted tail fallback interval calibration."""
+
+    subset: str
+    model_name: str
+    method: str
+    tail_threshold: float
+    global_confidence: float
+    tail_confidence: float
+    tail_calibration_count: int
+    global_interval_radius: float
+    tail_interval_radius: float
+    fallback_interval_radius: float
+    tail_mean_absolute_residual: float
+    tail_max_absolute_residual: float
+
+    def to_dict(self) -> dict[str, str | int | float]:
+        return asdict(self)
+
+
+@dataclass(frozen=True)
 class CmapssIntervalComparisonRow:
     """Global-vs-predicted-bin interval coverage comparison."""
 
@@ -162,6 +183,53 @@ class CmapssIntervalComparisonRow:
     predicted_bin_floor_uncovered_late_prediction_count: int
 
     def to_dict(self) -> dict[str, str | int | float]:
+        return asdict(self)
+
+
+@dataclass(frozen=True)
+class CmapssTailFallbackComparisonRow:
+    """Global-vs-tail-fallback interval coverage comparison."""
+
+    subset: str
+    model_name: str
+    prediction_count: int
+    global_coverage: float
+    tail_fallback_coverage: float
+    coverage_delta: float
+    global_mean_interval_width: float
+    tail_fallback_mean_interval_width: float
+    mean_interval_width_delta: float
+    global_median_interval_width: float
+    tail_fallback_median_interval_width: float
+    median_interval_width_delta: float
+    global_uncovered_late_prediction_count: int
+    tail_fallback_uncovered_late_prediction_count: int
+    uncovered_late_prediction_count_delta: int
+
+    def to_dict(self) -> dict[str, str | int | float]:
+        return asdict(self)
+
+
+@dataclass(frozen=True)
+class CmapssTailFallbackFailureNoteRow:
+    """Unit-level failure note comparing global and tail fallback intervals."""
+
+    rank: int
+    subset: str
+    model_name: str
+    unit_number: int
+    actual_rul: float
+    predicted_rul: float
+    error: float
+    absolute_error: float
+    actual_rul_bin: str
+    predicted_rul_bin: str
+    failure_type: str
+    global_covered: bool
+    tail_fallback_covered: bool
+    note: str
+
+    def to_dict(self) -> dict[str, str | int | float | bool]:
         return asdict(self)
 
 
@@ -203,6 +271,12 @@ class CmapssPhase3AuditResult:
     predicted_bin_floor_uncertainty_bins: tuple[CmapssUncertaintyBinRow, ...]
     predicted_bin_floor_failure_cases: tuple[CmapssUncertaintyFailureRow, ...]
     interval_comparisons: tuple[CmapssIntervalComparisonRow, ...]
+    tail_fallback_calibrations: tuple[CmapssTailFallbackCalibrationRow, ...]
+    tail_fallback_summaries: tuple[CmapssUncertaintySummaryRow, ...]
+    tail_fallback_bins: tuple[CmapssUncertaintyBinRow, ...]
+    tail_fallback_failure_cases: tuple[CmapssUncertaintyFailureRow, ...]
+    tail_fallback_comparisons: tuple[CmapssTailFallbackComparisonRow, ...]
+    tail_fallback_failure_notes: tuple[CmapssTailFallbackFailureNoteRow, ...]
     monotonicity_diagnostics: tuple[CmapssPredictionMonotonicityDiagnosticRow, ...]
     unit_diagnostics: tuple[CmapssPredictionUnitDiagnosticRow, ...]
     monotonicity_comparisons: tuple[CmapssMonotonicityComparisonRow, ...]
@@ -250,6 +324,24 @@ class CmapssPhase3AuditResult:
                 "global_vs_predicted_bin_comparison": [
                     row.to_dict() for row in self.interval_comparisons
                 ],
+                "tail_fallback_calibrations": [
+                    row.to_dict() for row in self.tail_fallback_calibrations
+                ],
+                "tail_fallback_summaries": [
+                    row.to_dict() for row in self.tail_fallback_summaries
+                ],
+                "tail_fallback_bins": [
+                    row.to_dict() for row in self.tail_fallback_bins
+                ],
+                "tail_fallback_failure_cases": [
+                    row.to_dict() for row in self.tail_fallback_failure_cases
+                ],
+                "global_vs_tail_fallback_comparison": [
+                    row.to_dict() for row in self.tail_fallback_comparisons
+                ],
+                "tail_fallback_failure_notes": [
+                    row.to_dict() for row in self.tail_fallback_failure_notes
+                ],
             },
             "monotonicity": {
                 "diagnostics": [
@@ -287,6 +379,10 @@ def run_cmapss_phase3_audit(
         calibration_csv,
         confidence=confidence,
     )
+    tail_fallback_calibrations = fit_cmapss_tail_fallback_calibrations(
+        calibration_csv,
+        calibrations,
+    )
     prediction_rows = _read_prediction_rows(predictions_csv)
     summary_rows, bin_rows, failure_rows = build_cmapss_uncertainty_audit(
         prediction_rows,
@@ -320,10 +416,31 @@ def run_cmapss_phase3_audit(
         predicted_bin_summary_rows,
         predicted_bin_floor_summary_rows,
     )
+    (
+        tail_fallback_summary_rows,
+        tail_fallback_bin_rows,
+        tail_fallback_failure_rows,
+    ) = build_cmapss_tail_fallback_uncertainty_audit(
+        prediction_rows,
+        tail_fallback_calibrations,
+        top_n=top_n,
+        clip_min=clip_min,
+    )
+    tail_fallback_comparisons = compare_cmapss_tail_fallback_strategies(
+        summary_rows,
+        tail_fallback_summary_rows,
+    )
     failure_notes = build_cmapss_interval_failure_notes(
         prediction_rows,
         calibrations,
         predicted_bin_calibrations,
+        top_n=top_n,
+        clip_min=clip_min,
+    )
+    tail_fallback_failure_notes = build_cmapss_tail_fallback_failure_notes(
+        prediction_rows,
+        calibrations,
+        tail_fallback_calibrations,
         top_n=top_n,
         clip_min=clip_min,
     )
@@ -355,6 +472,12 @@ def run_cmapss_phase3_audit(
         predicted_bin_floor_uncertainty_bins=predicted_bin_floor_rows,
         predicted_bin_floor_failure_cases=predicted_bin_floor_failure_rows,
         interval_comparisons=interval_comparisons,
+        tail_fallback_calibrations=tail_fallback_calibrations,
+        tail_fallback_summaries=tail_fallback_summary_rows,
+        tail_fallback_bins=tail_fallback_bin_rows,
+        tail_fallback_failure_cases=tail_fallback_failure_rows,
+        tail_fallback_comparisons=tail_fallback_comparisons,
+        tail_fallback_failure_notes=tail_fallback_failure_notes,
         monotonicity_diagnostics=monotonicity_rows,
         unit_diagnostics=unit_rows,
         monotonicity_comparisons=monotonicity_comparisons,
@@ -444,6 +567,57 @@ def fit_cmapss_predicted_bin_interval_calibrations(
                         confidence=confidence,
                     )
                 )
+    return tuple(calibrations)
+
+
+def fit_cmapss_tail_fallback_calibrations(
+    calibration_csv: str | Path,
+    global_calibrations: Iterable[CmapssIntervalCalibrationRow],
+    *,
+    tail_threshold: float = 91.0,
+    tail_confidence: float = 0.95,
+) -> tuple[CmapssTailFallbackCalibrationRow, ...]:
+    """Fit inference-safe tail fallback radii from validation predictions."""
+
+    if not 0.0 < tail_confidence < 1.0:
+        raise ValueError("tail_confidence must be between 0 and 1")
+    global_by_key = {
+        (row.subset, row.model_name): row for row in tuple(global_calibrations)
+    }
+    rows = _read_prediction_rows(calibration_csv)
+    grouped_tail_rows: dict[tuple[str, str], list[dict[str, str]]] = {}
+    for row in rows:
+        if _float(row["predicted_rul"]) >= tail_threshold:
+            grouped_tail_rows.setdefault((row["subset"], row["model_name"]), []).append(
+                row
+            )
+
+    calibrations: list[CmapssTailFallbackCalibrationRow] = []
+    for subset, model_name in sorted(global_by_key):
+        global_row = global_by_key[(subset, model_name)]
+        tail_rows = grouped_tail_rows.get((subset, model_name), [])
+        residuals = sorted(_float(row["absolute_error"]) for row in tail_rows)
+        tail_radius = (
+            _nearest_rank_quantile(residuals, tail_confidence)
+            if residuals
+            else global_row.interval_radius
+        )
+        calibrations.append(
+            CmapssTailFallbackCalibrationRow(
+                subset=subset,
+                model_name=model_name,
+                method="global_tail_fallback",
+                tail_threshold=tail_threshold,
+                global_confidence=global_row.confidence,
+                tail_confidence=tail_confidence,
+                tail_calibration_count=len(tail_rows),
+                global_interval_radius=global_row.interval_radius,
+                tail_interval_radius=tail_radius,
+                fallback_interval_radius=max(global_row.interval_radius, tail_radius),
+                tail_mean_absolute_residual=_mean(residuals) if residuals else 0.0,
+                tail_max_absolute_residual=max(residuals) if residuals else 0.0,
+            )
+        )
     return tuple(calibrations)
 
 
@@ -602,6 +776,84 @@ def build_cmapss_predicted_bin_uncertainty_audit(
     return summary_rows, bin_rows, failure_rows
 
 
+def build_cmapss_tail_fallback_uncertainty_audit(
+    prediction_rows: Iterable[dict[str, str]],
+    calibrations: Iterable[CmapssTailFallbackCalibrationRow],
+    *,
+    top_n: int = 10,
+    clip_min: float = 0.0,
+) -> tuple[
+    tuple[CmapssUncertaintySummaryRow, ...],
+    tuple[CmapssUncertaintyBinRow, ...],
+    tuple[CmapssUncertaintyFailureRow, ...],
+]:
+    """Summarize coverage using global intervals plus a predicted-RUL tail fallback."""
+
+    if top_n < 1:
+        raise ValueError("top_n must be at least 1")
+    calibration_by_key = {
+        (row.subset, row.model_name): row for row in tuple(calibrations)
+    }
+    annotated_rows = [
+        _annotated_tail_fallback_interval_row(
+            row,
+            calibration_by_key,
+            clip_min=clip_min,
+        )
+        for row in prediction_rows
+    ]
+    grouped: dict[tuple[str, str], list[dict[str, Any]]] = {}
+    grouped_bins: dict[tuple[str, str, str], list[dict[str, Any]]] = {}
+    for row in annotated_rows:
+        model_key = (row["subset"], row["model_name"])
+        grouped.setdefault(model_key, []).append(row)
+        bin_label = _actual_rul_bin(row["actual_rul"])
+        grouped_bins.setdefault((*model_key, bin_label), []).append(row)
+
+    summary_rows = tuple(
+        _summary_row(subset, model_name, rows)
+        for subset, model_name in sorted(grouped)
+        for rows in (grouped[(subset, model_name)],)
+    )
+    bin_rows = tuple(
+        _bin_row(subset, model_name, bin_label, rows)
+        for subset, model_name, bin_label in sorted(
+            grouped_bins,
+            key=lambda key: (key[0], key[1], _actual_rul_bin_sort_key(key[2])),
+        )
+        for rows in (grouped_bins[(subset, model_name, bin_label)],)
+    )
+    failure_rows = tuple(
+        CmapssUncertaintyFailureRow(
+            rank=rank,
+            subset=row["subset"],
+            model_name=row["model_name"],
+            unit_number=row["unit_number"],
+            actual_rul=row["actual_rul"],
+            predicted_rul=row["predicted_rul"],
+            lower_bound=row["lower_bound"],
+            upper_bound=row["upper_bound"],
+            interval_width=row["interval_width"],
+            error=row["error"],
+            absolute_error=row["absolute_error"],
+            failure_type=row["failure_type"],
+        )
+        for rank, row in enumerate(
+            sorted(
+                (row for row in annotated_rows if not row["covered"]),
+                key=lambda item: (
+                    -item["absolute_error"],
+                    item["subset"],
+                    item["model_name"],
+                    item["unit_number"],
+                ),
+            )[:top_n],
+            start=1,
+        )
+    )
+    return summary_rows, bin_rows, failure_rows
+
+
 def compare_cmapss_interval_strategies(
     global_summaries: Iterable[CmapssUncertaintySummaryRow],
     predicted_bin_summaries: Iterable[CmapssUncertaintySummaryRow],
@@ -661,6 +913,55 @@ def compare_cmapss_interval_strategies(
                 ),
                 predicted_bin_floor_uncovered_late_prediction_count=(
                     predicted_bin_floor_row.uncovered_late_prediction_count
+                ),
+            )
+        )
+    return tuple(comparisons)
+
+
+def compare_cmapss_tail_fallback_strategies(
+    global_summaries: Iterable[CmapssUncertaintySummaryRow],
+    tail_fallback_summaries: Iterable[CmapssUncertaintySummaryRow],
+) -> tuple[CmapssTailFallbackComparisonRow, ...]:
+    """Compare global and global-tail-fallback interval summaries."""
+
+    global_by_key = {
+        (row.subset, row.model_name): row for row in tuple(global_summaries)
+    }
+    tail_fallback_by_key = {
+        (row.subset, row.model_name): row for row in tuple(tail_fallback_summaries)
+    }
+    comparisons: list[CmapssTailFallbackComparisonRow] = []
+    for subset, model_name in sorted(global_by_key.keys() & tail_fallback_by_key.keys()):
+        global_row = global_by_key[(subset, model_name)]
+        tail_row = tail_fallback_by_key[(subset, model_name)]
+        comparisons.append(
+            CmapssTailFallbackComparisonRow(
+                subset=subset,
+                model_name=model_name,
+                prediction_count=global_row.prediction_count,
+                global_coverage=global_row.coverage,
+                tail_fallback_coverage=tail_row.coverage,
+                coverage_delta=tail_row.coverage - global_row.coverage,
+                global_mean_interval_width=global_row.mean_interval_width,
+                tail_fallback_mean_interval_width=tail_row.mean_interval_width,
+                mean_interval_width_delta=(
+                    tail_row.mean_interval_width - global_row.mean_interval_width
+                ),
+                global_median_interval_width=global_row.median_interval_width,
+                tail_fallback_median_interval_width=tail_row.median_interval_width,
+                median_interval_width_delta=(
+                    tail_row.median_interval_width - global_row.median_interval_width
+                ),
+                global_uncovered_late_prediction_count=(
+                    global_row.uncovered_late_prediction_count
+                ),
+                tail_fallback_uncovered_late_prediction_count=(
+                    tail_row.uncovered_late_prediction_count
+                ),
+                uncovered_late_prediction_count_delta=(
+                    tail_row.uncovered_late_prediction_count
+                    - global_row.uncovered_late_prediction_count
                 ),
             )
         )
@@ -736,6 +1037,51 @@ def build_cmapss_interval_failure_notes(
     )
     return tuple(
         _failure_note_row(rank, row)
+        for rank, row in enumerate(sorted_rows[:top_n], start=1)
+    )
+
+
+def build_cmapss_tail_fallback_failure_notes(
+    prediction_rows: Iterable[dict[str, str]],
+    global_calibrations: Iterable[CmapssIntervalCalibrationRow],
+    tail_fallback_calibrations: Iterable[CmapssTailFallbackCalibrationRow],
+    *,
+    top_n: int = 10,
+    clip_min: float = 0.0,
+) -> tuple[CmapssTailFallbackFailureNoteRow, ...]:
+    """Build unit notes for rows missed by global or tail fallback intervals."""
+
+    if top_n < 1:
+        raise ValueError("top_n must be at least 1")
+    global_by_key = {
+        (row.subset, row.model_name): row for row in tuple(global_calibrations)
+    }
+    tail_by_key = {
+        (row.subset, row.model_name): row for row in tuple(tail_fallback_calibrations)
+    }
+    candidate_rows: list[dict[str, Any]] = []
+    for row in prediction_rows:
+        global_row = _annotated_interval_row(row, global_by_key, clip_min=clip_min)
+        tail_row = _annotated_tail_fallback_interval_row(
+            row,
+            tail_by_key,
+            clip_min=clip_min,
+        )
+        if not global_row["covered"] or not tail_row["covered"]:
+            candidate_rows.append({"global": global_row, "tail_fallback": tail_row})
+
+    sorted_rows = sorted(
+        candidate_rows,
+        key=lambda item: (
+            0 if item["global"]["late_prediction"] else 1,
+            -item["global"]["absolute_error"],
+            item["global"]["subset"],
+            item["global"]["model_name"],
+            item["global"]["unit_number"],
+        ),
+    )
+    return tuple(
+        _tail_fallback_failure_note_row(rank, row)
         for rank, row in enumerate(sorted_rows[:top_n], start=1)
     )
 
@@ -961,6 +1307,87 @@ def render_cmapss_phase3_audit_markdown(result: CmapssPhase3AuditResult) -> str:
     lines.extend(
         [
             "",
+            "## Global Vs Tail Fallback Intervals",
+            "",
+            (
+                "| Subset | Model | Rows | Global Coverage | Tail Fallback Coverage | "
+                "Coverage Delta | Global Mean Width | Tail Mean Width | "
+                "Mean Width Delta | Global Median Width | Tail Median Width | "
+                "Late Failures Delta |"
+            ),
+            "|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|",
+        ]
+    )
+    for row in result.tail_fallback_comparisons:
+        lines.append(
+            "| "
+            f"{row.subset} | "
+            f"`{row.model_name}` | "
+            f"{row.prediction_count} | "
+            f"{row.global_coverage:.6f} | "
+            f"{row.tail_fallback_coverage:.6f} | "
+            f"{row.coverage_delta:.6f} | "
+            f"{row.global_mean_interval_width:.6f} | "
+            f"{row.tail_fallback_mean_interval_width:.6f} | "
+            f"{row.mean_interval_width_delta:.6f} | "
+            f"{row.global_median_interval_width:.6f} | "
+            f"{row.tail_fallback_median_interval_width:.6f} | "
+            f"{row.uncovered_late_prediction_count_delta} |"
+        )
+    lines.extend(
+        [
+            "",
+            "## Tail Fallback Calibration",
+            "",
+            (
+                "| Subset | Model | Tail Threshold | Tail Confidence | Tail Rows | "
+                "Global Radius | Tail Radius | Fallback Radius |"
+            ),
+            "|---|---|---:|---:|---:|---:|---:|---:|",
+        ]
+    )
+    for row in result.tail_fallback_calibrations:
+        lines.append(
+            "| "
+            f"{row.subset} | "
+            f"`{row.model_name}` | "
+            f"{row.tail_threshold:.6f} | "
+            f"{row.tail_confidence:.6f} | "
+            f"{row.tail_calibration_count} | "
+            f"{row.global_interval_radius:.6f} | "
+            f"{row.tail_interval_radius:.6f} | "
+            f"{row.fallback_interval_radius:.6f} |"
+        )
+    if result.tail_fallback_failure_notes:
+        lines.extend(
+            [
+                "",
+                "## Tail Fallback Unit Notes",
+                "",
+                (
+                    "| Rank | Subset | Model | Unit | Actual Bin | Predicted Bin | "
+                    "Global | Tail Fallback | Failure | Note |"
+                ),
+                "|---:|---|---|---:|---|---|---:|---:|---|---|",
+            ]
+        )
+        for row in result.tail_fallback_failure_notes:
+            lines.append(
+                "| "
+                f"{row.rank} | "
+                f"{row.subset} | "
+                f"`{row.model_name}` | "
+                f"{row.unit_number} | "
+                f"{row.actual_rul_bin} | "
+                f"{row.predicted_rul_bin} | "
+                f"{_covered_label(row.global_covered)} | "
+                f"{_covered_label(row.tail_fallback_covered)} | "
+                f"{row.failure_type} | "
+                f"{row.note} |"
+            )
+    lines.extend(
+        [
+            "",
             "## Monotonicity Diagnostics",
             "",
             (
@@ -1116,6 +1543,51 @@ def _annotated_predicted_bin_interval_row(
     }
 
 
+def _annotated_tail_fallback_interval_row(
+    row: dict[str, str],
+    calibration_by_key: dict[tuple[str, str], CmapssTailFallbackCalibrationRow],
+    *,
+    clip_min: float,
+) -> dict[str, Any]:
+    subset = row["subset"]
+    model_name = row["model_name"]
+    calibration = calibration_by_key.get((subset, model_name))
+    if calibration is None:
+        raise ValueError(
+            "missing tail fallback calibration for prediction row: "
+            f"subset={subset}, model_name={model_name}"
+        )
+    predicted_rul = _float(row["predicted_rul"])
+    actual_rul = _float(row["actual_rul"])
+    interval_radius = (
+        calibration.fallback_interval_radius
+        if predicted_rul >= calibration.tail_threshold
+        else calibration.global_interval_radius
+    )
+    lower_bound = max(clip_min, predicted_rul - interval_radius)
+    upper_bound = predicted_rul + interval_radius
+    covered = lower_bound <= actual_rul <= upper_bound
+    error = _float(row["error"])
+    return {
+        "subset": subset,
+        "model_name": model_name,
+        "unit_number": int(row["unit_number"]),
+        "actual_rul": actual_rul,
+        "predicted_rul": predicted_rul,
+        "lower_bound": lower_bound,
+        "upper_bound": upper_bound,
+        "interval_width": upper_bound - lower_bound,
+        "covered": covered,
+        "error": error,
+        "absolute_error": _float(row["absolute_error"]),
+        "late_prediction": error > 0.0,
+        "failure_type": _failure_type(error, covered),
+        "method": calibration.method,
+        "confidence": calibration.global_confidence,
+        "interval_radius": interval_radius,
+    }
+
+
 def _summary_row(
     subset: str,
     model_name: str,
@@ -1198,6 +1670,34 @@ def _failure_note_row(
     )
 
 
+def _tail_fallback_failure_note_row(
+    rank: int,
+    row: dict[str, Any],
+) -> CmapssTailFallbackFailureNoteRow:
+    global_row = row["global"]
+    tail_row = row["tail_fallback"]
+    failure_type = global_row["failure_type"]
+    if global_row["covered"] and not tail_row["covered"]:
+        failure_type = tail_row["failure_type"]
+    note = _tail_fallback_note_text(global_row, tail_row)
+    return CmapssTailFallbackFailureNoteRow(
+        rank=rank,
+        subset=global_row["subset"],
+        model_name=global_row["model_name"],
+        unit_number=global_row["unit_number"],
+        actual_rul=global_row["actual_rul"],
+        predicted_rul=global_row["predicted_rul"],
+        error=global_row["error"],
+        absolute_error=global_row["absolute_error"],
+        actual_rul_bin=_actual_rul_bin(global_row["actual_rul"]),
+        predicted_rul_bin=_predicted_rul_bin(global_row["predicted_rul"]),
+        failure_type=failure_type,
+        global_covered=global_row["covered"],
+        tail_fallback_covered=tail_row["covered"],
+        note=note,
+    )
+
+
 def _failure_note_text(
     row: dict[str, Any],
     uncovered_strategies: tuple[str, ...],
@@ -1207,6 +1707,20 @@ def _failure_note_text(
         f"{direction}; actual bin {_actual_rul_bin(row['actual_rul'])}; "
         f"predicted bin {_predicted_rul_bin(row['predicted_rul'])}; "
         f"uncovered by {', '.join(uncovered_strategies)}"
+    )
+
+
+def _tail_fallback_note_text(
+    global_row: dict[str, Any],
+    tail_row: dict[str, Any],
+) -> str:
+    direction = "late overestimate" if global_row["error"] > 0 else "early underestimate"
+    global_state = "covered" if global_row["covered"] else "uncovered"
+    tail_state = "covered" if tail_row["covered"] else "uncovered"
+    return (
+        f"{direction}; actual bin {_actual_rul_bin(global_row['actual_rul'])}; "
+        f"predicted bin {_predicted_rul_bin(global_row['predicted_rul'])}; "
+        f"global {global_state}; tail fallback {tail_state}"
     )
 
 

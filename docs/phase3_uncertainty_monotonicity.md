@@ -59,10 +59,12 @@ absolute residuals, then evaluates official-test coverage. It reports:
    It restores nominal coverage but widens intervals and does not reduce
    uncovered late predictions.
 4. Done: add unit-level failure notes for the uncovered official-test cases.
-   The two late-overestimate misses remain uncovered under all tested interval
-   strategies.
-5. Decide whether the next experiment should keep global intervals, add a
-   conservative floor as a guardrail, or test a stronger tail-specific fallback
-   before model-selection or training changes.
-6. Start ESA-ADB as a separate protocol intake only after the C-MAPSS Phase 3
+   The two late-overestimate misses remain uncovered under the pre-tail global,
+   predicted-bin, and global-floor strategies.
+5. Done: add a stronger inference-safe predicted-tail fallback experiment. It
+   improves coverage to `0.94` and covers one of the two late-overestimate
+   misses, but unit `67` remains uncovered.
+6. Decide whether to keep the tail fallback as a candidate policy or run a small
+   threshold/confidence sweep to quantify the width cost of covering unit `67`.
+7. Start ESA-ADB as a separate protocol intake only after the C-MAPSS Phase 3
    evidence loop is stable.

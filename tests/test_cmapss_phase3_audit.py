@@ -136,6 +136,52 @@ def test_cmapss_phase3_audit_reports_predicted_bin_global_floor(
     )
 
 
+def test_cmapss_phase3_audit_reports_tail_fallback_experiment(tmp_path) -> None:
+    calibration_csv = tmp_path / "validation_predictions.csv"
+    predictions_csv = tmp_path / "official_predictions.csv"
+    output_markdown = tmp_path / "phase3_audit.md"
+    _write_predictions(
+        calibration_csv,
+        [
+            _prediction("FD001", "transformer", 1, 20.0, 21.0),
+            _prediction("FD001", "transformer", 2, 50.0, 52.0),
+            _prediction("FD001", "transformer", 3, 100.0, 120.0),
+            _prediction("FD001", "transformer", 4, 100.0, 135.0),
+        ],
+    )
+    _write_predictions(
+        predictions_csv,
+        [
+            _prediction("FD001", "transformer", 10, 70.0, 95.0),
+            _prediction("FD001", "transformer", 11, 70.0, 75.0),
+        ],
+    )
+
+    result = run_cmapss_phase3_audit(
+        calibration_csv=calibration_csv,
+        predictions_csv=predictions_csv,
+        output_markdown=output_markdown,
+        confidence=0.75,
+    )
+
+    calibration = result.tail_fallback_calibrations[0]
+    comparison = result.tail_fallback_comparisons[0]
+    notes = {row.unit_number: row for row in result.tail_fallback_failure_notes}
+    assert calibration.tail_calibration_count == 2
+    assert calibration.tail_interval_radius == pytest.approx(35.0)
+    assert calibration.fallback_interval_radius == pytest.approx(35.0)
+    assert comparison.global_coverage == pytest.approx(0.5)
+    assert comparison.tail_fallback_coverage == pytest.approx(1.0)
+    assert comparison.tail_fallback_mean_interval_width == pytest.approx(55.0)
+    assert notes[10].global_covered is False
+    assert notes[10].tail_fallback_covered is True
+    assert 11 not in notes
+    assert "tail_fallback_calibrations" in result.to_payload()["uncertainty"]
+    assert "## Global Vs Tail Fallback Intervals" in output_markdown.read_text(
+        encoding="utf-8"
+    )
+
+
 def test_cmapss_phase3_audit_adds_unit_failure_notes(tmp_path) -> None:
     calibration_csv = tmp_path / "validation_predictions.csv"
     predictions_csv = tmp_path / "official_predictions.csv"

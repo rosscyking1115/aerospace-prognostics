@@ -171,9 +171,12 @@ Every active slice should stay small enough to finish with:
         diagnostic comparison that remains clearly marked as non-inference-safe.
 24. [x] Add unit-level failure notes for the uncovered official-test cases so
         interval-policy decisions are tied to concrete trajectories.
-25. [ ] Decide the next Phase 3 calibration policy experiment: keep global
+25. [x] Decide the next Phase 3 calibration policy experiment: keep global
         intervals, add a conservative floor guardrail, or test a tail-specific
         fallback before model-selection or training changes.
+26. [ ] Decide whether to keep the tail fallback as a candidate policy or run a
+        small threshold/confidence sweep to quantify the width cost of covering
+        late-overestimate unit `67`.
 
 ## Later Milestones
 

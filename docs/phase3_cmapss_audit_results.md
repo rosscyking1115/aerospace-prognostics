@@ -37,6 +37,9 @@ The audit fit a `0.90` validation absolute-residual interval radius of
 | Predicted-bin mean interval width | `43.826050` |
 | Predicted-bin global-floor coverage | `0.900000` |
 | Predicted-bin global-floor mean interval width | `50.679584` |
+| Tail-fallback interval coverage | `0.940000` |
+| Tail-fallback mean interval width | `51.534539` |
+| Tail-fallback late-prediction failures | `1` |
 | Raw monotonicity violation rate | `0.000000` |
 | Calibrated monotonicity violation rate | `0.000000` |
 
@@ -86,6 +89,28 @@ but it widens intervals beyond the global baseline and still leaves the same two
 uncovered late predictions. That makes it a useful guardrail candidate, not a
 complete calibration improvement.
 
+## Tail Fallback Experiment
+
+The tail-fallback experiment keeps the global validation interval for all rows
+by default, then widens rows with predicted RUL at or above `91` cycles using a
+validation-fitted `0.95` absolute-residual radius from predicted-tail rows.
+
+| Strategy | Coverage | Mean interval width | Uncovered late predictions |
+|---|---:|---:|---:|
+| Global validation residual radius | `0.900000` | `48.665198` | `2` |
+| Predicted-tail fallback radius | `0.940000` | `51.534539` | `1` |
+
+Tail fallback calibration:
+
+| Tail threshold | Tail confidence | Tail validation rows | Global radius | Tail radius |
+|---:|---:|---:|---:|---:|
+| `91.000000` | `0.950000` | 1840 | `25.308556` | `28.361046` |
+
+The experiment is inference-safe because it uses predicted RUL, not actual RUL.
+It covers late-overestimate unit `16`, but late-overestimate unit `67` remains
+uncovered. Mean interval width increases by `2.869341` cycles while median
+interval width stays unchanged at `50.617111`.
+
 ## Unit Failure Notes
 
 The audit now records ranked unit-level notes for rows missed by any interval
@@ -93,12 +118,15 @@ strategy. In the current FD001 run, the top 10 failure notes are missed by all
 three interval strategies: global interval, predicted-bin interval, and
 predicted-bin interval with global floor.
 
-The two highest-risk misses are late overestimates:
+Before the tail fallback, the two highest-risk misses were late overestimates:
 
 | Unit | Actual RUL bin | Predicted RUL bin | Failure | Note |
 |---:|---|---|---|---|
 | `67` | `61-90` | `91-120` | `late_uncovered` | late overestimate; uncovered by all three strategies |
 | `16` | `61-90` | `91-120` | `late_uncovered` | late overestimate; uncovered by all three strategies |
+
+With the tail fallback, unit `16` becomes covered, while unit `67` remains
+uncovered.
 
 The remaining top notes are early underestimates, mostly cases where actual RUL
 is `91-120` or `121+` but the model compresses the prediction into `31-60`,
@@ -123,10 +151,12 @@ tail calibration:
 - the global-floor variant is safer than raw predicted-bin intervals but does
   not reduce high-risk late failures, so unit-level failure analysis is still
   needed before changing the deployed uncertainty policy.
-- unit-level notes show the two late-overestimate failures remain uncovered
-  under all tested interval policies.
+- pre-tail unit-level notes showed both late-overestimate failures uncovered
+  under the global, predicted-bin, and global-floor policies.
+- the tail fallback is the first interval experiment that improves overall
+  coverage and reduces late-overestimate misses, but it does not eliminate the
+  highest-risk unit `67` miss.
 
-Next work should decide the next calibration policy experiment: keep global
-intervals as the deployable baseline, adopt a conservative floor only as a
-safety guardrail, or test a stronger tail-specific fallback for the `61-90` to
-`121+` region.
+Next work should decide whether to keep this tail fallback as a candidate policy
+or run a small threshold/confidence sweep to quantify the width cost of covering
+unit `67`.
