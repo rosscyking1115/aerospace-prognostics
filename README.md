@@ -1,13 +1,42 @@
 # Aerospace Prognostics
 
-Aerospace Prognostics is a production-grade PHM engineering project for fleet
-health operations, model evidence, and deployment-ready inference. It combines
-turbofan Remaining Useful Life prediction, spacecraft telemetry anomaly
-detection, release evidence, a FastAPI serving surface, and an operator console.
+[![CI](https://github.com/rosscyking1115/aerospace-prognostics/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/rosscyking1115/aerospace-prognostics/actions/workflows/ci.yml)
+![Python](https://img.shields.io/badge/python-%3E%3D3.11-blue)
+![Tests](https://img.shields.io/badge/tests-414%20passed-brightgreen)
+![License](https://img.shields.io/badge/license-private%20review-lightgrey)
+![Hosted Demo](https://img.shields.io/badge/hosted%20demo-token--gated-success)
 
-The goal is not a notebook demo. The project is being shaped into a useful
-operations tool and engineering reference for aerospace Prognostics & Health
-Management workflows.
+Production-grade aerospace Prognostics & Health Management for fleet triage,
+model evidence, and deployment-ready inference.
+
+![Aerospace PHM read-only operations console](docs/assets/public-proof/streamlit_readonly_console.png)
+
+Aerospace Prognostics combines turbofan Remaining Useful Life prediction,
+spacecraft telemetry anomaly detection, release evidence, a FastAPI serving
+surface, and a Streamlit operator console. The project is built as an
+operations tool and engineering reference for aerospace PHM workflows, not as a
+notebook-only lab demo.
+
+## Portfolio Status
+
+This repository is currently private review only. It is not open-source
+licensed yet; external reuse, redistribution, or production use is not granted
+until a public-launch license is chosen. Reviewer evidence is available through
+tracked screenshots, CI evidence, and a token-gated hosted read-only demo.
+
+See [docs/license_posture.md](docs/license_posture.md) and
+[docs/private_hosting_handoff.md](docs/private_hosting_handoff.md).
+
+## Evidence At A Glance
+
+| Area | Current Evidence |
+| --- | --- |
+| CI | `ruff`, `pytest`, dependency audit, SBOM generation, serving-image smoke tests, hosted-demo image smoke tests |
+| Tests | `414 passed` on the latest full local suite; CI green on `main` |
+| Data tracks | NASA C-MAPSS turbofan RUL and NASA/JPL SMAP/MSL spacecraft telemetry anomaly detection |
+| Product surfaces | FastAPI inference service, Streamlit operations console, Docker Compose stack, token-gated Render demo |
+| Release evidence | Model inspection, validation, benchmark, model card, SBOM, release bundle, promotion report, provenance |
+| Current posture | Private review, `UNLICENSED`, public launch pending final license decision |
 
 ## What It Does
 
@@ -70,10 +99,8 @@ ledger and limitations.
 
 ## Visual Proof
 
-![Aerospace PHM read-only operations console](docs/assets/public-proof/streamlit_readonly_console.png)
-
 The tracked public proof set includes this read-only Streamlit console screenshot
-and a quickstart RUL diagnostic plot in
+above, a hosted-demo proof screenshot, and a quickstart RUL diagnostic plot in
 [docs/public_proof_assets.md](docs/public_proof_assets.md). They summarize the
 no-download quickstart evidence while the repository remains private.
 

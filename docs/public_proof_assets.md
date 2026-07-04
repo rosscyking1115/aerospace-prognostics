@@ -30,6 +30,13 @@ FD001 engines are critical quickstart cases with predicted RUL of `1.0` and
 90 percent intervals from `0.0` to `2.0`, using the
 `train_residual_absolute_quantile` interval method.
 
+![Hosted demo private review proof](assets/public-proof/hosted_demo_private_review.png)
+
+The hosted-demo proof screenshot was captured from the Render-hosted read-only
+console after `/_stcore/health` returned `200 ok`. The current hosted console is
+protected by the optional app-level access token gate documented in
+[private_hosting_handoff.md](private_hosting_handoff.md).
+
 ## Regeneration Path
 
 Use the quickstart command to regenerate the source evidence:
@@ -54,8 +61,7 @@ read-only console before making the repository public.
 ## Current Limits
 
 - These assets are public proof assets, not certification evidence.
-- The Streamlit screenshot is captured from local read-only hosted-demo mode, not
-  from a public hosted URL.
-- Before Phase 3 readiness is marked complete, capture a short GIF or fresh
-  screenshot from the private hosted demo URL and pass it to
-  `pre-phase3-readiness-audit` with `--hosted-demo-proof`.
+- The screenshots are proof of a reviewable demo surface, not evidence of
+  operational suitability for aircraft or spacecraft maintenance decisions.
+- Before public launch, refresh the hosted proof after final copy, license, and
+  access-control decisions are settled.
