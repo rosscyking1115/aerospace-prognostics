@@ -109,10 +109,12 @@ repository remains private:
 
 ## Active Workstream
 
-- [ ] Execute Phase 3 C-MAPSS uncertainty and monotonicity evidence work from
+- [x] Execute Phase 3 C-MAPSS uncertainty and monotonicity evidence work from
       [docs/phase3_uncertainty_monotonicity.md](phase3_uncertainty_monotonicity.md),
       with public-launch decisions kept separate from internal engineering
       readiness.
+- [ ] Start ESA-ADB protocol intake as the next Phase 3 milestone, using the
+      C-MAPSS recommendation freeze as the completed evidence pattern.
 
 Every active slice should stay small enough to finish with:
 
@@ -177,9 +179,12 @@ Every active slice should stay small enough to finish with:
 26. [x] Decide whether to keep the tail fallback as a candidate policy or run a
         small threshold/confidence sweep to quantify the width cost of covering
         late-overestimate unit `67`.
-27. [ ] Freeze the Phase 3 C-MAPSS recommendation: global interval as deployable
+27. [x] Freeze the Phase 3 C-MAPSS recommendation: global interval as deployable
         baseline, `91/0.95` as balanced experimental tail fallback, and
         `76/0.99` as aggressive safety candidate.
+28. [ ] Start ESA-ADB protocol intake as the next Phase 3 milestone, covering
+        data access, splits, labels, metrics, and the smallest
+        protocol-correct first run.
 
 ## Later Milestones
 

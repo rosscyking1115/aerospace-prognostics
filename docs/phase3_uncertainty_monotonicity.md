@@ -67,8 +67,10 @@ absolute residuals, then evaluates official-test coverage. It reports:
 6. Done: run a small threshold/confidence sweep. The lowest-width candidate
    covering both late-overestimate units is threshold `76`, confidence `0.99`,
    with mean interval width `64.717455`.
-7. Freeze the Phase 3 C-MAPSS recommendation: global interval as deployable
-   baseline, `91/0.95` as balanced experimental tail fallback, and `76/0.99` as
-   aggressive safety candidate.
+7. Done: freeze the Phase 3 C-MAPSS recommendation in
+   [docs/phase3_cmapss_recommendation.md](phase3_cmapss_recommendation.md).
+   The global interval remains the deployable baseline, `91/0.95` is the
+   balanced experimental tail fallback, and `76/0.99` is the aggressive safety
+   candidate.
 8. Start ESA-ADB as a separate protocol intake only after the C-MAPSS Phase 3
    evidence loop is stable.

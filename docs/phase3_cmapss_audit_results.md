@@ -9,6 +9,9 @@ deep candidate:
   `artifacts/phase2_fd001_transformer_h32_40e_asymmetric_monotonic_w0p1`;
 - prior leaderboard result: RMSE `14.246672`, NASA score `271.486206`.
 
+The frozen policy recommendation is summarized in
+[docs/phase3_cmapss_recommendation.md](phase3_cmapss_recommendation.md).
+
 ## Command
 
 ```powershell
@@ -184,7 +187,8 @@ tail calibration:
   tail-confidence candidates in this grid; the lowest-width option is
   threshold `76`, confidence `0.99`, with mean width `64.717455`.
 
-Next work should freeze a Phase 3 C-MAPSS recommendation: keep global intervals
-as the deployable baseline, list `91/0.95` as the balanced experimental tail
-fallback, and list `76/0.99` as the aggressive safety candidate that covers both
-late-overestimate misses at substantial width cost.
+The Phase 3 C-MAPSS recommendation is now frozen: keep global intervals as the
+deployable baseline, list `91/0.95` as the balanced experimental tail fallback,
+and list `76/0.99` as the aggressive safety candidate that covers both
+late-overestimate misses at substantial width cost. The next research milestone
+is ESA-ADB protocol intake.
