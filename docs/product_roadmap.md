@@ -15,10 +15,11 @@ The professional user-facing tool should support three surfaces:
 - Hosted web deployment for demos, pilots, and portfolio presentation.
 
 The current foundation already includes the API, Docker image, release evidence,
-SBOM, artifact inspection, static dashboard output, and no-download quickstart.
-The current productization layer adds a local Streamlit console and SQLite
-application state plus a Docker Compose stack for running the console and API
-together. The next gap is hosted deployment and deeper operator workflows.
+SBOM, artifact inspection, static dashboard output, no-download quickstart,
+local Streamlit console, SQLite application state, Docker Compose stack, and a
+token-gated Render-hosted read-only demo. The next gap is no longer whether the
+tool can be deployed; it is deeper operator workflows, Phase 3 research
+differentiators, and the separate public-launch decision.
 
 ## Milestones
 
@@ -94,9 +95,15 @@ mode for hosted review and demo deployments.
 
 Current status: `Dockerfile.demo` builds a self-contained read-only Streamlit
 console image with baked-in quickstart evidence and a seeded SQLite registry.
-This is the first private hosted demo path. It is console-only by design; the
-full local product stack still uses Compose when the API service and console
-need to run together.
+The first private hosted demo is deployed on Render at
+<https://aerospace-prognostics-private-demo.onrender.com>, the Streamlit health
+endpoint has returned `200 ok`, and the hosted proof screenshot is tracked in
+`docs/assets/public-proof/hosted_demo_private_review.png`. The Render service is
+app-level token gated with `AEROSPACE_PROGNOSTICS_CONSOLE_ACCESS_TOKEN`. It is
+console-only by design; the full local product stack still uses Compose when
+the API service and console need to run together. Edge access control, such as
+Cloudflare Access or an IP allowlist, remains optional hardening before broader
+external sharing.
 
 5. Professional workflow
    - Model registry view with artifact identity, schema version, promotion status,
@@ -125,7 +132,8 @@ larger operational scenarios.
 
 ## Near-Term Decision
 
-Use Streamlit for the first app because it gets a usable professional console in
-front of us quickly. Once the domain flow is right, either keep Streamlit for the
-internal tool or move the same API/database contract behind a Next.js frontend
-for a more polished public product surface.
+Use the existing Streamlit console for the internal/private demo and start the
+next research/build slice from the reconciled plan. Keep public launch decisions
+separate: choose the final license, public demo posture, launch copy, and any
+Next.js or alternative public product surface only when the repo is ready to
+turn public.

@@ -16,6 +16,23 @@ Build a production-grade aerospace Prognostics & Health Management tool:
 The project should be useful as a professional engineering reference and, over
 time, as a real aerospace PHM tool surface. It is not a notebook-only lab demo.
 
+## Current Status
+
+The launch package is internally ready for the next research phase while the
+repository remains private:
+
+- Render hosts the read-only Streamlit demo at
+  <https://aerospace-prognostics-private-demo.onrender.com>.
+- The hosted health endpoint has returned `200 ok`, and the hosted proof
+  screenshot is tracked under `docs/assets/public-proof/`.
+- `AEROSPACE_PROGNOSTICS_CONSOLE_ACCESS_TOKEN` is configured on Render, so the
+  PHM console is app-level token gated before evidence screens render.
+- The repository stays private and `UNLICENSED` until the public launch license,
+  launch copy, and final public demo posture are chosen.
+- Stronger edge access, such as Cloudflare Access or an IP allowlist, is a
+  later hardening step before broader external sharing, not the blocker for the
+  current internal private-demo milestone.
+
 ## Completed Foundation
 
 - [x] Phase 1 C-MAPSS classical baseline workflow with manifests, EDA, leakage-safe
@@ -86,12 +103,14 @@ time, as a real aerospace PHM tool surface. It is not a notebook-only lab demo.
       fresh proof screenshot from the hosted environment.
 - [x] Optional Streamlit app-level access token gate added for hosted demos,
       with Render `sync: false` secret configuration.
+- [x] Hosted Render demo redeployed with
+      `AEROSPACE_PROGNOSTICS_CONSOLE_ACCESS_TOKEN` configured as the current
+      private-demo access control.
 
 ## Active Workstream
 
-- [ ] Prepare public-facing proof assets and launch packaging: visual evidence,
-      concise results, and a clean first-run story while keeping the repository
-      private until the demo story is ready.
+- [ ] Start the next research/build slice from this reconciled plan, with
+      public-launch decisions kept separate from internal engineering readiness.
 
 Every active slice should stay small enough to finish with:
 
@@ -131,9 +150,12 @@ Every active slice should stay small enough to finish with:
         that environment.
 17. [x] Add an app-level token gate for the hosted Streamlit console and wire
         the Render Blueprint to request the secret out of band.
-18. [ ] Put the hosted demo behind private access control before sharing it
-        outside the owner account; the default Render service URL is
-        internet-reachable.
+18. [x] Configure the hosted demo's app-level access token in Render and
+        redeploy the private read-only console.
+19. [ ] Optional hardening before broader external sharing: put the hosted demo
+        behind edge access control such as Cloudflare Access, Render inbound IP
+        rules, or an equivalent allowlist. The default Render service URL
+        remains internet-reachable at the network layer.
 
 ## Later Milestones
 
@@ -141,8 +163,8 @@ Every active slice should stay small enough to finish with:
       final public license, launch copy, and public-hosted proof after the
       private demo is ready.
 - [ ] Hosted deployment:
-      access-protected private demo first, then public read-only demo when the
-      repo is ready.
+      optional edge-gated private review link first, then public read-only demo
+      when the repo is ready.
 - [ ] Phase 3 research differentiators:
       calibrated uncertainty evidence, monotonic degradation diagnostics, and
       constrained losses only after diagnostics exist.

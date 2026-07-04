@@ -33,6 +33,8 @@ Latest hosted-demo verification:
 
 - URL: <https://aerospace-prognostics-private-demo.onrender.com>
 - Health check: `/_stcore/health` returned `200 ok`.
+- Access: `AEROSPACE_PROGNOSTICS_CONSOLE_ACCESS_TOKEN` is configured on Render,
+  so the Streamlit evidence screens are app-level token gated.
 - Proof asset:
   [docs/assets/public-proof/hosted_demo_private_review.png](assets/public-proof/hosted_demo_private_review.png)
 - Readiness audit with the hosted URL and proof asset reported
@@ -43,11 +45,11 @@ The setup handoff is tracked in
 not sufficient by itself; the final audit also requires the hosted proof asset
 passed with `--hosted-demo-proof`.
 
-The default Render service URL is internet-reachable. Add Cloudflare Access or
-an equivalent allowlist before treating the deployment as a private reviewer
-URL. The app also supports an optional token gate through
-`AEROSPACE_PROGNOSTICS_CONSOLE_ACCESS_TOKEN`, which should be set on Render as
-soon as the updated Blueprint deploys.
+The default Render service URL remains internet-reachable at the network layer.
+For the current internal private-demo milestone, the configured app-level token
+gate is the accepted access control. Add Cloudflare Access, Render inbound IP
+rules, or an equivalent allowlist before broader external sharing or any review
+where edge-level private access is required.
 
 The current license posture is tracked in
 [docs/license_posture.md](license_posture.md): private review only, not

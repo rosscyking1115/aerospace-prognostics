@@ -50,8 +50,9 @@ visitors into database writers.
 7. Run the container filesystem as read-only and provide a writable tmpfs at
    `/tmp` for framework cache files.
 8. Prefer platform authentication or an allowlist for private review links when
-   sharing outside the owner account; the app-level token is defense in depth,
-   not a replacement for edge access control on sensitive deployments.
+   sharing outside the owner account. The app-level token gate is the accepted
+   control for the current internal private demo; edge access control is the
+   stronger boundary for larger or sensitive reviewer groups.
 9. Rebuild the image whenever the quickstart evidence contract changes.
 
 The operational handoff is tracked in
