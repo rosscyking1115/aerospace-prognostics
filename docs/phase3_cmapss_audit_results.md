@@ -40,6 +40,8 @@ The audit fit a `0.90` validation absolute-residual interval radius of
 | Tail-fallback interval coverage | `0.940000` |
 | Tail-fallback mean interval width | `51.534539` |
 | Tail-fallback late-prediction failures | `1` |
+| Tail sweep rows | `9` |
+| Lowest-width sweep candidate covering units `16` and `67` | threshold `76`, confidence `0.99` |
 | Raw monotonicity violation rate | `0.000000` |
 | Calibrated monotonicity violation rate | `0.000000` |
 
@@ -111,6 +113,28 @@ It covers late-overestimate unit `16`, but late-overestimate unit `67` remains
 uncovered. Mean interval width increases by `2.869341` cycles while median
 interval width stays unchanged at `50.617111`.
 
+## Tail Fallback Sweep
+
+The threshold/confidence sweep quantifies the interval-width cost of covering
+both global late-overestimate misses:
+
+| Tail threshold | Tail confidence | Tail rows | Radius | Coverage | Mean width | Late failures | Recovered late units | Remaining late units |
+|---:|---:|---:|---:|---:|---:|---:|---|---|
+| `61` | `0.95` | 2505 | `31.251747` | `0.950000` | `56.034755` | `1` | `16` | `67` |
+| `61` | `0.975` | 2505 | `35.974571` | `0.970000` | `61.891057` | `1` | `16` | `67` |
+| `61` | `0.99` | 2505 | `41.494377` | `0.990000` | `68.735616` | `0` | `16,67` |  |
+| `76` | `0.95` | 2194 | `30.879509` | `0.950000` | `54.570408` | `1` | `16` | `67` |
+| `76` | `0.975` | 2194 | `35.644310` | `0.960000` | `59.621097` | `1` | `16` | `67` |
+| `76` | `0.99` | 2194 | `40.452194` | `0.970000` | `64.717455` | `0` | `16,67` |  |
+| `91` | `0.95` | 1840 | `28.361046` | `0.940000` | `51.534539` | `1` | `16` | `67` |
+| `91` | `0.975` | 1840 | `31.251747` | `0.950000` | `54.251798` | `1` | `16` | `67` |
+| `91` | `0.99` | 1840 | `37.414322` | `0.960000` | `60.044618` | `1` | `16` | `67` |
+
+The lowest-width candidate that covers both late-overestimate units is threshold
+`76` with tail confidence `0.99`. It removes the late failures, but mean interval
+width increases by `16.052257` cycles over the global baseline, so it should be
+treated as an aggressive safety candidate rather than the current default.
+
 ## Unit Failure Notes
 
 The audit now records ranked unit-level notes for rows missed by any interval
@@ -156,7 +180,11 @@ tail calibration:
 - the tail fallback is the first interval experiment that improves overall
   coverage and reduces late-overestimate misses, but it does not eliminate the
   highest-risk unit `67` miss.
+- the sweep shows unit `67` can be covered only by much wider `0.99`
+  tail-confidence candidates in this grid; the lowest-width option is
+  threshold `76`, confidence `0.99`, with mean width `64.717455`.
 
-Next work should decide whether to keep this tail fallback as a candidate policy
-or run a small threshold/confidence sweep to quantify the width cost of covering
-unit `67`.
+Next work should freeze a Phase 3 C-MAPSS recommendation: keep global intervals
+as the deployable baseline, list `91/0.95` as the balanced experimental tail
+fallback, and list `76/0.99` as the aggressive safety candidate that covers both
+late-overestimate misses at substantial width cost.

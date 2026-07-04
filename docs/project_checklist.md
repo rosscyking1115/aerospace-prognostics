@@ -174,9 +174,12 @@ Every active slice should stay small enough to finish with:
 25. [x] Decide the next Phase 3 calibration policy experiment: keep global
         intervals, add a conservative floor guardrail, or test a tail-specific
         fallback before model-selection or training changes.
-26. [ ] Decide whether to keep the tail fallback as a candidate policy or run a
+26. [x] Decide whether to keep the tail fallback as a candidate policy or run a
         small threshold/confidence sweep to quantify the width cost of covering
         late-overestimate unit `67`.
+27. [ ] Freeze the Phase 3 C-MAPSS recommendation: global interval as deployable
+        baseline, `91/0.95` as balanced experimental tail fallback, and
+        `76/0.99` as aggressive safety candidate.
 
 ## Later Milestones
 

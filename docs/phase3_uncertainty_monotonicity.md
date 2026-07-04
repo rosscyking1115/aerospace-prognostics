@@ -64,7 +64,11 @@ absolute residuals, then evaluates official-test coverage. It reports:
 5. Done: add a stronger inference-safe predicted-tail fallback experiment. It
    improves coverage to `0.94` and covers one of the two late-overestimate
    misses, but unit `67` remains uncovered.
-6. Decide whether to keep the tail fallback as a candidate policy or run a small
-   threshold/confidence sweep to quantify the width cost of covering unit `67`.
-7. Start ESA-ADB as a separate protocol intake only after the C-MAPSS Phase 3
+6. Done: run a small threshold/confidence sweep. The lowest-width candidate
+   covering both late-overestimate units is threshold `76`, confidence `0.99`,
+   with mean interval width `64.717455`.
+7. Freeze the Phase 3 C-MAPSS recommendation: global interval as deployable
+   baseline, `91/0.95` as balanced experimental tail fallback, and `76/0.99` as
+   aggressive safety candidate.
+8. Start ESA-ADB as a separate protocol intake only after the C-MAPSS Phase 3
    evidence loop is stable.

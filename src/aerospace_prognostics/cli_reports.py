@@ -246,6 +246,7 @@ def handle_report_command(args: argparse.Namespace) -> int | None:
             "tail_fallback_failure_notes="
             f"{len(result.tail_fallback_failure_notes)}"
         )
+        print(f"tail_fallback_sweep_rows={len(result.tail_fallback_sweep_rows)}")
         print(f"monotonicity_diagnostics={len(result.monotonicity_diagnostics)}")
         print(f"monotonicity_comparisons={len(result.monotonicity_comparisons)}")
         print(f"training_recommendation={result.training_recommendation}")

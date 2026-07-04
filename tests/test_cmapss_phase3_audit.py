@@ -182,6 +182,50 @@ def test_cmapss_phase3_audit_reports_tail_fallback_experiment(tmp_path) -> None:
     )
 
 
+def test_cmapss_phase3_audit_reports_tail_fallback_sweep(tmp_path) -> None:
+    calibration_csv = tmp_path / "validation_predictions.csv"
+    predictions_csv = tmp_path / "official_predictions.csv"
+    output_markdown = tmp_path / "phase3_audit.md"
+    _write_predictions(
+        calibration_csv,
+        [
+            _prediction("FD001", "transformer", 1, 20.0, 21.0),
+            _prediction("FD001", "transformer", 2, 50.0, 52.0),
+            _prediction("FD001", "transformer", 3, 100.0, 120.0),
+            _prediction("FD001", "transformer", 4, 100.0, 135.0),
+        ],
+    )
+    _write_predictions(
+        predictions_csv,
+        [
+            _prediction("FD001", "transformer", 10, 70.0, 95.0),
+            _prediction("FD001", "transformer", 11, 70.0, 75.0),
+        ],
+    )
+
+    result = run_cmapss_phase3_audit(
+        calibration_csv=calibration_csv,
+        predictions_csv=predictions_csv,
+        output_markdown=output_markdown,
+        confidence=0.75,
+    )
+
+    candidate = [
+        row
+        for row in result.tail_fallback_sweep_rows
+        if row.tail_threshold == 91.0 and row.tail_confidence == pytest.approx(0.95)
+    ][0]
+    assert candidate.coverage == pytest.approx(1.0)
+    assert candidate.mean_interval_width_delta == pytest.approx(15.0)
+    assert candidate.global_uncovered_late_prediction_count == 1
+    assert candidate.uncovered_late_prediction_count == 0
+    assert candidate.covered_global_uncovered_late_unit_count == 1
+    assert candidate.covered_global_uncovered_late_units == "10"
+    assert candidate.remaining_global_uncovered_late_units == ""
+    assert "tail_fallback_sweep" in result.to_payload()["uncertainty"]
+    assert "## Tail Fallback Sweep" in output_markdown.read_text(encoding="utf-8")
+
+
 def test_cmapss_phase3_audit_adds_unit_failure_notes(tmp_path) -> None:
     calibration_csv = tmp_path / "validation_predictions.csv"
     predictions_csv = tmp_path / "official_predictions.csv"

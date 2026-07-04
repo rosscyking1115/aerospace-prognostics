@@ -234,6 +234,33 @@ class CmapssTailFallbackFailureNoteRow:
 
 
 @dataclass(frozen=True)
+class CmapssTailFallbackSweepRow:
+    """Threshold/confidence sweep result for tail fallback intervals."""
+
+    subset: str
+    model_name: str
+    tail_threshold: float
+    tail_confidence: float
+    tail_calibration_count: int
+    fallback_interval_radius: float
+    coverage: float
+    coverage_delta: float
+    mean_interval_width: float
+    mean_interval_width_delta: float
+    median_interval_width: float
+    median_interval_width_delta: float
+    global_uncovered_late_prediction_count: int
+    uncovered_late_prediction_count: int
+    uncovered_late_prediction_count_delta: int
+    covered_global_uncovered_late_unit_count: int
+    covered_global_uncovered_late_units: str
+    remaining_global_uncovered_late_units: str
+
+    def to_dict(self) -> dict[str, str | int | float]:
+        return asdict(self)
+
+
+@dataclass(frozen=True)
 class CmapssMonotonicityComparisonRow:
     """Raw-vs-calibrated monotonicity comparison for one subset/model pair."""
 
@@ -277,6 +304,7 @@ class CmapssPhase3AuditResult:
     tail_fallback_failure_cases: tuple[CmapssUncertaintyFailureRow, ...]
     tail_fallback_comparisons: tuple[CmapssTailFallbackComparisonRow, ...]
     tail_fallback_failure_notes: tuple[CmapssTailFallbackFailureNoteRow, ...]
+    tail_fallback_sweep_rows: tuple[CmapssTailFallbackSweepRow, ...]
     monotonicity_diagnostics: tuple[CmapssPredictionMonotonicityDiagnosticRow, ...]
     unit_diagnostics: tuple[CmapssPredictionUnitDiagnosticRow, ...]
     monotonicity_comparisons: tuple[CmapssMonotonicityComparisonRow, ...]
@@ -341,6 +369,9 @@ class CmapssPhase3AuditResult:
                 ],
                 "tail_fallback_failure_notes": [
                     row.to_dict() for row in self.tail_fallback_failure_notes
+                ],
+                "tail_fallback_sweep": [
+                    row.to_dict() for row in self.tail_fallback_sweep_rows
                 ],
             },
             "monotonicity": {
@@ -444,6 +475,13 @@ def run_cmapss_phase3_audit(
         top_n=top_n,
         clip_min=clip_min,
     )
+    tail_fallback_sweep_rows = build_cmapss_tail_fallback_sweep(
+        calibration_csv,
+        prediction_rows,
+        calibrations,
+        summary_rows,
+        clip_min=clip_min,
+    )
     monotonicity_rows = tuple(
         build_cmapss_prediction_monotonicity_diagnostics(predictions_csv)
     )
@@ -478,6 +516,7 @@ def run_cmapss_phase3_audit(
         tail_fallback_failure_cases=tail_fallback_failure_rows,
         tail_fallback_comparisons=tail_fallback_comparisons,
         tail_fallback_failure_notes=tail_fallback_failure_notes,
+        tail_fallback_sweep_rows=tail_fallback_sweep_rows,
         monotonicity_diagnostics=monotonicity_rows,
         unit_diagnostics=unit_rows,
         monotonicity_comparisons=monotonicity_comparisons,
@@ -1086,6 +1125,92 @@ def build_cmapss_tail_fallback_failure_notes(
     )
 
 
+def build_cmapss_tail_fallback_sweep(
+    calibration_csv: str | Path,
+    prediction_rows: Iterable[dict[str, str]],
+    global_calibrations: Iterable[CmapssIntervalCalibrationRow],
+    global_summaries: Iterable[CmapssUncertaintySummaryRow],
+    *,
+    tail_thresholds: tuple[float, ...] = (61.0, 76.0, 91.0),
+    tail_confidences: tuple[float, ...] = (0.95, 0.975, 0.99),
+    clip_min: float = 0.0,
+) -> tuple[CmapssTailFallbackSweepRow, ...]:
+    """Evaluate a small tail-fallback threshold/confidence sweep."""
+
+    prediction_row_tuple = tuple(prediction_rows)
+    global_calibration_tuple = tuple(global_calibrations)
+    global_summary_by_key = {
+        (row.subset, row.model_name): row for row in tuple(global_summaries)
+    }
+    global_calibration_by_key = {
+        (row.subset, row.model_name): row for row in global_calibration_tuple
+    }
+    global_annotated_rows = [
+        _annotated_interval_row(row, global_calibration_by_key, clip_min=clip_min)
+        for row in prediction_row_tuple
+    ]
+    global_rows_by_key: dict[tuple[str, str], list[dict[str, Any]]] = {}
+    for row in global_annotated_rows:
+        global_rows_by_key.setdefault((row["subset"], row["model_name"]), []).append(
+            row
+        )
+
+    sweep_rows: list[CmapssTailFallbackSweepRow] = []
+    for tail_threshold in tail_thresholds:
+        for tail_confidence in tail_confidences:
+            tail_calibrations = fit_cmapss_tail_fallback_calibrations(
+                calibration_csv,
+                global_calibration_tuple,
+                tail_threshold=tail_threshold,
+                tail_confidence=tail_confidence,
+            )
+            tail_by_key = {
+                (row.subset, row.model_name): row for row in tail_calibrations
+            }
+            tail_annotated_rows = [
+                _annotated_tail_fallback_interval_row(
+                    row,
+                    tail_by_key,
+                    clip_min=clip_min,
+                )
+                for row in prediction_row_tuple
+            ]
+            tail_rows_by_key: dict[tuple[str, str], list[dict[str, Any]]] = {}
+            for row in tail_annotated_rows:
+                tail_rows_by_key.setdefault(
+                    (row["subset"], row["model_name"]),
+                    [],
+                ).append(row)
+            for subset, model_name in sorted(
+                global_summary_by_key.keys() & tail_rows_by_key.keys()
+            ):
+                global_summary = global_summary_by_key[(subset, model_name)]
+                global_rows = global_rows_by_key[(subset, model_name)]
+                tail_rows = tail_rows_by_key[(subset, model_name)]
+                tail_summary = _summary_row(subset, model_name, tail_rows)
+                calibration = tail_by_key[(subset, model_name)]
+                sweep_rows.append(
+                    _tail_fallback_sweep_row(
+                        global_summary,
+                        global_rows,
+                        tail_summary,
+                        tail_rows,
+                        calibration,
+                    )
+                )
+    return tuple(
+        sorted(
+            sweep_rows,
+            key=lambda row: (
+                row.subset,
+                row.model_name,
+                row.tail_threshold,
+                row.tail_confidence,
+            ),
+        )
+    )
+
+
 def compare_cmapss_monotonicity(
     raw_predictions_csv: str | Path,
     calibrated_predictions_csv: str | Path,
@@ -1384,6 +1509,35 @@ def render_cmapss_phase3_audit_markdown(result: CmapssPhase3AuditResult) -> str:
                 f"{_covered_label(row.tail_fallback_covered)} | "
                 f"{row.failure_type} | "
                 f"{row.note} |"
+            )
+    if result.tail_fallback_sweep_rows:
+        lines.extend(
+            [
+                "",
+                "## Tail Fallback Sweep",
+                "",
+                (
+                    "| Subset | Model | Tail Threshold | Tail Confidence | Tail Rows | "
+                    "Radius | Coverage | Mean Width | Late Failures | "
+                    "Recovered Global Late Units | Remaining Global Late Units |"
+                ),
+                "|---|---|---:|---:|---:|---:|---:|---:|---:|---|---|",
+            ]
+        )
+        for row in result.tail_fallback_sweep_rows:
+            lines.append(
+                "| "
+                f"{row.subset} | "
+                f"`{row.model_name}` | "
+                f"{row.tail_threshold:.6f} | "
+                f"{row.tail_confidence:.6f} | "
+                f"{row.tail_calibration_count} | "
+                f"{row.fallback_interval_radius:.6f} | "
+                f"{row.coverage:.6f} | "
+                f"{row.mean_interval_width:.6f} | "
+                f"{row.uncovered_late_prediction_count} | "
+                f"{row.covered_global_uncovered_late_units} | "
+                f"{row.remaining_global_uncovered_late_units} |"
             )
     lines.extend(
         [
@@ -1698,6 +1852,64 @@ def _tail_fallback_failure_note_row(
     )
 
 
+def _tail_fallback_sweep_row(
+    global_summary: CmapssUncertaintySummaryRow,
+    global_rows: list[dict[str, Any]],
+    tail_summary: CmapssUncertaintySummaryRow,
+    tail_rows: list[dict[str, Any]],
+    calibration: CmapssTailFallbackCalibrationRow,
+) -> CmapssTailFallbackSweepRow:
+    global_uncovered_late_units = {
+        row["unit_number"]
+        for row in global_rows
+        if row["late_prediction"] and not row["covered"]
+    }
+    tail_rows_by_unit = {row["unit_number"]: row for row in tail_rows}
+    covered_units = tuple(
+        sorted(
+            unit
+            for unit in global_uncovered_late_units
+            if tail_rows_by_unit[unit]["covered"]
+        )
+    )
+    remaining_units = tuple(
+        sorted(
+            unit
+            for unit in global_uncovered_late_units
+            if not tail_rows_by_unit[unit]["covered"]
+        )
+    )
+    return CmapssTailFallbackSweepRow(
+        subset=global_summary.subset,
+        model_name=global_summary.model_name,
+        tail_threshold=calibration.tail_threshold,
+        tail_confidence=calibration.tail_confidence,
+        tail_calibration_count=calibration.tail_calibration_count,
+        fallback_interval_radius=calibration.fallback_interval_radius,
+        coverage=tail_summary.coverage,
+        coverage_delta=tail_summary.coverage - global_summary.coverage,
+        mean_interval_width=tail_summary.mean_interval_width,
+        mean_interval_width_delta=(
+            tail_summary.mean_interval_width - global_summary.mean_interval_width
+        ),
+        median_interval_width=tail_summary.median_interval_width,
+        median_interval_width_delta=(
+            tail_summary.median_interval_width - global_summary.median_interval_width
+        ),
+        global_uncovered_late_prediction_count=(
+            global_summary.uncovered_late_prediction_count
+        ),
+        uncovered_late_prediction_count=tail_summary.uncovered_late_prediction_count,
+        uncovered_late_prediction_count_delta=(
+            tail_summary.uncovered_late_prediction_count
+            - global_summary.uncovered_late_prediction_count
+        ),
+        covered_global_uncovered_late_unit_count=len(covered_units),
+        covered_global_uncovered_late_units=_unit_list_label(covered_units),
+        remaining_global_uncovered_late_units=_unit_list_label(remaining_units),
+    )
+
+
 def _failure_note_text(
     row: dict[str, Any],
     uncovered_strategies: tuple[str, ...],
@@ -1792,6 +2004,10 @@ def _failure_type(error: float, covered: bool) -> str:
 
 def _covered_label(covered: bool) -> str:
     return "covered" if covered else "uncovered"
+
+
+def _unit_list_label(units: tuple[int, ...]) -> str:
+    return ",".join(str(unit) for unit in units)
 
 
 def _nearest_rank_quantile(values: list[float], quantile: float) -> float:

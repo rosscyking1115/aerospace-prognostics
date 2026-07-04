@@ -1201,6 +1201,7 @@ def test_cmapss_phase3_audit_command_writes_evidence(tmp_path, capsys) -> None:
     assert "tail_fallback_calibrations=1" in output
     assert "tail_fallback_summaries=1" in output
     assert "tail_fallback_failure_notes=" in output
+    assert "tail_fallback_sweep_rows=" in output
     assert "monotonicity_comparisons=1" in output
     assert "training_recommendation=diagnostic_first:" in output
     assert output_json.exists()
