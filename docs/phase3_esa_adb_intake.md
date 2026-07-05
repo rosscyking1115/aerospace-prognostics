@@ -10,6 +10,12 @@ Primary sources checked on 2026-07-05:
 
 - ESA-ADB paper: <https://arxiv.org/abs/2406.17826>
 - Official benchmark code: <https://github.com/kplabs-pl/ESA-ADB>
+- Official evaluator script:
+  <https://github.com/kplabs-pl/ESA-ADB/blob/main/scripts/reevaluate.py>
+- Official anomaly type inference script:
+  <https://github.com/kplabs-pl/ESA-ADB/blob/main/scripts/infer_anomaly_types.py>
+- Official ESA-specific metrics:
+  <https://github.com/kplabs-pl/ESA-ADB/blob/main/timeeval/metrics/ESA_ADB_metrics.py>
 - ESA Anomaly Dataset v2 Zenodo record:
   <https://zenodo.org/records/15237121>
 - Original dataset DOI used by the paper and README:
@@ -110,8 +116,37 @@ ESA-ADB as a protocol-first integration, not as a casual local data import.
   - The README says official experiment results are written under `results`, but
     the exact minimal prediction/detection file contract should be confirmed
     from the official TimeEval integration code before we write our own outputs.
-  - Decision: read the official evaluator/result code before implementing an
-    ESA-ADB result writer.
+  - Decision: done for the fixture layer. The official evaluator reads
+    `labels.csv`, joins `anomaly_types.csv` by `ID`, casts score columns to
+    binary `uint8`, passes global metrics a `Timestamp, Score` series, and
+    passes channel-aware metrics a dictionary of channel names to
+    `Timestamp, Score` series. A full result writer still waits for the
+    lightweight Mission1 smoke path.
+
+## Implemented Evaluator Contract Fixture Layer
+
+The current code does not vendor the full official TimeEval stack. Instead it
+adds fixture-tested helpers that prepare the same minimal objects consumed by
+the official ESA-ADB evaluator:
+
+- `read_esa_adb_evaluator_labels` reads `labels.csv`, parses `StartTime` and
+  `EndTime`, and joins `Category`, `Dimensionality`, `Locality`, and `Length`
+  from `anomaly_types.csv`.
+- `group_esa_adb_binary_events` mirrors the official run grouping for binary
+  detections: positive runs are closed-open until the next timestamp, except a
+  run that reaches the final sample ends closed at the final timestamp.
+- `build_esa_adb_metric_inputs` validates aligned per-channel
+  `Timestamp, Score` predictions, builds the global max-score series used by
+  event-wise metrics, and keeps the channel dictionary used by channel-aware
+  metrics.
+
+Fixture coverage now protects:
+
+- labels and anomaly-type joins;
+- missing anomaly-type IDs;
+- binary event grouping;
+- global and channel prediction input shapes;
+- non-binary scores and misaligned channel timestamps.
 
 ## Smallest Protocol-Correct First Run
 
@@ -129,11 +164,11 @@ Recommended first run:
    - official repository URL and commit/ref used for protocol decisions.
 2. Done: add a no-download validator for locally supplied archives, starting
    with `ESA-Mission1.zip` from Zenodo v2.
-3. Next: inspect or vendor only the minimal official evaluator interface needed to
+3. Done: inspect only the minimal official evaluator interface needed to
    understand the binary-detection output contract.
-4. Build tiny fixture tests for labels, anomaly types, event grouping, and
+4. Done: build tiny fixture tests for labels, anomaly types, event grouping, and
    metric-input shape before touching the full dataset.
-5. Run a real lightweight Mission1 path only after the fixture evaluator
+5. Next: run a real lightweight Mission1 path only after the fixture evaluator
    contract is green:
    - preprocess Mission1 with the official script;
    - select channels `41-46`;

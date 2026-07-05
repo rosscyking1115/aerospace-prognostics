@@ -117,8 +117,10 @@ repository remains private:
       C-MAPSS recommendation freeze as the completed evidence pattern.
 - [x] Add an ESA-ADB source manifest and no-download archive validator before
       any model implementation.
-- [ ] Inspect the ESA-ADB official evaluator/result contract and add tiny
+- [x] Inspect the ESA-ADB official evaluator/result contract and add tiny
       fixture tests before full dataset work.
+- [ ] Build the first lightweight Mission1 ESA-ADB smoke path after local
+      archive extraction is available.
 
 Every active slice should stay small enough to finish with:
 
@@ -191,8 +193,11 @@ Every active slice should stay small enough to finish with:
         protocol-correct first run.
 29. [x] Add an ESA-ADB source manifest and no-download archive validator for
         locally supplied Zenodo v2 archives.
-30. [ ] Inspect the ESA-ADB official evaluator/result contract and add fixture
+30. [x] Inspect the ESA-ADB official evaluator/result contract and add fixture
         tests for labels, anomaly types, event grouping, and metric-input shape.
+31. [ ] Build the first lightweight Mission1 ESA-ADB smoke path: preprocess or
+        ingest channels `41-46`, regenerate subset anomaly types, score a
+        simple official-compatible baseline, and write JSON/Markdown evidence.
 
 ## Later Milestones
 
@@ -208,6 +213,9 @@ Every active slice should stay small enough to finish with:
 - [x] ESA-ADB intake:
       official protocol note covering data access, splits, labels, metrics, and
       smallest protocol-correct first run before model implementation.
+- [ ] ESA-ADB lightweight benchmark smoke:
+      Mission1 channels `41-46`, subset anomaly types, official-compatible
+      binary detection outputs, and metric hierarchy evidence.
 
 ## Working Rules
 

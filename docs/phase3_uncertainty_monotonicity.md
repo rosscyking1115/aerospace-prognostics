@@ -77,5 +77,9 @@ absolute residuals, then evaluates official-test coverage. It reports:
    a source manifest plus no-download archive validator before any model code.
 9. Done: add the ESA-ADB source manifest and no-download archive validator for
    Zenodo v2 archives.
-10. Next: inspect the official evaluator/result contract and add fixture tests
+10. Done: inspect the official evaluator/result contract and add fixture tests
     for labels, anomaly types, event grouping, and metric-input shape.
+11. Next: build the first lightweight Mission1 ESA-ADB smoke path once the
+    locally supplied archive is extracted. Keep it protocol-first: channels
+    `41-46`, regenerated subset anomaly types, official-compatible binary
+    detections, and JSON/Markdown evidence.
