@@ -72,5 +72,6 @@ absolute residuals, then evaluates official-test coverage. It reports:
    The global interval remains the deployable baseline, `91/0.95` is the
    balanced experimental tail fallback, and `76/0.99` is the aggressive safety
    candidate.
-8. Start ESA-ADB as a separate protocol intake only after the C-MAPSS Phase 3
-   evidence loop is stable.
+8. Done: start ESA-ADB as a separate protocol intake in
+   [docs/phase3_esa_adb_intake.md](phase3_esa_adb_intake.md). The next slice is
+   a source manifest plus no-download archive validator before any model code.

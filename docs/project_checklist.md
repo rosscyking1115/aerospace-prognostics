@@ -113,8 +113,10 @@ repository remains private:
       [docs/phase3_uncertainty_monotonicity.md](phase3_uncertainty_monotonicity.md),
       with public-launch decisions kept separate from internal engineering
       readiness.
-- [ ] Start ESA-ADB protocol intake as the next Phase 3 milestone, using the
+- [x] Start ESA-ADB protocol intake as the next Phase 3 milestone, using the
       C-MAPSS recommendation freeze as the completed evidence pattern.
+- [ ] Add an ESA-ADB source manifest and no-download archive validator before
+      any model implementation.
 
 Every active slice should stay small enough to finish with:
 
@@ -182,9 +184,11 @@ Every active slice should stay small enough to finish with:
 27. [x] Freeze the Phase 3 C-MAPSS recommendation: global interval as deployable
         baseline, `91/0.95` as balanced experimental tail fallback, and
         `76/0.99` as aggressive safety candidate.
-28. [ ] Start ESA-ADB protocol intake as the next Phase 3 milestone, covering
+28. [x] Start ESA-ADB protocol intake as the next Phase 3 milestone, covering
         data access, splits, labels, metrics, and the smallest
         protocol-correct first run.
+29. [ ] Add an ESA-ADB source manifest and no-download archive validator for
+        locally supplied Zenodo v2 archives.
 
 ## Later Milestones
 
@@ -197,7 +201,7 @@ Every active slice should stay small enough to finish with:
 - [ ] Phase 3 research differentiators:
       calibrated uncertainty evidence, monotonic degradation diagnostics, and
       constrained losses only after diagnostics exist.
-- [ ] ESA-ADB intake:
+- [x] ESA-ADB intake:
       official protocol note covering data access, splits, labels, metrics, and
       smallest protocol-correct first run before model implementation.
 
