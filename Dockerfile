@@ -7,7 +7,7 @@ ARG VCS_REF="unknown"
 
 LABEL org.opencontainers.image.created="${BUILD_DATE}" \
     org.opencontainers.image.description="Serving image for the Aerospace Prognostics FastAPI inference service." \
-    org.opencontainers.image.licenses="UNLICENSED" \
+    org.opencontainers.image.licenses="MIT" \
     org.opencontainers.image.revision="${VCS_REF}" \
     org.opencontainers.image.source="${SOURCE}" \
     org.opencontainers.image.title="aerospace-prognostics-serving" \
@@ -18,7 +18,7 @@ ENV PYTHONUNBUFFERED=1
 
 WORKDIR /app
 
-COPY pyproject.toml uv.lock README.md ./
+COPY pyproject.toml uv.lock README.md LICENSE ./
 COPY src ./src
 
 RUN pip install --no-cache-dir uv \

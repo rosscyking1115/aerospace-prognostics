@@ -1,11 +1,16 @@
 # Restructure And Replan
 
-This document resets the project from "keep adding capability" to "shape the
-work into a maintainable product-grade PHM tool." The repository is now past
-the point where a single linear project plan is enough: it has research
+> [!NOTE]
+> This is a historical restructure note from before the portfolio pivot. The
+> active direction is now an ML-engineer/MLOps portfolio reference
+> implementation, not a productization track.
+
+This document originally reset the project from "keep adding capability" to
+"shape the work into a maintainable PHM MLOps system." The repository is now
+past the point where a single linear project plan is enough: it has research
 workflows, deployment evidence, an API, a console, CI supply-chain checks, and a
 hosted demo image. The next work should deepen the architecture and sharpen the
-public product story before adding more modelling scope.
+reviewer-facing portfolio story before adding more modelling scope.
 
 The living execution checklist is tracked in
 [docs/project_checklist.md](project_checklist.md). Update it after each completed
@@ -104,7 +109,7 @@ Done when:
 
 - README answers "what is this, why trust it, how do I run it" quickly;
 - detailed commands still exist in docs;
-- public-launch checklist items become directly reviewable.
+- portfolio proof items become directly reviewable.
 
 ### 3. Product Demo Maturity
 

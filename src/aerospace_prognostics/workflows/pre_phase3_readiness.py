@@ -1,4 +1,4 @@
-"""Pre-Phase-3 readiness audit for launch and productization gates."""
+"""Historical Pre-Phase-3 readiness audit retained for planning traceability."""
 
 from __future__ import annotations
 
@@ -11,7 +11,7 @@ from aerospace_prognostics.artifact_io import prepare_output_path, write_json_pa
 
 @dataclass(frozen=True)
 class PrePhase3ReadinessGate:
-    """One gate that must be true before Phase 3 research work starts."""
+    """One historical gate from the quarantined productization checklist."""
 
     gate_id: str
     category: str
@@ -35,7 +35,7 @@ class PrePhase3ReadinessGate:
 
 @dataclass(frozen=True)
 class PrePhase3ReadinessAudit:
-    """Readiness result for the work that should be done before Phase 3."""
+    """Historical readiness result from the quarantined planning checklist."""
 
     gates: tuple[PrePhase3ReadinessGate, ...]
 
@@ -76,7 +76,7 @@ def run_pre_phase3_readiness_audit(
     hosted_demo_proof: str | Path | None = None,
     license_decision: str | None = None,
 ) -> PrePhase3ReadinessAudit:
-    """Audit repo-local and external gates before Phase 3 starts."""
+    """Audit historical repo-local and external gates."""
 
     repo_root = Path(root)
     gates = [
@@ -123,9 +123,10 @@ def run_pre_phase3_readiness_audit(
             (
                 "Combined Phase 2 completion audit",
                 "Phase 3 research differentiators",
-                "Keep the GitHub repository private",
+                "ML-engineer/MLOps portfolio reference implementation",
+                "Productization planning is frozen",
             ),
-            "Checklist records Phase 2 completion and keeps Phase 3 later.",
+            "Checklist records Phase 2 completion and the portfolio pivot.",
             "Update docs/project_checklist.md so it reflects current phase boundaries.",
         ),
         _text_gate(
@@ -312,10 +313,9 @@ def _license_gate(root: Path, license_decision: str | None) -> PrePhase3Readines
     if posture_path.exists():
         posture_text = posture_path.read_text(encoding="utf-8")
         required_text = (
-            "private review only",
-            "not currently distributed under an open-source license",
-            "public-launch license",
-            "UNLICENSED",
+            "MIT License",
+            "Raw NASA/JPL/ESA datasets",
+            "Generated model artifacts",
         )
         missing = [item for item in required_text if item not in posture_text]
         if not missing:
@@ -323,8 +323,8 @@ def _license_gate(root: Path, license_decision: str | None) -> PrePhase3Readines
                 gate_id="license_posture",
                 category="external_decision",
                 status="ok",
-                evidence="Tracked private-review-only license posture in docs/license_posture.md.",
-                next_action="Choose and add a final license file before public launch.",
+                evidence="Tracked MIT portfolio license posture in docs/license_posture.md.",
+                next_action="No action required.",
             )
     if license_decision:
         return PrePhase3ReadinessGate(
@@ -332,7 +332,7 @@ def _license_gate(root: Path, license_decision: str | None) -> PrePhase3Readines
             category="external_decision",
             status="ok",
             evidence=f"License decision supplied: {license_decision}",
-            next_action="Add the license file before public launch if the decision is public.",
+            next_action="Add the license file if this repository should be distributed.",
         )
     return PrePhase3ReadinessGate(
         gate_id="license_posture",

@@ -170,14 +170,14 @@ class _FakeStreamlit:
         self.rerun_count += 1
 
 
-def test_render_roadmap_tab_keeps_product_direction_visible() -> None:
+def test_render_roadmap_tab_keeps_portfolio_direction_visible() -> None:
     st = _FakeStreamlit()
 
     render_roadmap_tab(st)
 
-    assert st.subheaders == ["Product Roadmap"]
+    assert st.subheaders == ["MLOps Portfolio Roadmap"]
     assert "Persist prediction runs" in st.markdowns[0]
-    assert "hosted product surface" in st.markdowns[0]
+    assert "reviewer-focused" in st.markdowns[0]
 
 
 def test_render_evidence_tab_surfaces_release_evidence(

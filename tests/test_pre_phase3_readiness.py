@@ -23,7 +23,7 @@ def test_pre_phase3_readiness_audit_separates_repo_gates_from_external_blockers(
     assert all(gate.category.startswith("external") for gate in audit.blockers)
     license_gate = next(gate for gate in audit.gates if gate.gate_id == "license_posture")
     assert license_gate.status == "ok"
-    assert "docs/license_posture.md" in license_gate.evidence
+    assert "LICENSE" in license_gate.evidence
     assert all(
         gate.status == "ok"
         for gate in audit.gates
@@ -68,7 +68,7 @@ def test_pre_phase3_readiness_cli_can_pass_with_external_gate_inputs(
             "--hosted-demo-proof",
             str(hosted_proof),
             "--license-decision",
-            "private-review-only until public launch license is chosen",
+            "MIT portfolio reference implementation",
             "--output-json",
             str(output_json),
             "--output-markdown",

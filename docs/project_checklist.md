@@ -6,20 +6,22 @@ each completed slice.
 
 ## Current North Star
 
-Build a production-grade aerospace Prognostics & Health Management tool:
+Build an ML-engineer/MLOps portfolio reference implementation for aerospace
+Prognostics & Health Management:
 
-- an operations console for fleet triage and release review;
-- a FastAPI inference service for integration and automation;
-- a release-evidence workflow that keeps model artifacts, metrics, SBOM,
+- common public benchmarks wrapped in serious engineering evidence;
+- FastAPI inference service for serving-contract proof;
+- Streamlit console for model and prediction review;
+- release-evidence workflow that keeps model artifacts, metrics, SBOM,
   provenance, dashboards, and operational decisions tied together.
 
-The project should be useful as a professional engineering reference and, over
-time, as a real aerospace PHM tool surface. It is not a notebook-only lab demo.
+The project is not a commercial PHM product. Productization planning is frozen.
+The differentiator is the MLOps envelope around familiar C-MAPSS and SMAP/MSL
+benchmarks.
 
 ## Current Status
 
-The launch package is internally ready for the next research phase while the
-repository remains private:
+The project is positioned as a portfolio reference implementation:
 
 - Render hosts the read-only Streamlit demo at
   <https://aerospace-prognostics-private-demo.onrender.com>.
@@ -27,11 +29,9 @@ repository remains private:
   screenshot is tracked under `docs/assets/public-proof/`.
 - `AEROSPACE_PROGNOSTICS_CONSOLE_ACCESS_TOKEN` is configured on Render, so the
   PHM console is app-level token gated before evidence screens render.
-- The repository stays private and `UNLICENSED` until the public launch license,
-  launch copy, and final public demo posture are chosen.
-- Stronger edge access, such as Cloudflare Access or an IP allowlist, is a
-  later hardening step before broader external sharing, not the blocker for the
-  current internal private-demo milestone.
+- Repository code is MIT licensed.
+- The historical productization docs are quarantined; do not resume product
+  launch work from them.
 
 ## Completed Foundation
 
@@ -83,7 +83,7 @@ repository remains private:
       batch-prediction renderer contract tests.
 - [x] Streamlit Fleet tab renderer extracted into the focused tab module with
       fleet registry and priority-policy renderer contract tests.
-- [x] Public-facing README reshape completed, with detailed research,
+- [x] Portfolio-facing README reshape completed, with detailed research,
       deployment, and app commands moved into `docs/command_catalog.md`.
 - [x] Initial public proof assets added with a tracked console snapshot,
       quickstart RUL diagnostic plot, and evidence-source documentation.
@@ -95,8 +95,8 @@ repository remains private:
       evidence flow, runtime modes, and security controls.
 - [x] Public results summary added with C-MAPSS, SMAP/MSL, deployment-evidence,
       and limitation notes.
-- [x] Pre-Phase-3 readiness audit added to separate repo-local completion gates
-      from external launch blockers before new research work starts.
+- [x] Historical pre-Phase-3 productization readiness audit quarantined so it
+      is no longer an active research gate.
 - [x] Private hosting handoff added with a Render Blueprint path, access-control
       warning, and final hosted-proof readiness command.
 - [x] Render-hosted read-only demo URL verified with a live health check and a
@@ -106,13 +106,16 @@ repository remains private:
 - [x] Hosted Render demo redeployed with
       `AEROSPACE_PROGNOSTICS_CONSOLE_ACCESS_TOKEN` configured as the current
       private-demo access control.
+- [x] Productization track frozen and README reframed around ML-engineer/MLOps
+      portfolio evidence.
+- [x] MIT license added for repository code.
 
 ## Active Workstream
 
 - [x] Execute Phase 3 C-MAPSS uncertainty and monotonicity evidence work from
       [docs/phase3_uncertainty_monotonicity.md](phase3_uncertainty_monotonicity.md),
-      with public-launch decisions kept separate from internal engineering
-      readiness.
+      with portfolio evidence kept separate from the quarantined productization
+      track.
 - [x] Start ESA-ADB protocol intake as the next Phase 3 milestone, using the
       C-MAPSS recommendation freeze as the completed evidence pattern.
 - [x] Add an ESA-ADB source manifest and no-download archive validator before
@@ -121,6 +124,8 @@ repository remains private:
       fixture tests before full dataset work.
 - [ ] Build the first lightweight Mission1 ESA-ADB smoke path after local
       archive extraction is available.
+- [ ] Keep reviewer-facing docs focused on MLOps portfolio proof, not product
+      launch planning.
 
 Every active slice should stay small enough to finish with:
 
@@ -136,7 +141,7 @@ Every active slice should stay small enough to finish with:
 2. [x] Extract release evidence row helpers from `store.py`.
 3. [x] Extract prediction-run query/report helpers from `store.py`.
 4. [x] Continue splitting Streamlit tabs once store interfaces are stable.
-5. [x] Reshape the public README and move the long command catalog into focused
+5. [x] Reshape the portfolio README and move the long command catalog into focused
        docs.
 6. [x] Add initial visual proof assets: static console proof snapshot plus a
        prediction diagnostic plot.
@@ -145,15 +150,14 @@ Every active slice should stay small enough to finish with:
 8. [x] Capture a short GIF or fresh screenshot from the actual hosted demo URL
        once that public environment exists.
 9. [x] Add a clear first-run guide that tells reviewers when to use the
-       console-only quickstart, local product stack, or read-only demo image.
+       console-only quickstart, local MLOps stack, or read-only demo image.
 10. [x] Add a compact README architecture diagram and deeper architecture guide.
 11. [x] Add a concise public results summary with honest limitations.
 12. [x] Add a combined Phase 2 completion audit command for both manifest-backed
         research tracks.
-13. [x] Add a pre-Phase-3 readiness audit command that reports remaining launch
-        and productization blockers.
-14. [x] Choose the license/posture for public launch or document a private-only
-        license decision for the next internal phase.
+13. [x] Quarantine the pre-Phase-3 readiness audit as historical
+        productization context, not an active gate.
+14. [x] Choose a normal OSS license for the portfolio project: MIT.
 15. [x] Add a private hosting handoff and tracked Render Blueprint for the
         read-only demo.
 16. [x] Create a hosted read-only demo URL and capture fresh visual proof from
@@ -162,10 +166,8 @@ Every active slice should stay small enough to finish with:
         the Render Blueprint to request the secret out of band.
 18. [x] Configure the hosted demo's app-level access token in Render and
         redeploy the private read-only console.
-19. [ ] Optional hardening before broader external sharing: put the hosted demo
-        behind edge access control such as Cloudflare Access, Render inbound IP
-        rules, or an equivalent allowlist. The default Render service URL
-        remains internet-reachable at the network layer.
+19. [ ] Optional review hardening: keep the hosted demo token gated, and add
+        edge access only if a specific review workflow requires it.
 20. [x] Add the first Phase 3 C-MAPSS audit command for validation-fitted
         uncertainty intervals, official-test coverage evidence, late-risk
         failures, and raw-vs-calibrated monotonicity comparison.
@@ -198,15 +200,17 @@ Every active slice should stay small enough to finish with:
 31. [ ] Build the first lightweight Mission1 ESA-ADB smoke path: preprocess or
         ingest channels `41-46`, regenerate subset anomaly types, score a
         simple official-compatible baseline, and write JSON/Markdown evidence.
+32. [ ] Maintain portfolio positioning: surface serving, evidence, CI,
+        containers, SBOM, provenance, drift summaries, and limitations ahead of
+        benchmark novelty.
 
 ## Later Milestones
 
-- [ ] Public-facing packaging:
-      final public license, launch copy, and public-hosted proof after the
-      private demo is ready.
-- [ ] Hosted deployment:
-      optional edge-gated private review link first, then public read-only demo
-      when the repo is ready.
+- [x] Portfolio packaging:
+      MIT license, portfolio README posture, and quarantined launch docs.
+- [ ] Reviewer-facing polish:
+      refreshed screenshots, concise technical report, and clearer evidence
+      navigation.
 - [ ] Phase 3 research differentiators:
       calibrated uncertainty evidence, monotonic degradation diagnostics, and
       constrained losses only after diagnostics exist.
@@ -219,8 +223,7 @@ Every active slice should stay small enough to finish with:
 
 ## Working Rules
 
-- [ ] Keep the GitHub repository private until the public-facing README,
-      screenshots, and hosted demo story are ready.
+- [ ] Keep productization planning frozen.
 - [ ] Update this checklist after each completed slice.
-- [ ] Prefer production-grade behavior and evidence over portfolio-style mimicry.
+- [ ] Prefer real MLOps evidence over benchmark novelty or product-style claims.
 - [ ] Keep raw telemetry and generated model artifacts out of Git.

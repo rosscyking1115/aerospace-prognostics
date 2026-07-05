@@ -1,8 +1,8 @@
-# Public Proof Assets
+# Portfolio Proof Assets
 
-These tracked visual assets are a first public-launch proof set for the project.
-They are small enough to live in Git and are tied to the no-download quickstart
-evidence rather than raw telemetry or generated model binaries.
+These tracked visual assets are a reviewer-facing proof set for the portfolio
+project. They are small enough to live in Git and are tied to the no-download
+quickstart evidence rather than raw telemetry or generated model binaries.
 
 ## Assets
 
@@ -17,10 +17,10 @@ read-only sidebar state used by the hosted-demo image.
 
 The static fleet console snapshot summarizes
 `artifacts/quickstart_cmapss/dashboard/fleet_payload.json` and
-`artifacts/quickstart_cmapss/models/fd001_benchmark.json`. It shows the product
-story we want reviewers and future users to understand quickly: a PHM operations
-surface with fleet triage, release gates, artifact identity, and latency
-evidence. It stays as a compact fallback asset for surfaces that prefer SVG.
+`artifacts/quickstart_cmapss/models/fd001_benchmark.json`. It shows the MLOps
+story we want reviewers to understand quickly: a PHM review surface with fleet
+triage, release gates, artifact identity, and latency evidence. It stays as a
+compact fallback asset for surfaces that prefer SVG.
 
 ![Quickstart RUL diagnostic](assets/public-proof/quickstart_rul_diagnostic.svg)
 
@@ -56,12 +56,12 @@ uv run streamlit run src/aerospace_prognostics/app/streamlit_app.py \
 ```
 
 Then refresh the visual proof assets from the regenerated quickstart payloads and
-read-only console before making the repository public.
+read-only console before sharing the repository for review.
 
 ## Current Limits
 
-- These assets are public proof assets, not certification evidence.
+- These assets are portfolio proof assets, not certification evidence.
 - The screenshots are proof of a reviewable demo surface, not evidence of
   operational suitability for aircraft or spacecraft maintenance decisions.
-- Before public launch, refresh the hosted proof after final copy, license, and
+- Before wider sharing, refresh the hosted proof after final copy and
   access-control decisions are settled.

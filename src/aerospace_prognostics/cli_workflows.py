@@ -189,7 +189,7 @@ def register_workflow_commands(
 
     pre_phase3_readiness = subparsers.add_parser(
         "pre-phase3-readiness-audit",
-        help="Audit launch and productization gates before Phase 3 work starts",
+        help="Audit historical launch-readiness gates; quarantined from active Phase 3 planning",
     )
     pre_phase3_readiness.add_argument("--root", type=Path, default=Path("."))
     pre_phase3_readiness.add_argument("--hosted-demo-url")

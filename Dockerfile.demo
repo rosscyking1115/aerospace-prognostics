@@ -7,7 +7,7 @@ ARG VCS_REF="unknown"
 
 LABEL org.opencontainers.image.created="${BUILD_DATE}" \
     org.opencontainers.image.description="Self-contained read-only demo console for Aerospace Prognostics." \
-    org.opencontainers.image.licenses="UNLICENSED" \
+    org.opencontainers.image.licenses="MIT" \
     org.opencontainers.image.revision="${VCS_REF}" \
     org.opencontainers.image.source="${SOURCE}" \
     org.opencontainers.image.title="aerospace-prognostics-demo-console" \
@@ -25,7 +25,7 @@ ENV MPLCONFIGDIR=/tmp/matplotlib
 
 WORKDIR /app
 
-COPY pyproject.toml uv.lock README.md ./
+COPY pyproject.toml uv.lock README.md LICENSE ./
 COPY src ./src
 
 RUN pip install --no-cache-dir uv \

@@ -1,15 +1,14 @@
 # License Posture
 
-Current posture for the next internal phase:
+Current posture:
 
-- The repository remains private review only.
-- The project is not currently distributed under an open-source license.
-- External reuse, redistribution, or production use is not granted until a
-  public-launch license is chosen and a tracked license file is added.
-- Container and release-evidence metadata may continue to describe the current
-  private posture as `UNLICENSED`.
+- Repository code is distributed under the MIT License.
+- Raw NASA/JPL/ESA datasets are not redistributed by this repository.
+- Generated model artifacts, downloaded telemetry, and large experiment outputs
+  remain ignored by Git.
+- Dataset-specific licenses and source records stay documented separately from
+  the repository code license.
 
-This is sufficient for continuing internal Phase 3 research work while the
-repository stays private. Before any public release, choose and add the final
-license file, then update README, container labels, release notes, and launch
-copy to match that decision.
+This license decision supports the portfolio-reference direction: the code can
+be inspected, reused, and forked normally, while the project remains framed as
+an ML-engineer/MLOps demonstration rather than a commercial PHM product.

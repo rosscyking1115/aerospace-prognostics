@@ -1,139 +1,58 @@
-# Product Roadmap
+# MLOps Portfolio Roadmap
 
-This project is intended to become a usable aerospace PHM tool, not only a lab
-demonstration. The research pipeline remains the modelling foundation, but the
-product direction is an operations console that helps teams inspect model
-artifacts, run fleet predictions, review uncertainty, and keep deployment
-evidence attached to every model release.
+> [!NOTE]
+> This file used to describe a product roadmap. The productization track is now
+> frozen; this roadmap is retained as a portfolio engineering roadmap.
 
-## Product Shape
+## Current Direction
 
-The professional user-facing tool should support three surfaces:
+The project demonstrates how familiar PHM benchmarks can be wrapped in a
+reviewable ML delivery system:
 
-- Local operations console for engineers and reviewers.
-- API service for integration with other tools and automation.
-- Hosted web deployment for demos, pilots, and portfolio presentation.
+- reproducible research workflows;
+- model packaging and promotion evidence;
+- FastAPI serving;
+- Streamlit review console;
+- Docker Compose integration;
+- SBOM, provenance, drift summaries, and CI smoke checks.
 
-The current foundation already includes the API, Docker image, release evidence,
-SBOM, artifact inspection, static dashboard output, no-download quickstart,
-local Streamlit console, SQLite application state, Docker Compose stack, and a
-token-gated Render-hosted read-only demo. The next gap is no longer whether the
-tool can be deployed; it is deeper operator workflows, Phase 3 research
-differentiators, and the separate public-launch decision.
+The goal is hiring signal for ML-engineer/MLOps roles, not a commercial PHM
+tool.
 
-## Milestones
+## Completed Portfolio Evidence
 
-1. Interactive local console
-   - Streamlit app over quickstart and release artifacts.
-   - Fleet table with RUL intervals, risk level, attention reasons, and evidence.
-   - Telemetry CSV upload and batch prediction through the deployed API service
-     or direct local artifact inference.
-   - Prediction-history view with run records, upload hashes, monitoring summaries,
-     interval availability and width diagnostics, observed-outcome coverage/MAE,
-     operator decisions, audit events, and downloadable prediction rows.
-   - Model registry view with artifact identity, release evidence, prediction
-     usage, release-gate report cards, operational interval diagnostics, and
-     outcome-backed coverage summaries.
-   - System view for API health/readiness, mounted model identity, workspace state,
-     and database counts.
-   - Screenshot/GIF for the README.
+- C-MAPSS ingestion, baselines, sequence-model experiments, diagnostics, and
+  calibration evidence.
+- SMAP/MSL anomaly baselines and alert-policy reports.
+- FastAPI service with health, readiness, schema discovery, API-key protection,
+  metrics, and drift summaries.
+- Streamlit console with prediction history, model registry, fleet registry,
+  outcome import, operator decisions, and evidence downloads.
+- SQLite app state and Docker Compose local stack.
+- Read-only hosted demo image and token-gated hosted review URL.
+- Release-evidence workflow with model card, validation, benchmark, SBOM,
+  promotion report, release bundle, and provenance.
+- ESA-ADB source and evaluator-contract intake before benchmark claims.
 
-2. Local persistence
-   - SQLite database for uploaded telemetry, prediction runs, model artifacts,
-     dashboard payloads, release evidence, and audit events.
-   - `app-init-db` command so generated quickstart artifacts can seed the app database.
-   - Migration path designed so SQLite can become Postgres without changing the
-     product data model.
+## Active Roadmap
 
-Current status: initial SQLite persistence is active for model artifacts, release
-evidence, telemetry uploads, prediction runs, per-asset predictions, and a
-persisted fleet asset registry derived from stored prediction runs. The
-console can inspect recent runs, download fillable observed-outcome templates,
-read-only-safe run evidence JSON, and model-review bundles, attach observed RUL
-outcomes, export persisted prediction rows and file-based run evidence bundles,
-append operator decisions, display an audit log for each run,
-summarize interval availability and width, report outcome-backed MAE/coverage,
-inspect persisted asset state with latest RUL/risk/status context, and inspect
-stored model artifacts with their release evidence, recent
-prediction usage, release-gate report cards, operational interval diagnostics,
-and observed-outcome calibration summaries. The console can run in read-only
-mode for hosted demos. Custom model artifact and release evidence registration,
-outcome-template export, outcome CSV import, operator-decision capture, and
-prediction-run evidence export are now available through the CLI, with
-outcome-template download, outcome import, in-memory run evidence and
-model-review bundle download, and file-based run evidence export also available
-in the console. Prediction history can be filtered by model, artifact, asset,
-risk band, decision status, date bounds, and drift-alert presence. Fleet-asset
-sync/backfill is available through the CLI and automatically refreshes when new
-prediction runs are stored. Fleet-registry JSON/CSV export is available from
-both the console and CLI for review handoff, with risk, domain, status, and
-attention-required filters. Ranked SMAP/MSL anomaly comparison reports can now
-be synced into the same registry as spacecraft channel assets with anomaly F1,
-false-alarm, miss-rate, predicted-positive, and attention-reason metadata.
-Fleet assets now receive a computed cross-domain priority score, priority band,
-and explanatory priority reasons so engines and spacecraft channels can be
-reviewed in one ordered queue.
+1. Keep the MLOps envelope stable and easy to inspect.
+2. Improve README/screenshots for a short reviewer journey.
+3. Keep Phase 3 research evidence-focused: uncertainty, monotonicity,
+   calibration, and benchmark protocol correctness.
+4. Add lightweight ESA-ADB smoke evidence only after local data extraction is
+   available.
+5. Avoid resuming product-launch planning.
 
-3. Local deployment stack
-   - Docker Compose with FastAPI inference service, dashboard, mounted model
-     artifact storage, and database volume.
-   - Seeded quickstart data for a one-command local product demo.
-   - Health checks for API, dashboard, and database readiness.
+## Hiring Signal To Protect
 
-Current status: Compose runs `app-db`, `api`, and `console` services from the
-same runtime image. It mounts quickstart model artifacts read-only into the API,
-shares the ignored local `artifacts/` tree with the console and SQLite app
-database, and lets the console probe API health/readiness through the internal
-service URL. The console service exposes an environment-controlled read-only
-mode for hosted review and demo deployments.
+The strongest proof is the engineering wrapper around common datasets:
 
-4. Hosted deployment
-   - Private hosted demo first, then public read-only demo when the repo is ready.
-   - API-key or OAuth-protected write paths for uploads and inference.
-   - Release artifacts and model binaries kept out of Git and mounted or fetched
-     from controlled storage.
+- tests and CI;
+- release gates;
+- serving contracts;
+- container evidence;
+- app state and review workflows;
+- honest limitations.
 
-Current status: `Dockerfile.demo` builds a self-contained read-only Streamlit
-console image with baked-in quickstart evidence and a seeded SQLite registry.
-The first private hosted demo is deployed on Render at
-<https://aerospace-prognostics-private-demo.onrender.com>, the Streamlit health
-endpoint has returned `200 ok`, and the hosted proof screenshot is tracked in
-`docs/assets/public-proof/hosted_demo_private_review.png`. The Render service is
-app-level token gated with `AEROSPACE_PROGNOSTICS_CONSOLE_ACCESS_TOKEN`. It is
-console-only by design; the full local product stack still uses Compose when
-the API service and console need to run together. Edge access control, such as
-Cloudflare Access or an IP allowlist, remains optional hardening before broader
-external sharing.
-
-5. Professional workflow
-   - Model registry view with artifact identity, schema version, promotion status,
-     release evidence, prediction usage, report cards, SBOM, provenance, model
-     card, and rollback notes.
-   - Prediction-run history with input hash, model ID, latency, risk counts,
-     operator decisions, and audit events.
-   - Fleet asset registry that can combine C-MAPSS engine RUL and spacecraft
-     anomaly alerts in one console.
-
-Current status: the registry persists C-MAPSS engine assets from stored
-prediction runs with latest RUL, interval bounds, risk level, status, source
-run, and attention reasons. It also ingests ranked SMAP/MSL anomaly comparison
-rows and operational anomaly event CSVs as spacecraft channel assets. Operators
-can load live event CSVs from the Fleet tab or CLI, and the Fleet tab validates
-uploads with a latest-event preview before sync. Combined registry exports are
-available as JSON evidence and CSV triage rows, with filtered console and CLI
-views for focused operational review. Registry rows include a cross-domain
-priority score and priority explanations derived from RUL floors, interval
-width, anomaly detections, live event severity, active event flags, threshold
-crossings, miss rate, false-alarm rate, and anomaly F1. Registry evidence now
-also carries priority-policy summaries for review-queue audits, plus JSON and
-Markdown validation evidence for core cross-domain priority-policy scenarios.
-The remaining gap is calibrating those rules with richer operator feedback and
-larger operational scenarios.
-
-## Near-Term Decision
-
-Use the existing Streamlit console for the internal/private demo and start the
-next research/build slice from the reconciled plan. Keep public launch decisions
-separate: choose the final license, public demo posture, launch copy, and any
-Next.js or alternative public product surface only when the repo is ready to
-turn public.
+Do not reposition this as a commercial operations system.

@@ -49,7 +49,7 @@ def _inspect_payload(*, revision: str) -> dict[str, object]:
     labels = {
         "org.opencontainers.image.created": "2026-06-11T01:00:00Z",
         "org.opencontainers.image.description": "Serving image.",
-        "org.opencontainers.image.licenses": "UNLICENSED",
+        "org.opencontainers.image.licenses": "MIT",
         "org.opencontainers.image.revision": revision,
         "org.opencontainers.image.source": "https://github.com/example/repo",
         "org.opencontainers.image.title": "aerospace-prognostics-serving",

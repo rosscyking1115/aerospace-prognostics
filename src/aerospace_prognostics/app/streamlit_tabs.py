@@ -1123,9 +1123,9 @@ def render_registry_tab(
 
 
 def render_roadmap_tab(st: Any) -> None:
-    """Render the product roadmap tab."""
+    """Render the portfolio MLOps roadmap tab."""
 
-    st.subheader("Product Roadmap")
+    st.subheader("MLOps Portfolio Roadmap")
     st.markdown(
         """
         - Persist prediction runs, uploads, artifact records, and release evidence in SQLite.
@@ -1134,7 +1134,7 @@ def render_roadmap_tab(st: Any) -> None:
         - Use prediction-history filters for model, artifact, asset, risk, date,
           drift, and decisions.
         - Surface API, dashboard, mounted model storage, and database status in one console.
-        - Promote the dashboard to a hosted product surface with authentication and audit logs.
+        - Keep the hosted demo token-gated and reviewer-focused while the repo remains private.
         - Validate live spacecraft anomaly event prioritization with richer scenarios.
         """
     )
