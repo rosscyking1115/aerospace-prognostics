@@ -115,8 +115,10 @@ repository remains private:
       readiness.
 - [x] Start ESA-ADB protocol intake as the next Phase 3 milestone, using the
       C-MAPSS recommendation freeze as the completed evidence pattern.
-- [ ] Add an ESA-ADB source manifest and no-download archive validator before
+- [x] Add an ESA-ADB source manifest and no-download archive validator before
       any model implementation.
+- [ ] Inspect the ESA-ADB official evaluator/result contract and add tiny
+      fixture tests before full dataset work.
 
 Every active slice should stay small enough to finish with:
 
@@ -187,8 +189,10 @@ Every active slice should stay small enough to finish with:
 28. [x] Start ESA-ADB protocol intake as the next Phase 3 milestone, covering
         data access, splits, labels, metrics, and the smallest
         protocol-correct first run.
-29. [ ] Add an ESA-ADB source manifest and no-download archive validator for
+29. [x] Add an ESA-ADB source manifest and no-download archive validator for
         locally supplied Zenodo v2 archives.
+30. [ ] Inspect the ESA-ADB official evaluator/result contract and add fixture
+        tests for labels, anomaly types, event grouping, and metric-input shape.
 
 ## Later Milestones
 

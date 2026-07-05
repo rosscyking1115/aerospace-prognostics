@@ -30,6 +30,7 @@ from aerospace_prognostics.cli_deployment import (
     register_deployment_artifact_commands,
     register_deployment_release_commands,
 )
+from aerospace_prognostics.cli_esa_adb import handle_esa_adb_command, register_esa_adb_commands
 from aerospace_prognostics.cli_reports import (
     handle_report_command,
     register_cmapss_report_commands,
@@ -76,6 +77,8 @@ def _build_parser() -> argparse.ArgumentParser:
 
     register_smap_msl_report_commands(subparsers)
 
+    register_esa_adb_commands(subparsers)
+
     register_deployment_artifact_commands(subparsers)
 
     register_dashboard_commands(subparsers)
@@ -108,6 +111,10 @@ def main(argv: list[str] | None = None) -> int:
     smap_msl_data_result = handle_smap_msl_data_command(args)
     if smap_msl_data_result is not None:
         return smap_msl_data_result
+
+    esa_adb_result = handle_esa_adb_command(args)
+    if esa_adb_result is not None:
+        return esa_adb_result
 
     cmapss_data_result = handle_cmapss_data_command(args)
     if cmapss_data_result is not None:

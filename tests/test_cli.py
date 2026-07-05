@@ -5,6 +5,7 @@ import json
 import subprocess
 import sys
 import zipfile
+from hashlib import md5
 from io import BytesIO
 
 import numpy as np
@@ -2241,6 +2242,88 @@ def test_smap_msl_download_command_reports_actionable_download_failure(
     assert "status=failed" in output
     assert "problem=Could not download SMAP/MSL data" in output
     assert "problem=Download the Kaggle dataset" in output
+
+
+def test_esa_adb_source_manifest_command_writes_official_archive_manifest(
+    tmp_path,
+    capsys,
+) -> None:
+    manifest_path = tmp_path / "esa_adb_source_manifest.json"
+
+    exit_code = main(
+        [
+            "esa-adb-source-manifest",
+            "--output-json",
+            str(manifest_path),
+        ]
+    )
+    output = capsys.readouterr().out
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+
+    assert exit_code == 0
+    assert "dataset=ESA Anomaly Dataset" in output
+    assert "dataset_version=v2" in output
+    assert "files=3" in output
+    assert "benchmark_missions=Mission1,Mission2" in output
+    assert manifest["files"][0]["file_name"] == "ESA-Mission1.zip"
+
+
+def test_esa_adb_verify_archives_command_accepts_local_archive_manifest(
+    tmp_path,
+    capsys,
+) -> None:
+    archive_dir = tmp_path / "archives"
+    archive_dir.mkdir()
+    payload = b"mission1 archive\n"
+    (archive_dir / "ESA-Mission1.zip").write_bytes(payload)
+    manifest_path = tmp_path / "manifest.json"
+    manifest_path.write_text(
+        json.dumps(
+            {
+                "schema_version": "aerospace-prognostics/esa-adb-source-manifest/v1",
+                "dataset": "ESA Anomaly Dataset",
+                "dataset_version": "test",
+                "dataset_doi": "test-doi",
+                "original_paper_dataset_doi": "paper-doi",
+                "dataset_license": "CC BY 3.0 IGO",
+                "source_record_url": "https://example.test/esa-adb",
+                "benchmark_missions": ["Mission1"],
+                "files": [
+                    {
+                        "mission": "Mission1",
+                        "file_name": "ESA-Mission1.zip",
+                        "md5": md5(payload, usedforsecurity=False).hexdigest(),
+                        "size_label": "fixture",
+                        "zenodo_record_url": "https://example.test/mission1",
+                        "benchmark_scope": "benchmark",
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    output_json = tmp_path / "verification.json"
+
+    exit_code = main(
+        [
+            "esa-adb-verify-archives",
+            "--archive-dir",
+            str(archive_dir),
+            "--manifest",
+            str(manifest_path),
+            "--missions",
+            "Mission1",
+            "--output-json",
+            str(output_json),
+        ]
+    )
+    output = capsys.readouterr().out
+    result = json.loads(output_json.read_text(encoding="utf-8"))
+
+    assert exit_code == 0
+    assert "status=ok" in output
+    assert "files_checked=1" in output
+    assert result["verified_files"][0]["md5_verified"] is True
 
 
 def _cli_result(

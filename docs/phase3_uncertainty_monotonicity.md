@@ -75,3 +75,7 @@ absolute residuals, then evaluates official-test coverage. It reports:
 8. Done: start ESA-ADB as a separate protocol intake in
    [docs/phase3_esa_adb_intake.md](phase3_esa_adb_intake.md). The next slice is
    a source manifest plus no-download archive validator before any model code.
+9. Done: add the ESA-ADB source manifest and no-download archive validator for
+   Zenodo v2 archives.
+10. Next: inspect the official evaluator/result contract and add fixture tests
+    for labels, anomaly types, event grouping, and metric-input shape.

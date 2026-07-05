@@ -86,6 +86,18 @@ uv run aerospace-prognostics pre-phase3-readiness-audit --hosted-demo-url https:
 uv run aerospace-prognostics cmapss-phase3-audit --calibration-csv artifacts/PHASE2_RUN/results/cmapss_deep_validation_selection_predictions.csv --predictions-csv artifacts/PHASE2_RUN/results/cmapss_deep_predictions.csv --calibrated-predictions-csv artifacts/PHASE2_RUN/results/cmapss_deep_predictions_predicted_bin_nasa_shift_s500_calibrated.csv --output-json artifacts/PHASE2_RUN/results/cmapss_phase3_audit.json --output-markdown artifacts/PHASE2_RUN/results/cmapss_phase3_audit.md
 ```
 
+## Phase 3 ESA-ADB Source Intake
+
+```powershell
+uv run aerospace-prognostics esa-adb-source-manifest --output-json artifacts/data/esa_adb_source_manifest.json
+uv run aerospace-prognostics esa-adb-verify-archives --archive-dir data/raw/esa_adb --manifest artifacts/data/esa_adb_source_manifest.json --missions Mission1 --output-json artifacts/data/esa_adb_mission1_archive_validation.json
+```
+
+The ESA-ADB validator performs no download. Place locally supplied Zenodo v2
+archives such as `ESA-Mission1.zip` under `data/raw/esa_adb/`, then validate
+their MD5 checksums against the source manifest before extraction or
+preprocessing.
+
 ## SMAP/MSL Spacecraft Anomaly Workflows
 
 ```powershell

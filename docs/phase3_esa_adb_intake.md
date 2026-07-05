@@ -121,15 +121,15 @@ benchmark contract.
 
 Recommended first run:
 
-1. Add an ESA-ADB source manifest that records:
+1. Done: add an ESA-ADB source manifest command that records:
    - dataset DOI/version,
    - raw archive names,
    - expected MD5 values,
    - local paths under ignored `data/raw/esa_adb/`,
    - official repository URL and commit/ref used for protocol decisions.
-2. Add a no-download validator for locally supplied archives, starting with
-   `ESA-Mission1.zip` from Zenodo v2.
-3. Inspect or vendor only the minimal official evaluator interface needed to
+2. Done: add a no-download validator for locally supplied archives, starting
+   with `ESA-Mission1.zip` from Zenodo v2.
+3. Next: inspect or vendor only the minimal official evaluator interface needed to
    understand the binary-detection output contract.
 4. Build tiny fixture tests for labels, anomaly types, event grouping, and
    metric-input shape before touching the full dataset.
@@ -145,6 +145,27 @@ Mission1 lightweight is the preferred first real run because it has only six
 channels and exercises the point-anomaly preservation requirement. Mission2
 lightweight should follow as the second run because it stresses rare nominal
 events and the anomaly-versus-rare-nominal distinction.
+
+## Implemented Source Gate
+
+Write the source manifest:
+
+```powershell
+uv run aerospace-prognostics esa-adb-source-manifest --output-json artifacts/data/esa_adb_source_manifest.json
+```
+
+Validate a locally supplied Mission1 archive without downloading anything:
+
+```powershell
+uv run aerospace-prognostics esa-adb-verify-archives `
+  --archive-dir data/raw/esa_adb `
+  --manifest artifacts/data/esa_adb_source_manifest.json `
+  --missions Mission1 `
+  --output-json artifacts/data/esa_adb_mission1_archive_validation.json
+```
+
+This source gate must pass before extraction, preprocessing, evaluator
+integration, or model work.
 
 ## Do Not Do Yet
 
