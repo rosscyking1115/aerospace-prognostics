@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/rosscyking1115/aerospace-prognostics/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/rosscyking1115/aerospace-prognostics/actions/workflows/ci.yml)
 ![Python](https://img.shields.io/badge/python-%3E%3D3.11-blue)
-![Tests](https://img.shields.io/badge/tests-436%20passed-brightgreen)
+![Tests](https://img.shields.io/badge/tests-446%20passed-brightgreen)
 ![License](https://img.shields.io/badge/license-MIT-green)
 ![Hosted Demo](https://img.shields.io/badge/hosted%20demo-token--gated-success)
 
@@ -46,7 +46,7 @@ for the current open-source posture.
 | Area | Current Evidence |
 | --- | --- |
 | CI | `ruff`, `pytest`, dependency audit, SBOM generation, serving-image smoke tests, hosted-demo image smoke tests |
-| Tests | `436 passed` on the latest full local suite; CI green on `main` |
+| Tests | `446 passed` on the latest full local suite; CI green on `main` |
 | Data tracks | C-MAPSS turbofan RUL (familiar, checkable baseline) and spacecraft anomaly detection (SMAP/MSL today, ESA-ADB protocol-intake as the fresher forward track) |
 | MLOps surfaces | FastAPI inference service, Streamlit review console, Docker Compose stack, token-gated Render demo |
 | Release evidence | Model inspection, validation, benchmark, model card, SBOM, release bundle, promotion report, provenance |

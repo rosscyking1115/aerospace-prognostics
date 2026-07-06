@@ -148,6 +148,46 @@ Fixture coverage now protects:
 - global and channel prediction input shapes;
 - non-binary scores and misaligned channel timestamps.
 
+## Implemented Event-Wise Detection Scoring Layer
+
+`data/esa_adb_scoring.py` adds the scoring slice above the evaluator-contract
+fixtures, all offline and fixture-tested:
+
+- `ESA_ADB_LIGHTWEIGHT_CHANNELS` / `lightweight_channel_numbers` codify the
+  official lightweight subsets as channel numbers (no on-disk naming scheme is
+  assumed until confirmed against real archives).
+- `robust_zscore_detections` is a simple robust z-score baseline that emits the
+  official `Timestamp, Score` binary-detection contract. "Official-compatible"
+  refers to the emitted output contract, not to an official ESA-ADB detector.
+- `score_esa_adb_event_wise` scores sample-based event-wise detection from the
+  metric inputs: a labelled event is detected when any positive sample lands in
+  its `[StartTime, EndTime]` interval; a predicted run is a false alarm when
+  none of its samples land in any event. `beta=0.5` weights precision above
+  recall to match ESA-ADB's false-alarm sensitivity.
+- `build_esa_adb_event_wise_evidence` / `write_esa_adb_event_wise_evidence`
+  emit JSON and Markdown evidence stamped with an explicit scope caveat.
+
+**Scope guardrail.** This layer computes only the *event-wise detection* top of
+the ESA-ADB metric hierarchy. It does not yet reproduce ADTQC detection timing,
+affiliation-based proximity, or subsystem-aware diagnosis. Every artifact is
+labelled "protocol-shaped detection evidence, pending official-evaluator
+cross-check; not a full ESA-ADB leaderboard claim." Do not quote these numbers
+as an ESA-ADB benchmark result.
+
+Score prepared inputs without any download (labels, anomaly types, and a
+directory of per-channel `Timestamp, Score` CSVs):
+
+```powershell
+uv run aerospace-prognostics esa-adb-mission-score `
+  --mission Mission1 `
+  --lightweight `
+  --labels-csv data/raw/esa_adb/Mission1/labels.csv `
+  --anomaly-types-csv data/raw/esa_adb/Mission1/anomaly_types.csv `
+  --predictions-dir artifacts/esa_adb/mission1_predictions `
+  --output-json artifacts/esa_adb/mission1_event_wise.json `
+  --output-markdown artifacts/esa_adb/mission1_event_wise.md
+```
+
 ## Smallest Protocol-Correct First Run
 
 The first implementation milestone should not train a new deep model. It should
@@ -168,13 +208,20 @@ Recommended first run:
    understand the binary-detection output contract.
 4. Done: build tiny fixture tests for labels, anomaly types, event grouping, and
    metric-input shape before touching the full dataset.
-5. Next: run a real lightweight Mission1 path only after the fixture evaluator
-   contract is green:
-   - preprocess Mission1 with the official script;
-   - select channels `41-46`;
-   - regenerate subset anomaly types;
-   - score a simple official-compatible baseline;
-   - write JSON and Markdown evidence that reports the official metric hierarchy.
+5. Partially done: the offline scoring layer that a real lightweight Mission1
+   run will use is now implemented and fixture-tested (see "Implemented
+   Event-Wise Detection Scoring Layer" below):
+   - lightweight subset channel numbers are codified (`Mission1` `41-46`,
+     `Mission2` `18-28`);
+   - a simple robust z-score baseline emits the official binary-detection
+     contract;
+   - event-wise detection precision/recall/F0.5 is scored from the
+     evaluator-contract metric inputs;
+   - JSON and Markdown evidence is written with explicit scope caveats.
+   - Still blocked on local data: preprocessing Mission1 with the official
+     script, selecting channels `41-46`, and regenerating subset anomaly types
+     require the ~3.8 GB `ESA-Mission1.zip`, so the real run waits for a local
+     archive that passes the source gate.
 
 Mission1 lightweight is the preferred first real run because it has only six
 channels and exercises the point-anomaly preservation requirement. Mission2
