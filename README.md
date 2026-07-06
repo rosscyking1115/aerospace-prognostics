@@ -148,12 +148,15 @@ chronological test window):
 
 The honest finding matters more than the numbers: a *single* fixed threshold is
 precise on Mission 1 but over-alarms badly on Mission 2's noisier channels
-(F0.5 0.43), and validation selection rescues Mission 2 (→0.997) yet overfits a
-short validation window on Mission 1 (→0.51). No portable shortcut — the full
-fixed-vs-validation comparison, and why Mission 2's numbers are lenient rather
-than SOTA, are in [docs/public_results.md](docs/public_results.md). Scope-bounded
-event-wise detection evidence (official resampling not yet applied), not a
-leaderboard claim.
+(F0.5 0.43). A naive validation selection fixed Mission 2 but *overfit* Mission 1,
+whose validation window is too sparse to discriminate — so the selector now
+falls back to the conservative default when the window can't be trusted (Mission 1
+→ 0.780) and selects only when it can (Mission 2 → 0.997). "Trust validation
+selection only when the validation window is informative" is the real lesson. The
+full fixed-vs-validation comparison, and why Mission 2's numbers are lenient
+rather than SOTA, are in [docs/public_results.md](docs/public_results.md).
+Scope-bounded event-wise detection evidence (official resampling not yet applied),
+not a leaderboard claim.
 
 **C-MAPSS turbofan RUL — familiar baseline for cross-checking.** C-MAPSS is the
 field's most-used RUL benchmark, included here as a known reference anyone can
