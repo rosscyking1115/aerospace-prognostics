@@ -14,9 +14,9 @@ commands and longer interpretation live in the linked phase documents.
 - Current strongest FD001 deep model: calibrated Transformer with asymmetric
   late-error loss and mini-batch monotonic regularization.
 - Current spacecraft anomaly status: baseline and alert-policy layer across
-  SMAP/MSL, plus a first real event-wise detection baseline on the fresher
-  ESA-ADB Mission1 lightweight subset (precision 1.000, recall 0.415,
-  event-wise F0.5 0.780; conservative baseline, not a leaderboard claim).
+  SMAP/MSL, plus real event-wise detection baselines on the fresher ESA-ADB
+  Mission1 and Mission2 lightweight subsets, comparing a fixed and a
+  validation-selected threshold (conservative baselines, not leaderboard claims).
 - Current production evidence: FastAPI serving, Docker smoke checks, SBOM,
   release bundle, provenance, model card, validation, benchmark, read-only demo
   image, and Streamlit operations console.
@@ -78,28 +78,38 @@ because it is common in the literature, but point-wise precision/recall and
 false-alarm rate remain the primary readout because point adjustment can make
 weak detectors look stronger on long labelled intervals.
 
-## ESA-ADB Mission1 Result (Fresher Benchmark)
+## ESA-ADB Results (Fresher Benchmark)
 
 The anomaly track's forward direction is ESA-ADB, a fresher and less-saturated
-benchmark than SMAP/MSL. The first real run uses the lightweight Mission1 subset
-(target channels 41-46) with a robust z-score baseline fit on nominal training
-points only, scored event-wise on the chronological test window (communication
-gaps excluded).
+benchmark than SMAP/MSL. Both benchmark missions now run on real telemetry with
+a robust z-score baseline fit on nominal training points only, scored event-wise
+on the chronological test window (communication gaps excluded). Two threshold
+policies are compared: a fixed `5.0` cutoff and a validation-selected cutoff
+chosen on the last three months of training.
 
-| Checkpoint | Result |
-| --- | --- |
-| Test-window events | 65 (27 detected, 38 missed) |
-| Predicted alarms | 86 (0 false alarms) |
-| Event-wise precision | 1.000000 |
-| Event-wise recall | 0.415385 |
-| Event-wise F0.5 | 0.780347 |
+| Mission | Policy | Events | Detected | False alarms | Precision | Recall | F0.5 |
+| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| Mission1 | fixed τ=5 | 65 | 27 | 0 | 1.000 | 0.415 | 0.780 |
+| Mission1 | validation τ=3 | 65 | 36 | 1282 | 0.496 | 0.554 | 0.506 |
+| Mission2 | fixed τ=5 | 351 | 351 | 10139 | 0.373 | 1.000 | 0.426 |
+| Mission2 | validation τ=20 | 351 | 346 | 2 | 0.999 | 0.986 | 0.997 |
+
+The honest reading, not cherry-picked:
+
+- The same fixed threshold is precise on Mission1 but over-alarms badly on
+  Mission2's noisier 11 channels, so a hardcoded threshold is not portable.
+- Validation selection almost fully corrects Mission2 (F0.5 `0.426` → `0.997`)
+  but overfits a short validation window on Mission1 and trades away precision
+  (F0.5 `0.780` → `0.506`). The two missions select opposite grid edges, which
+  flags validation-window representativeness as a real limitation.
+- Mission2's near-perfect numbers are lenient, not SOTA: its events are mostly
+  long "Rare Event" subsequences, and event-wise detection counts an event as
+  caught if any sample in its interval fires.
 
 This is protocol-shaped event-wise detection evidence, not a full ESA-ADB
 leaderboard claim: only the detection top of the official metric hierarchy is
-computed, and the official zero-order-hold resampling is not yet applied. The
-profile — perfect test-window precision with under-half recall — is the honest
-signature of a conservative baseline and marks the headroom a real model should
-close. Details and reproduction:
+computed, and the official zero-order-hold resampling is not yet applied.
+Details and reproduction:
 [phase3_esa_adb_intake.md](phase3_esa_adb_intake.md).
 
 ### Evaluation Correction (Recorded For Honesty)

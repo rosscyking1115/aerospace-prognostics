@@ -137,23 +137,23 @@ evidence flow, runtime modes, and security controls.
 Results are framed as *reproducible checkpoints a reviewer can verify*, not as
 novel modelling claims.
 
-**ESA-ADB — Mission 1 lightweight baseline (channels 41–46, test window),
-event-wise:**
+**ESA-ADB — lightweight event-wise detection baselines on both benchmark
+missions** (robust z-score, fit on nominal training points only, scored on the
+chronological test window):
 
-| Metric | Value |
-|---|---:|
-| Test-window events | 65 (27 detected) |
-| Predicted alarms | 86 (**0 false alarms**) |
-| Precision | **1.000** |
-| Recall | 0.415 |
-| **F0.5** | **0.780** |
+| Mission | Threshold policy | Precision | Recall | F0.5 |
+|---|---|---:|---:|---:|
+| Mission 1 (ch 41–46) | fixed τ=5 | **1.000** | 0.415 | **0.780** |
+| Mission 2 (ch 18–28) | validation-selected τ=20 | 0.999 | 0.986 | 0.997 |
 
-Perfect precision with sub-half recall is the honest signature of a conservative
-robust baseline — real headroom for a stronger model, carried through the real
-protocol rather than a convenient shortcut. This is scope-bounded event-wise
-detection evidence (official resampling not yet applied), not a leaderboard
-claim. Full ledger and limitations in
-[docs/public_results.md](docs/public_results.md).
+The honest finding matters more than the numbers: a *single* fixed threshold is
+precise on Mission 1 but over-alarms badly on Mission 2's noisier channels
+(F0.5 0.43), and validation selection rescues Mission 2 (→0.997) yet overfits a
+short validation window on Mission 1 (→0.51). No portable shortcut — the full
+fixed-vs-validation comparison, and why Mission 2's numbers are lenient rather
+than SOTA, are in [docs/public_results.md](docs/public_results.md). Scope-bounded
+event-wise detection evidence (official resampling not yet applied), not a
+leaderboard claim.
 
 **C-MAPSS turbofan RUL — familiar baseline for cross-checking.** C-MAPSS is the
 field's most-used RUL benchmark, included here as a known reference anyone can
