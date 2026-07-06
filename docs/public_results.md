@@ -14,7 +14,9 @@ commands and longer interpretation live in the linked phase documents.
 - Current strongest FD001 deep model: calibrated Transformer with asymmetric
   late-error loss and mini-batch monotonic regularization.
 - Current spacecraft anomaly status: baseline and alert-policy layer across
-  SMAP/MSL, with ESA-ADB reserved for serious future benchmark claims.
+  SMAP/MSL, with the forward track on ESA-ADB — a fresher, less-saturated
+  benchmark than SMAP/MSL — already at a protocol-first intake (source manifest,
+  archive validation, fixture-tested evaluator contract).
 - Current production evidence: FastAPI serving, Docker smoke checks, SBOM,
   release bundle, provenance, model card, validation, benchmark, read-only demo
   image, and Streamlit operations console.
@@ -102,8 +104,8 @@ The project already proves more than model training:
   Telemanom or ESA-ADB leaderboard claim.
 - Generated model binaries, raw telemetry, SQLite app state, and release outputs
   are intentionally excluded from Git.
-- Public launch still needs a final public license decision and refreshed launch
-  copy/proof before the private repository should be made public.
+- The repository code is MIT licensed; dataset licenses are recorded separately
+  (for example, ESA-ADB data is `CC BY 3.0 IGO`).
 
 ## Source Notes
 

@@ -3,6 +3,22 @@
 This project is an ML-engineer/MLOps portfolio reference implementation. It is
 not a product launch plan.
 
+## The One Paragraph To Read First
+
+This is an aerospace PHM project whose deliberate strength is the delivery
+envelope, not the dataset. It takes familiar NASA benchmarks (C-MAPSS turbofan
+RUL, SMAP/MSL spacecraft anomalies) and carries them the whole way to a
+deployable, auditable, tested system: reproducible training CLIs instead of
+notebooks, a validation-gated promotion step that emits a model card, SBOM,
+provenance, and release bundle as one reviewable artifact set, a FastAPI
+inference service with auth, request metrics, and drift summaries, container
+contracts smoke-tested in CI, and a Streamlit console for operator review and
+handoff — all under 400+ tests. C-MAPSS is included because it is the baseline
+any reviewer can independently check in minutes, which is exactly why the model
+score is not the pitch; the pitch is that the modelling work has been turned
+into production ML engineering, with the anomaly track moving toward the fresher
+ESA-ADB benchmark rather than resting on the most-published one.
+
 ## Hiring-Manager Impression
 
 The strongest signal is not that the project trains on C-MAPSS. C-MAPSS is one
