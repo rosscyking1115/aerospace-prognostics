@@ -1,4 +1,4 @@
-"""ESA-ADB source manifest and archive validation CLI commands."""
+"""ESA-ADB source manifest, archive validation, and mission scoring CLI commands."""
 
 from __future__ import annotations
 
@@ -6,12 +6,25 @@ import argparse
 from pathlib import Path
 from typing import Any
 
+import pandas as pd
+
 from aerospace_prognostics.data.esa_adb import (
     build_esa_adb_source_manifest,
+    read_esa_adb_evaluator_labels,
     read_esa_adb_source_manifest,
     verify_esa_adb_archives,
     write_esa_adb_archive_validation,
     write_esa_adb_source_manifest,
+)
+from aerospace_prognostics.data.esa_adb_mission1 import (
+    DEFAULT_EXCLUDE_CATEGORIES,
+    DEFAULT_ROBUST_THRESHOLD,
+    run_mission1_lightweight,
+)
+from aerospace_prognostics.data.esa_adb_scoring import (
+    ESA_ADB_LIGHTWEIGHT_CHANNELS,
+    score_esa_adb_mission_from_predictions,
+    write_esa_adb_event_wise_evidence,
 )
 
 
@@ -30,6 +43,49 @@ def register_esa_adb_commands(subparsers: Any) -> None:
     verify_archives.add_argument("--manifest", type=Path)
     verify_archives.add_argument("--missions", nargs="+")
     verify_archives.add_argument("--output-json", type=Path)
+
+    mission_score = subparsers.add_parser(
+        "esa-adb-mission-score",
+        help=(
+            "Score event-wise detection from prepared ESA-ADB labels and "
+            "per-channel binary predictions (no download)"
+        ),
+    )
+    mission_score.add_argument("--mission", required=True)
+    mission_score.add_argument("--labels-csv", type=Path, required=True)
+    mission_score.add_argument("--anomaly-types-csv", type=Path, required=True)
+    mission_score.add_argument(
+        "--predictions-dir",
+        type=Path,
+        required=True,
+        help="Directory of <channel>.csv files with Timestamp,Score columns",
+    )
+    mission_score.add_argument("--beta", type=float, default=0.5)
+    mission_score.add_argument("--lightweight", action="store_true")
+    mission_score.add_argument("--exclude-categories", nargs="+", default=[])
+    mission_score.add_argument("--output-json", type=Path)
+    mission_score.add_argument("--output-markdown", type=Path)
+
+    mission1_run = subparsers.add_parser(
+        "esa-adb-mission1-run",
+        help=(
+            "Run the real lightweight Mission1 event-wise detection baseline "
+            "from a local ESA Anomaly Dataset archive (no download)"
+        ),
+    )
+    mission1_run.add_argument(
+        "--archive",
+        type=Path,
+        required=True,
+        help="Path to the ESA archive .zip or an extracted mission directory",
+    )
+    mission1_run.add_argument("--threshold", type=float, default=DEFAULT_ROBUST_THRESHOLD)
+    mission1_run.add_argument("--beta", type=float, default=0.5)
+    mission1_run.add_argument(
+        "--exclude-categories", nargs="+", default=list(DEFAULT_EXCLUDE_CATEGORIES)
+    )
+    mission1_run.add_argument("--output-json", type=Path)
+    mission1_run.add_argument("--output-markdown", type=Path)
 
 
 def handle_esa_adb_command(args: argparse.Namespace) -> int | None:
@@ -76,4 +132,78 @@ def handle_esa_adb_command(args: argparse.Namespace) -> int | None:
             print(f"problem={problem}")
         return 0 if result["status"] == "ok" else 1
 
+    if args.command == "esa-adb-mission-score":
+        labels = read_esa_adb_evaluator_labels(args.labels_csv, args.anomaly_types_csv)
+        predictions_by_channel = _load_channel_predictions(args.predictions_dir)
+        evidence = score_esa_adb_mission_from_predictions(
+            labels,
+            predictions_by_channel,
+            mission=args.mission,
+            lightweight=args.lightweight,
+            beta=args.beta,
+            exclude_categories=tuple(args.exclude_categories),
+        )
+        write_esa_adb_event_wise_evidence(
+            evidence,
+            json_path=args.output_json,
+            markdown_path=args.output_markdown,
+        )
+
+        print(f"mission={evidence['mission']}")
+        print(f"lightweight={evidence['lightweight_subset']}")
+        print(f"target_channels={len(evidence['target_channels'])}")
+        print(f"total_events={evidence['total_events']}")
+        print(f"detected_events={evidence['detected_events']}")
+        print(f"false_alarms={evidence['false_alarms']}")
+        print(f"event_wise_precision={evidence['event_wise_precision']:.6f}")
+        print(f"event_wise_recall={evidence['event_wise_recall']:.6f}")
+        print(f"event_wise_fbeta={evidence['event_wise_fbeta']:.6f}")
+        if args.output_json is not None:
+            print(f"output_json={args.output_json}")
+        if args.output_markdown is not None:
+            print(f"output_markdown={args.output_markdown}")
+        return 0
+
+    if args.command == "esa-adb-mission1-run":
+        evidence = run_mission1_lightweight(
+            args.archive,
+            threshold=args.threshold,
+            beta=args.beta,
+            exclude_categories=tuple(args.exclude_categories),
+        )
+        write_esa_adb_event_wise_evidence(
+            evidence,
+            json_path=args.output_json,
+            markdown_path=args.output_markdown,
+        )
+
+        provenance = evidence["run_provenance"]
+        print(f"mission={evidence['mission']}")
+        print(f"target_channels={len(evidence['target_channels'])}")
+        print(f"train_samples={provenance['train_samples']}")
+        print(f"test_samples={provenance['test_samples']}")
+        print(f"total_events={evidence['total_events']}")
+        print(f"detected_events={evidence['detected_events']}")
+        print(f"missed_events={evidence['missed_events']}")
+        print(f"false_alarms={evidence['false_alarms']}")
+        print(f"event_wise_precision={evidence['event_wise_precision']:.6f}")
+        print(f"event_wise_recall={evidence['event_wise_recall']:.6f}")
+        print(f"event_wise_fbeta={evidence['event_wise_fbeta']:.6f}")
+        if args.output_json is not None:
+            print(f"output_json={args.output_json}")
+        if args.output_markdown is not None:
+            print(f"output_markdown={args.output_markdown}")
+        return 0
+
     return None
+
+
+def _load_channel_predictions(predictions_dir: Path) -> dict[str, pd.DataFrame]:
+    csv_paths = sorted(predictions_dir.glob("*.csv"))
+    if not csv_paths:
+        raise ValueError(f"no per-channel prediction CSV files found in {predictions_dir}")
+    return {path.stem: pd.read_csv(path) for path in csv_paths}
+
+
+# Re-exported for command discovery/tests.
+LIGHTWEIGHT_MISSIONS = tuple(ESA_ADB_LIGHTWEIGHT_CHANNELS)

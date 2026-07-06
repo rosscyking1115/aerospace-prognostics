@@ -14,7 +14,9 @@ commands and longer interpretation live in the linked phase documents.
 - Current strongest FD001 deep model: calibrated Transformer with asymmetric
   late-error loss and mini-batch monotonic regularization.
 - Current spacecraft anomaly status: baseline and alert-policy layer across
-  SMAP/MSL, with ESA-ADB reserved for serious future benchmark claims.
+  SMAP/MSL, plus a first real event-wise detection baseline on the fresher
+  ESA-ADB Mission1 lightweight subset (precision 1.000, recall 0.415,
+  event-wise F0.5 0.780; conservative baseline, not a leaderboard claim).
 - Current production evidence: FastAPI serving, Docker smoke checks, SBOM,
   release bundle, provenance, model card, validation, benchmark, read-only demo
   image, and Streamlit operations console.
@@ -76,6 +78,46 @@ because it is common in the literature, but point-wise precision/recall and
 false-alarm rate remain the primary readout because point adjustment can make
 weak detectors look stronger on long labelled intervals.
 
+## ESA-ADB Mission1 Result (Fresher Benchmark)
+
+The anomaly track's forward direction is ESA-ADB, a fresher and less-saturated
+benchmark than SMAP/MSL. The first real run uses the lightweight Mission1 subset
+(target channels 41-46) with a robust z-score baseline fit on nominal training
+points only, scored event-wise on the chronological test window (communication
+gaps excluded).
+
+| Checkpoint | Result |
+| --- | --- |
+| Test-window events | 65 (27 detected, 38 missed) |
+| Predicted alarms | 86 (0 false alarms) |
+| Event-wise precision | 1.000000 |
+| Event-wise recall | 0.415385 |
+| Event-wise F0.5 | 0.780347 |
+
+This is protocol-shaped event-wise detection evidence, not a full ESA-ADB
+leaderboard claim: only the detection top of the official metric hierarchy is
+computed, and the official zero-order-hold resampling is not yet applied. The
+profile — perfect test-window precision with under-half recall — is the honest
+signature of a conservative baseline and marks the headroom a real model should
+close. Details and reproduction:
+[phase3_esa_adb_intake.md](phase3_esa_adb_intake.md).
+
+### Evaluation Correction (Recorded For Honesty)
+
+The first Mission1 run reported recall `0.236842`. Auditing the evaluation
+before publishing showed the cause: the scorer was measuring detections on the
+chronological test window only, but the event denominator still included events
+that fall entirely in the training half — events for which there are no
+test-window predictions and which can therefore never be detected. Those
+training-only events were counted as missed, understating recall.
+
+Restricting the event set to events that overlap the test window — the correct
+protocol, since a model is not penalised for data it was never asked to score —
+raises the honest recall to `0.415385` and the F0.5 to `0.780347`. The corrected
+numbers are the ones reported above; the pre-correction `0.24` is kept here only
+to document the fix. The correction *raises* the reported number, so it is
+recorded explicitly rather than quietly adopted.
+
 ## Deployment Evidence
 
 The project already proves more than model training:
@@ -102,8 +144,8 @@ The project already proves more than model training:
   Telemanom or ESA-ADB leaderboard claim.
 - Generated model binaries, raw telemetry, SQLite app state, and release outputs
   are intentionally excluded from Git.
-- Public launch still needs a final public license decision and refreshed launch
-  copy/proof before the private repository should be made public.
+- The repository code is MIT licensed; dataset licenses are recorded separately
+  (for example, ESA-ADB data is `CC BY 3.0 IGO`).
 
 ## Source Notes
 
