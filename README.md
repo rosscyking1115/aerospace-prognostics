@@ -6,27 +6,38 @@
 ![License](https://img.shields.io/badge/license-MIT-green)
 ![Hosted Demo](https://img.shields.io/badge/hosted%20demo-token--gated-success)
 
-A production **ML-engineering / MLOps** system for aerospace Prognostics &
-Health Management: familiar NASA benchmarks carried the whole way from raw
-telemetry to a deployable, auditable, tested service. The engineering — not the
-model score — is the point. Tested data and training CLIs, validation-gated
-model promotion, signed release evidence (model card, SBOM, provenance, release
-bundle), a FastAPI inference service with auth/metrics/drift monitoring, Docker
-image smoke checks in CI, and an operator-facing review console.
+**Deployable ML engineering for aerospace prognostics — familiar NASA
+benchmarks and a fresh anomaly-detection benchmark carried through their real
+protocols, wrapped in a production serving, evidence, and release stack.**
 
 ![Aerospace PHM read-only operations console](docs/assets/public-proof/streamlit_readonly_console.png)
 
-> **If you are an ML-engineer / MLOps reviewer, read this first.** The headline
-> is *not* another RUL score on C-MAPSS FD001 — that benchmark has been solved
-> thousands of times and the model here is deliberately not the differentiator.
-> The headline is that a familiar dataset is taken all the way to a deployable,
-> auditable, tested system: reproducible CLIs instead of notebooks,
-> validation-gated promotion that emits a model card + SBOM + provenance +
-> release bundle, an authenticated inference API with request metrics and drift
-> summaries, container contracts checked in CI, and a Streamlit review console
-> for operator handoff. C-MAPSS is included precisely because it is the
-> baseline any reviewer can independently check in five minutes; the delivery
-> envelope around it is the work worth reviewing.
+Most predictive-maintenance repos are a notebook and a leaderboard score. This
+one is an **operations system**: a FastAPI inference service, a Streamlit
+operator console, signed release evidence (model card, SBOM, provenance), and
+drift monitoring — around models that are trained and evaluated under honest,
+documented protocols. The engineering envelope is the point; the models are
+held to it.
+
+## What Makes This Repo Different
+
+- **A fresh benchmark, not another C-MAPSS score.** The anomaly-detection track
+  runs on **ESA-ADB** (ESA spacecraft telemetry) through its real event-wise
+  protocol — a benchmark far less picked-over than the usual suspects — while
+  C-MAPSS is kept only as a familiar baseline anyone can cross-check.
+- **Results audited for leakage, and the correction reported.** The first
+  ESA-ADB run reported recall `0.24`; auditing the evaluation showed the
+  chronological split was counting training-window events — which have no
+  test-window predictions — as missed, deflating recall. Restricting scoring to
+  test-window events (the correct protocol) gives the honest **`0.42`**, and the
+  corrected number is the one reported.
+  (See [docs/public_results.md](docs/public_results.md).)
+- **Provenance and guardrails on every result.** Each artifact records its
+  protocol deviations and is stamped *"event-wise detection only — not a full
+  ESA-ADB leaderboard claim."* Nothing is overstated.
+- **A production envelope, not a notebook.** Serving API, operator console,
+  release evidence, SBOM, provenance, drift summaries, 454 tests — the parts
+  that show this is deployable ML engineering, not a one-off experiment.
 
 ## Portfolio Status
 
@@ -47,7 +58,7 @@ for the current open-source posture.
 | --- | --- |
 | CI | `ruff`, `pytest`, dependency audit, SBOM generation, serving-image smoke tests, hosted-demo image smoke tests |
 | Tests | `454 passed` on the latest full local suite; CI green on `main` |
-| Data tracks | C-MAPSS turbofan RUL (familiar, checkable baseline) and spacecraft anomaly detection (SMAP/MSL today, ESA-ADB protocol-intake as the fresher forward track) |
+| Data tracks | C-MAPSS turbofan RUL (familiar, checkable baseline) and spacecraft anomaly detection (SMAP/MSL plumbing, plus a first real event-wise baseline on the fresher ESA-ADB Mission1 subset) |
 | MLOps surfaces | FastAPI inference service, Streamlit review console, Docker Compose stack, token-gated Render demo |
 | Release evidence | Model inspection, validation, benchmark, model card, SBOM, release bundle, promotion report, provenance |
 | Current posture | Portfolio reference implementation under MIT; not a product launch track |
@@ -121,35 +132,43 @@ flowchart LR
 See [docs/architecture.md](docs/architecture.md) for system boundaries,
 evidence flow, runtime modes, and security controls.
 
-## Benchmark Results (Deliberately Checkable)
+## Headline Results
 
 Results are framed as *reproducible checkpoints a reviewer can verify*, not as
-novel modelling claims. C-MAPSS is here as the familiar baseline everyone
-already knows how to read; the interesting engineering is the envelope above,
-not these numbers.
+novel modelling claims.
 
-**C-MAPSS turbofan RUL — the baseline everyone can check.** The deployable RUL
-leader is the validation-selected HGB policy: FD001 official-test RMSE
-`13.012889`, NASA score `253.465322`. The strongest deep row is a calibrated
-Transformer with asymmetric late-error loss and monotonic regularization at RMSE
-`14.246672` / NASA score `271.486206` — behind HGB, and reported that way on
-purpose.
+**ESA-ADB — Mission 1 lightweight baseline (channels 41–46, test window),
+event-wise:**
 
-**Spacecraft anomaly detection — moving off the most-seen benchmark.** The
-SMAP/MSL track is a baseline and alert-policy layer: the comparison-ready robust
-threshold policy lowers mean false-alarm rate from `0.187988` to `0.134247`
-versus the default robust z-score baseline (mean point-wise F1 `0.160525`). The
-forward direction here is **ESA-ADB** (the ESA Anomaly Detection Benchmark), a
-much fresher and less-saturated dataset than SMAP/MSL. The repo now runs a first
-real event-wise detection baseline on the ESA-ADB Mission1 lightweight subset —
-event-wise precision `1.000`, recall `0.415`, F0.5 `0.780` on the chronological
-test window (a conservative baseline, explicitly not a leaderboard claim) —
-backed by a protocol-first intake with source manifest, archive validation, and
-a fixture-tested evaluator contract. See
-[docs/phase3_esa_adb_intake.md](docs/phase3_esa_adb_intake.md).
+| Metric | Value |
+|---|---:|
+| Test-window events | 65 (27 detected) |
+| Predicted alarms | 86 (**0 false alarms**) |
+| Precision | **1.000** |
+| Recall | 0.415 |
+| **F0.5** | **0.780** |
 
-See [docs/public_results.md](docs/public_results.md) for the concise result
-ledger and limitations.
+Perfect precision with sub-half recall is the honest signature of a conservative
+robust baseline — real headroom for a stronger model, carried through the real
+protocol rather than a convenient shortcut. This is scope-bounded event-wise
+detection evidence (official resampling not yet applied), not a leaderboard
+claim. Full ledger and limitations in
+[docs/public_results.md](docs/public_results.md).
+
+**C-MAPSS turbofan RUL — familiar baseline for cross-checking.** C-MAPSS is the
+field's most-used RUL benchmark, included here as a known reference anyone can
+verify against, not as the centrepiece. The validation-selected HGB policy
+reports FD001 official-test RMSE **`13.01`** / NASA score **`253.5`**; the
+strongest deep row is a calibrated Transformer with asymmetric late-error loss
+and monotonic regularization at RMSE `14.25` — behind HGB, and reported that way
+on purpose. Details in
+[docs/phase1_cmapss_baseline_results.md](docs/phase1_cmapss_baseline_results.md)
+and [docs/phase2_cmapss_deep_baselines.md](docs/phase2_cmapss_deep_baselines.md).
+
+**SMAP/MSL — anomaly plumbing.** The earlier SMAP/MSL track remains as a
+baseline and alert-policy layer: the comparison-ready robust threshold policy
+lowers mean false-alarm rate from `0.187988` to `0.134247` versus the default
+robust z-score baseline (mean point-wise F1 `0.160525`).
 
 ## Visual Proof
 

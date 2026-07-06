@@ -102,6 +102,22 @@ signature of a conservative baseline and marks the headroom a real model should
 close. Details and reproduction:
 [phase3_esa_adb_intake.md](phase3_esa_adb_intake.md).
 
+### Evaluation Correction (Recorded For Honesty)
+
+The first Mission1 run reported recall `0.236842`. Auditing the evaluation
+before publishing showed the cause: the scorer was measuring detections on the
+chronological test window only, but the event denominator still included events
+that fall entirely in the training half — events for which there are no
+test-window predictions and which can therefore never be detected. Those
+training-only events were counted as missed, understating recall.
+
+Restricting the event set to events that overlap the test window — the correct
+protocol, since a model is not penalised for data it was never asked to score —
+raises the honest recall to `0.415385` and the F0.5 to `0.780347`. The corrected
+numbers are the ones reported above; the pre-correction `0.24` is kept here only
+to document the fix. The correction *raises* the reported number, so it is
+recorded explicitly rather than quietly adopted.
+
 ## Deployment Evidence
 
 The project already proves more than model training:
