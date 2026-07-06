@@ -188,66 +188,80 @@ uv run aerospace-prognostics esa-adb-mission-score `
   --output-markdown artifacts/esa_adb/mission1_event_wise.md
 ```
 
-## First Real Mission1 Result
+## First Real Mission1 And Mission2 Results
 
-The lightweight Mission1 baseline has now run on real ESA Anomaly Dataset
-telemetry (`data/esa_adb_mission1.py`, command `esa-adb-mission1-run`). This is
-the first ESA-ADB number in the project, and it is deliberately a conservative
-baseline, not a leaderboard entry.
+The lightweight baseline now runs on real ESA Anomaly Dataset telemetry for both
+benchmark missions (`data/esa_adb_mission.py`, command `esa-adb-mission-run`).
+These are the first ESA-ADB numbers in the project, and they are deliberately
+robust-threshold baselines, not leaderboard entries.
 
-Run setup:
+Shared run setup:
 
-- Target channels 41-46 (all `Target=YES` in `channels.csv`), which share an
-  identical native ~30s time grid, so they are already aligned.
-- Chronological 50/50 split: ~7.69M train samples, ~7.69M test samples; the
-  test window opens `2006-12-22`.
-- Robust z-score baseline (median/MAD, threshold 5.0) fit on nominal training
-  points only (training rows outside every labelled anomaly), then applied to
-  the test window. No thresholds or standardization touch test rows.
+- Target channels only (Mission1 `41-46`, Mission2 `18-28`), each mission's
+  lightweight subset sharing one native grid, so they are already aligned.
+- Chronological 50/50 split; robust z-score baseline (median/MAD) fit on nominal
+  training points only (training rows outside every labelled anomaly). No
+  thresholds or standardization touch test rows.
 - Events filtered to those overlapping the test window; `Communication Gap`
   events excluded, matching the default benchmark table.
+- Two threshold policies: a **fixed** `5.0` cutoff, and a **validation-selected**
+  cutoff swept over `{3,4,5,6,8,10,15,20}` and chosen on the last three months of
+  the training half by validation-window event-wise F0.5.
 
-Result (event-wise detection only):
+Results (event-wise detection only):
 
-| Metric | Value |
-| --- | ---: |
-| Test-window events | 65 |
-| Detected events | 27 |
-| Missed events | 38 |
-| Predicted alarms | 86 |
-| False alarms | 0 |
-| Event-wise precision | 1.000000 |
-| Event-wise recall | 0.415385 |
-| Event-wise F0.5 | 0.780347 |
+| Mission | Policy | Events | Detected | False alarms | Precision | Recall | F0.5 |
+| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| Mission1 | fixed τ=5 | 65 | 27 | 0 | 1.000 | 0.415 | **0.780** |
+| Mission1 | validation τ=3 | 65 | 36 | 1282 | 0.496 | 0.554 | 0.506 |
+| Mission2 | fixed τ=5 | 351 | 351 | 10139 | 0.373 | 1.000 | 0.426 |
+| Mission2 | validation τ=20 | 351 | 346 | 2 | 0.999 | 0.986 | **0.997** |
 
-Reading: the baseline is precise but low-recall — it raises no false alarms on
-the test window yet catches under half of the labelled events, which is the
-expected profile of a conservative robust-threshold detector and leaves clear
-headroom for a real model.
+Reading — the honest, non-cherry-picked story:
+
+- **The same fixed threshold behaves oppositely across missions.** On Mission1's
+  6 channels τ=5 is conservative and precise (no false alarms, ~42% recall); on
+  Mission2's 11 noisier channels the same τ=5 over-alarms massively (10k false
+  alarms), so a single hardcoded threshold is clearly not portable.
+- **Validation selection rescues Mission2 but hurts Mission1.** It corrects the
+  Mission2 miscalibration almost completely (F0.5 `0.426` → `0.997`), but on
+  Mission1 it picks the grid-edge τ=3 that overfits a short validation window and
+  trades away precision (F0.5 `0.780` → `0.506`). Both missions selected opposite
+  grid boundaries, which flags that the 3-month validation slice is not always
+  representative of the test window — a real limitation, recorded rather than
+  hidden.
+- **Mission2's near-perfect numbers are lenient, not SOTA.** Mission2 events are
+  dominated by long "Rare Event" subsequences; event-wise detection counts an
+  event as caught if any sample inside its (often long) interval fires, so a
+  high-threshold detector scores highly on Mission2 for easy reasons. This is
+  exactly why the artifacts are stamped event-wise-detection-only.
 
 Honest deviations from full official reproduction, recorded in the artifact
 provenance:
 
 - Only event-wise detection is scored; ADTQC timing, affiliation-based
   proximity, and subsystem-aware/channel-aware diagnosis are not yet computed.
-- The official zero-order-hold resampling to the Mission1 target frequency is
-  not applied; the baseline scores on the native aligned grid.
-- The number is therefore protocol-shaped detection evidence, not an ESA-ADB
+- The official zero-order-hold resampling to the mission target frequency is not
+  applied; the baseline scores on the native aligned grid.
+- The numbers are therefore protocol-shaped detection evidence, not an ESA-ADB
   leaderboard claim, and must not be quoted as one.
 
-Reproduce (after extracting the mission folder locally; raw data stays out of
+Reproduce (after extracting a mission folder locally; raw data stays out of
 Git):
 
 ```powershell
-uv run aerospace-prognostics esa-adb-mission1-run `
-  --archive data/raw/esa_adb/ESA-Mission1 `
-  --output-json artifacts/esa_adb/mission1_lightweight_event_wise.json `
-  --output-markdown artifacts/esa_adb/mission1_lightweight_event_wise.md
+uv run aerospace-prognostics esa-adb-mission-run `
+  --mission Mission2 `
+  --archive data/raw/esa_adb/ESA-Mission2 `
+  --threshold-selection validation `
+  --output-json artifacts/esa_adb/mission2_lightweight_event_wise.json `
+  --output-markdown artifacts/esa_adb/mission2_lightweight_event_wise.md
 ```
 
-The command also accepts `--archive path/to/archive.zip` directly; on a
-memory-constrained machine, extracting the six channel files first avoids
-decompressing large zip members in the same process as the model stack.
+Drop `--threshold-selection validation` for the fixed-τ=5 baseline. The command
+also accepts `--archive path/to/archive.zip` directly; on a memory-constrained
+machine, extracting the channel files first avoids decompressing large zip
+members in the same process as the model stack.
 
 ## Smallest Protocol-Correct First Run
 
