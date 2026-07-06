@@ -261,6 +261,26 @@ def render_esa_adb_event_wise_markdown(evidence: Mapping[str, Any]) -> str:
             f"{row['end_time']} | {'yes' if row['detected'] else 'no'} |"
         )
     lines.append("")
+
+    provenance = evidence.get("run_provenance")
+    if provenance:
+        lines.extend(
+            [
+                "## Run Provenance",
+                "",
+                f"- Data source: `{provenance['data_source']}`.",
+                f"- Channels: {', '.join(provenance['channels'])}.",
+                f"- Samples: {provenance['total_samples']} "
+                f"(train {provenance['train_samples']}, test {provenance['test_samples']}).",
+                f"- Test window: {provenance['test_window_start']} "
+                f"to {provenance['test_window_end']}.",
+                f"- Baseline: {provenance['baseline']} "
+                f"at threshold {provenance['robust_threshold']}.",
+                f"- Standardization fit: {provenance['standardization_fit']}.",
+                f"- Resampling: {provenance['resampling']}.",
+                "",
+            ]
+        )
     return "\n".join(lines)
 
 

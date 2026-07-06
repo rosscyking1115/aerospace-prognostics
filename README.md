@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/rosscyking1115/aerospace-prognostics/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/rosscyking1115/aerospace-prognostics/actions/workflows/ci.yml)
 ![Python](https://img.shields.io/badge/python-%3E%3D3.11-blue)
-![Tests](https://img.shields.io/badge/tests-446%20passed-brightgreen)
+![Tests](https://img.shields.io/badge/tests-454%20passed-brightgreen)
 ![License](https://img.shields.io/badge/license-MIT-green)
 ![Hosted Demo](https://img.shields.io/badge/hosted%20demo-token--gated-success)
 
@@ -46,7 +46,7 @@ for the current open-source posture.
 | Area | Current Evidence |
 | --- | --- |
 | CI | `ruff`, `pytest`, dependency audit, SBOM generation, serving-image smoke tests, hosted-demo image smoke tests |
-| Tests | `446 passed` on the latest full local suite; CI green on `main` |
+| Tests | `454 passed` on the latest full local suite; CI green on `main` |
 | Data tracks | C-MAPSS turbofan RUL (familiar, checkable baseline) and spacecraft anomaly detection (SMAP/MSL today, ESA-ADB protocol-intake as the fresher forward track) |
 | MLOps surfaces | FastAPI inference service, Streamlit review console, Docker Compose stack, token-gated Render demo |
 | Release evidence | Model inspection, validation, benchmark, model card, SBOM, release bundle, promotion report, provenance |
@@ -140,10 +140,12 @@ SMAP/MSL track is a baseline and alert-policy layer: the comparison-ready robust
 threshold policy lowers mean false-alarm rate from `0.187988` to `0.134247`
 versus the default robust z-score baseline (mean point-wise F1 `0.160525`). The
 forward direction here is **ESA-ADB** (the ESA Anomaly Detection Benchmark), a
-much fresher and less-saturated dataset than SMAP/MSL. The repo already carries
-a protocol-first ESA-ADB intake — source manifest, archive validation, and a
-fixture-tested evaluator contract — so the anomaly track can make claims against
-a current benchmark rather than leaning on the most-published one. See
+much fresher and less-saturated dataset than SMAP/MSL. The repo now runs a first
+real event-wise detection baseline on the ESA-ADB Mission1 lightweight subset —
+event-wise precision `1.000`, recall `0.415`, F0.5 `0.780` on the chronological
+test window (a conservative baseline, explicitly not a leaderboard claim) —
+backed by a protocol-first intake with source manifest, archive validation, and
+a fixture-tested evaluator contract. See
 [docs/phase3_esa_adb_intake.md](docs/phase3_esa_adb_intake.md).
 
 See [docs/public_results.md](docs/public_results.md) for the concise result

@@ -16,6 +16,11 @@ from aerospace_prognostics.data.esa_adb import (
     write_esa_adb_archive_validation,
     write_esa_adb_source_manifest,
 )
+from aerospace_prognostics.data.esa_adb_mission1 import (
+    DEFAULT_EXCLUDE_CATEGORIES,
+    DEFAULT_ROBUST_THRESHOLD,
+    run_mission1_lightweight,
+)
 from aerospace_prognostics.data.esa_adb_scoring import (
     ESA_ADB_LIGHTWEIGHT_CHANNELS,
     score_esa_adb_mission_from_predictions,
@@ -60,6 +65,27 @@ def register_esa_adb_commands(subparsers: Any) -> None:
     mission_score.add_argument("--exclude-categories", nargs="+", default=[])
     mission_score.add_argument("--output-json", type=Path)
     mission_score.add_argument("--output-markdown", type=Path)
+
+    mission1_run = subparsers.add_parser(
+        "esa-adb-mission1-run",
+        help=(
+            "Run the real lightweight Mission1 event-wise detection baseline "
+            "from a local ESA Anomaly Dataset archive (no download)"
+        ),
+    )
+    mission1_run.add_argument(
+        "--archive",
+        type=Path,
+        required=True,
+        help="Path to the ESA archive .zip or an extracted mission directory",
+    )
+    mission1_run.add_argument("--threshold", type=float, default=DEFAULT_ROBUST_THRESHOLD)
+    mission1_run.add_argument("--beta", type=float, default=0.5)
+    mission1_run.add_argument(
+        "--exclude-categories", nargs="+", default=list(DEFAULT_EXCLUDE_CATEGORIES)
+    )
+    mission1_run.add_argument("--output-json", type=Path)
+    mission1_run.add_argument("--output-markdown", type=Path)
 
 
 def handle_esa_adb_command(args: argparse.Namespace) -> int | None:
@@ -128,6 +154,37 @@ def handle_esa_adb_command(args: argparse.Namespace) -> int | None:
         print(f"target_channels={len(evidence['target_channels'])}")
         print(f"total_events={evidence['total_events']}")
         print(f"detected_events={evidence['detected_events']}")
+        print(f"false_alarms={evidence['false_alarms']}")
+        print(f"event_wise_precision={evidence['event_wise_precision']:.6f}")
+        print(f"event_wise_recall={evidence['event_wise_recall']:.6f}")
+        print(f"event_wise_fbeta={evidence['event_wise_fbeta']:.6f}")
+        if args.output_json is not None:
+            print(f"output_json={args.output_json}")
+        if args.output_markdown is not None:
+            print(f"output_markdown={args.output_markdown}")
+        return 0
+
+    if args.command == "esa-adb-mission1-run":
+        evidence = run_mission1_lightweight(
+            args.archive,
+            threshold=args.threshold,
+            beta=args.beta,
+            exclude_categories=tuple(args.exclude_categories),
+        )
+        write_esa_adb_event_wise_evidence(
+            evidence,
+            json_path=args.output_json,
+            markdown_path=args.output_markdown,
+        )
+
+        provenance = evidence["run_provenance"]
+        print(f"mission={evidence['mission']}")
+        print(f"target_channels={len(evidence['target_channels'])}")
+        print(f"train_samples={provenance['train_samples']}")
+        print(f"test_samples={provenance['test_samples']}")
+        print(f"total_events={evidence['total_events']}")
+        print(f"detected_events={evidence['detected_events']}")
+        print(f"missed_events={evidence['missed_events']}")
         print(f"false_alarms={evidence['false_alarms']}")
         print(f"event_wise_precision={evidence['event_wise_precision']:.6f}")
         print(f"event_wise_recall={evidence['event_wise_recall']:.6f}")

@@ -14,9 +14,9 @@ commands and longer interpretation live in the linked phase documents.
 - Current strongest FD001 deep model: calibrated Transformer with asymmetric
   late-error loss and mini-batch monotonic regularization.
 - Current spacecraft anomaly status: baseline and alert-policy layer across
-  SMAP/MSL, with the forward track on ESA-ADB — a fresher, less-saturated
-  benchmark than SMAP/MSL — already at a protocol-first intake (source manifest,
-  archive validation, fixture-tested evaluator contract).
+  SMAP/MSL, plus a first real event-wise detection baseline on the fresher
+  ESA-ADB Mission1 lightweight subset (precision 1.000, recall 0.415,
+  event-wise F0.5 0.780; conservative baseline, not a leaderboard claim).
 - Current production evidence: FastAPI serving, Docker smoke checks, SBOM,
   release bundle, provenance, model card, validation, benchmark, read-only demo
   image, and Streamlit operations console.
@@ -77,6 +77,30 @@ The anomaly result is intentionally conservative. Point-adjusted F1 is tracked
 because it is common in the literature, but point-wise precision/recall and
 false-alarm rate remain the primary readout because point adjustment can make
 weak detectors look stronger on long labelled intervals.
+
+## ESA-ADB Mission1 Result (Fresher Benchmark)
+
+The anomaly track's forward direction is ESA-ADB, a fresher and less-saturated
+benchmark than SMAP/MSL. The first real run uses the lightweight Mission1 subset
+(target channels 41-46) with a robust z-score baseline fit on nominal training
+points only, scored event-wise on the chronological test window (communication
+gaps excluded).
+
+| Checkpoint | Result |
+| --- | --- |
+| Test-window events | 65 (27 detected, 38 missed) |
+| Predicted alarms | 86 (0 false alarms) |
+| Event-wise precision | 1.000000 |
+| Event-wise recall | 0.415385 |
+| Event-wise F0.5 | 0.780347 |
+
+This is protocol-shaped event-wise detection evidence, not a full ESA-ADB
+leaderboard claim: only the detection top of the official metric hierarchy is
+computed, and the official zero-order-hold resampling is not yet applied. The
+profile — perfect test-window precision with under-half recall — is the honest
+signature of a conservative baseline and marks the headroom a real model should
+close. Details and reproduction:
+[phase3_esa_adb_intake.md](phase3_esa_adb_intake.md).
 
 ## Deployment Evidence
 

@@ -188,6 +188,67 @@ uv run aerospace-prognostics esa-adb-mission-score `
   --output-markdown artifacts/esa_adb/mission1_event_wise.md
 ```
 
+## First Real Mission1 Result
+
+The lightweight Mission1 baseline has now run on real ESA Anomaly Dataset
+telemetry (`data/esa_adb_mission1.py`, command `esa-adb-mission1-run`). This is
+the first ESA-ADB number in the project, and it is deliberately a conservative
+baseline, not a leaderboard entry.
+
+Run setup:
+
+- Target channels 41-46 (all `Target=YES` in `channels.csv`), which share an
+  identical native ~30s time grid, so they are already aligned.
+- Chronological 50/50 split: ~7.69M train samples, ~7.69M test samples; the
+  test window opens `2006-12-22`.
+- Robust z-score baseline (median/MAD, threshold 5.0) fit on nominal training
+  points only (training rows outside every labelled anomaly), then applied to
+  the test window. No thresholds or standardization touch test rows.
+- Events filtered to those overlapping the test window; `Communication Gap`
+  events excluded, matching the default benchmark table.
+
+Result (event-wise detection only):
+
+| Metric | Value |
+| --- | ---: |
+| Test-window events | 65 |
+| Detected events | 27 |
+| Missed events | 38 |
+| Predicted alarms | 86 |
+| False alarms | 0 |
+| Event-wise precision | 1.000000 |
+| Event-wise recall | 0.415385 |
+| Event-wise F0.5 | 0.780347 |
+
+Reading: the baseline is precise but low-recall — it raises no false alarms on
+the test window yet catches under half of the labelled events, which is the
+expected profile of a conservative robust-threshold detector and leaves clear
+headroom for a real model.
+
+Honest deviations from full official reproduction, recorded in the artifact
+provenance:
+
+- Only event-wise detection is scored; ADTQC timing, affiliation-based
+  proximity, and subsystem-aware/channel-aware diagnosis are not yet computed.
+- The official zero-order-hold resampling to the Mission1 target frequency is
+  not applied; the baseline scores on the native aligned grid.
+- The number is therefore protocol-shaped detection evidence, not an ESA-ADB
+  leaderboard claim, and must not be quoted as one.
+
+Reproduce (after extracting the mission folder locally; raw data stays out of
+Git):
+
+```powershell
+uv run aerospace-prognostics esa-adb-mission1-run `
+  --archive data/raw/esa_adb/ESA-Mission1 `
+  --output-json artifacts/esa_adb/mission1_lightweight_event_wise.json `
+  --output-markdown artifacts/esa_adb/mission1_lightweight_event_wise.md
+```
+
+The command also accepts `--archive path/to/archive.zip` directly; on a
+memory-constrained machine, extracting the six channel files first avoids
+decompressing large zip members in the same process as the model stack.
+
 ## Smallest Protocol-Correct First Run
 
 The first implementation milestone should not train a new deep model. It should
@@ -218,10 +279,9 @@ Recommended first run:
    - event-wise detection precision/recall/F0.5 is scored from the
      evaluator-contract metric inputs;
    - JSON and Markdown evidence is written with explicit scope caveats.
-   - Still blocked on local data: preprocessing Mission1 with the official
-     script, selecting channels `41-46`, and regenerating subset anomaly types
-     require the ~3.8 GB `ESA-Mission1.zip`, so the real run waits for a local
-     archive that passes the source gate.
+   - Done on local data: the real lightweight Mission1 baseline now runs on the
+     supplied ESA Anomaly Dataset archive (see "First Real Mission1 Result"
+     below).
 
 Mission1 lightweight is the preferred first real run because it has only six
 channels and exercises the point-anomaly preservation requirement. Mission2
