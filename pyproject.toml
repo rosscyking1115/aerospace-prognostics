@@ -12,8 +12,17 @@ dependencies = [
     "pandas>=2.2",
     "scikit-learn>=1.5",
     "streamlit>=1.36",
+    "telemeval",
     "uvicorn[standard]>=0.30",
 ]
+
+# TODO(publish): telemeval is consumed from the sibling checkout until it is
+# published; switch this source to a PyPI version pin (or git URL) before
+# pushing, or CI dependency resolution will fail. Non-editable on purpose:
+# the SBOM identifies the root package as the single editable entry in
+# uv.lock, and telemeval should appear as a regular library component.
+[tool.uv.sources]
+telemeval = { path = "../telemeval" }
 
 [project.optional-dependencies]
 deep = [

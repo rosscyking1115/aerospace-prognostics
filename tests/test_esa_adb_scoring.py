@@ -4,7 +4,10 @@ import json
 
 import pandas as pd
 
-from aerospace_prognostics.data.esa_adb import build_esa_adb_metric_inputs
+# Metric-input building now comes from the telemeval library; these tests
+# exercise this project's evidence layer routed through it.
+from telemeval.contract import build_metric_inputs as build_esa_adb_metric_inputs
+
 from aerospace_prognostics.data.esa_adb_scoring import (
     ESA_ADB_EVENT_WISE_EVIDENCE_SCHEMA,
     ESA_ADB_LIGHTWEIGHT_CHANNELS,

@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/rosscyking1115/aerospace-prognostics/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/rosscyking1115/aerospace-prognostics/actions/workflows/ci.yml)
 ![Python](https://img.shields.io/badge/python-%3E%3D3.11-blue)
-![Tests](https://img.shields.io/badge/tests-454%20passed-brightgreen)
+![Tests](https://img.shields.io/badge/tests-453%2B114%20passed-brightgreen)
 ![License](https://img.shields.io/badge/license-MIT-green)
 ![Hosted Demo](https://img.shields.io/badge/hosted%20demo-token--gated-success)
 
@@ -19,6 +19,12 @@ drift monitoring — around models that are trained and evaluated under honest,
 documented protocols. The engineering envelope is the point; the models are
 held to it.
 
+The anomaly-evaluation layer proved general enough to extract: it now lives as
+**[telemeval](../telemeval)** — a standalone Apache-2.0 library for
+leakage-safe, event-wise and affiliation-based evaluation of
+spacecraft-telemetry anomaly detection — and this repository is its
+**reference pipeline**, consuming it as a dependency.
+
 ## What Makes This Repo Different
 
 - **A fresh benchmark, not another C-MAPSS score.** The anomaly-detection track
@@ -34,9 +40,12 @@ held to it.
   (See [docs/public_results.md](docs/public_results.md).)
 - **Provenance and guardrails on every result.** Each artifact records its
   protocol deviations and is stamped *"event-wise detection only — not a full
-  ESA-ADB leaderboard claim."* Nothing is overstated.
+  ESA-ADB leaderboard claim."* Nothing is overstated. The evaluation layer —
+  including the leakage guard born from that audit — is extracted and
+  maintained as the standalone [telemeval](../telemeval) library, which this
+  pipeline consumes.
 - **A production envelope, not a notebook.** Serving API, operator console,
-  release evidence, SBOM, provenance, drift summaries, 454 tests — the parts
+  release evidence, SBOM, provenance, drift summaries, 453 tests here plus 114 in telemeval — the parts
   that show this is deployable ML engineering, not a one-off experiment.
 
 ## Portfolio Status
@@ -57,7 +66,7 @@ for the current open-source posture.
 | Area | Current Evidence |
 | --- | --- |
 | CI | `ruff`, `pytest`, dependency audit, SBOM generation, serving-image smoke tests, hosted-demo image smoke tests |
-| Tests | `454 passed` on the latest full local suite; CI green on `main` |
+| Tests | `453 passed` here plus `114 passed` in the extracted telemeval library |
 | Data tracks | C-MAPSS turbofan RUL (familiar, checkable baseline) and spacecraft anomaly detection (SMAP/MSL plumbing, plus a first real event-wise baseline on the fresher ESA-ADB Mission1 subset) |
 | MLOps surfaces | FastAPI inference service, Streamlit review console, Docker Compose stack, token-gated Render demo |
 | Release evidence | Model inspection, validation, benchmark, model card, SBOM, release bundle, promotion report, provenance |

@@ -20,12 +20,15 @@ from statistics import median
 from typing import Any
 
 import pandas as pd
+from telemeval.contract import build_metric_inputs
+from telemeval.metrics.event_wise import score_event_wise
 
 from aerospace_prognostics.artifact_io import prepare_output_path, write_json_payload
-from aerospace_prognostics.data.esa_adb import (
-    ESA_ADB_PREDICTION_COLUMNS,
-    build_esa_adb_metric_inputs,
-)
+
+# Event-wise scoring is provided by the telemeval library (extracted from this
+# project); the alias keeps this project's call sites and evidence tooling
+# stable.
+score_esa_adb_event_wise = score_event_wise
 
 ESA_ADB_EVENT_WISE_EVIDENCE_SCHEMA = "aerospace-prognostics/esa-adb-event-wise-detection/v1"
 
@@ -94,81 +97,6 @@ def robust_zscore_detections(
             {"Timestamp": index, "Score": scores}
         )
     return detections
-
-
-def score_esa_adb_event_wise(
-    metric_inputs: Mapping[str, Any],
-    *,
-    beta: float = 0.5,
-    exclude_categories: Sequence[str] = (),
-) -> dict[str, Any]:
-    """Score event-wise detection quality from official-contract metric inputs.
-
-    ``metric_inputs`` is the mapping returned by
-    :func:`aerospace_prognostics.data.esa_adb.build_esa_adb_metric_inputs`.
-
-    Detection is sample-based and unambiguous: a labelled event is detected when
-    any positive prediction sample falls inside its ``[StartTime, EndTime]``
-    interval; a predicted positive run is a true alarm when any of its samples
-    fall inside any event, otherwise it is a false alarm. ``beta=0.5`` weights
-    precision above recall, matching ESA-ADB's false-alarm sensitivity.
-    """
-
-    if beta <= 0:
-        raise ValueError("beta must be positive")
-
-    global_labels = metric_inputs["global_labels"]
-    global_predictions = metric_inputs["global_predictions"]
-    excluded = {category for category in exclude_categories}
-
-    events = _collapse_events(global_labels, excluded)
-    runs = _positive_runs(global_predictions)
-
-    per_event: list[dict[str, Any]] = []
-    detected_events = 0
-    for event in events:
-        detected = any(_run_detects_event(run, event) for run in runs)
-        detected_events += int(detected)
-        per_event.append(
-            {
-                "id": event["id"],
-                "start_time": event["start_time"],
-                "end_time": event["end_time"],
-                "category": event["category"],
-                "detected": detected,
-            }
-        )
-
-    true_alarm_runs = sum(
-        1 for run in runs if any(_run_detects_event(run, event) for event in events)
-    )
-    total_events = len(events)
-    total_runs = len(runs)
-    false_alarm_runs = total_runs - true_alarm_runs
-
-    recall = detected_events / total_events if total_events else 1.0
-    if total_runs:
-        precision = true_alarm_runs / total_runs
-    elif total_events == 0:
-        precision = 1.0
-    else:
-        precision = 0.0
-    fbeta = _fbeta_score(precision, recall, beta)
-
-    return {
-        "beta": beta,
-        "excluded_categories": sorted(excluded),
-        "total_events": total_events,
-        "detected_events": detected_events,
-        "missed_events": total_events - detected_events,
-        "predicted_alarms": total_runs,
-        "true_alarms": true_alarm_runs,
-        "false_alarms": false_alarm_runs,
-        "event_wise_precision": precision,
-        "event_wise_recall": recall,
-        "event_wise_fbeta": fbeta,
-        "per_event": per_event,
-    }
 
 
 def build_esa_adb_event_wise_evidence(
@@ -295,10 +223,8 @@ def score_esa_adb_mission_from_predictions(
 ) -> dict[str, Any]:
     """End-to-end event-wise evidence from labels and per-channel detections."""
 
-    metric_inputs = build_esa_adb_metric_inputs(labels, predictions_by_channel)
-    scores = score_esa_adb_event_wise(
-        metric_inputs, beta=beta, exclude_categories=exclude_categories
-    )
+    metric_inputs = build_metric_inputs(labels, predictions_by_channel)
+    scores = score_event_wise(metric_inputs, beta=beta, exclude_categories=exclude_categories)
     return build_esa_adb_event_wise_evidence(
         scores,
         mission=mission,
@@ -333,77 +259,6 @@ def _robust_zscore_flags(series: list[float], threshold: float) -> list[int]:
         # A degenerate (constant) channel yields no anomalies.
         return [0] * len(series)
     return [1 if deviation / scale > threshold else 0 for deviation in deviations]
-
-
-def _collapse_events(
-    global_labels: pd.DataFrame,
-    excluded_categories: set[str],
-) -> list[dict[str, Any]]:
-    if global_labels.empty:
-        return []
-
-    events: list[dict[str, Any]] = []
-    for event_id, group in global_labels.groupby("ID", sort=False):
-        category = str(group["Category"].iloc[0])
-        if category in excluded_categories:
-            continue
-        events.append(
-            {
-                "id": str(event_id),
-                "start_time": group["StartTime"].min(),
-                "end_time": group["EndTime"].max(),
-                "category": category,
-            }
-        )
-    events.sort(key=lambda event: (event["start_time"], event["id"]))
-    return events
-
-
-def _positive_runs(global_predictions: pd.DataFrame) -> list[dict[str, Any]]:
-    for column in ESA_ADB_PREDICTION_COLUMNS:
-        if column not in global_predictions.columns:
-            raise ValueError(
-                f"global predictions are missing required column {column!r}"
-            )
-    timestamps = global_predictions["Timestamp"].to_list()
-    scores = global_predictions["Score"].to_list()
-
-    runs: list[dict[str, Any]] = []
-    index = 0
-    n_rows = len(scores)
-    while index < n_rows:
-        if int(scores[index]) <= 0:
-            index += 1
-            continue
-        start_index = index
-        while index < n_rows and int(scores[index]) > 0:
-            index += 1
-        samples = timestamps[start_index:index]
-        runs.append(
-            {
-                "start_time": samples[0],
-                "end_time": samples[-1],
-                "samples": samples,
-            }
-        )
-    return runs
-
-
-def _run_detects_event(run: Mapping[str, Any], event: Mapping[str, Any]) -> bool:
-    start = event["start_time"]
-    end = event["end_time"]
-    # Cheap interval reject before scanning samples.
-    if run["end_time"] < start or run["start_time"] > end:
-        return False
-    return any(start <= sample <= end for sample in run["samples"])
-
-
-def _fbeta_score(precision: float, recall: float, beta: float) -> float:
-    beta_sq = beta * beta
-    denominator = beta_sq * precision + recall
-    if denominator <= 0.0:
-        return 0.0
-    return (1.0 + beta_sq) * precision * recall / denominator
 
 
 def _isoformat(value: Any) -> str:

@@ -123,6 +123,27 @@ ESA-ADB as a protocol-first integration, not as a casual local data import.
     `Timestamp, Score` series. A full result writer still waits for the
     lightweight Mission1 smoke path.
 
+## Extracted: The Evaluator Now Lives In telemeval
+
+The evaluator-contract and event-wise scoring layers described below proved
+general enough to extract into a standalone Apache-2.0 library, **telemeval**
+(sibling repository), which this project now consumes as a dependency:
+
+- label/anomaly-type joins, event grouping, and metric-input validation →
+  `telemeval.contract` / `telemeval.events`;
+- corrected event-wise precision/recall/F-beta → `telemeval.metrics.event_wise`
+  (this project's `score_esa_adb_event_wise` is an alias);
+- the train/test-window leakage guard (born from the evaluation correction
+  recorded in public_results.md) → a typed, on-by-default contract error in
+  `telemeval.evaluate()`;
+- affiliation-based precision/recall (canonical KDD-2022 reference, vendored
+  and maintained there) is now also available to this pipeline.
+
+This project keeps what is specific to it: the source manifest and archive
+gates, the robust z-score baseline and threshold selection, the mission
+runner, and the ESA evidence format. The sections below are retained as the
+historical record of building that layer here first.
+
 ## Implemented Evaluator Contract Fixture Layer
 
 The current code does not vendor the full official TimeEval stack. Instead it

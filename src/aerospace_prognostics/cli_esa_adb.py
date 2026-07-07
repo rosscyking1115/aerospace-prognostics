@@ -7,10 +7,10 @@ from pathlib import Path
 from typing import Any
 
 import pandas as pd
+from telemeval.formats.esa_adb import read_labels as read_esa_adb_evaluator_labels
 
 from aerospace_prognostics.data.esa_adb import (
     build_esa_adb_source_manifest,
-    read_esa_adb_evaluator_labels,
     read_esa_adb_source_manifest,
     verify_esa_adb_archives,
     write_esa_adb_archive_validation,
