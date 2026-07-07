@@ -47,7 +47,7 @@ requires-dist = [
     { name = "pandas", specifier = ">=2.2" },
     { name = "scikit-learn", specifier = ">=1.5" },
     { name = "streamlit", specifier = ">=1.36" },
-    { name = "telemeval", directory = "../telemeval" },
+    { name = "telemeval", specifier = ">=0.1.1" },
     { name = "torch", marker = "extra == 'deep'", specifier = ">=2.3" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.30" },
 ]
@@ -2003,24 +2003,15 @@ wheels = [
 
 [[package]]
 name = "telemeval"
-version = "0.1.0.dev0"
-source = { directory = "../telemeval" }
+version = "0.1.1"
+source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "numpy" },
     { name = "pandas" },
 ]
-
-[package.metadata]
-requires-dist = [
-    { name = "numpy", specifier = ">=1.26" },
-    { name = "pandas", specifier = ">=2.0" },
-]
-
-[package.metadata.requires-dev]
-dev = [
-    { name = "hypothesis", specifier = ">=6.100" },
-    { name = "pytest", specifier = ">=8.0" },
-    { name = "ruff", specifier = ">=0.8" },
+sdist = { url = "https://files.pythonhosted.org/packages/89/2c/30892a0da73453325d6222250e5e345068bbd38078d84e459b5b04f070ec/telemeval-0.1.1.tar.gz", hash = "sha256:ab4c19077655c1a0791b0ef6d2b75bf6c9b5ae9ed39a35a78988a55eb02e6442", size = 74283, upload-time = "2026-07-07T19:52:30.483Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/e6/04/305f11bb6c6832c1a72e6b9ebdeac0f8deb5f5254a0f470ead3a29c88b18/telemeval-0.1.1-py3-none-any.whl", hash = "sha256:0fa56eb8dee7771e0e04503e2c2a2fd147a20206725a6cb2b38cbf080efc34d2", size = 43181, upload-time = "2026-07-07T19:52:29.181Z" },
 ]
 
 [[package]]
