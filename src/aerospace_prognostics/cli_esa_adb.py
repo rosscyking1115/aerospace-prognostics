@@ -86,6 +86,7 @@ def register_esa_adb_commands(subparsers: Any) -> None:
     )
     mission_run.add_argument("--threshold-grid", nargs="+", type=float)
     mission_run.add_argument("--validation-months", type=int, default=3)
+    mission_run.add_argument("--min-validation-events", type=int, default=10)
     mission_run.add_argument("--beta", type=float, default=0.5)
     mission_run.add_argument(
         "--exclude-categories", nargs="+", default=list(DEFAULT_EXCLUDE_CATEGORIES)
@@ -176,6 +177,7 @@ def handle_esa_adb_command(args: argparse.Namespace) -> int | None:
             "threshold": args.threshold,
             "threshold_selection": args.threshold_selection,
             "validation_months": args.validation_months,
+            "min_validation_events": args.min_validation_events,
             "beta": args.beta,
             "exclude_categories": tuple(args.exclude_categories),
         }

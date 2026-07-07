@@ -162,7 +162,7 @@ def test_select_threshold_by_validation_prefers_fewer_false_alarms() -> None:
     val_labels = _val_labels([("e1", "2024-01-01T00:02:00", "2024-01-01T00:02:00")])
 
     result = select_threshold_by_validation(
-        zscores, val_index, val_labels, thresholds=(5.0, 10.0), beta=0.5
+        zscores, val_index, val_labels, thresholds=(5.0, 10.0), beta=0.5, min_events=1
     )
 
     assert result["best_threshold"] == 10.0
@@ -170,3 +170,48 @@ def test_select_threshold_by_validation_prefers_fewer_false_alarms() -> None:
     high = next(r for r in result["per_threshold"] if r["threshold"] == 10.0)
     assert low["false_alarms"] > high["false_alarms"]
     assert high["false_alarms"] == 0
+
+
+def test_select_threshold_falls_back_when_validation_is_sparse() -> None:
+    val_index = pd.DatetimeIndex(
+        [f"2024-01-01T00:0{minute}:00" for minute in range(6)]
+    )
+    zscores = {"ch1": np.array([6.0, 0.0, 20.0, 0.0, 6.0, 0.0], dtype="float32")}
+    val_labels = _val_labels([("e1", "2024-01-01T00:02:00", "2024-01-01T00:02:00")])
+
+    # Only one validation event but min_events=10 -> fall back to the fixed default.
+    result = select_threshold_by_validation(
+        zscores,
+        val_index,
+        val_labels,
+        thresholds=(5.0, 10.0),
+        beta=0.5,
+        min_events=10,
+        fallback_threshold=5.0,
+    )
+
+    assert result["best_threshold"] == 5.0
+    assert result["validation_events"] == 1
+    assert "fallback" in result["selection_reason"]
+
+
+def test_select_threshold_prefers_conservative_within_tolerance() -> None:
+    # Three events all detected at every threshold with no false alarms, so all
+    # thresholds tie on F0.5; the conservative rule takes the highest threshold.
+    val_index = pd.DatetimeIndex(
+        [f"2024-01-01T00:0{minute}:00" for minute in range(3)]
+    )
+    zscores = {"ch1": np.array([30.0, 30.0, 30.0], dtype="float32")}
+    val_labels = _val_labels(
+        [
+            ("e1", "2024-01-01T00:00:00", "2024-01-01T00:00:00"),
+            ("e2", "2024-01-01T00:01:00", "2024-01-01T00:01:00"),
+            ("e3", "2024-01-01T00:02:00", "2024-01-01T00:02:00"),
+        ]
+    )
+
+    result = select_threshold_by_validation(
+        zscores, val_index, val_labels, thresholds=(5.0, 10.0, 20.0), beta=0.5, min_events=1
+    )
+
+    assert result["best_threshold"] == 20.0

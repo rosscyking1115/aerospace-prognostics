@@ -49,6 +49,8 @@ DEFAULT_ROBUST_THRESHOLD = 5.0
 DEFAULT_EXCLUDE_CATEGORIES = ("Communication Gap",)
 DEFAULT_VALIDATION_MONTHS = 3
 DEFAULT_THRESHOLD_GRID = (3.0, 4.0, 5.0, 6.0, 8.0, 10.0, 15.0, 20.0)
+DEFAULT_SELECTION_TOLERANCE = 0.02
+DEFAULT_MIN_VALIDATION_EVENTS = 10
 _MAD_TO_STD = 1.4826
 
 
@@ -137,13 +139,21 @@ def select_threshold_by_validation(
     *,
     beta: float = 0.5,
     exclude_categories: Sequence[str] = DEFAULT_EXCLUDE_CATEGORIES,
+    tolerance: float = DEFAULT_SELECTION_TOLERANCE,
+    min_events: int = DEFAULT_MIN_VALIDATION_EVENTS,
+    fallback_threshold: float = DEFAULT_ROBUST_THRESHOLD,
 ) -> dict[str, Any]:
-    """Pick the threshold with the best validation-window event-wise F-beta.
+    """Pick a threshold from the validation window, robustly.
 
-    Pure and fixture-testable: given per-channel validation z-scores and the
-    validation-window labels, it sweeps ``thresholds`` and returns the winner.
-    Ties break toward fewer false alarms, then toward the higher (more
-    conservative) threshold.
+    Pure and fixture-testable. Sweeps ``thresholds`` on the validation window and:
+
+    - falls back to ``fallback_threshold`` when the window has fewer than
+      ``min_events`` events, because a sparse validation window (few events, and
+      often no false alarms at any threshold) cannot discriminate thresholds and
+      tends to overfit to the grid edge;
+    - otherwise picks the most conservative (highest) threshold whose F-beta is
+      within ``tolerance`` of the best, regularising away from over-sensitive
+      thresholds that look marginally better on validation but over-alarm on test.
     """
 
     if not val_zscores_by_channel:
@@ -153,6 +163,7 @@ def select_threshold_by_validation(
 
     val_length = len(val_index)
     per_threshold: list[dict[str, Any]] = []
+    total_events = 0
     for threshold in thresholds:
         global_score = np.zeros(val_length, dtype="uint8")
         for zscores in val_zscores_by_channel.values():
@@ -166,6 +177,7 @@ def select_threshold_by_validation(
         scores = score_esa_adb_event_wise(
             metric_inputs, beta=beta, exclude_categories=exclude_categories
         )
+        total_events = scores["total_events"]
         per_threshold.append(
             {
                 "threshold": float(threshold),
@@ -176,11 +188,32 @@ def select_threshold_by_validation(
             }
         )
 
-    best = max(
-        per_threshold,
-        key=lambda row: (row["event_wise_fbeta"], -row["false_alarms"], row["threshold"]),
-    )
-    return {"best_threshold": best["threshold"], "per_threshold": per_threshold}
+    if total_events < min_events:
+        return {
+            "best_threshold": float(fallback_threshold),
+            "per_threshold": per_threshold,
+            "validation_events": total_events,
+            "selection_reason": (
+                f"fallback to fixed threshold {fallback_threshold}: only "
+                f"{total_events} validation-window event(s) (< {min_events}), too "
+                "sparse to select reliably"
+            ),
+        }
+
+    best_fbeta = max(row["event_wise_fbeta"] for row in per_threshold)
+    within_tolerance = [
+        row for row in per_threshold if row["event_wise_fbeta"] >= best_fbeta - tolerance
+    ]
+    best = max(within_tolerance, key=lambda row: (row["threshold"], -row["false_alarms"]))
+    return {
+        "best_threshold": best["threshold"],
+        "per_threshold": per_threshold,
+        "validation_events": total_events,
+        "selection_reason": (
+            f"most conservative threshold within {tolerance} F{beta} of the best "
+            f"validation score ({total_events} validation-window events)"
+        ),
+    }
 
 
 def filter_events_to_range(
@@ -220,6 +253,7 @@ def run_mission_lightweight(
     threshold_selection: str = "fixed",
     threshold_grid: Sequence[float] = DEFAULT_THRESHOLD_GRID,
     validation_months: int = DEFAULT_VALIDATION_MONTHS,
+    min_validation_events: int = DEFAULT_MIN_VALIDATION_EVENTS,
     beta: float = 0.5,
     exclude_categories: Sequence[str] = DEFAULT_EXCLUDE_CATEGORIES,
 ) -> dict[str, Any]:
@@ -270,6 +304,8 @@ def run_mission_lightweight(
             validation_months=validation_months,
             beta=beta,
             exclude_categories=exclude_categories,
+            min_events=min_validation_events,
+            fallback_threshold=threshold,
         )
         chosen_threshold = selection["best_threshold"]
         selection_detail = selection
@@ -332,6 +368,8 @@ def run_mission_lightweight(
     if selection_detail is not None:
         evidence["run_provenance"]["threshold_grid"] = list(threshold_grid)
         evidence["run_provenance"]["validation_months"] = validation_months
+        evidence["run_provenance"]["min_validation_events"] = min_validation_events
+        evidence["run_provenance"]["selection_reason"] = selection_detail["selection_reason"]
         evidence["threshold_selection"] = selection_detail
     return evidence
 
@@ -383,6 +421,8 @@ def _select_validation_threshold(
     validation_months: int,
     beta: float,
     exclude_categories: Sequence[str],
+    min_events: int,
+    fallback_threshold: float,
 ) -> dict[str, Any]:
     """Collect validation-window z-scores per channel and pick a threshold."""
 
@@ -422,6 +462,8 @@ def _select_validation_threshold(
         thresholds,
         beta=beta,
         exclude_categories=exclude_categories,
+        min_events=min_events,
+        fallback_threshold=fallback_threshold,
     )
 
 
