@@ -55,11 +55,10 @@ visitors into database writers.
    stronger boundary for larger or sensitive reviewer groups.
 9. Rebuild the image whenever the quickstart evidence contract changes.
 
-The operational handoff is tracked in
-[private_hosting_handoff.md](private_hosting_handoff.md). It includes the
-recommended Render Blueprint path, the required access-control warning, and the
-final readiness command that supplies both the protected URL and hosted proof
-asset.
+The Render Blueprint path is described by [render.yaml](../render.yaml): a
+read-only demo image behind the app-level access-token gate
+(`AEROSPACE_PROGNOSTICS_CONSOLE_ACCESS_TOKEN`), with `/_stcore/health` as the
+health check.
 
 For the fuller local product stack with both FastAPI and Streamlit, use
 `compose.yaml` instead. The demo image is intentionally single-service so it can

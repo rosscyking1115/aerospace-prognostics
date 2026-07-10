@@ -34,8 +34,8 @@ FD001 engines are critical quickstart cases with predicted RUL of `1.0` and
 
 The hosted-demo proof screenshot was captured from the Render-hosted read-only
 console after `/_stcore/health` returned `200 ok`. The current hosted console is
-protected by the optional app-level access token gate documented in
-[private_hosting_handoff.md](private_hosting_handoff.md).
+protected by the optional app-level access token gate
+(`AEROSPACE_PROGNOSTICS_CONSOLE_ACCESS_TOKEN`).
 
 ## Regeneration Path
 

@@ -258,8 +258,6 @@ See [docs/hosted_demo.md](docs/hosted_demo.md).
   deployment, and app command catalog.
 - [docs/repo_launch_strategy.md](docs/repo_launch_strategy.md): quarantined
   historical launch strategy, not an active plan.
-- [docs/pre_phase3_readiness.md](docs/pre_phase3_readiness.md): quarantined
-  historical productization gate, not an active Phase 3 prerequisite.
 
 ## Development
 
