@@ -37,3 +37,11 @@ venv/
 Thumbs.db
 .vscode/
 .idea/
+
+# internal working docs — kept local, not for the public repo
+/Aerospace_Prognostics_Project_Plan.md
+/docs/mlops_portfolio_positioning.md
+/docs/phase3_cmapss_audit_results.md
+/docs/private_hosting_handoff.md
+/docs/project_checklist.md
+/docs/restructure_plan.md
