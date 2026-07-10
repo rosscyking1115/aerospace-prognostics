@@ -9,6 +9,25 @@ permissions:
   contents: read
 
 jobs:
+  # Lightweight compatibility check across the supported Python range
+  # (matches `requires-python = ">=3.11"`). The heavy image/SBOM/serving
+  # steps live in the `test` job below and run once on 3.11.
+  compat:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@v6
+      - uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
+      - uses: actions/setup-python@v6
+        with:
+          python-version: ${{ matrix.python-version }}
+      - run: uv sync --dev
+      - run: uv run ruff check .
+      - run: uv run pytest
+
   test:
     runs-on: ubuntu-latest
     steps:
@@ -33,6 +52,10 @@ jobs:
         run: uv run pytest
 
       - name: Dependency audit
+        # CVE-2025-3000 affects torch (deep-learning training extra) and has no
+        # fixed release available upstream. torch is excluded from the serving
+        # image (verified by the "Serving image torch absence" job below), so
+        # the deployed surface is unaffected. Re-check when a torch fix ships.
         run: uv run pip-audit --ignore-vuln CVE-2025-3000
 
       - name: Generate SBOM

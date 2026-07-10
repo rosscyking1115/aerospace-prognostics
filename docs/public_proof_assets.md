@@ -1,8 +1,8 @@
-# Portfolio Proof Assets
+# Visual Proof Assets
 
-These tracked visual assets are a reviewer-facing proof set for the portfolio
-project. They are small enough to live in Git and are tied to the no-download
-quickstart evidence rather than raw telemetry or generated model binaries.
+These tracked visual assets are a small proof set for the project. They are
+small enough to live in Git and are tied to the no-download quickstart evidence
+rather than raw telemetry or generated model binaries.
 
 ## Assets
 
@@ -18,8 +18,8 @@ read-only sidebar state used by the hosted-demo image.
 The static fleet console snapshot summarizes
 `artifacts/quickstart_cmapss/dashboard/fleet_payload.json` and
 `artifacts/quickstart_cmapss/models/fd001_benchmark.json`. It shows the MLOps
-story we want reviewers to understand quickly: a PHM review surface with fleet
-triage, release gates, artifact identity, and latency evidence. It stays as a
+story at a glance: a PHM review surface with fleet triage, release gates,
+artifact identity, and latency evidence. It stays as a
 compact fallback asset for surfaces that prefer SVG.
 
 ![Quickstart RUL diagnostic](assets/public-proof/quickstart_rul_diagnostic.svg)
@@ -56,11 +56,11 @@ uv run streamlit run src/aerospace_prognostics/app/streamlit_app.py \
 ```
 
 Then refresh the visual proof assets from the regenerated quickstart payloads and
-read-only console before sharing the repository for review.
+read-only console before sharing.
 
 ## Current Limits
 
-- These assets are portfolio proof assets, not certification evidence.
+- These assets are visual proof of a reviewable surface, not certification evidence.
 - The screenshots are proof of a reviewable demo surface, not evidence of
   operational suitability for aircraft or spacecraft maintenance decisions.
 - Before wider sharing, refresh the hosted proof after final copy and

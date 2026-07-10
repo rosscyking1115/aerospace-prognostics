@@ -1,25 +1,24 @@
-# MLOps Portfolio Roadmap
+# Engineering Roadmap
 
 > [!NOTE]
-> This file used to describe a product roadmap. The productization track is now
-> frozen; this roadmap is retained as an engineering roadmap.
+> This file previously described a product roadmap. The productization track is
+> frozen; what remains is a neutral engineering roadmap for the reference
+> pipeline.
 
-## Current Direction
+## Current direction
 
-The project demonstrates how familiar PHM benchmarks can be wrapped in a
-reviewable ML delivery system:
+The project wraps familiar PHM benchmarks in a reviewable ML delivery system:
 
 - reproducible research workflows;
 - model packaging and promotion evidence;
 - FastAPI serving;
-- Streamlit review console;
+- Streamlit operations console;
 - Docker Compose integration;
 - SBOM, provenance, drift summaries, and CI smoke checks.
 
-The goal is hiring signal for ML-engineer/MLOps roles, not a commercial PHM
-tool.
+It is a reference implementation, not a commercial PHM product.
 
-## Completed Portfolio Evidence
+## Completed engineering evidence
 
 - C-MAPSS ingestion, baselines, sequence-model experiments, diagnostics, and
   calibration evidence.
@@ -29,30 +28,25 @@ tool.
 - Streamlit console with prediction history, model registry, fleet registry,
   outcome import, operator decisions, and evidence downloads.
 - SQLite app state and Docker Compose local stack.
-- Read-only hosted demo image and token-gated hosted review URL.
+- Read-only hosted demo image and token-gated hosted console URL.
 - Release-evidence workflow with model card, validation, benchmark, SBOM,
   promotion report, release bundle, and provenance.
-- ESA-ADB source and evaluator-contract intake before benchmark claims.
+- ESA-ADB source and evaluator-contract intake, now extracted to the
+  [telemeval](https://github.com/rosscyking1115/telemeval) library.
 
-## Active Roadmap
+## Active roadmap
 
 1. Keep the MLOps envelope stable and easy to inspect.
-2. Improve README/screenshots for a short reviewer journey.
+2. Keep the README and screenshots current and honest.
 3. Keep Phase 3 research evidence-focused: uncertainty, monotonicity,
-   calibration, and benchmark protocol correctness.
-4. Add lightweight ESA-ADB smoke evidence only after local data extraction is
-   available.
-5. Avoid resuming product-launch planning.
+   calibration, and benchmark-protocol correctness.
+4. Track telemeval upstream (ESA-ADB metric hierarchy) as the anomaly-evaluation
+   layer.
+5. Do not resume product-launch planning (frozen).
 
-## Hiring Signal To Protect
+## What to protect
 
-The strongest proof is the engineering wrapper around common datasets:
-
-- tests and CI;
-- release gates;
-- serving contracts;
-- container evidence;
-- app state and review workflows;
-- honest limitations.
-
-Do not reposition this as a commercial operations system.
+The value on show is the engineering wrapper around common datasets — tests and
+CI, release gates, serving contracts, container evidence, app-state and review
+workflows, and honest limitations. Do not reposition this as a commercial
+operations system.

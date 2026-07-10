@@ -1105,7 +1105,7 @@ def render_cmapss_model_card_markdown(
         "",
         (
             "This artifact predicts capped Remaining Useful Life for NASA C-MAPSS "
-            "turbofan telemetry. It is a portfolio deployment candidate for local "
+            "turbofan telemetry. It is a reference deployment candidate for local "
             "batch inference and FastAPI serving, not a certified aviation system."
         ),
         "",

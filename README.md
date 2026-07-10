@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/rosscyking1115/aerospace-prognostics/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/rosscyking1115/aerospace-prognostics/actions/workflows/ci.yml)
 ![Python](https://img.shields.io/badge/python-%3E%3D3.11-blue)
-![Tests](https://img.shields.io/badge/tests-453%2B114%20passed-brightgreen)
+![Tests](https://img.shields.io/badge/tests-453%20passed-brightgreen)
 ![License](https://img.shields.io/badge/license-MIT-green)
 ![Hosted Demo](https://img.shields.io/badge/hosted%20demo-token--gated-success)
 
@@ -20,7 +20,7 @@ documented protocols. The engineering envelope is the point; the models are
 held to it.
 
 The anomaly-evaluation layer proved general enough to extract: it now lives as
-**[telemeval](../telemeval)** — a standalone Apache-2.0 library for
+**[telemeval](https://github.com/rosscyking1115/telemeval)** — a standalone Apache-2.0 library for
 leakage-safe, event-wise and affiliation-based evaluation of
 spacecraft-telemetry anomaly detection — and this repository is its
 **reference pipeline**, consuming it as a dependency.
@@ -42,11 +42,12 @@ spacecraft-telemetry anomaly detection — and this repository is its
   protocol deviations and is stamped *"event-wise detection only — not a full
   ESA-ADB leaderboard claim."* Nothing is overstated. The evaluation layer —
   including the leakage guard born from that audit — is extracted and
-  maintained as the standalone [telemeval](../telemeval) library, which this
+  maintained as the standalone [telemeval](https://github.com/rosscyking1115/telemeval) library, which this
   pipeline consumes.
 - **A production envelope, not a notebook.** Serving API, operator console,
-  release evidence, SBOM, provenance, drift summaries, 453 tests here plus 114 in telemeval — the parts
-  that show this is deployable ML engineering, not a one-off experiment.
+  release evidence, SBOM, provenance, drift summaries, 453 tests (plus the
+  extracted telemeval library's own CI-tested suite) — the parts that show
+  this is deployable ML engineering, not a one-off experiment.
 
 ## Status & Scope
 
@@ -65,7 +66,7 @@ open-source posture.
 | Area | Current Evidence |
 | --- | --- |
 | CI | `ruff`, `pytest`, dependency audit, SBOM generation, serving-image smoke tests, hosted-demo image smoke tests |
-| Tests | `453 passed` here plus `114 passed` in the extracted telemeval library |
+| Tests | `453 passed` on the latest full local suite; the extracted [telemeval](https://github.com/rosscyking1115/telemeval) library is separately CI-tested |
 | Data tracks | C-MAPSS turbofan RUL (familiar, checkable baseline) and spacecraft anomaly detection (SMAP/MSL plumbing, plus a first real event-wise baseline on the fresher ESA-ADB Mission1 subset) |
 | MLOps surfaces | FastAPI inference service, Streamlit review console, Docker Compose stack, token-gated Render demo |
 | Release evidence | Model inspection, validation, benchmark, model card, SBOM, release bundle, promotion report, provenance |
@@ -142,7 +143,7 @@ evidence flow, runtime modes, and security controls.
 
 ## Headline Results
 
-Results are framed as *reproducible checkpoints a reviewer can verify*, not as
+Results are framed as *reproducible checkpoints anyone can independently verify*, not as
 novel modelling claims.
 
 **ESA-ADB — lightweight event-wise detection baselines on both benchmark
@@ -231,8 +232,6 @@ See [docs/hosted_demo.md](docs/hosted_demo.md).
 
 ## Repository Map
 
-- [docs/mlops_portfolio_positioning.md](docs/mlops_portfolio_positioning.md):
-  project scope and positioning.
 - [docs/first_run.md](docs/first_run.md): choose the console-only, Compose, or
   read-only demo first-run path.
 - [docs/architecture.md](docs/architecture.md): system boundaries, evidence
@@ -257,15 +256,10 @@ See [docs/hosted_demo.md](docs/hosted_demo.md).
   ESA-ADB protocol intake before benchmark claims.
 - [docs/command_catalog.md](docs/command_catalog.md): detailed research,
   deployment, and app command catalog.
-- [docs/project_checklist.md](docs/project_checklist.md): living execution
-  checklist.
 - [docs/repo_launch_strategy.md](docs/repo_launch_strategy.md): quarantined
   historical launch strategy, not an active plan.
 - [docs/pre_phase3_readiness.md](docs/pre_phase3_readiness.md): quarantined
   historical productization gate, not an active Phase 3 prerequisite.
-
-The original working plan is tracked in
-[Aerospace_Prognostics_Project_Plan.md](Aerospace_Prognostics_Project_Plan.md).
 
 ## Development
 

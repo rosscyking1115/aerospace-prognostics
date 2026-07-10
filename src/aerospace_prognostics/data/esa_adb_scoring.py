@@ -152,7 +152,7 @@ def build_esa_adb_event_wise_evidence(
 
 
 def render_esa_adb_event_wise_markdown(evidence: Mapping[str, Any]) -> str:
-    """Render event-wise detection evidence as reviewer-facing Markdown."""
+    """Render event-wise detection evidence as human-readable Markdown."""
 
     lines = [
         f"# ESA-ADB Event-Wise Detection — {evidence['mission']}",

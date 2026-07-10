@@ -9,6 +9,6 @@ Current posture:
 - Dataset-specific licenses and source records stay documented separately from
   the repository code license.
 
-This license decision supports the portfolio-reference direction: the code can
-be inspected, reused, and forked normally, while the project remains framed as
-an ML-engineer/MLOps demonstration rather than a commercial PHM product.
+This license keeps the code straightforward to inspect, reuse, and fork, while
+the project remains a reference implementation rather than a commercial PHM
+product.

@@ -16,9 +16,10 @@ blocked on product-launch readiness.
   prerequisites for research.
 - Keep the working MLOps envelope: FastAPI, Streamlit, Docker, CI, SBOM,
   provenance, model cards, drift summaries, and release evidence.
-- Use [docs/project_checklist.md](project_checklist.md) and
-  [docs/mlops_portfolio_positioning.md](mlops_portfolio_positioning.md) as the
-  active planning sources.
+- Use the phase-3 research docs
+  ([phase3_esa_adb_intake.md](phase3_esa_adb_intake.md),
+  [phase3_uncertainty_monotonicity.md](phase3_uncertainty_monotonicity.md))
+  and [public_results.md](public_results.md) as the active sources.
 
 ## Historical Command
 

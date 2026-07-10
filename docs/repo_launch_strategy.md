@@ -35,7 +35,6 @@ positioning, or broader hosted service roadmap.
 
 Use these docs instead:
 
-- [docs/mlops_portfolio_positioning.md](mlops_portfolio_positioning.md)
-- [docs/project_checklist.md](project_checklist.md)
+- [docs/public_results.md](public_results.md)
 - [docs/phase3_uncertainty_monotonicity.md](phase3_uncertainty_monotonicity.md)
 - [docs/phase3_esa_adb_intake.md](phase3_esa_adb_intake.md)
