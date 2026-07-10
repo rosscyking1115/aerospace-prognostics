@@ -2,7 +2,7 @@
 
 > [!NOTE]
 > This file used to describe a product roadmap. The productization track is now
-> frozen; this roadmap is retained as a portfolio engineering roadmap.
+> frozen; this roadmap is retained as an engineering roadmap.
 
 ## Current Direction
 
