@@ -48,18 +48,17 @@ spacecraft-telemetry anomaly detection — and this repository is its
   release evidence, SBOM, provenance, drift summaries, 453 tests here plus 114 in telemeval — the parts
   that show this is deployable ML engineering, not a one-off experiment.
 
-## Portfolio Status
+## Status & Scope
 
-- Scope: portfolio reference implementation for end-to-end PHM MLOps.
+- Scope: a reference implementation of end-to-end PHM MLOps.
 - License: MIT for the repository code.
 - Demo: token-gated hosted read-only Streamlit console for review.
 - Productization: frozen. Historical launch/productization docs are kept only
   as archived context and are not the active roadmap.
 - Raw telemetry and generated model artifacts stay out of Git.
 
-See [docs/mlops_portfolio_positioning.md](docs/mlops_portfolio_positioning.md)
-for the hiring-manager framing and [docs/license_posture.md](docs/license_posture.md)
-for the current open-source posture.
+See [docs/license_posture.md](docs/license_posture.md) for the current
+open-source posture.
 
 ## Evidence At A Glance
 
@@ -70,9 +69,9 @@ for the current open-source posture.
 | Data tracks | C-MAPSS turbofan RUL (familiar, checkable baseline) and spacecraft anomaly detection (SMAP/MSL plumbing, plus a first real event-wise baseline on the fresher ESA-ADB Mission1 subset) |
 | MLOps surfaces | FastAPI inference service, Streamlit review console, Docker Compose stack, token-gated Render demo |
 | Release evidence | Model inspection, validation, benchmark, model card, SBOM, release bundle, promotion report, provenance |
-| Current posture | Portfolio reference implementation under MIT; not a product launch track |
+| Current posture | Reference implementation under MIT; not a product launch track |
 
-## What It Demonstrates
+## What It Includes
 
 - C-MAPSS turbofan RUL baselines, sequence models, diagnostics, and calibrated
   prediction artifacts.
@@ -233,7 +232,7 @@ See [docs/hosted_demo.md](docs/hosted_demo.md).
 ## Repository Map
 
 - [docs/mlops_portfolio_positioning.md](docs/mlops_portfolio_positioning.md):
-  hiring-manager framing and what to surface.
+  project scope and positioning.
 - [docs/first_run.md](docs/first_run.md): choose the console-only, Compose, or
   read-only demo first-run path.
 - [docs/architecture.md](docs/architecture.md): system boundaries, evidence
