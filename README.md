@@ -23,7 +23,8 @@ The anomaly-evaluation layer proved general enough to extract: it now lives as
 **[telemeval](https://github.com/rosscyking1115/telemeval)** — a standalone Apache-2.0 library for
 leakage-safe, event-wise and affiliation-based evaluation of
 spacecraft-telemetry anomaly detection — and this repository is its
-**reference pipeline**, consuming it as a dependency.
+**reference pipeline**, consuming it as a dependency. Full project map →
+[profile](https://github.com/rosscyking1115).
 
 ## What Makes This Repo Different
 
