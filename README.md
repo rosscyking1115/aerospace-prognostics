@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/rosscyking1115/aerospace-prognostics/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/rosscyking1115/aerospace-prognostics/actions/workflows/ci.yml)
 ![Python](https://img.shields.io/badge/python-%3E%3D3.11-blue)
-![Tests](https://img.shields.io/badge/tests-453%20passed-brightgreen)
+![Tests](https://img.shields.io/badge/tests-449%20passed-brightgreen)
 ![License](https://img.shields.io/badge/license-MIT-green)
 ![Hosted Demo](https://img.shields.io/badge/hosted%20demo-token--gated-success)
 
@@ -46,7 +46,7 @@ its **reference pipeline**, consuming it as a dependency. Full project map →
   maintained as the standalone [telemeval](https://github.com/rosscyking1115/telemeval) library, which this
   pipeline consumes.
 - **A production envelope.** Serving API, operator console, release evidence,
-  SBOM, provenance, drift summaries, and 453 tests, plus the extracted
+  SBOM, provenance, drift summaries, and 449 tests, plus the extracted
   telemeval library's own CI-tested suite. These are the parts that make it
   deployable ML engineering rather than a one-off experiment.
 
@@ -67,7 +67,7 @@ open-source posture.
 | Area | Current evidence |
 | --- | --- |
 | CI | `ruff`, `pytest`, dependency audit, SBOM generation, serving-image smoke tests, hosted-demo image smoke tests |
-| Tests | `453 passed` on the latest full local suite; the extracted [telemeval](https://github.com/rosscyking1115/telemeval) library is separately CI-tested |
+| Tests | `449 passed` on the latest full local suite; the extracted [telemeval](https://github.com/rosscyking1115/telemeval) library is separately CI-tested |
 | Data tracks | C-MAPSS turbofan RUL (familiar, checkable baseline) and spacecraft anomaly detection (SMAP/MSL plumbing, plus a first real event-wise baseline on the fresher ESA-ADB Mission1 subset) |
 | MLOps surfaces | FastAPI inference service, Streamlit review console, Docker Compose stack, token-gated Render demo |
 | Release evidence | Model inspection, validation, benchmark, model card, SBOM, release bundle, promotion report, provenance |
