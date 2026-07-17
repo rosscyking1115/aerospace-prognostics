@@ -1,0 +1,27 @@
+name: Security audit
+
+# Dependabot opens a PR only when a fix exists. A CVE disclosed with no fixed
+# release leaves it silent, and the first sign would otherwise be a blocked PR.
+# This runs the same audit CI runs, on a schedule, so a disclosure surfaces as
+# a failed scheduled run (which GitHub emails to the repo owner) instead.
+on:
+  schedule:
+    # Mondays, 08:00 UTC.
+    - cron: "0 8 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+      - run: uv sync --dev
+      - name: Dependency audit
+        run: uv run pip-audit

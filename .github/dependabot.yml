@@ -4,7 +4,24 @@ updates:
     directory: "/"
     schedule:
       interval: "weekly"
-  - package-ecosystem: "pip"
+    groups:
+      actions:
+        patterns:
+          - "*"
+
+  # Must be "uv", not "pip": this project's real dependency surface is uv.lock,
+  # and the pip ecosystem does not read it. Under "pip" the transitive pins
+  # (pillow, setuptools, torch) were invisible, so CVEs against them only
+  # surfaced when pip-audit failed CI.
+  - package-ecosystem: "uv"
     directory: "/"
     schedule:
       interval: "weekly"
+    open-pull-requests-limit: 5
+    groups:
+      # Routine minor/patch bumps arrive as one PR; majors stay separate so a
+      # breaking change (torch, streamlit) is reviewed on its own.
+      minor-and-patch:
+        update-types:
+          - "minor"
+          - "patch"
