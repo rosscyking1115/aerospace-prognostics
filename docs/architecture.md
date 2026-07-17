@@ -1,6 +1,6 @@
 # System Architecture
 
-Aerospace Prognostics is organized as a small production-grade PHM system:
+Aerospace Prognostics is organized as a small, deployable PHM system:
 research workflows create model and evidence artifacts, deployment workflows
 package and validate those artifacts, and product surfaces expose them through
 an API and operations console.
@@ -98,6 +98,6 @@ flowchart LR
 - It is not yet a managed cloud deployment with durable object storage,
   Postgres, identity provider integration, and audit-retention policy.
 
-The current design is a production-grade reference architecture for PHM
+The current design is a deployable reference architecture for PHM
 engineering workflows: reproducible data paths, explicit model evidence,
 deployable serving contracts, and operator-facing review surfaces.
