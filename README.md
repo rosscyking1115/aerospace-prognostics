@@ -6,51 +6,51 @@
 ![License](https://img.shields.io/badge/license-MIT-green)
 ![Hosted Demo](https://img.shields.io/badge/hosted%20demo-token--gated-success)
 
-**Deployable ML engineering for aerospace prognostics — familiar NASA
-benchmarks and a fresh anomaly-detection benchmark carried through their real
-protocols, wrapped in a production serving, evidence, and release stack.**
+**Deployable ML engineering for aerospace prognostics: familiar NASA
+benchmarks and a fresh anomaly-detection benchmark, carried through their real
+protocols and wrapped in a production serving, evidence, and release stack.**
 
 ![Aerospace PHM read-only operations console](docs/assets/public-proof/streamlit_readonly_console.png)
 
 Most predictive-maintenance repos are a notebook and a leaderboard score. This
 one is an **operations system**: a FastAPI inference service, a Streamlit
 operator console, signed release evidence (model card, SBOM, provenance), and
-drift monitoring — around models that are trained and evaluated under honest,
-documented protocols. The engineering envelope is the point; the models are
-held to it.
+drift monitoring, all wrapped around models that are trained and evaluated
+under honest, documented protocols. The engineering envelope is the point; the
+models are held to it.
 
-The anomaly-evaluation layer proved general enough to extract: it now lives as
-**[telemeval](https://github.com/rosscyking1115/telemeval)** — a standalone Apache-2.0 library for
-leakage-safe, event-wise and affiliation-based evaluation of
-spacecraft-telemetry anomaly detection — and this repository is its
-**reference pipeline**, consuming it as a dependency. Full project map →
+The anomaly-evaluation layer proved general enough to extract. It now lives as
+**[telemeval](https://github.com/rosscyking1115/telemeval)**, a standalone
+Apache-2.0 library for leakage-safe, event-wise and affiliation-based
+evaluation of spacecraft-telemetry anomaly detection, and this repository is
+its **reference pipeline**, consuming it as a dependency. Full project map →
 [profile](https://github.com/rosscyking1115).
 
-## What Makes This Repo Different
+## What makes this repo different
 
 - **A fresh benchmark, not another C-MAPSS score.** The anomaly-detection track
   runs on **ESA-ADB** (ESA spacecraft telemetry) through its real event-wise
-  protocol — a benchmark far less picked-over than the usual suspects — while
-  C-MAPSS is kept only as a familiar baseline anyone can cross-check.
+  protocol, a benchmark far less picked-over than the usual suspects. C-MAPSS is
+  kept only as a familiar baseline anyone can cross-check.
 - **Results audited for leakage, and the correction reported.** The first
   ESA-ADB run reported recall `0.24`; auditing the evaluation showed the
-  chronological split was counting training-window events — which have no
-  test-window predictions — as missed, deflating recall. Restricting scoring to
+  chronological split was counting training-window events (which have no
+  test-window predictions) as missed, deflating recall. Restricting scoring to
   test-window events (the correct protocol) gives the honest **`0.42`**, and the
   corrected number is the one reported.
   (See [docs/public_results.md](docs/public_results.md).)
 - **Provenance and guardrails on every result.** Each artifact records its
   protocol deviations and is stamped *"event-wise detection only — not a full
-  ESA-ADB leaderboard claim."* Nothing is overstated. The evaluation layer —
-  including the leakage guard born from that audit — is extracted and
+  ESA-ADB leaderboard claim."* Nothing is overstated. The evaluation layer,
+  including the leakage guard born from that audit, is extracted and
   maintained as the standalone [telemeval](https://github.com/rosscyking1115/telemeval) library, which this
   pipeline consumes.
-- **A production envelope, not a notebook.** Serving API, operator console,
-  release evidence, SBOM, provenance, drift summaries, 453 tests (plus the
-  extracted telemeval library's own CI-tested suite) — the parts that show
-  this is deployable ML engineering, not a one-off experiment.
+- **A production envelope.** Serving API, operator console, release evidence,
+  SBOM, provenance, drift summaries, and 453 tests, plus the extracted
+  telemeval library's own CI-tested suite. These are the parts that make it
+  deployable ML engineering rather than a one-off experiment.
 
-## Status & Scope
+## Status and scope
 
 - Scope: a reference implementation of end-to-end PHM MLOps.
 - License: MIT for the repository code.
@@ -62,9 +62,9 @@ spacecraft-telemetry anomaly detection — and this repository is its
 See [docs/license_posture.md](docs/license_posture.md) for the current
 open-source posture.
 
-## Evidence At A Glance
+## Evidence at a glance
 
-| Area | Current Evidence |
+| Area | Current evidence |
 | --- | --- |
 | CI | `ruff`, `pytest`, dependency audit, SBOM generation, serving-image smoke tests, hosted-demo image smoke tests |
 | Tests | `453 passed` on the latest full local suite; the extracted [telemeval](https://github.com/rosscyking1115/telemeval) library is separately CI-tested |
@@ -73,7 +73,7 @@ open-source posture.
 | Release evidence | Model inspection, validation, benchmark, model card, SBOM, release bundle, promotion report, provenance |
 | Current posture | Reference implementation under MIT; not a product launch track |
 
-## What It Includes
+## What it includes
 
 - C-MAPSS turbofan RUL baselines, sequence models, diagnostics, and calibrated
   prediction artifacts.
@@ -88,10 +88,10 @@ open-source posture.
 - Docker Compose for local API plus console integration, and a self-contained
   read-only hosted-demo image path.
 
-## What Is Not Generic Here
+## What is not generic here
 
 A stock C-MAPSS tutorial ends at a notebook that reports RMSE on FD001. The
-parts of this repo that deliberately go past that pattern — and are the things
+parts of this repo that deliberately go past that pattern, and are the things
 worth reading closely:
 
 - **NASA-aware asymmetric loss.** The deep RUL track trains against the NASA
@@ -103,7 +103,7 @@ worth reading closely:
   improvement is honest rather than test-leaked. See
   `reports/cmapss_prediction_calibration.py`.
 - **Monotonic / health-index regularization.** A mini-batch monotonic penalty
-  discourages RUL from rising as an engine degrades — a physically meaningful
+  discourages RUL from rising as an engine degrades: a physically meaningful
   constraint, not just a fit metric.
 - **Validation-gated promotion (release-gating).** A model is only packaged and
   promoted after it clears validation and benchmark gates; promotion then emits
@@ -142,12 +142,12 @@ flowchart LR
 See [docs/architecture.md](docs/architecture.md) for system boundaries,
 evidence flow, runtime modes, and security controls.
 
-## Headline Results
+## Headline results
 
 Results are framed as *reproducible checkpoints anyone can independently verify*, not as
 novel modelling claims.
 
-**ESA-ADB — lightweight event-wise detection baselines on both benchmark
+**ESA-ADB: lightweight event-wise detection baselines on both benchmark
 missions** (robust z-score, fit on nominal training points only, scored on the
 chronological test window):
 
@@ -159,7 +159,7 @@ chronological test window):
 The honest finding matters more than the numbers: a *single* fixed threshold is
 precise on Mission 1 but over-alarms badly on Mission 2's noisier channels
 (F0.5 0.43). A naive validation selection fixed Mission 2 but *overfit* Mission 1,
-whose validation window is too sparse to discriminate — so the selector now
+whose validation window is too sparse to discriminate. The selector now
 falls back to the conservative default when the window can't be trusted (Mission 1
 → 0.780) and selects only when it can (Mission 2 → 0.997). "Trust validation
 selection only when the validation window is informative" is the real lesson. The
@@ -168,29 +168,29 @@ rather than SOTA, are in [docs/public_results.md](docs/public_results.md).
 Scope-bounded event-wise detection evidence (official resampling not yet applied),
 not a leaderboard claim.
 
-**C-MAPSS turbofan RUL — familiar baseline for cross-checking.** C-MAPSS is the
+**C-MAPSS turbofan RUL: familiar baseline for cross-checking.** C-MAPSS is the
 field's most-used RUL benchmark, included here as a known reference anyone can
 verify against, not as the centrepiece. The validation-selected HGB policy
 reports FD001 official-test RMSE **`13.01`** / NASA score **`253.5`**; the
 strongest deep row is a calibrated Transformer with asymmetric late-error loss
-and monotonic regularization at RMSE `14.25` — behind HGB, and reported that way
+and monotonic regularization at RMSE `14.25`, behind HGB, and reported that way
 on purpose. Details in
 [docs/phase1_cmapss_baseline_results.md](docs/phase1_cmapss_baseline_results.md)
 and [docs/phase2_cmapss_deep_baselines.md](docs/phase2_cmapss_deep_baselines.md).
 
-**SMAP/MSL — anomaly plumbing.** The earlier SMAP/MSL track remains as a
+**SMAP/MSL: anomaly plumbing.** The earlier SMAP/MSL track remains as a
 baseline and alert-policy layer: the comparison-ready robust threshold policy
 lowers mean false-alarm rate from `0.187988` to `0.134247` versus the default
 robust z-score baseline (mean point-wise F1 `0.160525`).
 
-## Visual Proof
+## Visual proof
 
 The tracked proof set includes the read-only Streamlit console screenshot above,
 a hosted-demo proof screenshot, and a quickstart RUL diagnostic plot in
 [docs/public_proof_assets.md](docs/public_proof_assets.md). They show the
 reviewable MLOps envelope without requiring NASA/JPL data downloads.
 
-## Run This First
+## Run this first
 
 The no-download quickstart uses tiny fixture data to generate a complete local
 evidence bundle and app database:
@@ -209,7 +209,7 @@ See [docs/first_run.md](docs/first_run.md) for the console-only, Compose, and
 read-only demo paths, or [docs/quickstart.md](docs/quickstart.md) for fixture
 evidence details.
 
-## Local MLOps Stack
+## Local MLOps stack
 
 To run the console and API together:
 
@@ -231,7 +231,7 @@ docker run --rm --read-only --tmpfs /tmp:rw,nosuid,nodev,noexec,size=128m -p 850
 
 See [docs/hosted_demo.md](docs/hosted_demo.md).
 
-## Repository Map
+## Repository map
 
 - [docs/first_run.md](docs/first_run.md): choose the console-only, Compose, or
   read-only demo first-run path.
