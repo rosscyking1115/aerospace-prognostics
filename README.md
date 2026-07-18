@@ -55,8 +55,8 @@ its **reference pipeline**, consuming it as a dependency. Full project map →
 - Scope: a reference implementation of end-to-end PHM MLOps.
 - License: MIT for the repository code.
 - Demo: token-gated hosted read-only Streamlit console for review.
-- Productization: frozen. Historical launch/productization docs are kept only
-  as archived context and are not the active roadmap.
+- Productization: frozen. This is a reference implementation, not a product
+  launch track.
 - Raw telemetry and generated model artifacts stay out of Git.
 
 See [docs/license_posture.md](docs/license_posture.md) for the current
@@ -257,8 +257,6 @@ See [docs/hosted_demo.md](docs/hosted_demo.md).
   ESA-ADB protocol intake before benchmark claims.
 - [docs/command_catalog.md](docs/command_catalog.md): detailed research,
   deployment, and app command catalog.
-- [docs/repo_launch_strategy.md](docs/repo_launch_strategy.md): quarantined
-  historical launch strategy, not an active plan.
 
 ## Development
 

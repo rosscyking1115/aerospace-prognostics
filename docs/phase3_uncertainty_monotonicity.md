@@ -51,7 +51,7 @@ absolute residuals, then evaluates official-test coverage. It reports:
 
 1. Done: run the audit on the current best Phase 2
    Transformer/asymmetric-loss artifacts and record the evidence summary in
-   [docs/phase3_cmapss_audit_results.md](phase3_cmapss_audit_results.md).
+   [docs/phase3_cmapss_recommendation.md](phase3_cmapss_recommendation.md).
 2. Done: compare validation-fitted predicted-bin interval widths against the
    global validation absolute-residual interval. The simple predicted-bin
    strategy narrowed intervals but reduced coverage, so it is diagnostic only.
