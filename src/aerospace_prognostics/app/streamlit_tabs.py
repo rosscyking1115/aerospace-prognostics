@@ -1134,7 +1134,7 @@ def render_roadmap_tab(st: Any) -> None:
         - Use prediction-history filters for model, artifact, asset, risk, date,
           drift, and decisions.
         - Surface API, dashboard, mounted model storage, and database status in one console.
-        - Keep the hosted demo token-gated and read-only while the repo remains private.
+        - Keep the console read-only when hosted so evidence stays inspectable but immutable.
         - Validate live spacecraft anomaly event prioritization with richer scenarios.
         """
     )

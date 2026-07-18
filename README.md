@@ -4,13 +4,10 @@
 ![Python](https://img.shields.io/badge/python-%3E%3D3.11-blue)
 ![Tests](https://img.shields.io/badge/tests-451%20passed-brightgreen)
 ![License](https://img.shields.io/badge/license-MIT-green)
-![Hosted Demo](https://img.shields.io/badge/hosted%20demo-token--gated-success)
 
 **Deployable ML engineering for aerospace prognostics: familiar NASA
 benchmarks and a fresh anomaly-detection benchmark, carried through their real
 protocols and wrapped in a production serving, evidence, and release stack.**
-
-![Aerospace PHM read-only operations console](docs/assets/public-proof/streamlit_readonly_console.png)
 
 Most predictive-maintenance repos are a notebook and a leaderboard score. This
 one is an **operations system**: a FastAPI inference service, a Streamlit
@@ -54,7 +51,8 @@ its **reference pipeline**, consuming it as a dependency. Full project map →
 
 - Scope: a reference implementation of end-to-end PHM MLOps.
 - License: MIT for the repository code.
-- Demo: token-gated hosted read-only Streamlit console for review.
+- Console: a local Streamlit operator console for evidence inspection (run it
+  yourself; not featured as a hosted public demo).
 - Productization: frozen. This is a reference implementation, not a product
   launch track.
 - Raw telemetry and generated model artifacts stay out of Git.
@@ -69,7 +67,7 @@ open-source posture.
 | CI | `ruff`, `pytest`, dependency audit, SBOM generation, serving-image smoke tests, hosted-demo image smoke tests |
 | Tests | `451 passed` on the latest full local suite; the extracted [telemeval](https://github.com/rosscyking1115/telemeval) library is separately CI-tested |
 | Data tracks | C-MAPSS turbofan RUL (familiar, checkable baseline) and spacecraft anomaly detection (SMAP/MSL plumbing, plus a first real event-wise baseline on the fresher ESA-ADB Mission1 subset) |
-| MLOps surfaces | FastAPI inference service, Streamlit review console, Docker Compose stack, token-gated Render demo |
+| MLOps surfaces | FastAPI inference service, Streamlit operator console, Docker Compose stack |
 | Release evidence | Model inspection, validation, benchmark, model card, SBOM, release bundle, promotion report, provenance |
 | Current posture | Reference implementation under MIT; not a product launch track |
 
@@ -185,10 +183,10 @@ robust z-score baseline (mean point-wise F1 `0.160525`).
 
 ## Visual proof
 
-The tracked proof set includes the read-only Streamlit console screenshot above,
-a hosted-demo proof screenshot, and a quickstart RUL diagnostic plot in
-[docs/public_proof_assets.md](docs/public_proof_assets.md). They show the
-reviewable MLOps envelope without requiring NASA/JPL data downloads.
+The tracked proof set includes a static fleet-console snapshot and a quickstart
+RUL diagnostic plot in [docs/public_proof_assets.md](docs/public_proof_assets.md),
+both generated from the no-download quickstart evidence. They show the reviewable
+MLOps envelope without requiring NASA/JPL data downloads.
 
 ## Run this first
 

@@ -6,21 +6,13 @@ rather than raw telemetry or generated model binaries.
 
 ## Assets
 
-![Read-only Streamlit console](assets/public-proof/streamlit_readonly_console.png)
-
-The read-only console screenshot was captured from the local Streamlit console
-with `AEROSPACE_PROGNOSTICS_CONSOLE_READ_ONLY=true`. It shows quickstart
-evidence loaded, the fleet triage table, critical RUL intervals, and the
-read-only sidebar state used by the hosted-demo image.
-
 ![Fleet console snapshot](assets/public-proof/fleet_console_snapshot.svg)
 
-The static fleet console snapshot summarizes
+The static fleet snapshot summarizes
 `artifacts/quickstart_cmapss/dashboard/fleet_payload.json` and
 `artifacts/quickstart_cmapss/models/fd001_benchmark.json`. It shows the MLOps
-story at a glance: a PHM review surface with fleet triage, release gates,
-artifact identity, and latency evidence. It stays as a
-compact fallback asset for surfaces that prefer SVG.
+story at a glance: fleet triage, release gates, artifact identity, and latency
+evidence.
 
 ![Quickstart RUL diagnostic](assets/public-proof/quickstart_rul_diagnostic.svg)
 
@@ -30,38 +22,18 @@ FD001 engines are critical quickstart cases with predicted RUL of `1.0` and
 90 percent intervals from `0.0` to `2.0`, using the
 `train_residual_absolute_quantile` interval method.
 
-![Hosted demo private review proof](assets/public-proof/hosted_demo_private_review.png)
-
-The hosted-demo proof screenshot was captured from the Render-hosted read-only
-console after `/_stcore/health` returned `200 ok`. The current hosted console is
-protected by the optional app-level access token gate
-(`AEROSPACE_PROGNOSTICS_CONSOLE_ACCESS_TOKEN`).
-
 ## Regeneration Path
 
-Use the quickstart command to regenerate the source evidence:
+Regenerate the source evidence with the no-download quickstart, then refresh the
+assets from the regenerated payloads:
 
 ```bash
 uv run aerospace-prognostics quickstart-cmapss-demo
 ```
 
-To refresh the Streamlit screenshot, run the console in read-only mode and
-capture the Fleet tab:
-
-```bash
-AEROSPACE_PROGNOSTICS_CONSOLE_READ_ONLY=true \
-uv run streamlit run src/aerospace_prognostics/app/streamlit_app.py \
-  --server.port 8503 \
-  --server.headless true
-```
-
-Then refresh the visual proof assets from the regenerated quickstart payloads and
-read-only console before sharing.
-
 ## Current Limits
 
-- These assets are visual proof of a reviewable surface, not certification evidence.
-- The screenshots are proof of a reviewable demo surface, not evidence of
-  operational suitability for aircraft or spacecraft maintenance decisions.
-- Before wider sharing, refresh the hosted proof after final copy and
-  access-control decisions are settled.
+- These assets are visual proof of a reviewable surface, not certification
+  evidence.
+- They show a reviewable evidence surface, not evidence of operational
+  suitability for aircraft or spacecraft maintenance decisions.
