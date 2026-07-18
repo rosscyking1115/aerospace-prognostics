@@ -31,7 +31,7 @@ Then open `http://127.0.0.1:8501`.
 - File-writing run-evidence exports.
 - Automatic database seeding from the Streamlit process.
 
-This keeps a hosted portfolio or pilot demo inspectable without turning public
+This keeps a hosted review or pilot demo inspectable without turning public
 visitors into database writers.
 
 ## Private Hosting Checklist
