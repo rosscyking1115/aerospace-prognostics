@@ -2,8 +2,7 @@
 
 This note freezes the first Phase 3 C-MAPSS uncertainty and monotonicity
 decision after the FD001 audit and tail-fallback sweep. It summarizes the
-policy posture; the detailed run evidence remains in
-[docs/phase3_cmapss_audit_results.md](phase3_cmapss_audit_results.md).
+policy posture; the supporting run evidence is in the Evidence Snapshot below.
 
 ## Recommendation
 
