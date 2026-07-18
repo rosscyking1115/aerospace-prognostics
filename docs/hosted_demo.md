@@ -64,3 +64,32 @@ For the fuller local product stack with both FastAPI and Streamlit, use
 `compose.yaml` instead. The demo image is intentionally single-service so it can
 run on simple container hosting before the product graduates to a managed
 multi-service deployment.
+
+## Public Read-Only Demo On Streamlit Community Cloud
+
+The private Render path above gates the console behind an access token because
+it was built while the repository was private. For a public, click-through demo
+there is nothing left to gate: read-only mode already blocks every write
+(uploads, prediction persistence, operator decisions, seeding), so a public
+visitor can inspect the evidence but cannot change it.
+
+Streamlit Community Cloud does not build `Dockerfile.demo`, so the baked
+evidence and seeded database are not present at startup. The root
+[`streamlit_app.py`](../streamlit_app.py) entry point handles this: it defaults
+the console to read-only and, once per process, generates the quickstart
+evidence and seeds the console database if they are missing
+(`aerospace_prognostics.app.bootstrap.ensure_demo_workspace`). The generation
+is the no-download C-MAPSS quickstart and takes a few seconds on a cold start.
+
+To deploy:
+
+1. On [share.streamlit.io](https://share.streamlit.io), create an app from this
+   repository on the `main` branch.
+2. Set the main file path to `streamlit_app.py`.
+3. Leave `AEROSPACE_PROGNOSTICS_CONSOLE_ACCESS_TOKEN` unset so the demo is
+   public. Read-only mode is on by default; no other configuration is required.
+4. Dependencies install from the committed `pyproject.toml` and `uv.lock`; the
+   demo runtime set excludes the training-only PyTorch dependency.
+
+The result is the same read-only console the screenshot in the README shows,
+with data provisioned on boot rather than baked into an image.
