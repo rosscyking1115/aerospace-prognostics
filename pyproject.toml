@@ -13,7 +13,7 @@ dependencies = [
     "pandas>=2.2",
     "scikit-learn>=1.9.0",
     "streamlit>=1.59.2",
-    "telemeval>=0.3.2",
+    "telemeval>=0.3.3",
     "uvicorn[standard]>=0.51.0",
 ]
 
