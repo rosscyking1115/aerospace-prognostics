@@ -24,8 +24,61 @@ commands and longer interpretation live in the linked phase documents.
 ## C-MAPSS RUL Results
 
 The project uses NASA C-MAPSS official test RUL files for reported RUL
-checkpoints. Model selection is kept on train-side validation where possible,
-then the official test table is used once for the reported checkpoint.
+checkpoints.
+
+### Selection hygiene (what was and was not chosen on validation)
+
+Stated precisely, because "validation-selected" does not cover the whole policy:
+
+- **Chosen on train-side validation.** The validation split holds out whole
+  *units* and truncates their histories to a 30-cycle horizon
+  (`make_cmapss_temporal_validation_split`), so no engine appears in both halves
+  and the validation task mirrors the official test task. The feature policy
+  (`engineered` vs `regime_engineered`), the HGB parameter set, and the sensor
+  filter were all scored on that split. Feature standardisation, the regime
+  clusterer, and the NASA-shift calibration are all fit on training/validation
+  rows only, never on official test rows.
+- **Chosen on the official test set.** The per-subset rolling window
+  (`CMAPSS_ENGINEERED_DEFAULT_WINDOWS` = FD001:10, FD002:3, FD003:5, FD004:3) is
+  the argmax of the rolling-window sweep in
+  [phase1_cmapss_baseline_results.md](phase1_cmapss_baseline_results.md), and
+  that sweep is scored on official test. There is no validation-side window
+  sweep in the codebase. The window is therefore a test-selected
+  hyperparameter that the otherwise validation-selected policy inherits.
+- **The official test set has been read more than once.** The Phase 1 note
+  records four successive test-scored comparisons (raw-cycle, engineered,
+  window sweep, regime-aware), and the FD001 deep table below ranks five
+  candidates by official-test RMSE/NASA score.
+
+The practical consequence: treat the headline FD001 numbers as **mildly
+optimistic**, in the way any repeatedly-consulted benchmark leaderboard is.
+They are honest reproducible checkpoints, not a clean single-shot held-out
+estimate. Closing this properly means sweeping the window on validation and
+re-reporting; that is tracked as open work rather than quietly ignored.
+
+### Naive Floor (What Any Real Model Must Beat)
+
+Before reading any model number, read the floor. These are constant predictors
+that ignore the sensors entirely — `train_median` emits the central capped
+training RUL for every test unit, `rul_cap` emits the ceiling. Reproduce with:
+
+```powershell
+uv run aerospace-prognostics cmapss-naive-baseline --data-dir data/raw/cmapss --subset FD001
+```
+
+| Subset | Naive `train_median` RMSE | Naive `train_median` NASA | Naive `rul_cap` RMSE | Naive `rul_cap` NASA |
+| --- | ---: | ---: | ---: | ---: |
+| FD001 | 49.819876 | 166570.542613 | 64.615323 | 1502475.412851 |
+| FD002 | 58.034805 | 582920.773435 | 69.367746 | 5163062.801809 |
+| FD003 | 63.142537 | 1138771.635164 | 64.666065 | 1390904.754962 |
+| FD004 | 65.033645 | 2986938.875795 | 66.716269 | 4030492.673107 |
+
+Against this floor the HGB policy is doing real work, not reproducing the label
+distribution: on FD001 it cuts RMSE from `49.82` to `13.01` (3.8x) and the NASA
+score from `166570` to `253` (658x). The NASA gap is far larger than the RMSE
+gap because the score punishes late predictions exponentially, and a constant
+is late on roughly half the fleet. Every subset clears the floor by a wide
+margin, so the reported numbers reflect learned degradation signal.
 
 ### Current HGB Policy
 
