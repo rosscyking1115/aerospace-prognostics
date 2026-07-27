@@ -48,6 +48,9 @@ jobs:
       - name: Lint
         run: uv run ruff check .
 
+      - name: Type-check (scoped to the numeric/evaluation core)
+        run: uv run mypy
+
       - name: Test
         run: uv run pytest
 

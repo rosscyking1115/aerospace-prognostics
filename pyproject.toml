@@ -35,6 +35,7 @@ packages = ["src/aerospace_prognostics"]
 [dependency-groups]
 dev = [
     "httpx>=0.28",
+    "mypy>=1.14",
     "pip-audit>=2.10.1",
     "pytest>=9.1.1",
     "ruff>=0.15.22",
@@ -47,6 +48,27 @@ target-version = "py311"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "SIM"]
+
+[tool.mypy]
+python_version = "3.11"
+ignore_missing_imports = true
+warn_unused_ignores = true
+# Deliberately scoped, not repo-wide. The whole package currently emits ~330
+# errors under default settings, mostly from argparse dispatch functions that
+# rebind one `result` variable across many branches. Gating everything would
+# mean either a mountain of suppressions or a permissive config that checks
+# nothing. Instead this gates the numeric and evaluation core -- the code where
+# a type error would corrupt a reported metric -- and the list ratchets upward
+# as modules are cleaned. Never remove a module from this list to make CI pass.
+files = [
+    "src/aerospace_prognostics/metrics.py",
+    "src/aerospace_prognostics/evaluation.py",
+    "src/aerospace_prognostics/features.py",
+    "src/aerospace_prognostics/sequences.py",
+    "src/aerospace_prognostics/preprocessing.py",
+    "src/aerospace_prognostics/data/esa_adb_mission.py",
+    "src/aerospace_prognostics/data/esa_adb_scoring.py",
+]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
