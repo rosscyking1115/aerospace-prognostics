@@ -15,16 +15,28 @@ from aerospace_prognostics.evaluation import (
 )
 from aerospace_prognostics.experiments.cmapss_baseline import (
     CMAPSS_ENGINEERED_DEFAULT_WINDOWS,
+    CMAPSS_NAIVE_STRATEGIES,
     run_all_cmapss_engineered_default_windows,
     run_all_cmapss_engineered_hist_gradient_boosting,
     run_all_cmapss_hist_gradient_boosting,
     run_cmapss_engineered_hist_gradient_boosting,
     run_cmapss_engineered_window_sweep,
     run_cmapss_hist_gradient_boosting,
+    run_cmapss_naive_baseline,
 )
 
 
 def register_cmapss_baseline_commands(subparsers: Any) -> None:
+    naive = subparsers.add_parser(
+        "cmapss-naive-baseline",
+        help="Score the constant-prediction floor that any real model must beat",
+    )
+    naive.add_argument("--data-dir", type=Path, required=True)
+    naive.add_argument("--subset", choices=CMAPSS_SUBSETS, required=True)
+    naive.add_argument("--strategy", choices=CMAPSS_NAIVE_STRATEGIES, default="train_median")
+    naive.add_argument("--rul-cap", type=int, default=125)
+    naive.add_argument("--output-json", type=Path)
+
     baseline = subparsers.add_parser(
         "cmapss-baseline",
         help="Train a first-pass C-MAPSS gradient-boosting baseline",
@@ -120,6 +132,18 @@ def register_cmapss_baseline_commands(subparsers: Any) -> None:
 
 
 def handle_cmapss_baseline_command(args: argparse.Namespace) -> int | None:
+    if args.command == "cmapss-naive-baseline":
+        result = run_cmapss_naive_baseline(
+            args.data_dir,
+            args.subset,
+            strategy=args.strategy,
+            rul_cap=args.rul_cap,
+        )
+        _print_single_result(result)
+        if args.output_json is not None:
+            result.write_json(args.output_json)
+        return 0
+
     if args.command == "cmapss-baseline":
         result = run_cmapss_hist_gradient_boosting(
             args.data_dir,
