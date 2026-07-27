@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import pytest
+
 from aerospace_prognostics.data.cmapss import load_cmapss_subset
 from aerospace_prognostics.experiments.cmapss_baseline import (
     CMAPSS_ENGINEERED_DEFAULT_WINDOWS,
@@ -56,12 +58,8 @@ def test_run_cmapss_naive_baseline_supports_every_strategy(tmp_path) -> None:
 def test_run_cmapss_naive_baseline_rejects_unknown_strategy(tmp_path) -> None:
     write_tiny_cmapss_subset(tmp_path)
 
-    try:
+    with pytest.raises(ValueError, match="strategy must be one of"):
         run_cmapss_naive_baseline(tmp_path, "FD001", strategy="oracle")
-    except ValueError as error:
-        assert "strategy must be one of" in str(error)
-    else:  # pragma: no cover - guard against a silently accepted strategy
-        raise AssertionError("unknown strategy must raise")
 
 
 def test_naive_baseline_predicts_a_single_constant(tmp_path) -> None:
@@ -106,8 +104,11 @@ def test_learned_baseline_beats_the_naive_floor(tmp_path) -> None:
 
     # The floor must be a real floor: a constant cannot fit a varied test set.
     assert naive.rmse > 0.0
-    # And the learned model must clear it by a wide margin, not a rounding one.
-    assert learned.rmse < naive.rmse / 2
+    # And the learned model must clear it decisively. The gate is naive/5
+    # (~6.9 on this fixture) against a healthy score of ~1.9, so there is ample
+    # headroom for library and platform drift while still catching an estimator
+    # that has degraded badly rather than only one that has died completely.
+    assert learned.rmse < naive.rmse / 5
 
 
 def test_run_cmapss_hist_gradient_boosting_returns_structured_result(tmp_path) -> None:

@@ -20,15 +20,22 @@ evidence from its own committed code and recorded runs.
   part of the claim, not a footnote to it.
 - Corrections that *raise* a reported number are recorded explicitly, never quietly adopted.
 - Audited at each release; rows are added when a number is published, not afterwards.
+- **A measurement taken during a change must be re-taken after that change lands**, or stamped
+  with the commit it was measured at. The first audit shipped two figures measured mid-flight
+  — the test count and the repo-wide mypy error count — both already stale by the time the
+  branch was reviewed.
+- A "Produced by" cell must name a symbol that exists. This is enforced by
+  `tests/test_claims_ledger.py`, not by review: the first audit cited a function name that had
+  never existed, and review is exactly where that kind of error survives.
 
 ## C-MAPSS turbofan RUL
 
 | # | Claim (with scope) | Produced by | Allowed to claim | Status |
 |---|---|---|---|---|
-| C1 | FD001 official-test RMSE `13.012889`, NASA score `253.465322`, validation-selected HGB policy | `run_cmapss_validation_selected_hgb_policy_default_windows`; recorded in `docs/phase1_cmapss_baseline_results.md` | That this pipeline reproduces a competitive classical RUL baseline on a simulated benchmark | **Disclosed caveat — see D1** |
+| C1 | FD001 official-test RMSE `13.012889`, NASA score `253.465322`, validation-selected HGB policy | `run_all_cmapss_validation_selected_hgb_policy_default_windows`; recorded in `docs/phase1_cmapss_baseline_results.md` | That this pipeline reproduces a competitive classical RUL baseline on a simulated benchmark | **Disclosed caveat — see D1** |
 | C2 | FD002 `27.568929` / `8697.396161`, FD003 `14.394433` / `358.507217`, FD004 `29.215870` / `7106.739881` | as C1 | as C1, across the multi-regime subsets | **Disclosed caveat — see D1** |
-| C3 | Best FD001 deep row: calibrated Transformer, asymmetric late loss + monotonic penalty, RMSE `14.246672` / NASA `271.486206` | `experiments/cmapss_deep_baseline.py` + `reports/cmapss_prediction_calibration.py`; `docs/phase2_cmapss_deep_baselines.md` | That the deep track runs end to end and is **behind** the classical policy — reported as a negative result on purpose | **Disclosed caveat — see D2** |
-| C4 | Naive floor, FD001: `train_median` RMSE `49.819876` / NASA `166570.542613`; `rul_cap` RMSE `64.615323` / NASA `1502475.412851` | `run_cmapss_naive_baseline`, command `cmapss-naive-baseline`, measured 2026-07-27 on `data/raw/cmapss` | That C1 beats a constant predictor 3.8x on RMSE and 658x on NASA score, so the headline reflects learned signal rather than the label distribution | Clean |
+| C3 | Best FD001 deep row: calibrated Transformer, asymmetric late loss + monotonic penalty, RMSE `14.246672` / NASA `271.486206` | `src/aerospace_prognostics/experiments/cmapss_deep_baseline.py` + `src/aerospace_prognostics/reports/cmapss_prediction_calibration.py`; `docs/phase2_cmapss_deep_baselines.md` | That the deep track runs end to end and is **behind** the classical policy — reported as a negative result on purpose | **Disclosed caveat — see D2** |
+| C4 | Naive floor, FD001: `train_median` RMSE `49.819876` / NASA `166570.542613`; `rul_cap` RMSE `64.615323` / NASA `1502475.412851` | `run_cmapss_naive_baseline`, command `cmapss-naive-baseline`, measured 2026-07-27 on `data/raw/cmapss` | That C1 beats a constant predictor 3.8x on RMSE and 657x on NASA score, so the headline reflects learned signal rather than the label distribution | Clean |
 | C5 | Calibration is fit on validation predictions only and never touches official test rows | `fit_cmapss_predicted_rul_bin_nasa_shift_calibrations`; verified by source inspection during the audit | That the reported calibration improvement is not test-leaked | Clean |
 | C6 | The validation split holds out whole units and truncates their histories to a 30-cycle horizon | `make_cmapss_temporal_validation_split` | That model selection used a grouped, temporally realistic split — no engine appears on both sides, and the validation task mirrors the official test task | Clean |
 
@@ -45,16 +52,16 @@ evidence from its own committed code and recorded runs.
 
 | # | Claim (with scope) | Produced by | Allowed to claim | Status |
 |---|---|---|---|---|
-| S1 | Comparison-ready robust threshold policy: mean point-wise F1 `0.160525`, mean false-alarm rate `0.134247`, versus the default baseline's `0.187988` | `docs/phase2_spacecraft_anomaly_baselines.md` | A baseline and alert-policy layer only — **not** a reproduced Telemanom result | Clean |
+| S1 | Comparison-ready robust threshold policy: mean point-wise F1 `0.160525`, mean false-alarm rate `0.134247`. The default robust z-score baseline scores F1 `0.165343` and false-alarm rate `0.187988` | `docs/phase2_spacecraft_anomaly_baselines.md` | That the policy trades a *slightly worse* F1 for a materially lower false-alarm rate. Both figures are stated because the tradeoff, not a win, is the claim. A baseline and alert-policy layer only — **not** a reproduced Telemanom result | Clean |
 | S2 | Point-adjusted F1 `0.541768` | as S1 | Tracked because the literature uses it; point-wise metrics remain the primary readout because point adjustment flatters weak detectors on long labelled intervals | Clean |
 
 ## Engineering envelope
 
 | # | Claim (with scope) | Produced by | Allowed to claim | Status |
 |---|---|---|---|---|
-| T1 | `456 passed`, full suite, measured 2026-07-27 | `uv run pytest` | That the suite is green, across Python 3.11/3.12/3.13 in CI. The count is **not** pinned in a badge, because a hard-coded count rots silently | Clean |
+| T1 | `461 passed`, full suite, measured 2026-07-27 | `uv run pytest` | That the suite is green, across Python 3.11/3.12/3.13 in CI. The count is **not** pinned in a badge, because a hard-coded count rots silently | Clean |
 | T2 | The suite contains a genuine skill regression, not only plumbing tests | `test_learned_baseline_beats_the_naive_floor` on `write_discriminating_cmapss_subset` | That an estimator which lost its predictive power turns CI red. Demonstrated by sabotage: a `DummyRegressor` that ignores the sensors scores `33.72` against the floor's `34.63` and fails the test | Clean |
-| T3 | Type checking is scoped, not repo-wide | `[tool.mypy]` in `pyproject.toml` | That seven numeric/evaluation modules type-check clean and are gated in CI. This repo does **not** run mypy strict: repo-wide checking emits 332 errors across 22 of 81 files | Clean |
+| T3 | Type checking is scoped, not repo-wide | `[tool.mypy]` in `pyproject.toml` | That seven numeric/evaluation modules type-check clean and are gated in CI. This repo does **not** run mypy strict: repo-wide checking emits 331 errors across 21 of 81 files | Clean |
 
 ## Disclosed but unresolved
 

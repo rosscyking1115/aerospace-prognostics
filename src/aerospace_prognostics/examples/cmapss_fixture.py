@@ -103,9 +103,9 @@ def write_discriminating_cmapss_subset(path: str | Path, subset: str = "FD001") 
     - sensor readings carry a monotone degradation signal that a real
       estimator can invert, so a working model scores far below that floor.
 
-    It is still small enough to generate in-memory per test (about 700 rows)
-    and ships no real NASA data, staying inside the repository's no-redistribution
-    posture.
+    It is still small enough to generate per test (759 train rows and 200 test
+    rows) and ships no real NASA data, staying inside the repository's
+    no-redistribution posture.
     """
 
     output_dir = Path(path)

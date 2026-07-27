@@ -61,8 +61,11 @@ Three datasets, all public benchmarks:
 - **NASA C-MAPSS** turbofan degradation. Critically, this is **simulation
   output** — the readme shipped with the data calls it a "Degradation
   Simulation Data Set". It is not measured engines.
-- **SMAP / MSL** spacecraft telemetry (NASA/JPL, via the Telemanom release and
-  a Kaggle mirror).
+- **SMAP / MSL** spacecraft telemetry (NASA/JPL). The recorded ingestion is the
+  Telemanom S3 archive, not the Kaggle mirror — the mirror is a documented
+  fallback. An earlier draft of this report and of the README asserted the
+  mirror as the source; the local download metadata contradicts that, and both
+  are corrected.
 - **ESA-ADB** spacecraft telemetry (European Space Agency).
 
 **What was recorded before the audit.** Only ESA-ADB's terms (`CC BY 3.0 IGO`),
@@ -134,7 +137,7 @@ signal or the shape of the label distribution.
 | --- | ---: | ---: | ---: | ---: |
 | FD001 | 49.82 | 166,570 | 13.01 | 253 |
 
-The model beats the floor 3.8x on RMSE and **658x** on the asymmetric NASA
+The model beats the floor 3.8x on RMSE and **657x** on the asymmetric NASA
 score. The evaluation is meaningful, and now demonstrably so.
 
 ### Finding: no test could catch a model predicting nonsense — now fixed
@@ -231,7 +234,7 @@ Measured cost of closing it:
 uv run mypy src/aerospace_prognostics --ignore-missing-imports
 ```
 
-**332 errors across 22 of 81 files.** Inspection showed most are not latent
+**331 errors across 21 of 81 files.** Inspection showed most are not latent
 bugs but a single idiom: long `argparse` dispatch functions that rebind one
 `result` variable across many branches, so mypy narrows to the first branch's
 type. `cli_workflows.py:413` looks alarming (`Phase1WorkflowResult` has no

@@ -2,7 +2,6 @@
 
 [![CI](https://github.com/rosscyking1115/aerospace-prognostics/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/rosscyking1115/aerospace-prognostics/actions/workflows/ci.yml)
 ![Python](https://img.shields.io/badge/python-%3E%3D3.11-blue)
-![Tests](https://img.shields.io/badge/tests-pytest%20green%20in%20CI-brightgreen)
 ![License](https://img.shields.io/badge/license-MIT-green)
 
 **Deployable ML engineering for aerospace prognostics: familiar NASA
@@ -56,8 +55,8 @@ operator's maintenance system.
 | Dataset | Provenance | Terms as recorded |
 | --- | --- | --- |
 | NASA C-MAPSS turbofan degradation | NASA Prognostics Data Repository (PCoE). *Simulated* engine degradation, not measured engines. Source URL recorded in [docs/phase1_cmapss_baseline_results.md](docs/phase1_cmapss_baseline_results.md) | US Government work; NASA attaches no formal open-source licence. Cite Saxena & Goebel (2008) |
-| SMAP / MSL spacecraft telemetry | NASA/JPL, released with the Telemanom work; ingested from the Kaggle mirror | No formal dataset licence attached by the publisher; the Telemanom *code* is Apache-2.0. Treat as research-use |
-| ESA-ADB spacecraft telemetry | European Space Agency Anomaly Dataset | Data: `CC BY 3.0 IGO`. Benchmark *code*: MIT. Attribution required — see [docs/license_posture.md](docs/license_posture.md) |
+| SMAP / MSL spacecraft telemetry | NASA/JPL, released with the Telemanom work. Ingested from the Telemanom S3 release (`s3-us-west-2.amazonaws.com/telemanom/data.zip`), recorded in the local download metadata; the Kaggle mirror is a documented fallback only | No formal dataset licence attached by the publisher; the Telemanom *code* is Apache-2.0. Treat as research-use. Cite Hundman et al. (2018) |
+| ESA-ADB spacecraft telemetry | European Space Agency Anomaly Dataset | Data: `CC BY 3.0 IGO`. Benchmark *code*: MIT. Attribution required — the attribution text is in [docs/license_posture.md](docs/license_posture.md) |
 
 None of these datasets are redistributed here; each is downloaded locally.
 
@@ -92,7 +91,7 @@ open-source posture.
 | Area | Current evidence |
 | --- | --- |
 | CI | `ruff`, `pytest`, dependency audit, SBOM generation, serving-image smoke tests, hosted-demo image smoke tests |
-| Tests | Full suite green in CI on every push and PR, across Python 3.11/3.12/3.13. Count is deliberately not pinned in a badge — run `uv run pytest` to get the current number (`456 passed`, measured 2026-07-27). Includes a *skill* test, not just plumbing: the learned baseline must beat the naive floor on a fixture built so a constant predictor cannot win, so an estimator that lost its predictive power turns CI red. The extracted [telemeval](https://github.com/rosscyking1115/telemeval) library is separately CI-tested |
+| Tests | Full suite green in CI on every push and PR, across Python 3.11/3.12/3.13. Count is deliberately not pinned in a badge — run `uv run pytest` to get the current number (`461 passed`, measured 2026-07-27 at `f5d3f5b`+review fixes). Includes a *skill* test, not just plumbing: the learned baseline must beat the naive floor on a fixture built so a constant predictor cannot win, so an estimator that lost its predictive power turns CI red. The extracted [telemeval](https://github.com/rosscyking1115/telemeval) library is separately CI-tested |
 | Data tracks | C-MAPSS turbofan RUL (familiar, checkable baseline) and spacecraft anomaly detection (SMAP/MSL plumbing, plus a first real event-wise baseline on the fresher ESA-ADB Mission1 subset) |
 | MLOps surfaces | FastAPI inference service, Streamlit operator console, Docker Compose stack |
 | Release evidence | Model inspection, validation, benchmark, model card, SBOM, release bundle, promotion report, provenance |
@@ -204,7 +203,7 @@ on purpose.
 
 For scale, the constant-prediction floor — a baseline that ignores the sensors
 and emits the median training RUL — scores FD001 RMSE `49.82` / NASA score
-`166570`. The HGB policy therefore beats the floor 3.8x on RMSE and 658x on the
+`166570`. The HGB policy therefore beats the floor 3.8x on RMSE and 657x on the
 asymmetric NASA score, so the headline number reflects learned degradation
 signal rather than the label distribution. Run it yourself with
 `cmapss-naive-baseline`. One caveat stated plainly: the per-subset rolling
