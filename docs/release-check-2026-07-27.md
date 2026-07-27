@@ -289,6 +289,67 @@ who finds it by browsing is left wondering why it was hidden.
 The general lesson for later audits in this series: check `git ls-files` before
 calling a file public. Presence on disk is not presence in the repository.
 
+## 6. Portfolio-level note: the claims discipline is inverted
+
+This section is about the wider portfolio, not this repository. It is recorded here because
+it was found while auditing this repository, and because it changes what "audited" should
+mean for the rest of the series.
+
+### What the sabotage sweep actually was
+
+After this audit, a single check was run across the portfolio: break each repository's core
+logic at runtime, run its test suite, and record whether anything goes red. Nine repositories
+were checked this way. Eight passed.
+
+**That was one dimension out of thirteen.** It tests exactly one property — whether a suite
+would notice its own product breaking. It says nothing about a repository's claims, dataset
+licensing, split methodology, selection hygiene, typing posture, secret hygiene, or README
+accuracy. Every other section of this document represents work that was *not* done for those
+repositories.
+
+Eight repositories passing that check is **not** eight repositories audited, and the results
+table it produced must not be read as if it were. Only this repository has been audited. The
+one repository that failed the check — `marketing-effectiveness-lab`, where freezing the core
+analytics produces a single red test and that test covers input validation rather than
+behaviour — has not been audited either; it has one known defect and twelve unexamined
+dimensions.
+
+### The inversion
+
+The sweep began from a prediction, which was wrong, and the way it was wrong is the useful
+part.
+
+The prediction: the portfolio's near-empty repositories would be the overclaimers. Eight of
+them have between zero and two tracked Python files — an eight-line `__init__.py` and an
+eight-line smoke test — while their READMEs open with substantive present-tense capability
+claims ("a designed-and-verified control law", "a precisely-validated flight-dynamics core").
+That looked like the clearest overclaim in the portfolio.
+
+It is not. Every one of those eight carries a bold status line near the top of its README —
+*"Status: pre-Gate-0. Nothing here is a result yet"* — and every one ships a `claims.md`
+ledger whose only row reads *"No claims yet."* Several also carry explicit ground rules
+disclaiming certification, hardware-in-the-loop, and real-flight relevance before any number
+is published at all.
+
+The mature repositories — the ones with real results, real readers, and real numbers in their
+READMEs — had no claims ledger at all. This one did not, until this audit.
+
+**So the discipline is present exactly where there is nothing to overclaim, and absent exactly
+where the risk is.** The scaffolding template got it right; the repositories that predate the
+template never received it, and those are precisely the repositories whose numbers someone
+might actually rely on.
+
+That is not a criticism of the scaffolds. It is an argument that they contain a solved problem
+the mature repositories still have. The fix is to backport the pattern, not to invent one:
+`claims.md` in this repository is the worked example, written against numbers this repository
+can actually evidence.
+
+### What this does not license
+
+No ledger row has been written for any other repository. A single sabotage check is not
+grounds to certify another repository's claims, and doing so would repeat in miniature the
+error this whole audit exists to catch — asserting more than the evidence carries.
+
 ## What this repository may and may not claim
 
 **May claim.** That it implements an end-to-end PHM MLOps envelope with real

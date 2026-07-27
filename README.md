@@ -96,6 +96,7 @@ open-source posture.
 | Data tracks | C-MAPSS turbofan RUL (familiar, checkable baseline) and spacecraft anomaly detection (SMAP/MSL plumbing, plus a first real event-wise baseline on the fresher ESA-ADB Mission1 subset) |
 | MLOps surfaces | FastAPI inference service, Streamlit operator console, Docker Compose stack |
 | Release evidence | Model inspection, validation, benchmark, model card, SBOM, release bundle, promotion report, provenance |
+| Claims | Every published number is traced in [claims.md](claims.md) to what produced it, what it may support, and whether anything about it is disclosed-but-unresolved |
 | Current posture | Reference implementation under MIT; not a product launch track |
 
 ## What it includes
@@ -268,6 +269,9 @@ See [docs/hosted_demo.md](docs/hosted_demo.md).
 
 ## Repository map
 
+- [claims.md](claims.md): the claims ledger — every published number, what
+  produced it, what it is allowed to claim, and what is disclosed but
+  unresolved.
 - [docs/first_run.md](docs/first_run.md): choose the console-only, Compose, or
   read-only demo first-run path.
 - [docs/architecture.md](docs/architecture.md): system boundaries, evidence
