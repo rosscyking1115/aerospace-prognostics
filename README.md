@@ -91,7 +91,7 @@ open-source posture.
 | Area | Current evidence |
 | --- | --- |
 | CI | `ruff`, `pytest`, dependency audit, SBOM generation, serving-image smoke tests, hosted-demo image smoke tests |
-| Tests | Full suite green in CI on every push and PR, across Python 3.11/3.12/3.13. Count is deliberately not pinned in a badge — run `uv run pytest` to get the current number (`461 passed`, measured 2026-07-27 at `f5d3f5b`+review fixes). Includes a *skill* test, not just plumbing: the learned baseline must beat the naive floor on a fixture built so a constant predictor cannot win, so an estimator that lost its predictive power turns CI red. The extracted [telemeval](https://github.com/rosscyking1115/telemeval) library is separately CI-tested |
+| Tests | Full suite green in CI on every push and PR, across Python 3.11/3.12/3.13. Count is deliberately not pinned in a badge — run `uv run pytest` to get the current number (`462 passed`, measured 2026-07-28). Includes a *skill* test, not just plumbing: the learned baseline must beat the naive floor on a fixture built so a constant predictor cannot win, so an estimator that lost its predictive power turns CI red. The extracted [telemeval](https://github.com/rosscyking1115/telemeval) library is separately CI-tested |
 | Data tracks | C-MAPSS turbofan RUL (familiar, checkable baseline) and spacecraft anomaly detection (SMAP/MSL plumbing, plus a first real event-wise baseline on the fresher ESA-ADB Mission1 subset) |
 | MLOps surfaces | FastAPI inference service, Streamlit operator console, Docker Compose stack |
 | Release evidence | Model inspection, validation, benchmark, model card, SBOM, release bundle, promotion report, provenance |
