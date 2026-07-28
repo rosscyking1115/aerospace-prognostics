@@ -53,6 +53,57 @@ def test_cmapss_summary_command_prints_dataset_shape(tmp_path, capsys) -> None:
     assert "test_rul_values=2" in output
 
 
+def test_cmapss_naive_baseline_command_writes_json_result(tmp_path, capsys) -> None:
+    write_tiny_cmapss_subset(tmp_path)
+    output_path = tmp_path / "naive.json"
+
+    exit_code = main(
+        [
+            "cmapss-naive-baseline",
+            "--data-dir",
+            str(tmp_path),
+            "--subset",
+            "FD001",
+            "--strategy",
+            "rul_cap",
+            "--rul-cap",
+            "100",
+            "--output-json",
+            str(output_path),
+        ]
+    )
+
+    terminal_output = capsys.readouterr().out
+    result = json.loads(output_path.read_text(encoding="utf-8"))
+
+    assert exit_code == 0
+    assert "model=naive_rul_cap" in terminal_output
+    assert result["model_name"] == "naive_rul_cap"
+    # --rul-cap must reach the runner, not be silently defaulted to 125.
+    assert result["rul_cap"] == 100
+
+
+def test_cmapss_naive_baseline_command_rejects_an_unknown_strategy(tmp_path) -> None:
+    write_tiny_cmapss_subset(tmp_path)
+
+    try:
+        main(
+            [
+                "cmapss-naive-baseline",
+                "--data-dir",
+                str(tmp_path),
+                "--subset",
+                "FD001",
+                "--strategy",
+                "oracle",
+            ]
+        )
+    except SystemExit as exit_error:
+        assert exit_error.code == 2
+    else:  # pragma: no cover - argparse must reject an unlisted choice
+        raise AssertionError("argparse should reject an unknown --strategy")
+
+
 def test_cmapss_baseline_command_writes_json_result(tmp_path, capsys) -> None:
     write_tiny_cmapss_subset(tmp_path)
     output_path = tmp_path / "result.json"

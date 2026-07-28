@@ -1,9 +1,12 @@
 from __future__ import annotations
 
+import pytest
+
 from aerospace_prognostics.data.cmapss import load_cmapss_subset
 from aerospace_prognostics.experiments.cmapss_baseline import (
     CMAPSS_ENGINEERED_DEFAULT_WINDOWS,
     CMAPSS_HGB_PARAM_GRID,
+    CMAPSS_NAIVE_STRATEGIES,
     CMAPSS_SENSOR_FILTER_CANDIDATES,
     CMAPSS_VALIDATION_SELECTED_FEATURES,
     CMAPSS_VALIDATION_SELECTED_HGB_PARAMS,
@@ -17,13 +20,95 @@ from aerospace_prognostics.experiments.cmapss_baseline import (
     run_cmapss_engineered_hist_gradient_boosting,
     run_cmapss_engineered_window_sweep,
     run_cmapss_hist_gradient_boosting,
+    run_cmapss_naive_baseline,
     run_cmapss_regime_aware_engineered_hist_gradient_boosting,
     run_cmapss_repeated_validation_feature_comparison,
     run_cmapss_validation_feature_comparison,
     run_cmapss_validation_selected_hgb_grid,
     run_cmapss_validation_sensor_filter_comparison,
 )
-from tests.cmapss_fixtures import write_all_tiny_cmapss_subsets, write_tiny_cmapss_subset
+from tests.cmapss_fixtures import (
+    write_all_tiny_cmapss_subsets,
+    write_discriminating_cmapss_subset,
+    write_tiny_cmapss_subset,
+)
+
+
+def test_run_cmapss_naive_baseline_returns_structured_result(tmp_path) -> None:
+    write_tiny_cmapss_subset(tmp_path)
+
+    result = run_cmapss_naive_baseline(tmp_path, "FD001")
+
+    assert result.dataset == "C-MAPSS"
+    assert result.model_name == "naive_train_median"
+    assert result.test_rul_values == 2
+    assert result.rmse >= 0
+    assert result.nasa_score >= 0
+
+
+def test_run_cmapss_naive_baseline_supports_every_strategy(tmp_path) -> None:
+    write_tiny_cmapss_subset(tmp_path)
+
+    for strategy in CMAPSS_NAIVE_STRATEGIES:
+        result = run_cmapss_naive_baseline(tmp_path, "FD001", strategy=strategy)
+        assert result.model_name == f"naive_{strategy}"
+        assert result.rmse >= 0
+
+
+def test_run_cmapss_naive_baseline_rejects_unknown_strategy(tmp_path) -> None:
+    write_tiny_cmapss_subset(tmp_path)
+
+    with pytest.raises(ValueError, match="strategy must be one of"):
+        run_cmapss_naive_baseline(tmp_path, "FD001", strategy="oracle")
+
+
+def test_naive_baseline_predicts_a_single_constant(tmp_path) -> None:
+    """The floor must ignore the sensors entirely.
+
+    The tiny fixture is degenerate for skill purposes (its test RUL values
+    coincide with the train median, so a constant scores RMSE 0.0). It proves
+    the constant-prediction *contract* only. The skill comparison lives in
+    ``test_learned_baseline_beats_the_naive_floor``, which uses the
+    discriminating fixture instead.
+    """
+
+    write_tiny_cmapss_subset(tmp_path)
+
+    capped = run_cmapss_naive_baseline(tmp_path, "FD001", strategy="rul_cap")
+    median_based = run_cmapss_naive_baseline(tmp_path, "FD001", strategy="train_median")
+
+    # Same data, same model family, different constant => different error.
+    assert capped.rmse != median_based.rmse
+    assert capped.rul_cap == 125
+
+
+def test_learned_baseline_beats_the_naive_floor(tmp_path) -> None:
+    """A model that predicts nonsense must fail this test.
+
+    This is the check the suite was missing. Every other test proves plumbing:
+    that commands run, that artifacts are written, that shapes match. None of
+    them would notice if the estimator lost all predictive power, because the
+    tiny fixture's test RUL happens to equal its train median, so a constant
+    predictor scores a perfect RMSE 0.0 on it.
+
+    The discriminating fixture removes that coincidence: its test units are
+    truncated at different points, so no single constant can be right for all
+    of them, and its sensor values carry a genuine monotone degradation signal
+    that a real estimator can recover. Break the model and this test goes red.
+    """
+
+    write_discriminating_cmapss_subset(tmp_path)
+
+    naive = run_cmapss_naive_baseline(tmp_path, "FD001", strategy="train_median")
+    learned = run_cmapss_hist_gradient_boosting(tmp_path, "FD001", standardize=True)
+
+    # The floor must be a real floor: a constant cannot fit a varied test set.
+    assert naive.rmse > 0.0
+    # And the learned model must clear it decisively. The gate is naive/5
+    # (~6.9 on this fixture) against a healthy score of ~1.9, so there is ample
+    # headroom for library and platform drift while still catching an estimator
+    # that has degraded badly rather than only one that has died completely.
+    assert learned.rmse < naive.rmse / 5
 
 
 def test_run_cmapss_hist_gradient_boosting_returns_structured_result(tmp_path) -> None:

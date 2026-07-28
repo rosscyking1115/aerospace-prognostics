@@ -316,7 +316,7 @@ def run_mission_lightweight(
     for _channel, channel_grid, channel_split, zscores in _iter_channel_zscores(
         reader, channels, subset_labels
     ):
-        if grid is None:
+        if grid is None or global_test_score is None:
             grid = channel_grid
             split = channel_split
             global_test_score = np.zeros(len(grid) - split, dtype="uint8")

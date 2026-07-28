@@ -5,7 +5,7 @@ from __future__ import annotations
 import random
 from dataclasses import dataclass
 from pathlib import Path
-from statistics import mean
+from statistics import mean, median
 from typing import TYPE_CHECKING
 
 from aerospace_prognostics.analysis.cmapss_eda import (
@@ -160,6 +160,66 @@ def make_cmapss_temporal_validation_split(
         validation_rul=pd.Series(validation_rul_values, name="rul"),
         validation_units=validation_units,
         validation_horizon=validation_horizon,
+    )
+
+
+CMAPSS_NAIVE_STRATEGIES = ("train_median", "train_mean", "rul_cap")
+
+
+def run_cmapss_naive_baseline(
+    data_dir: str | Path,
+    subset: str,
+    *,
+    strategy: str = "train_median",
+    rul_cap: int = 125,
+) -> RegressionRunResult:
+    """Evaluate a constant-prediction floor for C-MAPSS RUL.
+
+    This is the trivial baseline every learned model must clear to have
+    demonstrated any skill at all. It ignores the sensors entirely and predicts
+    one constant for every test unit:
+
+    - ``train_median`` / ``train_mean``: the central capped RUL of the training
+      cycles, which is what a model that learned nothing but the label
+      distribution would emit;
+    - ``rul_cap``: the capped ceiling, the most optimistic constant available.
+
+    Reported alongside the real baselines so the headline RMSE and NASA score
+    can be read against a floor rather than in isolation. A learned model that
+    does not beat this comfortably has not been shown to work, and the NASA
+    score in particular is asymmetric enough that a constant can look
+    deceptively acceptable on RMSE while scoring badly.
+    """
+
+    if strategy not in CMAPSS_NAIVE_STRATEGIES:
+        raise ValueError(f"strategy must be one of {CMAPSS_NAIVE_STRATEGIES}")
+
+    bundle = load_cmapss_subset(data_dir, subset, rul_cap=rul_cap)
+    train_targets = [float(value) for value in bundle.train["rul_capped"]]
+
+    if strategy == "train_median":
+        constant = float(median(train_targets))
+    elif strategy == "train_mean":
+        constant = float(mean(train_targets))
+    else:
+        constant = float(rul_cap)
+
+    predictions = [constant] * len(bundle.test_rul)
+
+    return RegressionRunResult(
+        dataset="C-MAPSS",
+        subset=bundle.subset,
+        model_name=f"naive_{strategy}",
+        rmse=rmse(bundle.test_rul, predictions),
+        nasa_score=nasa_rul_score(bundle.test_rul, predictions),
+        train_rows=len(bundle.train),
+        train_units=bundle.train["unit_number"].nunique(),
+        test_rows=len(bundle.test),
+        test_units=bundle.test["unit_number"].nunique(),
+        test_rul_values=len(bundle.test_rul),
+        rul_cap=rul_cap,
+        random_state=0,
+        standardize=False,
     )
 
 
