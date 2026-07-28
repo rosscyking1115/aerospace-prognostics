@@ -41,6 +41,21 @@ dev = [
     "torch>=2.3",
 ]
 
+[tool.uv]
+# GitPython is transitive (Streamlit requires `gitpython!=3.1.19,<4,>=3.0.7`), so it
+# cannot be pinned from `dependencies` without falsely declaring a direct import.
+# Resolution had settled on 3.1.50, which now carries eight published advisories --
+# GHSA-2f96-g7mh-g2hx, GHSA-v396-v7q4-x2qj, GHSA-956x-8gvw-wg5v (fixed 3.1.51),
+# GHSA-3rp5-jjmw-4wv2 (3.1.53), GHSA-fjr4-x663-mwxc, GHSA-6p8h-3wgx-97gf,
+# GHSA-r9mr-m37c-5fr3 (3.1.54) and GHSA-94p4-4cq8-9g67 (3.1.55) -- failing
+# `pip-audit` in CI. Nothing in this repository changed: the same lockfile passed on
+# 2026-07-18 and the advisory database moved under it.
+#
+# 3.1.55 is the lowest version clearing all eight and sits well inside Streamlit's
+# own range, so this is a constraint rather than an override and no dependency is
+# forced past what its parent permits.
+constraint-dependencies = ["gitpython>=3.1.55"]
+
 [tool.ruff]
 line-length = 100
 target-version = "py311"
