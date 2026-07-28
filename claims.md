@@ -8,6 +8,16 @@ This ledger was created on 2026-07-27 during the first claims-versus-evidence au
 (`docs/release-check-2026-07-27.md`). It is deliberately scoped to what this repository can
 evidence from its own committed code and recorded runs.
 
+**This file is the worked template for the other repositories in the portfolio.** The audit
+found that discipline is currently inverted across it: the pre-Gate-0 scaffold repositories
+all ship a `claims.md` and an explicit "Nothing here is a result yet", while the mature
+repositories — the ones with real results and real readers — carry neither. The scaffolding
+template solved this before there was anything to overclaim; the repositories that predate
+the template never received it, and those are precisely the ones whose numbers someone might
+rely on. Copy the shape of this file, not its rows: the four columns, the disclosed-but-
+unresolved section, and `tests/test_claims_ledger.py`, which enforces the ledger rather than
+trusting it. See §6 and §7 of the audit report.
+
 ## Rules
 
 - A row states the **scope** of its number: dataset, subset, protocol, and what was held out.

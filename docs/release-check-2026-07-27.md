@@ -353,6 +353,78 @@ No ledger row has been written for any other repository. A single sabotage check
 grounds to certify another repository's claims, and doing so would repeat in miniature the
 error this whole audit exists to catch — asserting more than the evidence carries.
 
+## 7. The audit's own output needed auditing
+
+Recorded here rather than left in a pull-request thread, because it is the most
+transferable thing this audit produced.
+
+The branch was reviewed before merge. The reviewer found an overclaim **inside the
+table added to prevent overclaiming**.
+
+### The finding
+
+The new dataset-provenance table asserted that SMAP/MSL was *"ingested from the
+Kaggle mirror"*. This repository's own download record says otherwise:
+
+```
+data/raw/smap_msl/smap_msl_download_metadata.json
+  "source_url": "https://s3-us-west-2.amazonaws.com/telemanom/data.zip"
+```
+
+The Kaggle archive is a documented **fallback**, used only if the legacy S3 URL is
+unavailable. This mattered beyond tidiness: the row's *licensing* claim depends on
+which source was used. "No formal dataset licence attached by the publisher" is
+defensible about the Telemanom S3 release and weaker about a Kaggle dataset, since
+Kaggle requires a declared licence field. The row sent a reader to verify terms at
+a source this project never touched.
+
+Two further traceability defects in the new ledger:
+
+- **C1, the headline row, cited a function that has never existed.**
+  `run_cmapss_validation_selected_hgb_policy_default_windows` — the real symbol is
+  prefixed `run_all_`. A ledger row whose "Produced by" cell does not resolve
+  cannot substantiate its number, and this was the most load-bearing cell in the
+  file.
+- **`658x` does not reproduce.** `166570.542613 / 253.465322 = 657.17`, rounded up
+  — in the flattering direction — across three documents. Immaterial to any
+  decision, and precisely the kind of drift a claims ledger exists to prevent.
+
+Also corrected: the ESA-ADB row required attribution and pointed at
+`docs/license_posture.md`, which contained no attribution text at all. That file
+now carries the actual `CC BY 3.0 IGO` wording, plus the C-MAPSS and Telemanom
+citations, so the one row with a genuine legal obligation resolves to the wording
+it obliges.
+
+### The fix that actually matters
+
+Not the corrections — the mechanism. `tests/test_claims_ledger.py` makes the ledger
+honest **by construction rather than by maintenance**:
+
+- every symbol cited in a "Produced by" cell must resolve to a `def` in tracked
+  source;
+- every `see Dn` pointer must land on a defined disclosed item;
+- a self-check asserts the parser would actually catch a bad citation, so the suite
+  cannot pass vacuously by extracting nothing.
+
+Verified against the real defect: the shipped C1 symbol does not resolve, and the
+check would have failed CI on it.
+
+### Why this is the transferable lesson
+
+The C1 error survived authorship, self-review, and a full pass over the document
+by the person who wrote it. It was caught by an independent reader, and only
+because one was asked for. A ledger maintained by discipline decays at exactly the
+rate attention does; a ledger enforced by a test does not.
+
+The general form: **any claims mechanism that depends on remembering to update it
+will drift.** Where a claim can be checked mechanically, check it mechanically. The
+same argument produced the ratcheting mypy list in §4 and the naive floor in §3 —
+all three replace an intention with a gate.
+
+For the rest of this audit series: keep the independent-review step on every
+repository, not only the complicated ones. The audit's own output is not exempt
+from the standard the audit applies.
+
 ## What this repository may and may not claim
 
 **May claim.** That it implements an end-to-end PHM MLOps envelope with real
