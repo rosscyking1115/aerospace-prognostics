@@ -80,7 +80,59 @@ def test_app_init_db_command_creates_database_without_seed(tmp_path, capsys) -> 
     assert "fleet_assets=0" in output
 
 
+def _quickstart_evidence_diagnostics(workspace: QuickstartWorkspace) -> str:
+    """Describe why an evidence item might have been skipped.
+
+    ``register_model_artifact_evidence`` silently skips an item when its payload
+    is ``None`` or its file does not exist, so a short count is indistinguishable
+    from a correct one unless the inputs are reported. See the known-flake note
+    on ``test_seed_quickstart_workspace_persists_model_and_evidence``.
+    """
+
+    items = (
+        ("artifact_inspection", workspace.artifact_inspection_path, workspace.artifact_inspection),
+        ("release_bundle", workspace.release_bundle_path, workspace.release_bundle),
+        ("release_provenance", workspace.provenance_path, workspace.provenance),
+        ("promotion_report", workspace.promotion_report_path, workspace.promotion_report),
+        ("dashboard_payload", workspace.dashboard_payload_path, workspace.dashboard_payload),
+    )
+    lines = [
+        f"  {name}: exists={path.exists()} payload_loaded={payload is not None} path={path}"
+        for name, path, payload in items
+    ]
+    return "evidence inputs at assertion time:\n" + "\n".join(lines)
+
+
 def test_seed_quickstart_workspace_persists_model_and_evidence(tmp_path) -> None:
+    """Seeding is idempotent and registers all five evidence documents.
+
+    **Known flake, unreproduced.** This test failed once on 2026-07-27 during a
+    full-suite run whose preceding commit changed only markdown, then passed in
+    isolation and on every rerun since — 20 consecutive attempts across two
+    branches, including 10 runs targeting this file alone. Ruled out as causes:
+
+    - *test-order dependence* — no ``pytest-randomly``/``xdist``/``pytest-order``
+      is installed, so collection order is deterministic;
+    - *shared state* — every case uses its own ``tmp_path``;
+    - *time dependence in the idempotency key* — the conflict key is
+      ``evidence_id = f"{type}:{artifact_id}:{sha256(file)}"``, which is
+      content-addressed, and ``artifact_id`` is the fixture literal
+      ``fd001-demo``. The timestamp is a stored column only, never part of
+      ``on conflict(evidence_id) do nothing``;
+    - *parallelism* — the suite runs single-process.
+
+    What was never established is which assertion failed: the traceback was not
+    captured at the time. The remaining untested hypothesis is a transient
+    Windows filesystem-visibility stall — an anti-virus or indexer holding a
+    just-written file so ``Path.exists()`` briefly returns ``False`` — which
+    would silently drop one evidence item and yield 4 instead of 5.
+
+    The assertions below therefore report the evidence inputs on failure, so the
+    next occurrence diagnoses itself rather than needing another 20 runs. Do not
+    replace this with a retry or an ``xfail``; that would hide the signal instead
+    of sharpening it.
+    """
+
     workspace = _write_fake_workspace(tmp_path / "quickstart")
     database_path = tmp_path / "app.sqlite"
 
@@ -88,12 +140,50 @@ def test_seed_quickstart_workspace_persists_model_and_evidence(tmp_path) -> None
     second_insert = seed_quickstart_workspace(database_path, workspace)
     summary = database_summary(database_path)
 
-    assert inserted["model_artifacts"] == 1
-    assert inserted["release_evidence"] == 5
-    assert second_insert["model_artifacts"] == 1
-    assert second_insert["release_evidence"] == 0
-    assert summary["model_artifacts"] == 1
-    assert summary["release_evidence"] == 5
+    diagnostics = _quickstart_evidence_diagnostics(workspace)
+
+    assert inserted["model_artifacts"] == 1, diagnostics
+    assert inserted["release_evidence"] == 5, (
+        f"first seed registered {inserted['release_evidence']} of 5 evidence documents.\n"
+        f"{diagnostics}"
+    )
+    assert second_insert["model_artifacts"] == 1, diagnostics
+    assert second_insert["release_evidence"] == 0, (
+        f"re-seeding inserted {second_insert['release_evidence']} rows; seeding must be "
+        f"idempotent because evidence_id is content-addressed.\n{diagnostics}"
+    )
+    assert summary["model_artifacts"] == 1, diagnostics
+    assert summary["release_evidence"] == 5, (
+        f"database holds {summary['release_evidence']} evidence rows, expected 5.\n"
+        f"{diagnostics}"
+    )
+
+
+def test_a_missing_evidence_file_is_silently_skipped_not_reported(tmp_path) -> None:
+    """Pin the mechanism behind the known flake above.
+
+    ``register_model_artifact_evidence`` skips any evidence item whose file is
+    absent, without raising or warning. That is the behaviour that would turn a
+    transient filesystem stall into a bare ``4 != 5`` with no explanation, so it
+    is worth having demonstrated rather than merely hypothesised.
+
+    This test does not reproduce the flake — it proves the failure *mode* the
+    flake would take, and that the diagnostics added above would name the
+    culprit.
+    """
+
+    workspace = _write_fake_workspace(tmp_path / "quickstart")
+    database_path = tmp_path / "app.sqlite"
+    workspace.provenance_path.unlink()
+
+    inserted = seed_quickstart_workspace(database_path, workspace)
+
+    # Silently four, not five, and no error of any kind.
+    assert inserted["release_evidence"] == 4
+
+    diagnostics = _quickstart_evidence_diagnostics(workspace)
+    assert "release_provenance: exists=False" in diagnostics
+    assert "release_bundle: exists=True" in diagnostics
 
 
 def test_register_model_artifact_evidence_persists_custom_artifact(tmp_path) -> None:
