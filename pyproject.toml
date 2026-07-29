@@ -7,13 +7,13 @@ requires-python = ">=3.11"
 license = { file = "LICENSE" }
 authors = [{ name = "Cheng-Yuan King", email = "rosscyking1115@gmail.com" }]
 dependencies = [
-    "fastapi>=0.139.2",
+    "fastapi>=0.140.13",
     "joblib>=1.4",
     "numpy>=1.26",
-    "pandas>=2.2",
+    "pandas>=3.0.5",
     "scikit-learn>=1.9.0",
-    "streamlit>=1.59.2",
-    "telemeval>=0.3.2",
+    "streamlit>=1.60.0",
+    "telemeval>=0.3.3",
     "uvicorn[standard]>=0.51.0",
 ]
 
@@ -38,7 +38,7 @@ dev = [
     "mypy>=1.14",
     "pip-audit>=2.10.1",
     "pytest>=9.1.1",
-    "ruff>=0.15.22",
+    "ruff>=0.16.0",
     "torch>=2.3",
 ]
 
