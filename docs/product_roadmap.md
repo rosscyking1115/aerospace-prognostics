@@ -28,7 +28,8 @@ It is a reference implementation, not a commercial PHM product.
 - Streamlit console with prediction history, model registry, fleet registry,
   outcome import, operator decisions, and evidence downloads.
 - SQLite app state and Docker Compose local stack.
-- Read-only hosted demo image and token-gated hosted console URL.
+- Read-only demo image, built and smoke-tested in CI. The token-gated hosted
+  console it once ran on was retired in July 2026; no instance is deployed.
 - Release-evidence workflow with model card, validation, benchmark, SBOM,
   promotion report, release bundle, and provenance.
 - ESA-ADB source and evaluator-contract intake, now extracted to the

@@ -1,6 +1,14 @@
-# Hosted Read-Only Demo
+# Read-Only Demo Image
 
-Use `Dockerfile.demo` when you want a private hosted console that does not rely
+> [!NOTE]
+> **There is no hosted instance of this console.** A private Render service ran
+> one until July 2026; it was retired rather than repaired after its build broke
+> (see §8 of [release-check-2026-07-27.md](release-check-2026-07-27.md)). Nothing
+> here is a live URL — this page describes an image you build and run yourself.
+> The image itself is built, contract-checked and smoke-tested in CI on every
+> push, so the path below is verified even though nothing is deployed.
+
+Use `Dockerfile.demo` when you want a self-contained console that does not rely
 on local bind mounts. The image bakes in the no-download C-MAPSS fixture,
 release evidence, model card, SBOM, provenance, dashboard payload, and seeded
 SQLite registry during the container build. At runtime it starts only the
@@ -34,42 +42,44 @@ Then open `http://127.0.0.1:8501`.
 This keeps a hosted review or pilot demo inspectable without turning public
 visitors into database writers.
 
-## Private Hosting Checklist
+## If You Do Host It Somewhere
 
-1. Keep the GitHub repository private until the demo copy, screenshots, and
-   license posture are ready for public release.
-2. Build from `Dockerfile.demo`; for Render, use the tracked root
-   `render.yaml` blueprint.
-3. Set the service port to `8501`.
-4. Use `/_stcore/health` as the health check path.
-5. Keep `AEROSPACE_PROGNOSTICS_CONSOLE_READ_ONLY=true` in the service
+Kept as platform-neutral guidance, not as a description of anything running.
+Any container host that builds a Dockerfile will do.
+
+1. Build from `Dockerfile.demo`.
+2. Set the service port to `8501`.
+3. Use `/_stcore/health` as the health check path.
+4. Keep `AEROSPACE_PROGNOSTICS_CONSOLE_READ_ONLY=true` in the service
    environment, even though the image already sets it by default.
-6. Set `AEROSPACE_PROGNOSTICS_CONSOLE_ACCESS_TOKEN` to a strong secret before
-   sharing the hosted URL. When this variable is set, the Streamlit console
-   shows a token gate before any PHM evidence screens render.
-7. Run the container filesystem as read-only and provide a writable tmpfs at
-   `/tmp` for framework cache files.
-8. Prefer platform authentication or an allowlist for private review links when
-   sharing outside the owner account. The app-level token gate is the accepted
-   control for the current internal private demo; edge access control is the
-   stronger boundary for larger or sensitive reviewer groups.
-9. Rebuild the image whenever the quickstart evidence contract changes.
-
-The Render Blueprint path is described by [render.yaml](../render.yaml): a
-read-only demo image behind the app-level access-token gate
-(`AEROSPACE_PROGNOSTICS_CONSOLE_ACCESS_TOKEN`), with `/_stcore/health` as the
-health check.
+5. Set `AEROSPACE_PROGNOSTICS_CONSOLE_ACCESS_TOKEN` to a strong secret before
+   sharing the URL. When this variable is set, the Streamlit console shows a
+   token gate before any PHM evidence screens render.
+6. Run the container filesystem as read-only and provide a writable tmpfs at
+   `/tmp` for framework cache files. CI runs the image exactly this way, so the
+   configuration is verified rather than assumed.
+7. Prefer platform authentication or an allowlist over the app-level token gate
+   when sharing outside the owner account. The token gate is a reasonable
+   control for a small private audience; edge access control is the stronger
+   boundary for larger or sensitive reviewer groups.
+8. Rebuild the image whenever the quickstart evidence contract changes.
+9. **Pin your build inputs.** `Dockerfile.demo` currently uses the floating
+   `python:3.12-slim` tag and installs `uv` unpinned, so an identical commit can
+   build today and fail tomorrow. That is the failure shape the retired Render
+   service showed, and it is unaddressed.
 
 For the fuller local product stack with both FastAPI and Streamlit, use
 `compose.yaml` instead. The demo image is intentionally single-service so it can
 run on simple container hosting before the product graduates to a managed
 multi-service deployment.
 
-## Public Read-Only Demo On Streamlit Community Cloud
+## Deploying To Streamlit Community Cloud
 
-The private Render path above gates the console behind an access token because
-it was built while the repository was private. For a public, click-through demo
-there is nothing left to gate: read-only mode already blocks every write
+Instructions only — no such app is running either.
+
+The token gate described above exists because the console was originally hosted
+while the repository was private. For a public, click-through demo there is
+nothing left to gate: read-only mode already blocks every write
 (uploads, prediction persistence, operator decisions, seeding), so a public
 visitor can inspect the evidence but cannot change it.
 
