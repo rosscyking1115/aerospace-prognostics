@@ -283,6 +283,9 @@ See [docs/hosted_demo.md](docs/hosted_demo.md).
 - [docs/local_deployment.md](docs/local_deployment.md): Docker Compose API and
   console stack.
 - [docs/hosted_demo.md](docs/hosted_demo.md): read-only demo image path.
+- [docs/cmapss_domain_primer.md](docs/cmapss_domain_primer.md): what the
+  C-MAPSS benchmark represents — subset differences, sensor semantics, the
+  capped RUL target, and why RMSE alone is the wrong metric.
 - [docs/phase1_cmapss_baseline_results.md](docs/phase1_cmapss_baseline_results.md):
   C-MAPSS classical baseline results.
 - [docs/phase2_cmapss_deep_baselines.md](docs/phase2_cmapss_deep_baselines.md):

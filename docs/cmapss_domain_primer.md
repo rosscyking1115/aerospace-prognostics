@@ -1,6 +1,9 @@
-# Phase 1 Turbofan Domain Notes
+# C-MAPSS Domain Primer
 
-These notes are the Phase 1 learning checkpoint for the C-MAPSS RUL track. They are intentionally short and practical: the goal is to connect the code artifacts to the physical maintenance problem.
+Background for reading the C-MAPSS RUL track: what the benchmark represents, why its four
+subsets are not interchangeable, what the anonymised sensor columns mean, why the RUL target is
+capped, and why RMSE alone is the wrong metric. Intentionally short and practical — the goal is
+to connect the code artifacts to the physical maintenance problem.
 
 ## What C-MAPSS Represents
 
@@ -29,8 +32,8 @@ C-MAPSS models usually use a piecewise-linear RUL target. Early in life, RUL is 
 
 RMSE is useful but incomplete for aerospace maintenance. NASA's asymmetric score penalizes late predictions more heavily than early predictions because overestimating RUL can delay maintenance past a failure point. The baseline workflow reports both metrics for every subset.
 
-## Current Phase 1 Baseline Framing
+## Why The First Baseline Is Classical
 
 The first baseline is a scikit-learn histogram gradient-boosted regressor over engineered per-unit features. It is not meant to be state of the art. It exists to prove that ingestion, target generation, leakage-resistant standardization, reproducible scoring, and artifact generation all work before moving to sequence models.
 
-The Phase 2 models should improve on this by using sliding windows directly: 1D-CNN, LSTM/BiLSTM, TCN, and Transformer variants. Those models should still report against this Phase 1 table so progress is visible and honest.
+The sequence models — 1D-CNN, LSTM/BiLSTM, TCN, and Transformer variants — improve on this by using sliding windows directly. They still report against the classical table so progress stays visible and honest. As of the latest results the classical policy is still ahead on FD001, and that is reported rather than buried: see [public_results.md](public_results.md).
