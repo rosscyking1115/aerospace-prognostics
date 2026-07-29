@@ -425,6 +425,78 @@ For the rest of this audit series: keep the independent-review step on every
 repository, not only the complicated ones. The audit's own output is not exempt
 from the standard the audit applies.
 
+## 8. Green CI, broken deploy, eight days, nobody noticed
+
+Found on 2026-07-29, after the audit closed. Recorded because the gap it exposes
+outlives the service that revealed it.
+
+### What happened
+
+A private Render service ran the read-only console. Its Docker build had been
+failing for **roughly eight days** — three deploys failed on the night of
+28 July alone, each "Exited with status 1 while building your code". Throughout
+that period every signal inside the repository was green.
+
+The obvious reading is that CI did not cover the container. **That reading is
+wrong, and checking it mattered.** CI builds `Dockerfile.demo` from the same
+context, verifies its contract, and smoke-tests the running container against
+`/_stcore/health`. On `58f42ab` — one of the three failed deploys — all three
+steps succeeded:
+
+| CI step | Result on `58f42ab` |
+| --- | --- |
+| Build hosted demo image (`--file Dockerfile.demo`) | success |
+| Verify hosted demo image contract | success |
+| Smoke hosted demo image (`--read-only`, tmpfs, health probe) | success |
+
+So the same Dockerfile built and ran in GitHub Actions and failed on Render.
+
+### The actual finding
+
+Two distinct gaps, and only the second is unusual:
+
+1. **The gate covered the artifact, not the destination.** CI proves the image
+   builds in *its* environment. It cannot prove the image builds in Render's,
+   and those differ in builder resources, cache state and toolchain.
+2. **Nothing reported the destination's status back into the repository.**
+   This is the one that let it run for eight days. There was no failing check,
+   no badge, no notification tied to the deploy target — so the only way to
+   learn the service was broken was to open a dashboard nobody had reason to
+   open. A green README badge and a dead service coexisted indefinitely.
+
+### What was not established
+
+**The root cause was never diagnosed.** The service was deleted instead, so no
+build log was ever read. This section deliberately does not name a cause.
+
+What *is* established is the timeline, and it rules out one class of
+explanation: `main` had **zero commits between 2026-07-18 03:17 and
+2026-07-28 17:55**, and the failures began around 21 July — three days into that
+gap. Nothing in this repository changed when the build started failing.
+
+That is the same shape as the `gitpython` advisory in §5: the repository stood
+still and something outside it moved. `Dockerfile.demo` has two floating inputs
+that would behave exactly this way — `FROM python:3.12-slim` (a mutable tag) and
+`RUN pip install --no-cache-dir uv` (unpinned). **Candidates, not conclusions.**
+
+### Why deleting was the right call
+
+Nothing linked to the service: no GitHub homepage is set, and the README already
+described the console as "not featured as a hosted public demo". A one-command
+local path and a CI-verified image both remain.
+
+The decisive evidence was the failure itself. **Eight days of downtime that
+nobody noticed is a measurement of how much the service was used.** Fixing it
+because it was fixable would have been the wrong trade.
+
+### Carried forward, unaddressed
+
+The two floating build inputs are still floating, and `Dockerfile` (the serving
+image) shares the pattern. An identical commit can build today and fail
+tomorrow. Nothing currently deploys, so this is latent rather than urgent — but
+it is recorded rather than quietly dropped, and noted in
+[hosted_demo.md](hosted_demo.md) where someone hosting the image would meet it.
+
 ## What this repository may and may not claim
 
 **May claim.** That it implements an end-to-end PHM MLOps envelope with real

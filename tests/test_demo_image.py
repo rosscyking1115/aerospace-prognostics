@@ -18,7 +18,7 @@ def test_demo_dockerfile_bakes_seeded_read_only_console() -> None:
     assert "/_stcore/health" in dockerfile
 
 
-def test_hosted_demo_docs_describe_private_read_only_deployment() -> None:
+def test_hosted_demo_docs_describe_the_read_only_image() -> None:
     docs = _repo_root().joinpath("docs", "hosted_demo.md").read_text(encoding="utf-8")
 
     assert "Dockerfile.demo" in docs
@@ -27,11 +27,27 @@ def test_hosted_demo_docs_describe_private_read_only_deployment() -> None:
     assert "--tmpfs /tmp:rw,nosuid,nodev,noexec,size=128m" in docs
     assert "AEROSPACE_PROGNOSTICS_CONSOLE_READ_ONLY=true" in docs
     assert "AEROSPACE_PROGNOSTICS_CONSOLE_ACCESS_TOKEN" in docs
-    assert "Keep the GitHub repository private" in docs
     assert "run evidence JSON" in docs
     assert "model-review bundles" in docs
     assert "fleet registry JSON/CSV" in docs
     assert "/_stcore/health" in docs
+
+
+def test_hosted_demo_docs_do_not_imply_a_live_deployment() -> None:
+    """The page must not read as though a hosted instance exists.
+
+    A private Render service ran this console until July 2026 and was retired
+    rather than repaired. Documentation that still promises a URL is a stale
+    claim, and stale claims are what this repository's audit exists to catch —
+    so the retraction is pinned here rather than trusted to stay written.
+    """
+
+    docs = _repo_root().joinpath("docs", "hosted_demo.md").read_text(encoding="utf-8")
+
+    assert "There is no hosted instance of this console" in docs
+    # The retired platform's blueprint is gone; nothing may point at it.
+    assert "render.yaml" not in docs
+    assert not _repo_root().joinpath("render.yaml").exists()
 
 
 def test_demo_image_contract_script_validates_seeded_state() -> None:
