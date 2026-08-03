@@ -80,7 +80,6 @@ def run_phase2_completion_audit(
     root: str | Path = ".",
 ) -> Phase2CompletionAudit:
     """Verify both Phase 2 track manifests and return one completion audit."""
-
     cmapss_verification = verify_phase2_cmapss_run_manifest(cmapss_manifest, root=root)
     smap_msl_verification = verify_phase2_smap_msl_run_manifest(smap_msl_manifest, root=root)
     return Phase2CompletionAudit(
@@ -94,7 +93,6 @@ def write_phase2_completion_audit_json(
     output_path: str | Path,
 ) -> Path:
     """Write a machine-readable Phase 2 completion audit."""
-
     return write_json_payload(audit.to_dict(), output_path)
 
 
@@ -103,7 +101,6 @@ def write_phase2_completion_audit_markdown(
     output_path: str | Path,
 ) -> Path:
     """Write a human-readable Phase 2 completion audit."""
-
     path = prepare_output_path(output_path)
     lines = [
         "# Phase 2 Completion Audit",

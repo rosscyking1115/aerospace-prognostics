@@ -22,7 +22,6 @@ class ManifestEntry:
 
     def to_file_check(self) -> FileCheck:
         """Convert this manifest entry into a file-integrity check."""
-
         return FileCheck(
             path=Path(self.path),
             sha256=self.sha256,
@@ -40,12 +39,10 @@ class DatasetManifest:
 
     def to_dict(self) -> dict[str, Any]:
         """Return a JSON-serialisable dictionary."""
-
         return asdict(self)
 
     def write_json(self, path: str | Path) -> None:
         """Write this manifest as pretty JSON."""
-
         write_json_payload(self.to_dict(), path)
 
 
@@ -56,7 +53,6 @@ def build_cmapss_manifest(
     source_note: str = "NASA Prognostics Data Repository C-MAPSS local files",
 ) -> DatasetManifest:
     """Build a manifest for local C-MAPSS files."""
-
     root = Path(data_dir)
     entries: list[ManifestEntry] = []
     for relative_path in expected_cmapss_paths(subsets=subsets):
@@ -76,7 +72,6 @@ def build_cmapss_manifest(
 
 def read_manifest(path: str | Path) -> DatasetManifest:
     """Read a dataset manifest from JSON."""
-
     payload = json.loads(Path(path).read_text(encoding="utf-8"))
     return DatasetManifest(
         dataset=payload["dataset"],
@@ -87,7 +82,6 @@ def read_manifest(path: str | Path) -> DatasetManifest:
 
 def verify_manifest(manifest: DatasetManifest, *, root: str | Path) -> list[str]:
     """Return all verification problems for a manifest."""
-
     problems: list[str] = []
     for entry in manifest.entries:
         problems.extend(verify_file(entry.to_file_check(), root=root))
@@ -96,7 +90,6 @@ def verify_manifest(manifest: DatasetManifest, *, root: str | Path) -> list[str]
 
 def expected_cmapss_paths(*, subsets: tuple[str, ...] = CMAPSS_SUBSETS) -> list[Path]:
     """Return expected C-MAPSS relative file paths for subsets."""
-
     normalised_subsets = tuple(subset.upper() for subset in subsets)
     unknown = [subset for subset in normalised_subsets if subset not in CMAPSS_SUBSETS]
     if unknown:

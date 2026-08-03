@@ -36,7 +36,6 @@ def score_binary_anomalies(
     point_adjusted: bool = False,
 ) -> AnomalyDetectionMetrics:
     """Score binary anomaly predictions with optional segment-level point adjustment."""
-
     true = _as_binary_vector(y_true, name="y_true")
     pred = _as_binary_vector(y_pred, name="y_pred")
     if true.shape != pred.shape:
@@ -72,7 +71,6 @@ def point_adjusted_predictions(
     y_pred: Sequence[int] | np.ndarray,
 ) -> np.ndarray:
     """Mark an entire true anomaly segment as detected if any point in it is detected."""
-
     true = _as_binary_vector(y_true, name="y_true")
     pred = _as_binary_vector(y_pred, name="y_pred")
     if true.shape != pred.shape:

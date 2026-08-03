@@ -27,7 +27,6 @@ class FleetDashboardPayload:
 
     def to_dict(self) -> dict[str, Any]:
         """Return a JSON-serialisable payload."""
-
         return {
             "schema_version": self.schema_version,
             "title": self.title,
@@ -47,7 +46,6 @@ def build_fleet_dashboard_payload(
     generated_at_utc: str | None = None,
 ) -> FleetDashboardPayload:
     """Build a dashboard payload from deployment prediction and evidence JSON."""
-
     prediction_path = Path(prediction_json)
     predictions = _read_json_object(prediction_path, "prediction JSON")
     prediction_rows = _list_of_objects(predictions.get("predictions"), "predictions")
@@ -88,13 +86,11 @@ def write_fleet_dashboard_payload_json(
     output_json: str | Path,
 ) -> Path:
     """Write a dashboard payload JSON document."""
-
     return write_json_payload(payload.to_dict(), output_json)
 
 
 def render_fleet_dashboard_html(payload: FleetDashboardPayload | dict[str, Any]) -> str:
     """Render a standalone fleet dashboard HTML document."""
-
     payload_dict = payload.to_dict() if isinstance(payload, FleetDashboardPayload) else payload
     title = str(payload_dict.get("title") or "Aerospace PHM Fleet View")
     summary = payload_dict.get("summary") if isinstance(payload_dict.get("summary"), dict) else {}
@@ -342,7 +338,6 @@ def write_fleet_dashboard_html(
     output_html: str | Path,
 ) -> Path:
     """Write a standalone fleet dashboard HTML document."""
-
     output_path = prepare_output_path(output_html)
     output_path.write_text(render_fleet_dashboard_html(payload), encoding="utf-8")
     return output_path

@@ -18,7 +18,6 @@ class FileCheck:
 
 def file_sha256(path: str | Path, *, chunk_size: int = 1024 * 1024) -> str:
     """Return a file's SHA-256 digest."""
-
     digest = sha256()
     with Path(path).open("rb") as file:
         for chunk in iter(lambda: file.read(chunk_size), b""):
@@ -28,7 +27,6 @@ def file_sha256(path: str | Path, *, chunk_size: int = 1024 * 1024) -> str:
 
 def verify_file(check: FileCheck, *, root: str | Path = ".") -> list[str]:
     """Return integrity problems for one file, or an empty list when it is valid."""
-
     full_path = Path(root) / check.path
     problems: list[str] = []
     if not full_path.exists():

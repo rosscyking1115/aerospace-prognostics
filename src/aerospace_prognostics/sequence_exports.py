@@ -58,7 +58,6 @@ def export_cmapss_sequence_splits(
     standardize: bool = True,
 ) -> CmapssSequenceExportResult:
     """Export train, validation, and official-test C-MAPSS sequence tensors."""
-
     columns = tuple(feature_columns or cmapss_feature_columns())
     bundle = load_cmapss_subset(data_dir, subset, rul_cap=rul_cap)
     split = make_cmapss_temporal_validation_split(

@@ -34,7 +34,6 @@ class AnomalyModelComparisonRow:
 
     def to_dict(self) -> dict[str, str | int | float | None]:
         """Return a flat serialisable row."""
-
         return asdict(self)
 
 
@@ -44,7 +43,6 @@ def build_anomaly_model_comparison(
     source_labels: tuple[str, ...] | None = None,
 ) -> list[AnomalyModelComparisonRow]:
     """Build a ranked comparison table from anomaly result CSVs."""
-
     if not result_csvs:
         raise ValueError("result_csvs must contain at least one path")
     labels = source_labels or tuple(Path(path).stem for path in result_csvs)
@@ -101,7 +99,6 @@ def write_anomaly_model_comparison_csv(
     path: str | Path,
 ) -> None:
     """Write anomaly comparison rows as CSV."""
-
     if not rows:
         raise ValueError("rows must contain at least one item")
     output_path = prepare_output_path(path)
@@ -116,7 +113,6 @@ def write_anomaly_model_comparison_markdown(
     path: str | Path,
 ) -> None:
     """Write anomaly comparison rows as a compact Markdown table."""
-
     output_path = prepare_output_path(path)
     output_path.write_text(render_anomaly_model_comparison_markdown(rows), encoding="utf-8")
 
@@ -125,7 +121,6 @@ def render_anomaly_model_comparison_markdown(
     rows: list[AnomalyModelComparisonRow],
 ) -> str:
     """Render anomaly comparison rows as a Markdown table."""
-
     if not rows:
         raise ValueError("rows must contain at least one item")
     lines = [

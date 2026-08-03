@@ -30,7 +30,6 @@ class CmapssPredictionDiagnosticRow:
 
     def to_dict(self) -> dict[str, str | int | float]:
         """Return a flat serialisable row."""
-
         return asdict(self)
 
 
@@ -51,7 +50,6 @@ class CmapssPredictionOutlierRow:
 
     def to_dict(self) -> dict[str, str | int | float]:
         """Return a flat serialisable row."""
-
         return asdict(self)
 
 
@@ -75,7 +73,6 @@ class CmapssPredictionRulBinDiagnosticRow:
 
     def to_dict(self) -> dict[str, str | int | float]:
         """Return a flat serialisable row."""
-
         return asdict(self)
 
 
@@ -95,7 +92,6 @@ class CmapssPredictionMonotonicityDiagnosticRow:
 
     def to_dict(self) -> dict[str, str | int | float]:
         """Return a flat serialisable row."""
-
         return asdict(self)
 
 
@@ -127,7 +123,6 @@ class CmapssPredictionUnitDiagnosticRow:
 
     def to_dict(self) -> dict[str, str | int | float]:
         """Return a flat serialisable row."""
-
         return asdict(self)
 
 
@@ -135,7 +130,6 @@ def build_cmapss_prediction_diagnostics(
     predictions_csv: str | Path,
 ) -> list[CmapssPredictionDiagnosticRow]:
     """Build aggregate diagnostics from a deep prediction CSV."""
-
     rows = _read_prediction_rows(predictions_csv)
     grouped: dict[tuple[str, str], list[dict[str, str]]] = {}
     for row in rows:
@@ -152,7 +146,6 @@ def build_cmapss_prediction_rul_bin_diagnostics(
     predictions_csv: str | Path,
 ) -> list[CmapssPredictionRulBinDiagnosticRow]:
     """Build aggregate diagnostics grouped by actual-RUL ranges."""
-
     rows = _read_prediction_rows(predictions_csv)
     grouped: dict[tuple[str, str, str], list[dict[str, str]]] = {}
     for row in rows:
@@ -190,7 +183,6 @@ def build_cmapss_prediction_monotonicity_diagnostics(
     predictions_csv: str | Path,
 ) -> list[CmapssPredictionMonotonicityDiagnosticRow]:
     """Build temporal monotonicity diagnostics from a deep prediction CSV."""
-
     rows = _read_prediction_rows(predictions_csv, required_columns=("end_cycle",))
     grouped_units: dict[tuple[str, str, int], list[tuple[int, dict[str, str]]]] = {}
     for index, row in enumerate(rows):
@@ -246,7 +238,6 @@ def build_cmapss_prediction_unit_diagnostics(
     predictions_csv: str | Path,
 ) -> list[CmapssPredictionUnitDiagnosticRow]:
     """Build per-unit error and temporal diagnostics from a prediction CSV."""
-
     rows = _read_prediction_rows(predictions_csv, required_columns=("end_cycle",))
     grouped_units: dict[tuple[str, str, int], list[tuple[int, dict[str, str]]]] = {}
     for index, row in enumerate(rows):
@@ -299,7 +290,6 @@ def select_cmapss_high_error_predictions(
     top_n: int = 10,
 ) -> list[CmapssPredictionOutlierRow]:
     """Select the highest-absolute-error prediction rows."""
-
     if top_n < 1:
         raise ValueError("top_n must be at least 1")
     rows = sorted(
@@ -333,7 +323,6 @@ def write_cmapss_prediction_diagnostics_csv(
     path: str | Path,
 ) -> None:
     """Write aggregate diagnostics rows as CSV."""
-
     if not rows:
         raise ValueError("rows must contain at least one item")
     output_path = prepare_output_path(path)
@@ -348,7 +337,6 @@ def write_cmapss_prediction_rul_bin_diagnostics_csv(
     path: str | Path,
 ) -> None:
     """Write actual-RUL bin diagnostics rows as CSV."""
-
     if not rows:
         raise ValueError("rows must contain at least one item")
     output_path = prepare_output_path(path)
@@ -363,7 +351,6 @@ def write_cmapss_prediction_monotonicity_diagnostics_csv(
     path: str | Path,
 ) -> None:
     """Write temporal monotonicity diagnostics rows as CSV."""
-
     if not rows:
         raise ValueError("rows must contain at least one item")
     output_path = prepare_output_path(path)
@@ -378,7 +365,6 @@ def write_cmapss_prediction_unit_diagnostics_csv(
     path: str | Path,
 ) -> None:
     """Write per-unit diagnostics rows as CSV."""
-
     if not rows:
         raise ValueError("rows must contain at least one item")
     output_path = prepare_output_path(path)
@@ -398,7 +384,6 @@ def write_cmapss_prediction_diagnostics_markdown(
     unit_diagnostics: list[CmapssPredictionUnitDiagnosticRow] | None = None,
 ) -> None:
     """Write prediction diagnostics as a compact Markdown report."""
-
     output_path = prepare_output_path(path)
     output_path.write_text(
         render_cmapss_prediction_diagnostics_markdown(
@@ -421,7 +406,6 @@ def render_cmapss_prediction_diagnostics_markdown(
     unit_diagnostics: list[CmapssPredictionUnitDiagnosticRow] | None = None,
 ) -> str:
     """Render prediction diagnostics as Markdown tables."""
-
     if not diagnostics:
         raise ValueError("diagnostics must contain at least one item")
     lines = [

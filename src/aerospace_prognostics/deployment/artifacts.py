@@ -54,7 +54,6 @@ class CmapssArtifactValidation:
 
     def to_dict(self) -> dict[str, Any]:
         """Return a JSON-serialisable validation report."""
-
         return {
             "artifact_path": self.artifact_path,
             "metadata_json_path": self.metadata_json_path,
@@ -86,7 +85,6 @@ class CmapssArtifactBenchmark:
 
     def to_dict(self) -> dict[str, Any]:
         """Return a JSON-serialisable benchmark report."""
-
         return {
             "artifact_path": self.artifact_path,
             "input_csv_path": self.input_csv_path,
@@ -119,7 +117,6 @@ class CmapssPromotionReport:
 
     def to_dict(self) -> dict[str, Any]:
         """Return a JSON-serialisable promotion report."""
-
         return {
             "validation_json_path": self.validation_json_path,
             "benchmark_json_path": self.benchmark_json_path,
@@ -147,7 +144,6 @@ class CmapssReleaseBundle:
 
     def to_dict(self) -> dict[str, Any]:
         """Return a JSON-serialisable release bundle."""
-
         return {
             "schema_version": "aerospace-prognostics/cmapss-release-bundle/v1",
             "release_name": self.release_name,
@@ -173,7 +169,6 @@ class CmapssPrediction:
 
     def to_dict(self) -> dict[str, float | int | str | None]:
         """Return a JSON-serialisable dictionary."""
-
         return asdict(self)
 
 
@@ -202,7 +197,6 @@ class CmapssHgbPolicyModelArtifact:
 
     def metadata(self) -> dict[str, Any]:
         """Return deployment metadata without binary model objects."""
-
         return {
             "schema_version": self.schema_version,
             "dataset": self.dataset,
@@ -223,7 +217,6 @@ class CmapssHgbPolicyModelArtifact:
 
     def predict_from_frame(self, frame: pd.DataFrame) -> list[CmapssPrediction]:
         """Predict capped RUL from one or more raw C-MAPSS telemetry histories."""
-
         _validate_inference_frame(frame, self.input_columns)
         features = self._build_features(frame)
         if self.standardizer is not None:
@@ -250,7 +243,6 @@ class CmapssHgbPolicyModelArtifact:
         drift_threshold: float = 3.0,
     ) -> dict[str, Any]:
         """Summarise request telemetry drift and prediction distribution."""
-
         _validate_inference_frame(frame, self.input_columns)
         telemetry_summary = _telemetry_drift_summary(
             frame,
@@ -316,7 +308,6 @@ class PackagedCmapssModel:
 
 def inspect_cmapss_model_artifact(artifact_path: str | Path) -> dict[str, Any]:
     """Build a JSON-safe inspection summary for a packaged C-MAPSS artifact."""
-
     artifact_file = Path(artifact_path)
     artifact = load_cmapss_model_artifact(artifact_file)
     return {
@@ -369,7 +360,6 @@ def train_cmapss_hgb_policy_artifact(
     standardize: bool = True,
 ) -> PackagedCmapssModel:
     """Train the validation-selected HGB policy and return a deployable artifact."""
-
     normalised_subset = subset.upper()
     rolling_window = CMAPSS_ENGINEERED_DEFAULT_WINDOWS[normalised_subset]
     feature_policy = CMAPSS_VALIDATION_SELECTED_FEATURES[normalised_subset]
@@ -487,7 +477,6 @@ def save_cmapss_model_artifact(
     path: str | Path,
 ) -> Path:
     """Persist a deployable model artifact with joblib."""
-
     output_path = prepare_output_path(path)
     joblib.dump(artifact, output_path)
     return output_path
@@ -495,7 +484,6 @@ def save_cmapss_model_artifact(
 
 def load_cmapss_model_artifact(path: str | Path) -> CmapssHgbPolicyModelArtifact:
     """Load and validate a packaged C-MAPSS model artifact."""
-
     artifact = joblib.load(Path(path))
     if not isinstance(artifact, CmapssHgbPolicyModelArtifact):
         raise TypeError("artifact is not a CmapssHgbPolicyModelArtifact")
@@ -521,7 +509,6 @@ def validate_cmapss_model_artifact(
     input_csv: str | Path | None = None,
 ) -> CmapssArtifactValidation:
     """Validate that a packaged artifact is loadable and promotion-ready."""
-
     artifact_file = Path(artifact_path)
     metadata_file = Path(metadata_json) if metadata_json is not None else None
     input_file = Path(input_csv) if input_csv is not None else None
@@ -608,7 +595,6 @@ def benchmark_cmapss_model_artifact(
     max_p95_latency_ms: float | None = None,
 ) -> CmapssArtifactBenchmark:
     """Benchmark batch inference latency for a packaged C-MAPSS artifact."""
-
     if runs < 1:
         raise ValueError("runs must be at least 1")
     if warmup_runs < 0:
@@ -663,7 +649,6 @@ def build_cmapss_promotion_report(
     sbom_json: str | Path | None = None,
 ) -> CmapssPromotionReport:
     """Combine deployment evidence into a promotion-gate report."""
-
     validation_file = Path(validation_json)
     benchmark_file = Path(benchmark_json)
     model_card_file = Path(model_card_markdown) if model_card_markdown is not None else None
@@ -783,7 +768,6 @@ def build_cmapss_promotion_report(
 
 def render_cmapss_promotion_report_markdown(report: CmapssPromotionReport) -> str:
     """Render a markdown promotion-gate report."""
-
     identity = report.artifact_identity
     benchmark = report.evidence.get("benchmark", {})
     latency = benchmark.get("latency_ms", {}) if isinstance(benchmark, dict) else {}
@@ -837,7 +821,6 @@ def write_cmapss_promotion_report_markdown(
     output_markdown: str | Path,
 ) -> Path:
     """Write a markdown promotion-gate report."""
-
     output_path = prepare_output_path(output_markdown)
     output_path.write_text(render_cmapss_promotion_report_markdown(report), encoding="utf-8")
     return output_path
@@ -857,7 +840,6 @@ def build_cmapss_release_bundle(
     container_image_ref: str | None = None,
 ) -> CmapssReleaseBundle:
     """Compose final release-candidate evidence for a C-MAPSS deployment."""
-
     artifact_file = Path(model_artifact)
     metadata_file = Path(metadata_json)
     model_card_file = Path(model_card_markdown)
@@ -1001,7 +983,6 @@ def build_cmapss_release_bundle(
 
 def render_cmapss_release_bundle_markdown(bundle: CmapssReleaseBundle) -> str:
     """Render a release-candidate bundle as Markdown for human review."""
-
     identity = bundle.artifact_identity
     evidence = bundle.evidence
     artifact = evidence.get("model_artifact", {})
@@ -1071,7 +1052,6 @@ def write_cmapss_release_bundle_markdown(
     output_markdown: str | Path,
 ) -> Path:
     """Write a release-candidate bundle Markdown artifact."""
-
     output_path = prepare_output_path(output_markdown)
     output_path.write_text(render_cmapss_release_bundle_markdown(bundle), encoding="utf-8")
     return output_path
@@ -1082,7 +1062,6 @@ def render_cmapss_model_card_markdown(
     result: RegressionRunResult,
 ) -> str:
     """Render a human-readable model card for a packaged C-MAPSS artifact."""
-
     promotion = artifact.promotion_metadata
     identity = promotion.get("identity", {})
     rollback = promotion.get("rollback", {})
@@ -1193,7 +1172,6 @@ def write_cmapss_model_card_markdown(
     output_markdown: str | Path,
 ) -> Path:
     """Write a model-card markdown artifact for a packaged C-MAPSS model."""
-
     output_path = prepare_output_path(output_markdown)
     output_path.write_text(
         render_cmapss_model_card_markdown(artifact, result),

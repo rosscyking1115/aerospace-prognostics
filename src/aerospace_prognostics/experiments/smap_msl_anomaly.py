@@ -190,7 +190,6 @@ def run_smap_msl_classical_baselines(
     random_state: int = 42,
 ) -> tuple[SmapMslClassicalBaselineRun, ...]:
     """Run classical anomaly baselines directly on raw SMAP/MSL channel arrays."""
-
     channel_ids = _selected_channel_ids(data_dir, channels=channels, max_channels=max_channels)
     runs: list[SmapMslClassicalBaselineRun] = []
     for channel_id in channel_ids:
@@ -234,7 +233,6 @@ def run_smap_msl_robust_threshold_sweep(
     max_channels: int | None = None,
 ) -> tuple[SmapMslRobustThresholdSweepRun, ...]:
     """Sweep robust z-score thresholds across raw SMAP/MSL channel arrays."""
-
     if not thresholds:
         raise ValueError("thresholds must contain at least one value")
     if any(threshold <= 0 for threshold in thresholds):
@@ -272,7 +270,6 @@ def aggregate_smap_msl_robust_threshold_sweep(
     runs: tuple[SmapMslRobustThresholdSweepRun, ...],
 ) -> tuple[SmapMslRobustThresholdSweepAggregate, ...]:
     """Aggregate robust threshold sweep results by threshold."""
-
     if not runs:
         raise ValueError("runs must contain at least one item")
     winners = _robust_threshold_wins_by_channel(runs)
@@ -304,7 +301,6 @@ def select_smap_msl_robust_threshold_operating_points(
     group_by: str = "spacecraft",
 ) -> tuple[SmapMslRobustThresholdOperatingPoint, ...]:
     """Select robust threshold operating points under a false-alarm budget."""
-
     if not runs:
         raise ValueError("runs must contain at least one item")
     if false_alarm_budget < 0 or false_alarm_budget > 1:
@@ -361,7 +357,6 @@ def select_smap_msl_robust_threshold_policy_runs(
     operating_points: tuple[SmapMslRobustThresholdOperatingPoint, ...],
 ) -> tuple[SmapMslRobustThresholdSweepRun, ...]:
     """Select the per-channel runs implied by robust threshold operating points."""
-
     if not runs:
         raise ValueError("runs must contain at least one item")
     if not operating_points:
@@ -418,7 +413,6 @@ def run_smap_msl_lstm_forecast_baseline(
     device: str = "cpu",
 ) -> tuple[SmapMslLstmForecastBaselineRun, ...]:
     """Run an LSTM next-step forecasting anomaly baseline on SMAP/MSL channels."""
-
     channel_ids = _selected_channel_ids(data_dir, channels=channels, max_channels=max_channels)
     from aerospace_prognostics.anomaly.forecasting import run_lstm_forecast_anomaly_baseline
 
@@ -467,7 +461,6 @@ def write_smap_msl_classical_baselines_json(
     path: Path,
 ) -> None:
     """Write SMAP/MSL classical baseline runs as JSON."""
-
     payload = [run.to_dict() for run in runs]
     write_json_payload(payload, path)
 
@@ -477,7 +470,6 @@ def write_smap_msl_lstm_forecast_baseline_json(
     path: Path,
 ) -> None:
     """Write SMAP/MSL LSTM forecast baseline runs as JSON."""
-
     payload = [run.to_dict() for run in runs]
     write_json_payload(payload, path)
 
@@ -487,7 +479,6 @@ def write_smap_msl_classical_baselines_csv(
     path: Path,
 ) -> None:
     """Write SMAP/MSL classical baseline runs as a compact metrics table."""
-
     output_path = prepare_output_path(path)
     fieldnames = [
         "channel_id",
@@ -538,7 +529,6 @@ def write_smap_msl_robust_threshold_sweep_json(
     path: Path,
 ) -> None:
     """Write SMAP/MSL robust threshold sweep runs as JSON."""
-
     payload = [run.to_dict() for run in runs]
     write_json_payload(payload, path)
 
@@ -548,7 +538,6 @@ def write_smap_msl_robust_threshold_sweep_csv(
     path: Path,
 ) -> None:
     """Write SMAP/MSL robust threshold sweep runs as a compact metrics table."""
-
     output_path = prepare_output_path(path)
     fieldnames = [
         "channel_id",
@@ -599,7 +588,6 @@ def write_smap_msl_robust_threshold_sweep_aggregate_json(
     path: Path,
 ) -> None:
     """Write SMAP/MSL robust threshold sweep aggregate metrics as JSON."""
-
     payload = [aggregate.to_dict() for aggregate in aggregates]
     write_json_payload(payload, path)
 
@@ -609,7 +597,6 @@ def write_smap_msl_robust_threshold_sweep_aggregate_csv(
     path: Path,
 ) -> None:
     """Write SMAP/MSL robust threshold sweep aggregate metrics as CSV."""
-
     if not aggregates:
         raise ValueError("aggregates must contain at least one item")
     output_path = prepare_output_path(path)
@@ -624,7 +611,6 @@ def write_smap_msl_robust_threshold_operating_points_json(
     path: Path,
 ) -> None:
     """Write selected SMAP/MSL robust threshold operating points as JSON."""
-
     payload = [operating_point.to_dict() for operating_point in operating_points]
     write_json_payload(payload, path)
 
@@ -634,7 +620,6 @@ def write_smap_msl_robust_threshold_operating_points_csv(
     path: Path,
 ) -> None:
     """Write selected SMAP/MSL robust threshold operating points as CSV."""
-
     if not operating_points:
         raise ValueError("operating_points must contain at least one item")
     output_path = prepare_output_path(path)
@@ -650,7 +635,6 @@ def write_smap_msl_robust_threshold_policy_json(
     path: Path,
 ) -> None:
     """Write selected robust threshold policy runs as comparison-ready JSON rows."""
-
     payload = [
         _robust_threshold_policy_row(run, _operating_point_for_run(run, operating_points))
         for run in runs
@@ -664,7 +648,6 @@ def write_smap_msl_robust_threshold_policy_csv(
     path: Path,
 ) -> None:
     """Write selected robust threshold policy runs as a comparison-ready CSV table."""
-
     if not runs:
         raise ValueError("runs must contain at least one item")
     output_path = prepare_output_path(path)
@@ -683,7 +666,6 @@ def write_smap_msl_lstm_forecast_baseline_csv(
     path: Path,
 ) -> None:
     """Write SMAP/MSL LSTM forecast baseline runs as a compact metrics table."""
-
     output_path = prepare_output_path(path)
     fieldnames = [
         "channel_id",

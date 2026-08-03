@@ -10,7 +10,6 @@ import pandas as pd
 
 def best_anomaly_asset_rows(path: Path) -> list[dict[str, Any]]:
     """Return the best comparison row for each anomaly channel."""
-
     frame = pd.read_csv(path)
     if frame.empty:
         raise ValueError(f"anomaly comparison CSV has no rows: {path}")
@@ -57,7 +56,6 @@ def best_anomaly_asset_rows(path: Path) -> list[dict[str, Any]]:
 
 def latest_anomaly_event_rows(path: Path) -> tuple[list[dict[str, Any]], int]:
     """Return the latest live anomaly event row for each spacecraft channel."""
-
     frame = pd.read_csv(path)
     if frame.empty:
         raise ValueError(f"anomaly events CSV has no rows: {path}")
@@ -95,13 +93,11 @@ def latest_anomaly_event_rows(path: Path) -> tuple[list[dict[str, Any]], int]:
 
 def anomaly_asset_id(spacecraft: str, channel_id: str) -> str:
     """Build the stable fleet asset ID for a spacecraft channel."""
-
     return f"{spacecraft.lower()}-channel-{channel_id.lower()}"
 
 
 def anomaly_asset_risk_level(row: dict[str, Any]) -> str:
     """Classify a benchmarked anomaly channel into a fleet risk level."""
-
     if float(row["miss_rate"]) >= 0.5 or float(row["f1"]) < 0.25:
         return "critical"
     if (
@@ -119,7 +115,6 @@ def anomaly_asset_attention_reasons(
     risk_level: str,
 ) -> list[str]:
     """Explain why a benchmarked anomaly channel needs attention."""
-
     reasons: list[str] = []
     if int(row["predicted_positives"]) > 0:
         reasons.append("Anomaly detections present in evaluation window")
@@ -134,7 +129,6 @@ def anomaly_asset_attention_reasons(
 
 def anomaly_asset_status(risk_level: str) -> str:
     """Map anomaly risk to an operator-facing status."""
-
     return {
         "critical": "anomaly_review",
         "watch": "monitor",
@@ -144,7 +138,6 @@ def anomaly_asset_status(risk_level: str) -> str:
 
 def anomaly_event_risk_level(row: dict[str, Any]) -> str:
     """Classify a live anomaly event into a fleet risk level."""
-
     severity = str(row.get("severity") or "").strip().lower()
     threshold_crossed = anomaly_event_threshold_crossed(row)
     active = bool(row.get("active"))
@@ -161,7 +154,6 @@ def anomaly_event_attention_reasons(
     risk_level: str,
 ) -> list[str]:
     """Explain why a live anomaly event needs attention."""
-
     reasons: list[str] = []
     severity = str(row.get("severity") or "").strip().lower()
     if severity and severity not in {"info", "nominal"}:
@@ -177,7 +169,6 @@ def anomaly_event_attention_reasons(
 
 def anomaly_event_threshold_crossed(row: dict[str, Any]) -> bool:
     """Return whether an event score crosses its alert threshold."""
-
     score = _optional_float(row.get("anomaly_score"))
     threshold = _optional_float(row.get("threshold"))
     return score is not None and threshold is not None and score >= threshold

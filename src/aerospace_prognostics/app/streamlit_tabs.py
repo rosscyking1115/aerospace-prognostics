@@ -55,7 +55,6 @@ def render_system_tab(
     endpoint_status_label: Callable[[Any], str],
 ) -> None:
     """Render API, database, and local quickstart state."""
-
     st.subheader("System Status")
     summary = database_summary(database_path, read_only=read_only)
     columns = st.columns(4)
@@ -109,7 +108,6 @@ def render_fleet_tab(
     json_download_bytes: Callable[[Any], bytes],
 ) -> None:
     """Render the fleet priority, registry, and event-ingest operations surface."""
-
     payload = workspace.dashboard_payload or {}
     summary = payload.get("summary") if isinstance(payload.get("summary"), dict) else {}
     assets = payload.get("assets") if isinstance(payload.get("assets"), list) else []
@@ -442,7 +440,6 @@ def render_evidence_tab(
     display: Callable[[Any], str],
 ) -> None:
     """Render model artifact and release evidence from the quickstart workspace."""
-
     inspection = workspace.artifact_inspection or {}
     release_bundle = workspace.release_bundle or {}
     provenance = workspace.provenance or {}
@@ -492,7 +489,6 @@ def render_predict_tab(
     read_only: bool,
 ) -> None:
     """Render batch prediction upload, backend selection, and run persistence."""
-
     st.subheader("Batch Prediction")
     uploaded = st.file_uploader("Telemetry CSV", type=["csv"], disabled=read_only)
     try:
@@ -569,7 +565,6 @@ def render_history_tab(
     json_download_bytes: Callable[[Any], bytes],
 ) -> None:
     """Render persisted prediction runs, outcomes, decisions, and evidence exports."""
-
     st.subheader("Prediction History")
     all_runs = list_prediction_runs(database_path, limit=1000, read_only=read_only)
     if not all_runs:
@@ -892,7 +887,6 @@ def render_registry_tab(
     json_download_bytes: Callable[[Any], bytes],
 ) -> None:
     """Render the model registry and release evidence usage view."""
-
     st.subheader("Model Registry")
     artifacts = list_model_artifacts(database_path, limit=100, read_only=read_only)
     if not artifacts:
@@ -1124,7 +1118,6 @@ def render_registry_tab(
 
 def render_roadmap_tab(st: Any) -> None:
     """Render the MLOps engineering roadmap tab."""
-
     st.subheader("MLOps Roadmap")
     st.markdown(
         """

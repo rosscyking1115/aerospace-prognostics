@@ -9,7 +9,6 @@ def turbofan_asset_risk_level(
     predicted_rul_lower: float | None,
 ) -> str:
     """Classify an engine RUL prediction into an operator-facing risk level."""
-
     risk_floor = (
         min(predicted_rul, predicted_rul_lower)
         if predicted_rul_lower is not None
@@ -30,7 +29,6 @@ def turbofan_asset_attention_reasons(
     risk_level: str,
 ) -> list[str]:
     """Explain why an engine RUL asset needs operator attention."""
-
     reasons: list[str] = []
     if risk_level == "critical":
         reasons.append("RUL at or below critical threshold")
@@ -49,7 +47,6 @@ def turbofan_asset_attention_reasons(
 
 def turbofan_asset_status(risk_level: str) -> str:
     """Map engine RUL risk to a fleet registry status."""
-
     return {
         "critical": "maintenance_review",
         "watch": "monitor",

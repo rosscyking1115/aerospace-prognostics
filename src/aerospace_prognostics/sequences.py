@@ -37,7 +37,6 @@ def make_sequence_windows(
     Each output target, when requested, is the target value at the final row of
     the corresponding window.
     """
-
     if window_size <= 0:
         raise ValueError("window_size must be positive")
     if stride <= 0:
@@ -90,7 +89,6 @@ def make_last_sequence_windows(
     pad_value: float = 0.0,
 ) -> SequenceWindowDataset:
     """Create one final window per unit, left-padding short units when needed."""
-
     if window_size <= 0:
         raise ValueError("window_size must be positive")
 

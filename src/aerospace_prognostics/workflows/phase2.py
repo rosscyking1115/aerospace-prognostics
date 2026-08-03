@@ -135,7 +135,6 @@ def run_phase2_cmapss_workflow(
     device: str = "cpu",
 ) -> Phase2WorkflowResult:
     """Run the Phase 2 C-MAPSS sequence export, deep comparison, and report workflow."""
-
     unknown_models = sorted(set(models) - set(CMAPSS_DEEP_COMPARISON_MODELS))
     if unknown_models:
         raise ValueError(f"unknown Phase 2 workflow models: {', '.join(unknown_models)}")
@@ -531,7 +530,6 @@ def verify_phase2_cmapss_run_manifest(
     root: str | Path = ".",
 ) -> Phase2RunManifestVerification:
     """Verify that a C-MAPSS Phase 2 manifest points to a complete artifact bundle."""
-
     path = Path(manifest_path)
     artifact_root = Path(root)
     problems: list[str] = []
@@ -587,7 +585,6 @@ def write_phase2_cmapss_manifest_audit_markdown(
     output_path: str | Path,
 ) -> Path:
     """Write a human-readable audit report for a C-MAPSS Phase 2 run manifest."""
-
     path = Path(output_path)
     payload = verification.manifest_payload or {}
     runtime = _manifest_section(payload, "runtime")

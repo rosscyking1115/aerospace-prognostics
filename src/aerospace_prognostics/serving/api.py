@@ -266,7 +266,6 @@ def create_app(
     ``rate_limit_per_minute=0`` disables request throttling. Positive values
     enable a per-client fixed-window limit for secured deployment smoke tests.
     """
-
     app = FastAPI(
         title="Aerospace Prognostics API",
         version="0.1.0",

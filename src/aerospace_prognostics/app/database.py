@@ -22,7 +22,6 @@ REQUIRED_TABLES = (
 
 def initialize_app_database(database_path: str | Path) -> Path:
     """Create or migrate the local app database."""
-
     db_path = Path(database_path)
     db_path.parent.mkdir(parents=True, exist_ok=True)
     with connect(db_path) as connection:
@@ -151,7 +150,6 @@ def initialize_app_database(database_path: str | Path) -> Path:
 
 def prepare_database(database_path: str | Path, *, read_only: bool) -> Path:
     """Return a validated existing DB for read-only use, or initialize it."""
-
     if read_only:
         return validate_existing_database(database_path)
     return initialize_app_database(database_path)
@@ -159,7 +157,6 @@ def prepare_database(database_path: str | Path, *, read_only: bool) -> Path:
 
 def validate_existing_database(database_path: str | Path) -> Path:
     """Validate that a read-only app database exists and matches this schema."""
-
     db_path = Path(database_path)
     if not db_path.exists():
         raise FileNotFoundError(f"app database not found: {db_path}")
@@ -186,7 +183,6 @@ def validate_existing_database(database_path: str | Path) -> Path:
 
 def connect(database_path: Path, *, read_only: bool = False) -> sqlite3.Connection:
     """Open an app database connection with foreign-key enforcement enabled."""
-
     if read_only:
         uri = database_path.resolve().as_uri() + "?mode=ro"
         connection = sqlite3.connect(uri, uri=True)
@@ -198,7 +194,6 @@ def connect(database_path: Path, *, read_only: bool = False) -> sqlite3.Connecti
 
 def metadata_value(connection: sqlite3.Connection, key: str) -> str | None:
     """Return one app_metadata value from an open connection."""
-
     row = connection.execute(
         "select value from app_metadata where key = ?",
         (key,),

@@ -28,7 +28,6 @@ class CmapssSubset:
 
 def read_cmapss_frame(path: str | Path) -> pd.DataFrame:
     """Read a C-MAPSS train/test text file with canonical column names."""
-
     import pandas as pd
 
     return pd.read_csv(
@@ -43,7 +42,6 @@ def read_cmapss_frame(path: str | Path) -> pd.DataFrame:
 
 def add_train_rul_targets(frame: pd.DataFrame, *, cap: int | None = None) -> pd.DataFrame:
     """Add uncapped and optional capped RUL targets to a C-MAPSS training frame."""
-
     required = {"unit_number", "time_in_cycles"}
     missing = required.difference(frame.columns)
     if missing:
@@ -61,7 +59,6 @@ def add_train_rul_targets(frame: pd.DataFrame, *, cap: int | None = None) -> pd.
 
 def read_test_rul(path: str | Path) -> pd.Series:
     """Read the C-MAPSS `RUL_FD*.txt` file as one value per test unit."""
-
     import pandas as pd
 
     return pd.read_csv(Path(path), sep=r"\s+", header=None, usecols=[0], engine="python")[0]
@@ -69,7 +66,6 @@ def read_test_rul(path: str | Path) -> pd.Series:
 
 def load_cmapss_subset(root: str | Path, subset: str, *, rul_cap: int = 125) -> CmapssSubset:
     """Load train, test, and held-out RUL labels for a C-MAPSS subset."""
-
     normalised_subset = subset.upper()
     if normalised_subset not in CMAPSS_SUBSETS:
         raise ValueError(f"subset must be one of {CMAPSS_SUBSETS}")

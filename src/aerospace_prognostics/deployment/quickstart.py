@@ -33,7 +33,6 @@ def run_cmapss_quickstart(
     runner: Callable[[list[str]], int] | None = None,
 ) -> int:
     """Generate a tiny C-MAPSS deployment evidence bundle through the public CLI."""
-
     if runner is None:
         from aerospace_prognostics.cli import main
 

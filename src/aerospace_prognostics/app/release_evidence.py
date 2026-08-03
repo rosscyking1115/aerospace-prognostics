@@ -17,7 +17,6 @@ def release_evidence_record(
     timestamp: str,
 ) -> dict[str, Any]:
     """Build a deterministic release-evidence row payload."""
-
     evidence_id = f"{evidence_type}:{artifact_id}:{_file_sha256(path)}"
     status = payload.get("status") if isinstance(payload.get("status"), str) else None
     return {
@@ -33,7 +32,6 @@ def release_evidence_record(
 
 def evidence_from_row(row: Any) -> dict[str, Any]:
     """Decode one SQLite release-evidence row for API/console consumers."""
-
     evidence = dict(row)
     evidence["payload"] = _json_loads(evidence.pop("payload_json"))
     return evidence

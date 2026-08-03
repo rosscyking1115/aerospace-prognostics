@@ -22,7 +22,6 @@ def build_publish_tags(
     manual_tag: str | None = None,
 ) -> dict[str, Any]:
     """Return a compact publishing plan for the serving image."""
-
     normalized_image = image_name.strip().lower()
     _validate_image_name(normalized_image)
 

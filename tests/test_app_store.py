@@ -88,7 +88,6 @@ def _quickstart_evidence_diagnostics(workspace: QuickstartWorkspace) -> str:
     from a correct one unless the inputs are reported. See the known-flake note
     on ``test_seed_quickstart_workspace_persists_model_and_evidence``.
     """
-
     items = (
         ("artifact_inspection", workspace.artifact_inspection_path, workspace.artifact_inspection),
         ("release_bundle", workspace.release_bundle_path, workspace.release_bundle),
@@ -132,7 +131,6 @@ def test_seed_quickstart_workspace_persists_model_and_evidence(tmp_path) -> None
     replace this with a retry or an ``xfail``; that would hide the signal instead
     of sharpening it.
     """
-
     workspace = _write_fake_workspace(tmp_path / "quickstart")
     database_path = tmp_path / "app.sqlite"
 
@@ -171,7 +169,6 @@ def test_a_missing_evidence_file_is_silently_skipped_not_reported(tmp_path) -> N
     flake would take, and that the diagnostics added above would name the
     culprit.
     """
-
     workspace = _write_fake_workspace(tmp_path / "quickstart")
     database_path = tmp_path / "app.sqlite"
     workspace.provenance_path.unlink()

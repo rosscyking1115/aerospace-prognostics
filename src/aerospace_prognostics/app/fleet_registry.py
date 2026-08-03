@@ -8,7 +8,6 @@ from typing import Any
 
 def normalized_filter_values(values: Iterable[str] | None) -> list[str]:
     """Normalize optional user filter values into stable non-empty strings."""
-
     if values is None:
         return []
     return sorted({str(value).strip() for value in values if str(value).strip()})
@@ -22,7 +21,6 @@ def fleet_asset_filters(
     attention_only: bool,
 ) -> dict[str, Any]:
     """Build normalized fleet-registry filters for evidence payloads."""
-
     return {
         "risk_levels": normalized_filter_values(risk_levels),
         "domains": normalized_filter_values(domains),
@@ -33,7 +31,6 @@ def fleet_asset_filters(
 
 def fleet_asset_registry_summary(assets: list[dict[str, Any]]) -> dict[str, Any]:
     """Summarize fleet-registry assets for portable evidence bundles."""
-
     risk_counts: dict[str, int] = {}
     domain_counts: dict[str, int] = {}
     status_counts: dict[str, int] = {}
@@ -61,7 +58,6 @@ def fleet_asset_registry_summary(assets: list[dict[str, Any]]) -> dict[str, Any]
 
 def fleet_asset_export_rows(assets: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """Flatten fleet-registry assets into operator handoff CSV rows."""
-
     rows: list[dict[str, Any]] = []
     for asset in assets:
         metadata = asset.get("metadata")

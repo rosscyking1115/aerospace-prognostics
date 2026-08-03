@@ -139,6 +139,22 @@ general enough to extract into a standalone Apache-2.0 library, **telemeval**
 - affiliation-based precision/recall (canonical KDD-2022 reference, vendored
   and maintained there) is now also available to this pipeline.
 
+**telemeval has since moved ahead of what this pipeline calls.** It now also
+ships **ADTQC detection-timing quality** and **channel- and subsystem-aware
+F-beta**, both ESA-ADB metrics, verified against the reference test suite. The
+remaining gap between this project's numbers and the full official hierarchy is
+therefore *this pipeline not yet calling them*, plus the zero-order-hold
+resampling, which is local work — not missing upstream capability. Earlier
+wording in this repository described the whole hierarchy as pending upstream;
+that was true when written and is no longer true.
+
+**One metric definition diverges, and telemeval says so.** Its event-wise
+*recall* matches ESA-ADB's exactly; its event-wise *precision* is telemeval's
+own run-based definition and differs from ESA-ADB's TNR-corrected `EW_*`, with
+the differences documented and pinned by divergence tests upstream. Precision
+figures reported here inherit that definition. Read them as telemeval
+event-wise precision, not as an ESA-ADB `EW_precision` value.
+
 This project keeps what is specific to it: the source manifest and archive
 gates, the robust z-score baseline and threshold selection, the mission
 runner, and the ESA evidence format. The sections below are retained as the

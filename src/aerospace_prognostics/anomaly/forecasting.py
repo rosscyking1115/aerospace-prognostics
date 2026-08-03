@@ -119,7 +119,6 @@ def run_lstm_forecast_anomaly_baseline(
     device: str = "cpu",
 ) -> LstmForecastAnomalyResult:
     """Train an LSTM forecaster and flag large one-step prediction errors."""
-
     train_array = _as_2d_float_array(train_values, name="train_values")
     test_array = _as_2d_float_array(test_values, name="test_values")
     label_array = np.asarray(labels, dtype=np.int8)

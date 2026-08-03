@@ -20,7 +20,6 @@ def run(
     run_id: str = "1",
 ) -> int:
     """Generate a tiny promotion-evidence bundle through the public CLI."""
-
     from aerospace_prognostics.deployment.quickstart import run_cmapss_quickstart
 
     return run_cmapss_quickstart(

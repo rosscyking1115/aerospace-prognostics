@@ -20,7 +20,6 @@ def build_uv_lock_cyclonedx_sbom(
     timestamp: str | None = None,
 ) -> dict[str, Any]:
     """Build a CycloneDX-style dependency SBOM from a uv lockfile."""
-
     lock_path = Path(lockfile)
     lock = tomllib.loads(lock_path.read_text(encoding="utf-8"))
     packages = tuple(lock.get("package", ()))
@@ -57,7 +56,6 @@ def build_uv_lock_cyclonedx_sbom(
 
 def write_uv_lock_cyclonedx_sbom(lockfile: str | Path, output_json: str | Path) -> Path:
     """Write a CycloneDX-style SBOM and return the output path."""
-
     sbom = build_uv_lock_cyclonedx_sbom(lockfile)
     return write_json_payload(sbom, output_json)
 
