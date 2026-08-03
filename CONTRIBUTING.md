@@ -7,11 +7,30 @@ This is a reference PHM pipeline. Issues and pull requests are welcome.
 ```powershell
 uv sync --dev
 uv run ruff check .
+uv run mypy
 uv run pytest
 ```
 
 All changes must keep `ruff check` and the full test suite green. CI also runs
 a dependency audit, SBOM generation, and container/serving smoke checks.
+
+## Tooling posture, stated precisely so it is not mistaken for more than it is
+
+`ruff` lints the whole repository (`E`, `F`, `I`, `UP`, `B`, `SIM`, plus `D2` and `D4` for
+docstring shape). Docstrings are **Google style**, recorded as
+`[tool.ruff.lint.pydocstyle] convention = "google"` in `pyproject.toml` so the linter and
+any doc generator agree. `D1` (missing-docstring) is deliberately *not* selected: a
+docstring written to satisfy a linter is worse than none, so coverage is prioritised by
+hand rather than enforced. Every module in the package already carries a module docstring.
+
+`mypy` is **not** repo-wide and this repo does **not** run mypy strict. The package emits
+several hundred errors under default settings, mostly from CLI dispatch functions that
+rebind a single `result` variable across many branches. Gating all of that would mean
+either a mountain of suppressions or a permissive config that checks nothing. The gate is
+instead scoped to the numeric and evaluation core — the modules where a type error would
+corrupt a reported metric — and that list is a ratchet, defined in `[tool.mypy]` in
+`pyproject.toml`. Modules get added as they are cleaned; **none should ever be removed to
+make CI pass.**
 
 ## Ground rules
 

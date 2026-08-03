@@ -75,7 +75,7 @@ uv run aerospace-prognostics cmapss-naive-baseline --data-dir data/raw/cmapss --
 
 Against this floor the HGB policy is doing real work, not reproducing the label
 distribution: on FD001 it cuts RMSE from `49.82` to `13.01` (3.8x) and the NASA
-score from `166570` to `253` (658x). The NASA gap is far larger than the RMSE
+score from `166570` to `253` (657x). The NASA gap is far larger than the RMSE
 gap because the score punishes late predictions exponentially, and a constant
 is late on roughly half the fleet. Every subset clears the floor by a wide
 margin, so the reported numbers reflect learned degradation signal.
@@ -167,7 +167,11 @@ The honest reading, not cherry-picked:
 
 This is protocol-shaped event-wise detection evidence, not a full ESA-ADB
 leaderboard claim: only the detection top of the official metric hierarchy is
-computed, and the official zero-order-hold resampling is not yet applied.
+computed, and the official zero-order-hold resampling is not yet applied. The
+**recall** figures use ESA-ADB's event-wise definition exactly; the **precision**
+figures use `telemeval`'s run-based definition, which diverges from ESA-ADB's
+TNR-corrected `EW_*` in ways documented and pinned by divergence tests upstream.
+Read them as telemeval event-wise precision, not as `EW_precision`.
 Details and reproduction:
 [phase3_esa_adb_intake.md](phase3_esa_adb_intake.md).
 
