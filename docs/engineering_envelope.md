@@ -13,7 +13,7 @@ not the other way round.
 | --- | --- |
 | CI | `ruff`, `pytest`, dependency audit, SBOM generation, serving-image smoke tests, demo-image contract and smoke tests |
 | Tests | Full suite green in CI on every push and PR, across Python 3.11/3.12/3.13. No count is published here — run `uv run pytest` to get the current one. The suite includes a *skill* test, not just plumbing: the learned baseline must beat the naive floor on a fixture built so a constant predictor cannot win, so an estimator that lost its predictive power turns CI red. The extracted [telemeval](https://github.com/rosscyking1115/telemeval) library is separately CI-tested |
-| Data tracks | C-MAPSS turbofan RUL (familiar, checkable baseline) and spacecraft anomaly detection (SMAP/MSL plumbing, plus event-wise baselines on the fresher ESA-ADB Mission1 and Mission2 lightweight subsets) |
+| Data tracks | C-MAPSS turbofan RUL (familiar, checkable baseline) and spacecraft anomaly detection (SMAP/MSL plumbing, plus event-wise baselines on the ESA-ADB Mission1 and Mission2 lightweight subsets — detection tier only, no comparison set) |
 | MLOps surfaces | FastAPI inference service, Streamlit operator console, Docker Compose stack |
 | Release evidence | Model inspection, validation, benchmark, model card, SBOM, release bundle, promotion report, provenance |
 | Claims | Every published number is traced in [../claims.md](../claims.md) to what produced it, what it may support, and whether anything about it is disclosed-but-unresolved |

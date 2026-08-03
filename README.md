@@ -44,8 +44,11 @@ evidence, monitoring — rather than another notebook.
 
 **How this relates to other work.** Most predictive-maintenance repositories are a
 notebook and a leaderboard score on NASA's C-MAPSS turbofan dataset. This one keeps C-MAPSS
-only as a familiar baseline anyone can cross-check, puts its anomaly work on the fresher
-ESA-ADB spacecraft benchmark, and wraps both in a production envelope. The evaluation layer
+only as a familiar baseline anyone can cross-check, puts its anomaly work on ESA-ADB, and
+wraps both in a production envelope. ESA-ADB is an under-used benchmark, carried here
+through its real protocol at the detection tier, with no comparison set — nothing in this
+repository establishes how much prior work exists on it, so read that as a description of
+what was built, not a claim about the literature. The evaluation layer
 proved general enough to extract: it now lives as
 **[telemeval](https://github.com/rosscyking1115/telemeval)**, a standalone Apache-2.0
 library, and this repository is its reference pipeline, consuming it as a dependency.
@@ -116,6 +119,7 @@ results need their datasets downloaded locally first — see
 | [docs/cmapss_domain_primer.md](docs/cmapss_domain_primer.md) | What the C-MAPSS benchmark represents, and why RMSE alone is the wrong metric |
 | [docs/command_catalog.md](docs/command_catalog.md) | Every research, deployment, and app command |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | Development setup, tooling posture, dependency-advisory policy |
+| [docs/house_style_departures.md](docs/house_style_departures.md) | Where this repo departs from the shared documentation standard, and why |
 
 Research logs and decision records — C-MAPSS baselines and deep experiments, SMAP/MSL
 anomaly work, uncertainty and monotonicity, the ESA-ADB protocol intake, the licence

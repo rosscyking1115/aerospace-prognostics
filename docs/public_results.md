@@ -14,7 +14,7 @@ commands and longer interpretation live in the linked phase documents.
 - Current strongest FD001 deep model: calibrated Transformer with asymmetric
   late-error loss and mini-batch monotonic regularization.
 - Current spacecraft anomaly status: baseline and alert-policy layer across
-  SMAP/MSL, plus real event-wise detection baselines on the fresher ESA-ADB
+  SMAP/MSL, plus real event-wise detection baselines on the ESA-ADB
   Mission1 and Mission2 lightweight subsets, comparing a fixed and a
   validation-selected threshold (conservative baselines, not leaderboard claims).
 - Current production evidence: FastAPI serving, Docker smoke checks, SBOM,
@@ -131,10 +131,21 @@ because it is common in the literature, but point-wise precision/recall and
 false-alarm rate remain the primary readout because point adjustment can make
 weak detectors look stronger on long labelled intervals.
 
-## ESA-ADB Results (Fresher Benchmark)
+## ESA-ADB Results
 
-The anomaly track's forward direction is ESA-ADB, a fresher and less-saturated
-benchmark than SMAP/MSL. Both benchmark missions now run on real telemetry with
+The anomaly track's forward direction is ESA-ADB: an under-used benchmark,
+carried through its real protocol at the detection tier, with no comparison set.
+
+**What that phrasing is doing.** Earlier wording here called ESA-ADB "fresher
+and less-saturated" than SMAP/MSL. That is a claim about the literature, and
+nothing in this repository evidences it — there is no citation count, no
+leaderboard survey, and no reproduction of a published ESA-ADB result to sit
+beside these numbers. The only comparison below is one threshold policy against
+another, both from the same baseline. "Under-used" is what the work supports;
+anything stronger would need evidence this repository does not hold. Recorded
+rather than quietly reworded, because the correction narrows a published claim.
+
+Both benchmark missions run on real telemetry with
 a robust z-score baseline fit on nominal training points only, scored event-wise
 on the chronological test window (communication gaps excluded). Two threshold
 policies are compared: a fixed `5.0` cutoff and a validation-selected cutoff
