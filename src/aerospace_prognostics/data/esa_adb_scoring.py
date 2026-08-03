@@ -47,7 +47,6 @@ _MAD_TO_STD = 1.4826
 
 def lightweight_channel_numbers(mission: str) -> tuple[int, ...]:
     """Return the official lightweight-subset channel numbers for a mission."""
-
     try:
         return ESA_ADB_LIGHTWEIGHT_CHANNELS[mission]
     except KeyError as exc:
@@ -73,7 +72,6 @@ def robust_zscore_detections(
     The algorithm is intentionally a baseline; "official-compatible" refers to
     the emitted output contract, not to an official ESA-ADB detector.
     """
-
     if threshold <= 0:
         raise ValueError("threshold must be positive")
     if not values_by_channel:
@@ -107,7 +105,6 @@ def build_esa_adb_event_wise_evidence(
     lightweight: bool,
 ) -> dict[str, Any]:
     """Wrap event-wise detection scores in a scope-bounded evidence payload."""
-
     return {
         "schema_version": ESA_ADB_EVENT_WISE_EVIDENCE_SCHEMA,
         "mission": mission,
@@ -153,7 +150,6 @@ def build_esa_adb_event_wise_evidence(
 
 def render_esa_adb_event_wise_markdown(evidence: Mapping[str, Any]) -> str:
     """Render event-wise detection evidence as human-readable Markdown."""
-
     lines = [
         f"# ESA-ADB Event-Wise Detection — {evidence['mission']}",
         "",
@@ -222,7 +218,6 @@ def score_esa_adb_mission_from_predictions(
     exclude_categories: Sequence[str] = (),
 ) -> dict[str, Any]:
     """End-to-end event-wise evidence from labels and per-channel detections."""
-
     metric_inputs = build_metric_inputs(labels, predictions_by_channel)
     scores = score_event_wise(metric_inputs, beta=beta, exclude_categories=exclude_categories)
     return build_esa_adb_event_wise_evidence(
@@ -240,7 +235,6 @@ def write_esa_adb_event_wise_evidence(
     markdown_path: str | None = None,
 ) -> None:
     """Write event-wise detection evidence as JSON and/or Markdown artifacts."""
-
     if json_path is not None:
         write_json_payload(dict(evidence), json_path)
     if markdown_path is not None:

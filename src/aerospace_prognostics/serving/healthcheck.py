@@ -16,7 +16,6 @@ DEFAULT_HEALTHCHECK_TIMEOUT_SECONDS = 2.0
 
 def health_payload_is_live(payload: Any) -> bool:
     """Return whether a /health payload represents a live serving process."""
-
     if not isinstance(payload, dict):
         return False
     status = payload.get("status")
@@ -30,7 +29,6 @@ def health_payload_is_live(payload: Any) -> bool:
 
 def main() -> int:
     """Probe the serving API liveness endpoint for Docker HEALTHCHECK."""
-
     url = os.getenv(HEALTHCHECK_URL_ENV, DEFAULT_HEALTHCHECK_URL)
     timeout = _healthcheck_timeout()
     try:

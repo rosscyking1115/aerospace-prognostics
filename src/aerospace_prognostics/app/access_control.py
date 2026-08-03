@@ -12,26 +12,22 @@ CONSOLE_ACCESS_SESSION_KEY = "aerospace_prognostics_console_access_granted"
 
 def configured_console_access_token() -> str:
     """Return the configured console access token, if one is set."""
-
     return os.getenv(CONSOLE_ACCESS_TOKEN_ENV, "").strip()
 
 
 def console_access_required(access_token: str | None = None) -> bool:
     """Return whether the console should require an unlock token."""
-
     token = configured_console_access_token() if access_token is None else access_token
     return bool(token.strip())
 
 
 def token_matches(candidate: str, expected: str) -> bool:
     """Compare access tokens without leaking early mismatch timing."""
-
     return hmac.compare_digest(candidate.strip(), expected.strip())
 
 
 def render_console_access_gate(st: Any, access_token: str | None = None) -> bool:
     """Render a password gate when a hosted-demo token is configured."""
-
     expected_token = (
         configured_console_access_token() if access_token is None else access_token.strip()
     )

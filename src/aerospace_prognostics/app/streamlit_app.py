@@ -43,7 +43,6 @@ READ_ONLY_ENV = "AEROSPACE_PROGNOSTICS_CONSOLE_READ_ONLY"
 
 def main() -> None:
     """Render the Streamlit application."""
-
     import streamlit as st
 
     read_only = _env_flag(READ_ONLY_ENV)

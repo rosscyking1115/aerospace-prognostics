@@ -71,7 +71,6 @@ def test_naive_baseline_predicts_a_single_constant(tmp_path) -> None:
     ``test_learned_baseline_beats_the_naive_floor``, which uses the
     discriminating fixture instead.
     """
-
     write_tiny_cmapss_subset(tmp_path)
 
     capped = run_cmapss_naive_baseline(tmp_path, "FD001", strategy="rul_cap")
@@ -96,7 +95,6 @@ def test_learned_baseline_beats_the_naive_floor(tmp_path) -> None:
     of them, and its sensor values carry a genuine monotone degradation signal
     that a real estimator can recover. Break the model and this test goes red.
     """
-
     write_discriminating_cmapss_subset(tmp_path)
 
     naive = run_cmapss_naive_baseline(tmp_path, "FD001", strategy="train_median")

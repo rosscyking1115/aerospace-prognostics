@@ -30,7 +30,6 @@ class FeatureStandardizer:
         feature_columns: list[str] | None = None,
     ) -> FeatureStandardizer:
         """Fit a standardizer from a training frame."""
-
         columns = tuple(feature_columns or cmapss_feature_columns())
         _validate_columns(frame, columns)
         scaler = StandardScaler()
@@ -39,7 +38,6 @@ class FeatureStandardizer:
 
     def transform_frame(self, frame: pd.DataFrame) -> pd.DataFrame:
         """Return a copy with feature columns standardised."""
-
         _validate_columns(frame, self.feature_columns)
         result = frame.copy()
         feature_values = result.loc[:, self.feature_columns].to_numpy()
@@ -48,14 +46,12 @@ class FeatureStandardizer:
 
     def transform_features(self, features: pd.DataFrame) -> pd.DataFrame:
         """Standardise a feature table and preserve its index/columns."""
-
         _validate_columns(features, self.feature_columns)
         transformed = self.scaler.transform(features.loc[:, self.feature_columns].to_numpy())
         return features.assign(**dict(zip(self.feature_columns, transformed.T, strict=True)))
 
     def transform_windows(self, windows: np.ndarray) -> np.ndarray:
         """Standardise a 3D `(samples, timesteps, features)` window tensor."""
-
         if windows.ndim != 3:
             raise ValueError("windows must have shape (samples, timesteps, features)")
         if windows.shape[-1] != len(self.feature_columns):
@@ -73,7 +69,6 @@ class FeatureStandardizer:
 
     def transform_sequence_dataset(self, dataset: SequenceWindowDataset) -> SequenceWindowDataset:
         """Return a copy of a sequence dataset with normalised windows."""
-
         if dataset.feature_columns != self.feature_columns:
             raise ValueError("dataset feature columns do not match fitted feature columns")
         return SequenceWindowDataset(

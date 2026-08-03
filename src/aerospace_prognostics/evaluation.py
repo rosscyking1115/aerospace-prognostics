@@ -30,25 +30,21 @@ class RegressionRunResult:
 
     def to_dict(self) -> dict[str, Any]:
         """Return a JSON-serialisable dictionary."""
-
         return asdict(self)
 
     def write_json(self, path: str | Path) -> None:
         """Write this result as pretty JSON."""
-
         write_json_payload(self.to_dict(), path)
 
 
 def write_results_json(results: list[RegressionRunResult], path: str | Path) -> None:
     """Write multiple run results as pretty JSON."""
-
     payload = [result.to_dict() for result in results]
     write_json_payload(payload, path)
 
 
 def write_results_csv(results: list[RegressionRunResult], path: str | Path) -> None:
     """Write multiple run results as a flat CSV table."""
-
     if not results:
         raise ValueError("results must contain at least one item")
 

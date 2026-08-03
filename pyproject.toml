@@ -62,7 +62,17 @@ line-length = 100
 target-version = "py311"
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "UP", "B", "SIM"]
+# D2/D4 check the *shape* of docstrings that already exist. D1 (missing-docstring) is
+# deliberately not selected: a docstring written only to satisfy a linter is worse than
+# none, because it costs maintenance and teaches readers that docstrings here are noise.
+# Coverage is prioritised by hand instead -- every module in the package carries a module
+# docstring, and the public surface is documented ahead of private helpers.
+select = ["E", "F", "I", "UP", "B", "SIM", "D2", "D4"]
+
+[tool.ruff.lint.pydocstyle]
+# Google style, matching the rest of these repositories. Recorded here so the linter and
+# any documentation generator agree on one convention.
+convention = "google"
 
 [tool.mypy]
 python_version = "3.11"

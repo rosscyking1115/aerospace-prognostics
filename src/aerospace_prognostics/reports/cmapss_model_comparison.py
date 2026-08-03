@@ -29,7 +29,6 @@ class CmapssModelComparisonRow:
 
     def to_dict(self) -> dict[str, str | int | float]:
         """Return a flat serialisable row."""
-
         return asdict(self)
 
 
@@ -44,7 +43,6 @@ def build_cmapss_model_comparison(
     prediction_model_suffixes: tuple[str, ...] = (),
 ) -> list[CmapssModelComparisonRow]:
     """Build a ranked comparison table from baseline and candidate result CSVs."""
-
     if not candidate_csvs and not prediction_csvs:
         raise ValueError("candidate_csvs or prediction_csvs must contain at least one path")
     if prediction_model_suffixes and len(prediction_model_suffixes) != len(prediction_csvs):
@@ -118,7 +116,6 @@ def write_cmapss_model_comparison_csv(
     path: str | Path,
 ) -> None:
     """Write comparison rows as CSV."""
-
     if not rows:
         raise ValueError("rows must contain at least one item")
     output_path = prepare_output_path(path)
@@ -133,7 +130,6 @@ def write_cmapss_model_comparison_markdown(
     path: str | Path,
 ) -> None:
     """Write comparison rows as a compact Markdown table."""
-
     output_path = prepare_output_path(path)
     output_path.write_text(render_cmapss_model_comparison_markdown(rows), encoding="utf-8")
 
@@ -142,7 +138,6 @@ def render_cmapss_model_comparison_markdown(
     rows: list[CmapssModelComparisonRow],
 ) -> str:
     """Render comparison rows as a Markdown table."""
-
     if not rows:
         raise ValueError("rows must contain at least one item")
     lines = [

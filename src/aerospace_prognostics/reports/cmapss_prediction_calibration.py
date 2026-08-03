@@ -42,7 +42,6 @@ class CmapssAffinePredictionCalibration:
 
     def to_dict(self) -> dict[str, str | int | float]:
         """Return a flat serialisable row."""
-
         return asdict(self)
 
 
@@ -66,7 +65,6 @@ class CmapssPredictedRulBinResidualCalibration:
 
     def to_dict(self) -> dict[str, str | int | float]:
         """Return a flat serialisable row."""
-
         return asdict(self)
 
 
@@ -98,7 +96,6 @@ def fit_cmapss_affine_prediction_calibrations(
     clip_min: float = 0.0,
 ) -> tuple[CmapssAffinePredictionCalibration, ...]:
     """Fit one affine RUL calibration per subset/model from validation predictions."""
-
     rows = _read_prediction_rows(calibration_csv)
     grouped: dict[tuple[str, str], list[dict[str, str]]] = {}
     for row in rows:
@@ -125,7 +122,6 @@ def fit_cmapss_predicted_rul_bin_residual_calibrations(
     clip_min: float = 0.0,
 ) -> tuple[CmapssPredictedRulBinResidualCalibration, ...]:
     """Fit residual corrections by raw predicted-RUL bin."""
-
     if shrinkage_strength < 0.0:
         raise ValueError("shrinkage_strength must be non-negative")
     rows = _read_prediction_rows(calibration_csv)
@@ -174,7 +170,6 @@ def fit_cmapss_predicted_rul_bin_nasa_shift_calibrations(
     clip_min: float = 0.0,
 ) -> tuple[CmapssPredictedRulBinResidualCalibration, ...]:
     """Fit raw-predicted-RUL bin shifts by validation NASA score."""
-
     if shrinkage_strength < 0.0:
         raise ValueError("shrinkage_strength must be non-negative")
     if max_shift < 0.0:
@@ -227,7 +222,6 @@ def write_cmapss_affine_prediction_calibration_csv(
     path: str | Path,
 ) -> Path:
     """Write fitted calibration parameters as CSV."""
-
     calibration_rows = tuple(calibrations)
     if not calibration_rows:
         raise ValueError("calibrations must contain at least one item")
@@ -249,7 +243,6 @@ def write_cmapss_affine_calibrated_predictions_csv(
     calibrations: Iterable[CmapssPredictionCalibration],
 ) -> int:
     """Apply fitted calibrations and write a recalculated prediction CSV."""
-
     prediction_path = Path(predictions_csv)
     rows, fieldnames = _read_prediction_rows_with_fieldnames(prediction_path)
     calibration_rows = tuple(calibrations)
@@ -307,7 +300,6 @@ def calibrate_cmapss_deep_predictions(
     nasa_shift_step: float = 1.0,
 ) -> CmapssPredictionCalibrationResult:
     """Fit validation calibration, write calibrated predictions, and reports."""
-
     if method == "affine":
         calibrations: tuple[CmapssPredictionCalibration, ...] = (
             fit_cmapss_affine_prediction_calibrations(

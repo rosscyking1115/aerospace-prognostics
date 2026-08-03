@@ -59,12 +59,10 @@ class CmapssEdaReport:
 
     def to_dict(self) -> dict[str, Any]:
         """Return a JSON-serialisable dictionary."""
-
         return asdict(self)
 
     def write_json(self, path: str | Path) -> None:
         """Write this report as pretty JSON."""
-
         write_json_payload(self.to_dict(), path)
 
 
@@ -78,7 +76,6 @@ def build_cmapss_eda_report(
     random_state: int = 42,
 ) -> CmapssEdaReport:
     """Build an EDA report from a loaded C-MAPSS subset."""
-
     if not 0 < early_fraction <= 1:
         raise ValueError("early_fraction must be in the interval (0, 1]")
     if not 0 < late_fraction <= 1:
@@ -118,7 +115,6 @@ def build_cmapss_sensor_summaries(
     near_constant_std: float = 1e-8,
 ) -> list[SensorEdaSummary]:
     """Build per-sensor summaries from a C-MAPSS frame."""
-
     return [
         _summarise_sensor(
             frame,
@@ -138,7 +134,6 @@ def select_informative_cmapss_sensors(
     min_abs_standardized_drift: float = 0.2,
 ) -> list[str]:
     """Select non-flat sensors with train-observed RUL correlation or drift signal."""
-
     selected = []
     for summary in sensor_summaries:
         if summary.is_near_constant:

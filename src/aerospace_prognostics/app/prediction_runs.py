@@ -16,7 +16,6 @@ PREDICTION_RUN_EVIDENCE_SCHEMA_VERSION = (
 
 def prediction_rows(prediction_document: dict[str, Any]) -> list[dict[str, Any]]:
     """Validate and return prediction rows from an API/artifact response document."""
-
     rows = prediction_document.get("predictions")
     if not isinstance(rows, list):
         raise ValueError("prediction_document['predictions'] must be a list")
@@ -41,7 +40,6 @@ def prediction_run_event_record(
     payload: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Build the stable DB record for one prediction-run audit event."""
-
     normalized_payload = payload or {}
     event_material = {
         "run_id": run_id,
@@ -67,7 +65,6 @@ def prediction_run_event_record(
 
 def event_from_row(row: Any) -> dict[str, Any]:
     """Convert a prediction_run_events DB row into the console event contract."""
-
     event = dict(row)
     event["payload"] = _json_loads(event.pop("payload_json"))
     return event
@@ -75,7 +72,6 @@ def event_from_row(row: Any) -> dict[str, Any]:
 
 def run_summary_from_row(row: Any) -> dict[str, Any]:
     """Convert a prediction-run aggregate DB row into the console list contract."""
-
     result = dict(row)
     monitoring = _json_loads(result.pop("monitoring_json"))
     result["drift_alert_count"] = _drift_alert_count(monitoring)
@@ -89,7 +85,6 @@ def prediction_run_detail(
     event_rows: list[Any],
 ) -> dict[str, Any]:
     """Build the loaded prediction-run contract from persisted DB rows."""
-
     run = dict(run_row)
     run["monitoring"] = _json_loads(run.pop("monitoring_json"))
     return {
@@ -110,7 +105,6 @@ def prediction_run_export_summary(
     manifest: dict[str, Any],
 ) -> dict[str, Any]:
     """Build the export result summary returned by the app-store API."""
-
     predictions = list(manifest["predictions"])
     outcome_count = sum(1 for row in predictions if row.get("actual_rul") is not None)
     return {
@@ -128,7 +122,6 @@ def prediction_run_export_summary(
 
 def outcome_rows(outcomes: pd.DataFrame) -> list[dict[str, Any]]:
     """Validate and normalize observed RUL outcome rows."""
-
     required_columns = {"unit_number", "actual_rul"}
     missing_columns = required_columns.difference(outcomes.columns)
     if missing_columns:
@@ -162,7 +155,6 @@ def outcome_rows(outcomes: pd.DataFrame) -> list[dict[str, Any]]:
 
 def with_interval_availability(row: dict[str, Any]) -> dict[str, Any]:
     """Add interval and observed-outcome availability metrics to a run row."""
-
     result = dict(row)
     prediction_count = _optional_int(result.get("prediction_count")) or 0
     interval_count = _optional_int(result.get("interval_count")) or 0
@@ -196,7 +188,6 @@ def build_prediction_run_evidence_payload(
     predictions_csv_path: str | Path | None = None,
 ) -> dict[str, Any]:
     """Build a portable prediction-run evidence payload from loaded DB records."""
-
     predictions = list(loaded_run["predictions"])
     csv_file: dict[str, Any] = {"rows": len(predictions)}
     if predictions_csv_path is not None:
@@ -219,7 +210,6 @@ def build_prediction_run_evidence_payload(
 
 def outcome_template_frame(predictions: list[dict[str, Any]]) -> pd.DataFrame:
     """Return a fillable observed-RUL outcome template for prediction rows."""
-
     template = pd.DataFrame(predictions).reindex(columns=["unit_number"])
     template["actual_rul"] = ""
     return template

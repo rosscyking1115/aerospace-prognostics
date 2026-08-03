@@ -12,7 +12,6 @@ def model_artifact_report_card(
     prediction_runs: list[dict[str, Any]],
 ) -> dict[str, Any]:
     """Build a compact review card for one registered model artifact."""
-
     evidence_by_type = {
         str(evidence.get("evidence_type")): evidence
         for evidence in release_evidence

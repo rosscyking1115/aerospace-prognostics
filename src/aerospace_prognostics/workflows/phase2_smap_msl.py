@@ -122,7 +122,6 @@ def run_phase2_smap_msl_workflow(
     device: str = "cpu",
 ) -> Phase2SmapMslWorkflowResult:
     """Run classical, LSTM forecast, dynamic-threshold, and comparison SMAP/MSL outputs."""
-
     root = Path(data_dir)
     artifacts = Path(artifact_dir)
     results_dir = artifacts / "results"
@@ -410,7 +409,6 @@ def verify_phase2_smap_msl_run_manifest(
     root: str | Path = ".",
 ) -> Phase2SmapMslRunManifestVerification:
     """Verify that a SMAP/MSL Phase 2 manifest points to a complete artifact bundle."""
-
     path = Path(manifest_path)
     artifact_root = Path(root)
     problems: list[str] = []
@@ -467,7 +465,6 @@ def write_phase2_smap_msl_manifest_audit_markdown(
     output_path: str | Path,
 ) -> Path:
     """Write a human-readable audit report for a SMAP/MSL Phase 2 run manifest."""
-
     path = Path(output_path)
     payload = verification.manifest_payload or {}
     selection = _manifest_section(payload, "selection")

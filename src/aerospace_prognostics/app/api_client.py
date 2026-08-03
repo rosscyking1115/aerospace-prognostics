@@ -57,7 +57,6 @@ class ApiRequestError(RuntimeError):
 
 def check_api_service(base_url: str, *, timeout_seconds: float = 1.0) -> ApiServiceStatus:
     """Probe the API health and readiness endpoints."""
-
     normalized_base_url = base_url.rstrip("/")
     health = _get_json(f"{normalized_base_url}/health", timeout_seconds=timeout_seconds)
     readiness = (
@@ -80,7 +79,6 @@ def predict_telemetry(
     timeout_seconds: float = 30.0,
 ) -> dict[str, Any]:
     """Call the deployed API prediction endpoint."""
-
     normalized_base_url = base_url.rstrip("/")
     payload = {"telemetry": telemetry}
     headers = {

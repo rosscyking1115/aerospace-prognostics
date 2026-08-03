@@ -101,7 +101,6 @@ class CmapssValidationAggregateResult:
 
     def to_dict(self) -> dict[str, bool | float | int | str]:
         """Return a JSON-serialisable dictionary."""
-
         return {
             "dataset": self.dataset,
             "subset": self.subset,
@@ -122,7 +121,6 @@ def make_cmapss_temporal_validation_split(
     random_state: int = 42,
 ) -> CmapssTemporalValidationSplit:
     """Hold out units and truncate their histories for validation scoring."""
-
     import pandas as pd
 
     if not 0 < validation_fraction < 1:
@@ -190,7 +188,6 @@ def run_cmapss_naive_baseline(
     score in particular is asymmetric enough that a constant can look
     deceptively acceptable on RMSE while scoring badly.
     """
-
     if strategy not in CMAPSS_NAIVE_STRATEGIES:
         raise ValueError(f"strategy must be one of {CMAPSS_NAIVE_STRATEGIES}")
 
@@ -232,7 +229,6 @@ def run_cmapss_hist_gradient_boosting(
     standardize: bool = False,
 ) -> RegressionRunResult:
     """Train and evaluate the first-pass C-MAPSS gradient-boosting baseline."""
-
     bundle = load_cmapss_subset(data_dir, subset, rul_cap=rul_cap)
     train_frame = bundle.train
     test_frame = bundle.test
@@ -275,7 +271,6 @@ def run_cmapss_engineered_hist_gradient_boosting(
     standardize: bool = True,
 ) -> RegressionRunResult:
     """Train and evaluate a feature-engineered C-MAPSS gradient-boosting baseline."""
-
     bundle = load_cmapss_subset(data_dir, subset, rul_cap=rul_cap)
     train_features, train_target = engineered_cycle_feature_table(
         bundle.train,
@@ -324,7 +319,6 @@ def run_all_cmapss_hist_gradient_boosting(
     standardize: bool = False,
 ) -> list[RegressionRunResult]:
     """Train and evaluate the baseline for each requested C-MAPSS subset."""
-
     return [
         run_cmapss_hist_gradient_boosting(
             data_dir,
@@ -347,7 +341,6 @@ def run_all_cmapss_engineered_hist_gradient_boosting(
     standardize: bool = True,
 ) -> list[RegressionRunResult]:
     """Train and evaluate the engineered baseline for each requested C-MAPSS subset."""
-
     return [
         run_cmapss_engineered_hist_gradient_boosting(
             data_dir,
@@ -371,7 +364,6 @@ def run_cmapss_engineered_window_sweep(
     standardize: bool = True,
 ) -> list[RegressionRunResult]:
     """Train the engineered baseline across rolling-window sizes."""
-
     return [
         result
         for rolling_window in rolling_windows
@@ -396,7 +388,6 @@ def run_all_cmapss_engineered_default_windows(
     standardize: bool = True,
 ) -> list[RegressionRunResult]:
     """Train the engineered baseline with per-subset rolling-window defaults."""
-
     windows = window_by_subset or CMAPSS_ENGINEERED_DEFAULT_WINDOWS
     missing = [subset for subset in subsets if subset not in windows]
     if missing:
@@ -426,7 +417,6 @@ def run_cmapss_regime_aware_engineered_hist_gradient_boosting(
     standardize: bool = True,
 ) -> RegressionRunResult:
     """Train a regime-aware engineered C-MAPSS gradient-boosting baseline."""
-
     bundle = load_cmapss_subset(data_dir, subset, rul_cap=rul_cap)
     transformer = OperatingRegimeFeatureTransformer.fit(
         bundle.train,
@@ -486,7 +476,6 @@ def run_all_cmapss_regime_aware_engineered_default_windows(
     standardize: bool = True,
 ) -> list[RegressionRunResult]:
     """Train regime-aware engineered baselines with per-subset window defaults."""
-
     windows = window_by_subset or CMAPSS_ENGINEERED_DEFAULT_WINDOWS
     missing = [subset for subset in subsets if subset not in windows]
     if missing:
@@ -518,7 +507,6 @@ def run_all_cmapss_validation_selected_default_windows(
     standardize: bool = True,
 ) -> list[RegressionRunResult]:
     """Train official-test baselines using the repeated-validation feature policy."""
-
     windows = window_by_subset or CMAPSS_ENGINEERED_DEFAULT_WINDOWS
     feature_policy = feature_policy_by_subset or CMAPSS_VALIDATION_SELECTED_FEATURES
     missing_windows = [subset for subset in subsets if subset not in windows]
@@ -574,7 +562,6 @@ def run_all_cmapss_validation_selected_hgb_policy_default_windows(
     standardize: bool = True,
 ) -> list[RegressionRunResult]:
     """Train official-test baselines with validation-selected features and HGB params."""
-
     windows = window_by_subset or CMAPSS_ENGINEERED_DEFAULT_WINDOWS
     feature_policy = feature_policy_by_subset or CMAPSS_VALIDATION_SELECTED_FEATURES
     hgb_policy = hgb_policy_by_subset or CMAPSS_VALIDATION_SELECTED_HGB_PARAMS
@@ -617,7 +604,6 @@ def run_cmapss_engineered_validation_hist_gradient_boosting(
     standardize: bool = True,
 ) -> RegressionRunResult:
     """Score the engineered baseline on a unit-held-out temporal validation split."""
-
     bundle = load_cmapss_subset(data_dir, subset, rul_cap=rul_cap)
     split = make_cmapss_temporal_validation_split(
         bundle.train,
@@ -676,7 +662,6 @@ def run_cmapss_regime_aware_engineered_validation_hist_gradient_boosting(
     standardize: bool = True,
 ) -> RegressionRunResult:
     """Score the regime-aware baseline on a unit-held-out temporal validation split."""
-
     bundle = load_cmapss_subset(data_dir, subset, rul_cap=rul_cap)
     split = make_cmapss_temporal_validation_split(
         bundle.train,
@@ -744,7 +729,6 @@ def run_cmapss_validation_feature_comparison(
     standardize: bool = True,
 ) -> list[RegressionRunResult]:
     """Compare engineered and regime-aware candidates on temporal validation splits."""
-
     windows = window_by_subset or CMAPSS_ENGINEERED_DEFAULT_WINDOWS
     missing = [subset for subset in subsets if subset not in windows]
     if missing:
@@ -793,7 +777,6 @@ def run_cmapss_repeated_validation_feature_comparison(
     standardize: bool = True,
 ) -> list[CmapssValidationAggregateResult]:
     """Aggregate feature-candidate validation across seeds and truncation horizons."""
-
     if not random_states:
         raise ValueError("random_states must contain at least one seed")
     if not validation_horizons:
@@ -857,7 +840,6 @@ def run_cmapss_validation_selected_hgb_grid(
     standardize: bool = True,
 ) -> list[RegressionRunResult]:
     """Score HGB parameter candidates for the validation-selected feature policy."""
-
     if not param_grid:
         raise ValueError("param_grid must contain at least one candidate")
 
@@ -907,7 +889,6 @@ def run_cmapss_validation_sensor_filter_comparison(
     standardize: bool = True,
 ) -> list[RegressionRunResult]:
     """Compare full and EDA-filtered sensors on temporal validation splits."""
-
     windows = window_by_subset or CMAPSS_ENGINEERED_DEFAULT_WINDOWS
     feature_policy = feature_policy_by_subset or CMAPSS_VALIDATION_SELECTED_FEATURES
     hgb_policy = hgb_policy_by_subset or CMAPSS_VALIDATION_SELECTED_HGB_PARAMS

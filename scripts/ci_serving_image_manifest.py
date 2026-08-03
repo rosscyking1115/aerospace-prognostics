@@ -27,7 +27,6 @@ def build_serving_image_manifest(
     torch_present: bool | None = None,
 ) -> dict[str, Any]:
     """Build a compact, auditable serving-image manifest from Docker inspect output."""
-
     if len(inspect_payload) != 1:
         raise ValueError("docker inspect payload must contain exactly one image")
 

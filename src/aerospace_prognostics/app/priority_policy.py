@@ -7,7 +7,6 @@ from typing import Any
 
 def fleet_priority_policy_summary(assets: list[dict[str, Any]]) -> dict[str, Any]:
     """Summarize the current fleet priority queue."""
-
     band_counts: dict[str, int] = {}
     reason_counts: dict[str, int] = {}
     review_queue_count = 0
@@ -45,7 +44,6 @@ def fleet_priority_policy_validation_checks(
     assets: list[dict[str, Any]],
 ) -> list[dict[str, Any]]:
     """Validate cross-domain fleet priority policy invariants."""
-
     critical_assets = [
         asset
         for asset in assets
@@ -165,7 +163,6 @@ def render_fleet_priority_policy_validation_markdown(
     report: dict[str, Any],
 ) -> str:
     """Render priority-policy validation evidence as Markdown."""
-
     policy = report.get("priority_policy")
     policy = policy if isinstance(policy, dict) else {}
     lines = [
@@ -247,7 +244,6 @@ def render_fleet_priority_policy_validation_markdown(
 
 def fleet_asset_priority(asset: dict[str, Any]) -> dict[str, Any]:
     """Score one fleet asset for cross-domain review priority."""
-
     risk_level = str(asset.get("latest_risk_level") or "unknown")
     score = {
         "critical": 300.0,

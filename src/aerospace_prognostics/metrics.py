@@ -28,7 +28,6 @@ def _validated_pairs(
 
 def rmse(y_true: Iterable[float], y_pred: Iterable[float]) -> float:
     """Return root mean squared error."""
-
     true_values, pred_values = _validated_pairs(y_true, y_pred)
     squared_error = sum(
         (predicted - actual) ** 2
@@ -43,7 +42,6 @@ def nasa_rul_score(y_true: Iterable[float], y_pred: Iterable[float]) -> float:
     Positive error means the model overestimated RUL, which is late and therefore
     penalised more heavily than an early warning.
     """
-
     true_values, pred_values = _validated_pairs(y_true, y_pred)
     score = 0.0
     for actual, predicted in zip(true_values, pred_values, strict=True):
@@ -57,7 +55,6 @@ def nasa_rul_score(y_true: Iterable[float], y_pred: Iterable[float]) -> float:
 
 def piecewise_rul(rul: Iterable[float], *, cap: float = 125.0) -> list[float]:
     """Apply the standard piecewise-linear early-life RUL cap used for C-MAPSS."""
-
     if cap <= 0:
         raise ValueError("cap must be positive")
     values = _as_float_list(rul, name="rul")

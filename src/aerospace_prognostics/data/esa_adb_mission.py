@@ -56,7 +56,6 @@ _MAD_TO_STD = 1.4826
 
 def chronological_split(n_rows: int) -> int:
     """Return the first-half/second-half split index for ``n_rows`` samples."""
-
     if n_rows < 2:
         raise ValueError("chronological split requires at least two rows")
     return n_rows // 2
@@ -72,7 +71,6 @@ def label_interval_mask(
     ``grid`` must be a sorted ``datetime64`` array. Membership is inclusive of
     both interval bounds, matching the event-detection semantics.
     """
-
     mask = np.zeros(len(grid), dtype=bool)
     start_values = pd.to_datetime(pd.Series(starts)).to_numpy("datetime64[ns]")
     end_values = pd.to_datetime(pd.Series(ends)).to_numpy("datetime64[ns]")
@@ -96,7 +94,6 @@ def robust_train_fit_zscores(
     (zero MAD on the reference points) yields all-zero scores. Kept separate
     from thresholding so a threshold sweep can reuse one fit per channel.
     """
-
     if len(values) != len(nominal_train_mask):
         raise ValueError("values and nominal_train_mask must be the same length")
 
@@ -124,7 +121,6 @@ def robust_train_fit_scores(
     threshold: float = DEFAULT_ROBUST_THRESHOLD,
 ) -> np.ndarray:
     """Binary robust z-score detections at a fixed threshold."""
-
     if threshold <= 0:
         raise ValueError("threshold must be positive")
     zscores = robust_train_fit_zscores(values, nominal_train_mask)
@@ -155,7 +151,6 @@ def select_threshold_by_validation(
       within ``tolerance`` of the best, regularising away from over-sensitive
       thresholds that look marginally better on validation but over-alarm on test.
     """
-
     if not val_zscores_by_channel:
         raise ValueError("threshold selection requires at least one channel")
     if len(thresholds) == 0:
@@ -222,7 +217,6 @@ def filter_events_to_range(
     window_end: pd.Timestamp,
 ) -> pd.DataFrame:
     """Keep label rows for events overlapping the half-open ``[start, end)``."""
-
     start_times = pd.to_datetime(labels["StartTime"])
     end_times = pd.to_datetime(labels["EndTime"])
     keep = (end_times >= pd.Timestamp(window_start)) & (
@@ -240,7 +234,6 @@ def filter_events_to_window(
     ESA-ADB reports test-split performance, so events entirely inside the
     training half must not count against test recall.
     """
-
     end_times = pd.to_datetime(labels["EndTime"])
     return labels.loc[end_times >= pd.Timestamp(window_start)].copy()
 
@@ -268,7 +261,6 @@ def run_mission_lightweight(
     (sweep ``threshold_grid`` on the last ``validation_months`` of the training
     half and pick the best validation-window F-beta, never touching test rows).
     """
-
     if threshold_selection not in ("fixed", "validation"):
         raise ValueError("threshold_selection must be 'fixed' or 'validation'")
 
@@ -384,7 +376,6 @@ def _iter_channel_zscores(
     Establishes the shared grid on the first channel and rejects any later
     channel that does not share it (that case needs real resampling).
     """
-
     grid: np.ndarray | None = None
     split = 0
     is_train: np.ndarray | None = None
@@ -425,7 +416,6 @@ def _select_validation_threshold(
     fallback_threshold: float,
 ) -> dict[str, Any]:
     """Collect validation-window z-scores per channel and pick a threshold."""
-
     val_zscores_by_channel: dict[str, np.ndarray] = {}
     grid: np.ndarray | None = None
     split = 0
@@ -514,7 +504,6 @@ class _MissionArchiveReader:
         ``pickle.load`` reads incrementally from the archive stream, avoiding a
         large intermediate ``bytes`` buffer for the ~180 MB channel members.
         """
-
         with self._open(f"channels/{channel}/{channel}") as handle:
             frame = pickle.load(handle)  # noqa: S301 - trusted local dataset
         grid = frame.index.to_numpy("datetime64[ns]")

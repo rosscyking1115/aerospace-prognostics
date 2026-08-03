@@ -85,7 +85,6 @@ def fit_robust_zscore_model(
     threshold: float = 3.5,
 ) -> RobustZScoreModel:
     """Fit per-feature robust center and scale statistics on nominal training telemetry."""
-
     values = _as_2d_float_array(train_values, name="train_values")
     feature_tuple = tuple(feature_names)
     if len(feature_tuple) != values.shape[1]:
@@ -115,7 +114,6 @@ def robust_zscore_scores(
     values: Sequence[Sequence[float]] | np.ndarray,
 ) -> np.ndarray:
     """Score each telemetry row by the largest absolute robust z-score across features."""
-
     array = _as_2d_float_array(values, name="values")
     medians = np.asarray(model.medians, dtype=np.float64)
     scales = np.asarray(model.scales, dtype=np.float64)
@@ -129,7 +127,6 @@ def predict_robust_zscore_anomalies(
     values: Sequence[Sequence[float]] | np.ndarray,
 ) -> tuple[np.ndarray, np.ndarray]:
     """Return anomaly scores and binary predictions for telemetry rows."""
-
     scores = robust_zscore_scores(model, values)
     return scores, (scores > model.threshold).astype(np.int8)
 
@@ -143,7 +140,6 @@ def run_robust_zscore_baseline(
     threshold: float = 3.5,
 ) -> RobustZScoreBaselineResult:
     """Fit a robust z-score model on train telemetry and score labelled test telemetry."""
-
     model = fit_robust_zscore_model(
         train_values,
         feature_names=feature_names,
@@ -173,7 +169,6 @@ def run_classical_anomaly_baselines(
     random_state: int = 42,
 ) -> tuple[ClassicalAnomalyBaselineResult, ...]:
     """Run a compact set of classical telemetry anomaly baselines."""
-
     train_array = _as_2d_float_array(train_values, name="train_values")
     test_array = _as_2d_float_array(test_values, name="test_values")
     feature_tuple = tuple(feature_names)

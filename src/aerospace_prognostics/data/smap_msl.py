@@ -77,7 +77,6 @@ class SmapMslChannelSelection:
 
 def read_smap_msl_labels(data_dir: Path) -> tuple[SmapMslChannelMetadata, ...]:
     """Read Telemanom `labeled_anomalies.csv` metadata."""
-
     labels_path = data_dir / SMAP_MSL_LABEL_FILENAME
     if not labels_path.exists():
         raise FileNotFoundError(f"missing SMAP/MSL labels file: {labels_path}")
@@ -92,7 +91,6 @@ def read_smap_msl_labels(data_dir: Path) -> tuple[SmapMslChannelMetadata, ...]:
 
 def load_smap_msl_channel(data_dir: Path, channel_id: str) -> SmapMslChannelData:
     """Load train/test arrays and binary test labels for a Telemanom channel."""
-
     labels_by_channel = {
         metadata.channel_id: metadata for metadata in read_smap_msl_labels(data_dir)
     }
@@ -130,7 +128,6 @@ def build_smap_msl_label_vector(
     channel_id: str = "channel",
 ) -> np.ndarray:
     """Build binary labels from inclusive Telemanom anomaly intervals."""
-
     if length <= 0:
         raise ValueError("length must be positive")
     labels = np.zeros(length, dtype=np.int8)
@@ -149,7 +146,6 @@ def export_smap_msl_channel_csv(
     output_dir: Path,
 ) -> SmapMslChannelCsvExport:
     """Export one SMAP/MSL channel to train/test CSVs for generic anomaly CLIs."""
-
     channel = load_smap_msl_channel(data_dir, channel_id)
     channel_dir = output_dir / channel_id
     channel_dir.mkdir(parents=True, exist_ok=True)
@@ -177,7 +173,6 @@ def select_smap_msl_channels(
     min_anomaly_sequences: int = 1,
 ) -> tuple[SmapMslChannelSelection, ...]:
     """Select a deterministic SMAP/MSL channel subset for broader benchmark sweeps."""
-
     if count <= 0:
         raise ValueError("count must be positive")
     if min_anomaly_sequences < 0:
@@ -218,7 +213,6 @@ def write_smap_msl_channel_selection_json(
     path: Path,
 ) -> None:
     """Write selected SMAP/MSL channel metadata as JSON."""
-
     write_json_payload([selection.to_dict() for selection in selections], path)
 
 
@@ -227,7 +221,6 @@ def write_smap_msl_channel_selection_csv(
     path: Path,
 ) -> None:
     """Write selected SMAP/MSL channel metadata as CSV."""
-
     if not selections:
         raise ValueError("selections must contain at least one item")
     output_path = prepare_output_path(path)

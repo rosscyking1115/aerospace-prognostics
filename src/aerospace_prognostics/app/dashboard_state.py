@@ -34,13 +34,11 @@ class QuickstartWorkspace:
     @property
     def is_ready(self) -> bool:
         """Return True when the app has enough quickstart evidence to render."""
-
         return self.dashboard_payload is not None and self.model_artifact_path.exists()
 
 
 def load_quickstart_workspace(root: str | Path) -> QuickstartWorkspace:
     """Load the default product-demo workspace produced by quickstart-cmapss-demo."""
-
     root_path = Path(root)
     model_artifact_path = root_path / "models" / "fd001.joblib"
     telemetry_csv_path = root_path / "predictions" / "fd001_input.csv"
@@ -81,7 +79,6 @@ def predict_cmapss_telemetry(
     telemetry: pd.DataFrame,
 ) -> dict[str, Any]:
     """Run deployed C-MAPSS predictions and return the app prediction document."""
-
     artifact = load_cmapss_model_artifact(model_artifact_path)
     predictions = artifact.predict_from_frame(telemetry)
     monitoring = artifact.monitoring_summary(telemetry, predictions)
@@ -102,7 +99,6 @@ def predict_cmapss_telemetry(
 
 def read_json_document(path: str | Path) -> dict[str, Any]:
     """Read a JSON object from disk."""
-
     payload = json.loads(Path(path).read_text(encoding="utf-8"))
     if not isinstance(payload, dict):
         raise ValueError(f"expected JSON object at {path}")

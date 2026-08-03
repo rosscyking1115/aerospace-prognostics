@@ -28,7 +28,6 @@ class ReleaseProvenance:
 
     def to_dict(self) -> dict[str, Any]:
         """Return a JSON-serialisable provenance document."""
-
         return {
             "schema_version": "aerospace-prognostics/release-provenance/v1",
             "release_name": self.release_name,
@@ -53,7 +52,6 @@ def build_release_provenance(
     generated_at_utc: str | None = None,
 ) -> ReleaseProvenance:
     """Build an in-toto/SLSA-style provenance statement for a release bundle."""
-
     bundle_path = Path(release_bundle_json)
     bundle = _read_json_object(bundle_path, "release bundle")
     release_name = str(bundle.get("release_name") or bundle_path.stem)
@@ -166,7 +164,6 @@ def build_release_provenance(
 
 def render_release_provenance_markdown(provenance: ReleaseProvenance) -> str:
     """Render release provenance as Markdown for review."""
-
     summary = provenance.summary
     lines = [
         "# Release Provenance",
@@ -208,7 +205,6 @@ def write_release_provenance_json(
     output_json: str | Path,
 ) -> Path:
     """Write release provenance JSON."""
-
     return write_json_payload(provenance.to_dict(), output_json)
 
 
@@ -217,7 +213,6 @@ def write_release_provenance_markdown(
     output_markdown: str | Path,
 ) -> Path:
     """Write release provenance Markdown."""
-
     output_path = prepare_output_path(output_markdown)
     output_path.write_text(render_release_provenance_markdown(provenance), encoding="utf-8")
     return output_path

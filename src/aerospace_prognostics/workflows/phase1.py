@@ -51,7 +51,6 @@ def run_phase1_cmapss_workflow(
     standardize: bool = True,
 ) -> Phase1WorkflowResult:
     """Run the Phase 1 C-MAPSS provenance, EDA, and baseline workflow."""
-
     root = Path(data_dir)
     artifacts = Path(artifact_dir)
     artifacts.mkdir(parents=True, exist_ok=True)

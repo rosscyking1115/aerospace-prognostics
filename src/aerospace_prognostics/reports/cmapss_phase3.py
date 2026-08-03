@@ -401,7 +401,6 @@ def run_cmapss_phase3_audit(
     clip_min: float = 0.0,
 ) -> CmapssPhase3AuditResult:
     """Build Phase 3 interval and monotonicity evidence from prediction CSVs."""
-
     calibrations = fit_cmapss_interval_calibrations(
         calibration_csv,
         confidence=confidence,
@@ -537,7 +536,6 @@ def fit_cmapss_interval_calibrations(
     confidence: float = 0.9,
 ) -> tuple[CmapssIntervalCalibrationRow, ...]:
     """Fit symmetric absolute-residual interval radii from validation predictions."""
-
     if not 0.0 < confidence < 1.0:
         raise ValueError("confidence must be between 0 and 1")
     rows = _read_prediction_rows(calibration_csv)
@@ -571,7 +569,6 @@ def fit_cmapss_predicted_bin_interval_calibrations(
     confidence: float = 0.9,
 ) -> tuple[CmapssPredictedBinIntervalCalibrationRow, ...]:
     """Fit interval radii by inference-safe predicted-RUL bin."""
-
     if not 0.0 < confidence < 1.0:
         raise ValueError("confidence must be between 0 and 1")
     rows = _read_prediction_rows(calibration_csv)
@@ -617,7 +614,6 @@ def fit_cmapss_tail_fallback_calibrations(
     tail_confidence: float = 0.95,
 ) -> tuple[CmapssTailFallbackCalibrationRow, ...]:
     """Fit inference-safe tail fallback radii from validation predictions."""
-
     if not 0.0 < tail_confidence < 1.0:
         raise ValueError("tail_confidence must be between 0 and 1")
     global_by_key = {
@@ -672,7 +668,6 @@ def build_cmapss_uncertainty_audit(
     tuple[CmapssUncertaintyFailureRow, ...],
 ]:
     """Summarize interval coverage and uncovered cases for prediction rows."""
-
     if top_n < 1:
         raise ValueError("top_n must be at least 1")
     calibration_by_key = {
@@ -747,7 +742,6 @@ def build_cmapss_predicted_bin_uncertainty_audit(
     tuple[CmapssUncertaintyFailureRow, ...],
 ]:
     """Summarize coverage using predicted-RUL-bin interval radii."""
-
     if top_n < 1:
         raise ValueError("top_n must be at least 1")
     calibration_by_key = {
@@ -827,7 +821,6 @@ def build_cmapss_tail_fallback_uncertainty_audit(
     tuple[CmapssUncertaintyFailureRow, ...],
 ]:
     """Summarize coverage using global intervals plus a predicted-RUL tail fallback."""
-
     if top_n < 1:
         raise ValueError("top_n must be at least 1")
     calibration_by_key = {
@@ -899,7 +892,6 @@ def compare_cmapss_interval_strategies(
     predicted_bin_floor_summaries: Iterable[CmapssUncertaintySummaryRow],
 ) -> tuple[CmapssIntervalComparisonRow, ...]:
     """Compare global, predicted-bin, and global-floor interval summaries."""
-
     global_by_key = {
         (row.subset, row.model_name): row for row in tuple(global_summaries)
     }
@@ -963,7 +955,6 @@ def compare_cmapss_tail_fallback_strategies(
     tail_fallback_summaries: Iterable[CmapssUncertaintySummaryRow],
 ) -> tuple[CmapssTailFallbackComparisonRow, ...]:
     """Compare global and global-tail-fallback interval summaries."""
-
     global_by_key = {
         (row.subset, row.model_name): row for row in tuple(global_summaries)
     }
@@ -1016,7 +1007,6 @@ def build_cmapss_interval_failure_notes(
     clip_min: float = 0.0,
 ) -> tuple[CmapssFailureNoteRow, ...]:
     """Build unit-level notes for rows uncovered by any interval strategy."""
-
     if top_n < 1:
         raise ValueError("top_n must be at least 1")
     global_by_key = {
@@ -1089,7 +1079,6 @@ def build_cmapss_tail_fallback_failure_notes(
     clip_min: float = 0.0,
 ) -> tuple[CmapssTailFallbackFailureNoteRow, ...]:
     """Build unit notes for rows missed by global or tail fallback intervals."""
-
     if top_n < 1:
         raise ValueError("top_n must be at least 1")
     global_by_key = {
@@ -1136,7 +1125,6 @@ def build_cmapss_tail_fallback_sweep(
     clip_min: float = 0.0,
 ) -> tuple[CmapssTailFallbackSweepRow, ...]:
     """Evaluate a small tail-fallback threshold/confidence sweep."""
-
     prediction_row_tuple = tuple(prediction_rows)
     global_calibration_tuple = tuple(global_calibrations)
     global_summary_by_key = {
@@ -1216,7 +1204,6 @@ def compare_cmapss_monotonicity(
     calibrated_predictions_csv: str | Path,
 ) -> tuple[CmapssMonotonicityComparisonRow, ...]:
     """Compare raw and calibrated monotonicity diagnostics by subset/model."""
-
     raw_rows = {
         (row.subset, row.model_name): row
         for row in build_cmapss_prediction_monotonicity_diagnostics(raw_predictions_csv)
@@ -1256,7 +1243,6 @@ def write_cmapss_phase3_audit_markdown(
     path: str | Path,
 ) -> Path:
     """Write a compact Phase 3 audit Markdown report."""
-
     output_path = prepare_output_path(path)
     output_path.write_text(render_cmapss_phase3_audit_markdown(result), encoding="utf-8")
     return output_path
@@ -1264,7 +1250,6 @@ def write_cmapss_phase3_audit_markdown(
 
 def render_cmapss_phase3_audit_markdown(result: CmapssPhase3AuditResult) -> str:
     """Render Phase 3 uncertainty and monotonicity evidence as Markdown."""
-
     lines = [
         "# C-MAPSS Phase 3 Audit",
         "",

@@ -48,7 +48,6 @@ class CmapssCnnTrainingEpoch:
 
     def to_dict(self) -> dict[str, int | float]:
         """Return a JSON-serialisable dictionary."""
-
         return asdict(self)
 
 
@@ -67,7 +66,6 @@ class CmapssDeepPrediction:
 
     def to_dict(self) -> dict[str, int | float]:
         """Return a JSON-serialisable dictionary."""
-
         return asdict(self)
 
 
@@ -83,7 +81,6 @@ class CmapssCnnBaselineRun:
 
     def to_dict(self) -> dict[str, Any]:
         """Return a JSON-serialisable dictionary."""
-
         return {
             "result": self.result.to_dict(),
             "selected_epoch": self.selected_epoch,
@@ -107,7 +104,6 @@ class CmapssLstmBaselineRun:
 
     def to_dict(self) -> dict[str, Any]:
         """Return a JSON-serialisable dictionary."""
-
         return {
             "result": self.result.to_dict(),
             "selected_epoch": self.selected_epoch,
@@ -131,7 +127,6 @@ class CmapssTcnBaselineRun:
 
     def to_dict(self) -> dict[str, Any]:
         """Return a JSON-serialisable dictionary."""
-
         return {
             "result": self.result.to_dict(),
             "selected_epoch": self.selected_epoch,
@@ -155,7 +150,6 @@ class CmapssTransformerBaselineRun:
 
     def to_dict(self) -> dict[str, Any]:
         """Return a JSON-serialisable dictionary."""
-
         return {
             "result": self.result.to_dict(),
             "selected_epoch": self.selected_epoch,
@@ -201,7 +195,6 @@ class CmapssOneDimensionalCnn(nn.Module):
 
     def forward(self, windows: torch.Tensor) -> torch.Tensor:
         """Predict RUL from `(batch, timesteps, features)` windows."""
-
         return self.network(windows.transpose(1, 2)).squeeze(-1)
 
 
@@ -272,7 +265,6 @@ class CmapssResidualCnnRegressor(nn.Module):
 
     def forward(self, windows: torch.Tensor) -> torch.Tensor:
         """Predict RUL from `(batch, timesteps, features)` windows."""
-
         features = self.input_projection(windows.transpose(1, 2))
         return self.head(self.blocks(features)).squeeze(-1)
 
@@ -309,7 +301,6 @@ class CmapssLstmRegressor(nn.Module):
 
     def forward(self, windows: torch.Tensor) -> torch.Tensor:
         """Predict RUL from `(batch, timesteps, features)` windows."""
-
         output, _ = self.recurrent(windows)
         return self.head(output[:, -1, :]).squeeze(-1)
 
@@ -472,7 +463,6 @@ class CmapssTemporalConvolutionalRegressor(nn.Module):
 
     def forward(self, windows: torch.Tensor) -> torch.Tensor:
         """Predict RUL from `(batch, timesteps, features)` windows."""
-
         features = self.network(windows.transpose(1, 2))
         pooled = features.mean(dim=-1) if self.pooling == "mean" else features[:, :, -1]
         return self.head(pooled).squeeze(-1)
@@ -526,7 +516,6 @@ class CmapssTransformerRegressor(nn.Module):
 
     def forward(self, windows: torch.Tensor) -> torch.Tensor:
         """Predict RUL from `(batch, timesteps, features)` windows."""
-
         sequence_length = windows.shape[1]
         encoded = self.input_projection(windows)
         encoded = encoded + self.position_encoding[:sequence_length].unsqueeze(0)
@@ -561,7 +550,6 @@ def run_cmapss_cnn_baseline(
     device: str = "cpu",
 ) -> RegressionRunResult:
     """Train and evaluate a compact CNN baseline from exported C-MAPSS sequences."""
-
     return run_cmapss_cnn_baseline_run(
         sequence_dir,
         subset,
@@ -594,7 +582,6 @@ def run_cmapss_cnn_baseline_run(
     device: str = "cpu",
 ) -> CmapssCnnBaselineRun:
     """Train a CNN baseline and select the best epoch by validation NASA score."""
-
     if epochs < 1:
         raise ValueError("epochs must be at least 1")
     if batch_size < 1:
@@ -656,7 +643,6 @@ def run_cmapss_residual_cnn_baseline_run(
     device: str = "cpu",
 ) -> CmapssCnnBaselineRun:
     """Train a residual CNN baseline and select the best epoch by validation NASA score."""
-
     if num_blocks < 1:
         raise ValueError("num_blocks must be at least 1")
 
@@ -713,7 +699,6 @@ def run_cmapss_lstm_baseline(
     device: str = "cpu",
 ) -> RegressionRunResult:
     """Train and evaluate an LSTM/BiLSTM baseline from exported C-MAPSS sequences."""
-
     return run_cmapss_lstm_baseline_run(
         sequence_dir,
         subset,
@@ -748,7 +733,6 @@ def run_cmapss_lstm_baseline_run(
     device: str = "cpu",
 ) -> CmapssLstmBaselineRun:
     """Train an LSTM/BiLSTM baseline and select the best epoch by validation NASA score."""
-
     if hidden_size < 1:
         raise ValueError("hidden_size must be at least 1")
     if num_layers < 1:
@@ -810,7 +794,6 @@ def run_cmapss_tcn_baseline(
     device: str = "cpu",
 ) -> RegressionRunResult:
     """Train and evaluate a compact TCN baseline from exported C-MAPSS sequences."""
-
     return run_cmapss_tcn_baseline_run(
         sequence_dir,
         subset,
@@ -851,7 +834,6 @@ def run_cmapss_tcn_baseline_run(
     device: str = "cpu",
 ) -> CmapssTcnBaselineRun:
     """Train a compact TCN baseline and select the best epoch by validation NASA score."""
-
     if hidden_channels < 1:
         raise ValueError("hidden_channels must be at least 1")
     if num_levels < 1:
@@ -924,7 +906,6 @@ def run_cmapss_transformer_baseline(
     device: str = "cpu",
 ) -> RegressionRunResult:
     """Train and evaluate a compact Transformer baseline from exported C-MAPSS sequences."""
-
     return run_cmapss_transformer_baseline_run(
         sequence_dir,
         subset,
@@ -961,7 +942,6 @@ def run_cmapss_transformer_baseline_run(
     device: str = "cpu",
 ) -> CmapssTransformerBaselineRun:
     """Train a Transformer baseline and select the best epoch by validation NASA score."""
-
     if d_model < 1:
         raise ValueError("d_model must be at least 1")
     if num_heads < 1:
@@ -1256,7 +1236,6 @@ def _monotonic_rul_penalty(
     end_cycles: torch.Tensor,
 ) -> torch.Tensor:
     """Penalize same-unit predicted RUL increases at later end cycles."""
-
     violation_terms: list[torch.Tensor] = []
     for unit_number in torch.unique(unit_numbers):
         unit_positions = torch.nonzero(unit_numbers == unit_number, as_tuple=True)[0]
@@ -1281,7 +1260,6 @@ def _unit_sequence_batch_indices(
     random_state: int,
 ) -> list[list[int]]:
     """Build one sorted training batch per engine unit."""
-
     grouped_indices: dict[int, list[int]] = {}
     for index, unit_number in enumerate(unit_numbers):
         grouped_indices.setdefault(int(unit_number), []).append(index)
@@ -1413,7 +1391,6 @@ def run_all_cmapss_cnn_baselines(
     device: str = "cpu",
 ) -> list[RegressionRunResult]:
     """Train CNN baselines for the requested C-MAPSS subsets."""
-
     return [
         run.result
         for run in run_all_cmapss_cnn_baseline_runs(
@@ -1450,7 +1427,6 @@ def run_all_cmapss_lstm_baselines(
     device: str = "cpu",
 ) -> list[RegressionRunResult]:
     """Train LSTM/BiLSTM baselines for the requested C-MAPSS subsets."""
-
     return [
         run.result
         for run in run_all_cmapss_lstm_baseline_runs(
@@ -1488,7 +1464,6 @@ def run_all_cmapss_lstm_baseline_runs(
     device: str = "cpu",
 ) -> list[CmapssLstmBaselineRun]:
     """Train full LSTM/BiLSTM baseline runs for the requested C-MAPSS subsets."""
-
     return [
         run_cmapss_lstm_baseline_run(
             sequence_dir,
@@ -1529,7 +1504,6 @@ def run_all_cmapss_tcn_baselines(
     device: str = "cpu",
 ) -> list[RegressionRunResult]:
     """Train TCN baselines for the requested C-MAPSS subsets."""
-
     return [
         run.result
         for run in run_all_cmapss_tcn_baseline_runs(
@@ -1571,7 +1545,6 @@ def run_all_cmapss_transformer_baselines(
     device: str = "cpu",
 ) -> list[RegressionRunResult]:
     """Train Transformer baselines for the requested C-MAPSS subsets."""
-
     return [
         run.result
         for run in run_all_cmapss_transformer_baseline_runs(
@@ -1611,7 +1584,6 @@ def run_all_cmapss_transformer_baseline_runs(
     device: str = "cpu",
 ) -> list[CmapssTransformerBaselineRun]:
     """Train full Transformer baseline runs for the requested C-MAPSS subsets."""
-
     return [
         run_cmapss_transformer_baseline_run(
             sequence_dir,
@@ -1653,7 +1625,6 @@ def run_all_cmapss_tcn_baseline_runs(
     device: str = "cpu",
 ) -> list[CmapssTcnBaselineRun]:
     """Train full TCN baseline runs for the requested C-MAPSS subsets."""
-
     return [
         run_cmapss_tcn_baseline_run(
             sequence_dir,
@@ -1701,7 +1672,6 @@ def run_cmapss_deep_baseline_comparison(
     device: str = "cpu",
 ) -> list[RegressionRunResult]:
     """Compare selected Phase 2 deep baselines across compact hyperparameter grids."""
-
     return [
         run.result
         for run in run_cmapss_deep_baseline_comparison_runs(
@@ -1753,7 +1723,6 @@ def run_cmapss_deep_baseline_comparison_runs(
     device: str = "cpu",
 ) -> list[CmapssDeepBaselineRun]:
     """Compare deep baselines and preserve histories plus per-unit predictions."""
-
     _validate_deep_comparison_inputs(
         models=models,
         learning_rates=learning_rates,
@@ -1805,7 +1774,6 @@ def write_cmapss_deep_predictions_csv(
     prediction_split: str = "official_test",
 ) -> Path:
     """Write per-window prediction diagnostics for deep C-MAPSS runs."""
-
     if prediction_split not in {"official_test", "validation_selection"}:
         raise ValueError("prediction_split must be 'official_test' or 'validation_selection'")
 
@@ -2027,7 +1995,6 @@ def run_all_cmapss_cnn_baseline_runs(
     device: str = "cpu",
 ) -> list[CmapssCnnBaselineRun]:
     """Train full CNN baseline runs for the requested C-MAPSS subsets."""
-
     return [
         run_cmapss_cnn_baseline_run(
             sequence_dir,
@@ -2064,7 +2031,6 @@ def run_all_cmapss_residual_cnn_baseline_runs(
     device: str = "cpu",
 ) -> list[CmapssCnnBaselineRun]:
     """Train full residual CNN baseline runs for the requested C-MAPSS subsets."""
-
     return [
         run_cmapss_residual_cnn_baseline_run(
             sequence_dir,

@@ -12,7 +12,6 @@ def hist_gradient_boosting_rul(
     **overrides: Any,
 ) -> HistGradientBoostingRegressor:
     """Return a deterministic first-pass gradient-boosting RUL baseline."""
-
     params = {
         "learning_rate": 0.05,
         "max_iter": 200,

@@ -32,7 +32,6 @@ class OperatingRegimeFeatureTransformer:
         random_state: int = 42,
     ) -> OperatingRegimeFeatureTransformer:
         """Fit operating-regime clusters and sensor baselines from training data only."""
-
         if n_regimes < 1:
             raise ValueError("n_regimes must be at least 1")
 
@@ -76,7 +75,6 @@ class OperatingRegimeFeatureTransformer:
         rolling_window: int = 5,
     ) -> pd.DataFrame:
         """Build engineered features with train-fitted operating-regime context."""
-
         features = engineered_feature_frame(
             frame,
             feature_columns=list(self.feature_columns),
@@ -103,7 +101,6 @@ class OperatingRegimeFeatureTransformer:
         rolling_window: int = 5,
     ) -> pd.DataFrame:
         """Return one regime-aware engineered feature row per unit."""
-
         features = self.transform_engineered_frame(frame, rolling_window=rolling_window)
         keyed_features = features.copy()
         keyed_features["_unit_number"] = frame["unit_number"].reindex(features.index)
@@ -118,7 +115,6 @@ class OperatingRegimeFeatureTransformer:
 
     def predict_regimes(self, frame: pd.DataFrame) -> list[int]:
         """Assign operating-regime clusters to rows using train-fitted settings."""
-
         missing = [column for column in OPERATIONAL_SETTING_COLUMNS if column not in frame.columns]
         if missing:
             raise ValueError(f"frame is missing columns: {missing}")
@@ -128,7 +124,6 @@ class OperatingRegimeFeatureTransformer:
 
 def cmapss_feature_columns(*, include_settings: bool = True) -> list[str]:
     """Return canonical C-MAPSS model input columns."""
-
     if include_settings:
         return [*OPERATIONAL_SETTING_COLUMNS, *SENSOR_COLUMNS]
     return list(SENSOR_COLUMNS)
@@ -141,7 +136,6 @@ def cycle_feature_table(
     target_column: str = "rul_capped",
 ) -> tuple[pd.DataFrame, pd.Series]:
     """Return per-cycle features and target for a classical baseline."""
-
     columns = feature_columns or cmapss_feature_columns()
     missing = [column for column in [*columns, target_column] if column not in frame.columns]
     if missing:
@@ -158,7 +152,6 @@ def engineered_cycle_feature_table(
     rolling_window: int = 5,
 ) -> tuple[pd.DataFrame, pd.Series]:
     """Return per-cycle engineered features and target for a stronger classical baseline."""
-
     features = engineered_feature_frame(
         frame,
         feature_columns=feature_columns,
@@ -176,7 +169,6 @@ def last_cycle_feature_table(
     feature_columns: list[str] | None = None,
 ) -> pd.DataFrame:
     """Return one feature row per unit using each unit's final observed cycle."""
-
     columns = feature_columns or cmapss_feature_columns()
     required = ["unit_number", "time_in_cycles", *columns]
     missing = [column for column in required if column not in frame.columns]
@@ -199,7 +191,6 @@ def engineered_last_cycle_feature_table(
     rolling_window: int = 5,
 ) -> pd.DataFrame:
     """Return engineered final-observation features for each unit."""
-
     features = engineered_feature_frame(
         frame,
         feature_columns=feature_columns,
@@ -224,7 +215,6 @@ def engineered_feature_frame(
     rolling_window: int = 5,
 ) -> pd.DataFrame:
     """Build leakage-safe rolling and degradation-delta features for C-MAPSS rows."""
-
     if rolling_window < 2:
         raise ValueError("rolling_window must be at least 2")
 

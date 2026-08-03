@@ -41,7 +41,6 @@ def test_hosted_demo_docs_do_not_imply_a_live_deployment() -> None:
     claim, and stale claims are what this repository's audit exists to catch —
     so the retraction is pinned here rather than trusted to stay written.
     """
-
     docs = _repo_root().joinpath("docs", "hosted_demo.md").read_text(encoding="utf-8")
 
     assert "There is no hosted instance of this console" in docs

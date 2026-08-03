@@ -38,7 +38,6 @@ from aerospace_prognostics.experiments.smap_msl_anomaly import (
 
 def register_smap_msl_experiment_commands(subparsers: Any) -> None:
     """Register SMAP/MSL experiment commands."""
-
     smap_msl_classical = subparsers.add_parser(
         "smap-msl-classical-baselines",
         help="Run classical anomaly baselines across raw Telemanom SMAP/MSL channels",
@@ -124,7 +123,6 @@ def register_smap_msl_experiment_commands(subparsers: Any) -> None:
 
 def handle_smap_msl_experiment_command(args: argparse.Namespace) -> int | None:
     """Handle SMAP/MSL experiment commands."""
-
     if args.command == "smap-msl-classical-baselines":
         runs = run_smap_msl_classical_baselines(
             args.data_dir,

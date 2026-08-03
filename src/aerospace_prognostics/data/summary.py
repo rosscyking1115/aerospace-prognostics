@@ -22,13 +22,11 @@ class CmapssFrameSummary:
 
     def to_dict(self) -> dict[str, Any]:
         """Return a JSON-serialisable dictionary."""
-
         return asdict(self)
 
 
 def summarise_cmapss_frame(frame: pd.DataFrame) -> CmapssFrameSummary:
     """Return unit/cycle counts for a C-MAPSS train or test frame."""
-
     required = {"unit_number", "time_in_cycles"}
     missing = required.difference(frame.columns)
     if missing:

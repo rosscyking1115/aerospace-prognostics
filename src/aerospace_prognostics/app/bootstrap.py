@@ -39,7 +39,6 @@ def ensure_demo_workspace(
     tests) can assert on it. Intended to run once per process, before the
     console renders.
     """
-
     workspace_root = Path(workspace_root)
     database_path = Path(database_path)
 

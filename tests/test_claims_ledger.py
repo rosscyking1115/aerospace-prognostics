@@ -28,7 +28,6 @@ _DEFINITION_TEMPLATE = "def {name}("
 
 def _produced_by_cells(claims_markdown: str) -> list[str]:
     """Return the 'Produced by' cell of every ledger row."""
-
     cells: list[str] = []
     for line in claims_markdown.splitlines():
         if not line.startswith("|"):
@@ -52,7 +51,6 @@ def _cited_symbols(claims_markdown: str) -> set[str]:
 
 def _defined_symbols() -> set[str]:
     """Every ``def`` name in tracked Python, via git so untracked files cannot mask a break."""
-
     listing = subprocess.run(
         ["git", "ls-files", "*.py"],
         cwd=REPO_ROOT,
@@ -87,7 +85,6 @@ def test_the_symbol_check_would_catch_a_bad_citation() -> None:
     ``test_every_symbol_cited_in_the_claims_ledger_exists`` permanently green
     while checking nothing at all.
     """
-
     fabricated = (
         "| # | Claim | Produced by | Allowed to claim | Status |\n"
         "|---|---|---|---|---|\n"
@@ -102,7 +99,6 @@ def test_the_symbol_check_would_catch_a_bad_citation() -> None:
 
 def test_disclosed_items_are_reachable_from_the_rows_that_carry_them() -> None:
     """Every 'see Dn' pointer must land on a real disclosed-but-unresolved item."""
-
     claims_markdown = CLAIMS_PATH.read_text(encoding="utf-8")
     referenced = set(re.findall(r"see (D\d+)", claims_markdown))
     defined = set(re.findall(r"\*\*(D\d+)\*\*", claims_markdown))

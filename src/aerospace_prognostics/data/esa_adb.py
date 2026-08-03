@@ -72,7 +72,6 @@ _ESA_ADB_SOURCE_FILES: tuple[dict[str, str], ...] = (
 
 def build_esa_adb_source_manifest() -> dict[str, Any]:
     """Return the tracked source manifest for ESA Anomaly Dataset v2 archives."""
-
     return {
         "schema_version": ESA_ADB_SOURCE_MANIFEST_SCHEMA,
         "dataset": ESA_ADB_DATASET,
@@ -92,7 +91,6 @@ def build_esa_adb_source_manifest() -> dict[str, Any]:
 
 def write_esa_adb_source_manifest(path: str | Path) -> dict[str, Any]:
     """Write the ESA-ADB source manifest as deterministic JSON."""
-
     manifest = build_esa_adb_source_manifest()
     write_json_payload(manifest, path)
     return manifest
@@ -100,7 +98,6 @@ def write_esa_adb_source_manifest(path: str | Path) -> dict[str, Any]:
 
 def read_esa_adb_source_manifest(path: str | Path) -> dict[str, Any]:
     """Read and validate an ESA-ADB source manifest."""
-
     payload = json.loads(Path(path).read_text(encoding="utf-8"))
     if payload.get("schema_version") != ESA_ADB_SOURCE_MANIFEST_SCHEMA:
         raise ValueError(
@@ -123,7 +120,6 @@ def verify_esa_adb_archives(
     This intentionally performs no network I/O. It is the safety gate before any
     extraction, preprocessing, or benchmark work touches large raw archives.
     """
-
     source_manifest = manifest if manifest is not None else build_esa_adb_source_manifest()
     selected_missions = _normalise_requested_missions(source_manifest, missions)
     root = Path(archive_dir)
@@ -184,7 +180,6 @@ def write_esa_adb_archive_validation(
     missions: tuple[str, ...] | None = None,
 ) -> dict[str, Any]:
     """Verify local archives and write the validation result as JSON."""
-
     result = verify_esa_adb_archives(archive_dir, manifest=manifest, missions=missions)
     write_json_payload(result, path)
     return result
@@ -192,7 +187,6 @@ def write_esa_adb_archive_validation(
 
 def file_md5(path: str | Path, *, chunk_size: int = 1024 * 1024) -> str:
     """Return a file's MD5 digest for source records that publish MD5 checksums."""
-
     digest = md5(usedforsecurity=False)
     with Path(path).open("rb") as file:
         for chunk in iter(lambda: file.read(chunk_size), b""):

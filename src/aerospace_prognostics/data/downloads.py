@@ -57,7 +57,6 @@ def download_cmapss_dataset(
     force: bool = False,
 ) -> CmapssDownloadResult:
     """Download and extract the NASA C-MAPSS FD001-FD004 raw text files."""
-
     destination = Path(output_dir)
     destination.mkdir(parents=True, exist_ok=True)
 
@@ -95,7 +94,6 @@ def download_smap_msl_dataset(
     force: bool = False,
 ) -> SmapMslDownloadResult:
     """Download and extract the Telemanom SMAP/MSL raw `.npy` arrays and labels."""
-
     destination = Path(output_dir)
     destination.mkdir(parents=True, exist_ok=True)
 
@@ -344,7 +342,6 @@ def _write_smap_msl_download_metadata(
 
 def cmapss_download_result_to_dict(result: CmapssDownloadResult) -> dict[str, object]:
     """Return a JSON-serialisable representation of a download result."""
-
     payload = asdict(result)
     payload["archive_path"] = result.archive_path.as_posix()
     payload["output_dir"] = result.output_dir.as_posix()
@@ -355,7 +352,6 @@ def cmapss_download_result_to_dict(result: CmapssDownloadResult) -> dict[str, ob
 
 def smap_msl_download_result_to_dict(result: SmapMslDownloadResult) -> dict[str, object]:
     """Return a JSON-serialisable representation of an SMAP/MSL download result."""
-
     payload = asdict(result)
     payload["archive_path"] = result.archive_path.as_posix()
     payload["output_dir"] = result.output_dir.as_posix()

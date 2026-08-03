@@ -38,7 +38,6 @@ from aerospace_prognostics.app.streamlit_app import (  # noqa: E402
 @st.cache_resource(show_spinner="Preparing demo evidence…")
 def _bootstrap() -> dict[str, object]:
     """Provision the demo workspace once per app process."""
-
     from aerospace_prognostics.app.bootstrap import ensure_demo_workspace
 
     return ensure_demo_workspace(DEFAULT_WORKSPACE, DEFAULT_DATABASE)

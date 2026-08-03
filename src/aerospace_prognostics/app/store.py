@@ -122,7 +122,6 @@ def seed_quickstart_workspace(
     workspace: QuickstartWorkspace,
 ) -> dict[str, int]:
     """Seed database records from quickstart model and release evidence files."""
-
     if not workspace.model_artifact_path.exists():
         return {"model_artifacts": 0, "release_evidence": 0}
     return register_model_artifact_evidence(
@@ -143,7 +142,6 @@ def register_model_artifact_evidence(
     release_evidence: Iterable[tuple[str, str | Path, dict[str, Any] | None]] = (),
 ) -> dict[str, int | str]:
     """Register one model artifact and optional JSON release evidence."""
-
     artifact_path = Path(model_artifact_path)
     if not artifact_path.exists():
         raise FileNotFoundError(f"model artifact not found: {artifact_path}")
@@ -195,7 +193,6 @@ def record_prediction_run(
     source_name: str,
 ) -> str:
     """Persist one telemetry upload and its prediction rows."""
-
     db_path = initialize_app_database(database_path)
     timestamp = _now()
     telemetry_hash = _dataframe_sha256(telemetry)
@@ -326,7 +323,6 @@ def record_prediction_run_event(
     payload: dict[str, Any] | None = None,
 ) -> str:
     """Append an auditable event to a persisted prediction run."""
-
     db_path = initialize_app_database(database_path)
     timestamp = _now()
     with _connect(db_path) as connection:
@@ -354,7 +350,6 @@ def record_prediction_outcomes(
     observed_at_utc: str | None = None,
 ) -> dict[str, Any]:
     """Attach observed RUL outcomes to an existing prediction run."""
-
     db_path = initialize_app_database(database_path)
     timestamp = _now()
     outcome_rows = _outcome_rows(outcomes)
@@ -428,7 +423,6 @@ def sync_fleet_assets_from_prediction_run(
     run_id: str | None = None,
 ) -> dict[str, Any]:
     """Refresh fleet-asset registry rows from one or all prediction runs."""
-
     db_path = initialize_app_database(database_path)
     timestamp = _now()
     with _connect(db_path) as connection:
@@ -465,7 +459,6 @@ def sync_fleet_assets_from_anomaly_comparison(
     source_name: str | None = None,
 ) -> dict[str, Any]:
     """Refresh spacecraft anomaly channel assets from a ranked comparison CSV."""
-
     comparison_path = Path(comparison_csv)
     if not comparison_path.exists():
         raise FileNotFoundError(f"anomaly comparison CSV not found: {comparison_path}")
@@ -497,7 +490,6 @@ def sync_fleet_assets_from_anomaly_events(
     source_name: str | None = None,
 ) -> dict[str, Any]:
     """Refresh spacecraft anomaly channel assets from operational event rows."""
-
     events_path = Path(events_csv)
     if not events_path.exists():
         raise FileNotFoundError(f"anomaly events CSV not found: {events_path}")
@@ -525,7 +517,6 @@ def sync_fleet_assets_from_anomaly_events(
 
 def inspect_anomaly_events_csv(events_csv: str | Path) -> dict[str, Any]:
     """Validate and summarize operational spacecraft anomaly event rows."""
-
     events_path = Path(events_csv)
     if not events_path.exists():
         raise FileNotFoundError(f"anomaly events CSV not found: {events_path}")
@@ -566,7 +557,6 @@ def list_fleet_assets(
     read_only: bool = False,
 ) -> list[dict[str, Any]]:
     """Return the current fleet asset registry ordered by operational priority."""
-
     db_path = _prepare_database(database_path, read_only=read_only)
     where_clauses: list[str] = []
     parameters: list[Any] = []
@@ -633,7 +623,6 @@ def build_fleet_asset_registry_bundle(
     read_only: bool = False,
 ) -> dict[str, Any]:
     """Build a portable fleet-asset registry payload without writing files."""
-
     normalized_filters = _fleet_asset_filters(
         risk_levels=risk_levels,
         domains=domains,
@@ -680,7 +669,6 @@ def export_fleet_asset_registry(
     attention_only: bool = False,
 ) -> dict[str, Any]:
     """Export the fleet asset registry as JSON evidence and CSV rows."""
-
     export_dir = Path(output_dir)
     export_dir.mkdir(parents=True, exist_ok=True)
     assets_path = export_dir / "fleet_assets.csv"
@@ -716,7 +704,6 @@ def build_fleet_priority_policy_validation(
     read_only: bool = False,
 ) -> dict[str, Any]:
     """Build validation evidence for the fleet review-priority policy."""
-
     assets = list_fleet_assets(database_path, limit=10000, read_only=read_only)
     summary = database_summary(database_path, read_only=read_only)
     checks = _fleet_priority_policy_validation_checks(assets)
@@ -746,7 +733,6 @@ def export_fleet_priority_policy_validation(
     output_dir: str | Path,
 ) -> dict[str, Any]:
     """Export priority-policy validation evidence as JSON and Markdown."""
-
     export_dir = Path(output_dir)
     export_dir.mkdir(parents=True, exist_ok=True)
     validation_json = export_dir / "fleet_priority_policy_validation.json"
@@ -777,7 +763,6 @@ def list_model_artifacts(
     read_only: bool = False,
 ) -> list[dict[str, Any]]:
     """Return model artifacts with evidence and prediction usage counts."""
-
     db_path = _prepare_database(database_path, read_only=read_only)
     with _connect(db_path, read_only=read_only) as connection:
         connection.row_factory = sqlite3.Row
@@ -817,7 +802,6 @@ def load_model_artifact(
     read_only: bool = False,
 ) -> dict[str, Any] | None:
     """Load one model artifact with release evidence and prediction usage."""
-
     db_path = _prepare_database(database_path, read_only=read_only)
     with _connect(db_path, read_only=read_only) as connection:
         connection.row_factory = sqlite3.Row
@@ -937,7 +921,6 @@ def build_model_artifact_review_bundle(
     read_only: bool = False,
 ) -> dict[str, Any]:
     """Build a portable model-artifact review bundle without writing files."""
-
     loaded = load_model_artifact(database_path, artifact_id, read_only=read_only)
     if loaded is None:
         raise ValueError(f"unknown model artifact: {artifact_id}")
@@ -976,7 +959,6 @@ def list_prediction_runs(
     read_only: bool = False,
 ) -> list[dict[str, Any]]:
     """Return recent prediction runs with upload and aggregate prediction context."""
-
     db_path = _prepare_database(database_path, read_only=read_only)
     where_clauses: list[str] = []
     parameters: list[Any] = []
@@ -1121,7 +1103,6 @@ def load_prediction_run(
     read_only: bool = False,
 ) -> dict[str, Any] | None:
     """Load one prediction run and all persisted prediction rows."""
-
     db_path = _prepare_database(database_path, read_only=read_only)
     with _connect(db_path, read_only=read_only) as connection:
         connection.row_factory = sqlite3.Row
@@ -1236,7 +1217,6 @@ def export_prediction_run_evidence(
     output_dir: str | Path,
 ) -> dict[str, Any]:
     """Export a portable evidence bundle for one prediction run."""
-
     export_dir = Path(output_dir)
     export_dir.mkdir(parents=True, exist_ok=True)
     predictions_path = export_dir / f"{run_id}_predictions.csv"
@@ -1270,7 +1250,6 @@ def build_prediction_run_evidence(
     read_only: bool = False,
 ) -> dict[str, Any]:
     """Build a portable prediction-run evidence payload without writing files."""
-
     loaded = load_prediction_run(database_path, run_id, read_only=read_only)
     if loaded is None:
         raise ValueError(f"unknown prediction run: {run_id}")
@@ -1292,7 +1271,6 @@ def export_prediction_outcome_template(
     output_csv: str | Path,
 ) -> dict[str, Any]:
     """Export a fillable observed-RUL outcome CSV for one prediction run."""
-
     loaded = load_prediction_run(database_path, run_id)
     if loaded is None:
         raise ValueError(f"unknown prediction run: {run_id}")
@@ -1316,7 +1294,6 @@ def database_summary(
     read_only: bool = False,
 ) -> dict[str, int | str]:
     """Return table counts and schema version for the app database."""
-
     db_path = _prepare_database(database_path, read_only=read_only)
     with _connect(db_path, read_only=read_only) as connection:
         summary: dict[str, int | str] = {
@@ -1347,7 +1324,6 @@ def list_prediction_run_events(
     read_only: bool = False,
 ) -> list[dict[str, Any]]:
     """Return recent audit events for a prediction run."""
-
     db_path = _prepare_database(database_path, read_only=read_only)
     with _connect(db_path, read_only=read_only) as connection:
         connection.row_factory = sqlite3.Row
