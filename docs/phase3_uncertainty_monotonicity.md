@@ -79,7 +79,15 @@ absolute residuals, then evaluates official-test coverage. It reports:
    Zenodo v2 archives.
 10. Done: inspect the official evaluator/result contract and add fixture tests
     for labels, anomaly types, event grouping, and metric-input shape.
-11. Next: build the first lightweight Mission1 ESA-ADB smoke path once the
+11. Done: add split conformal prediction with unit-grouped calibration, so the
+    interval work carries a distribution-free coverage guarantee rather than a
+    validation-fitted quantile. The intervals described above are calibration,
+    not conformal prediction: nothing in them bounds the probability that the
+    interval contains the truth, and this note should not be read as if they
+    did. Results, including two negative ones, are in [writeup.md](writeup.md)
+    §6, and every figure traces to a git-tracked artifact under
+    `artifacts/conformal/`.
+12. Next: build the first lightweight Mission1 ESA-ADB smoke path once the
     locally supplied archive is extracted. Keep it protocol-first: channels
     `41-46`, regenerated subset anomaly types, official-compatible binary
     detections, and JSON/Markdown evidence.

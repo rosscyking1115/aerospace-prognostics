@@ -46,9 +46,15 @@ The parts that deliberately go past the tutorial pattern:
   without ever touching the official test rows, so the reported improvement is honest
   rather than test-leaked. See
   `src/aerospace_prognostics/reports/cmapss_prediction_calibration.py`.
-- **Monotonic / health-index regularization.** A mini-batch monotonic penalty discourages
-  RUL from rising as an engine degrades: a physically meaningful constraint, not just a
-  fit metric.
+- **Monotonicity as a physically-motivated soft penalty.** An optional mini-batch penalty
+  discourages predicted RUL from rising at later cycles of the same engine, and separate
+  diagnostics count violations after the fact. Stated at its real strength: it is a soft
+  regularisation term added to the loss, motivated by the physical expectation that
+  degradation does not reverse. It is **not** a physics-informed model in the
+  physics-informed-neural-network sense — no governing equation, degradation law, or
+  physical residual enters the objective — and it is not a hard constraint, since nothing
+  guarantees monotone outputs. The current recommendation does not deploy it; see
+  [phase3_cmapss_recommendation.md](phase3_cmapss_recommendation.md).
 - **Validation-gated promotion (release-gating).** A model is only packaged and promoted
   after it clears validation and benchmark gates; promotion then emits the model card,
   SBOM, provenance, release bundle, and promotion report as a single reviewable artifact

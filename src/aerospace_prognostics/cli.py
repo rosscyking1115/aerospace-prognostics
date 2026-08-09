@@ -25,6 +25,10 @@ from aerospace_prognostics.cli_cmapss_validation import (
     handle_cmapss_validation_command,
     register_cmapss_validation_commands,
 )
+from aerospace_prognostics.cli_conformal import (
+    handle_conformal_command,
+    register_conformal_commands,
+)
 from aerospace_prognostics.cli_deployment import (
     handle_deployment_command,
     register_deployment_artifact_commands,
@@ -70,6 +74,7 @@ def _build_parser() -> argparse.ArgumentParser:
     register_cmapss_deep_commands(subparsers)
 
     register_cmapss_report_commands(subparsers)
+    register_conformal_commands(subparsers)
     register_anomaly_commands(subparsers)
 
     register_smap_msl_data_commands(subparsers)
@@ -107,6 +112,10 @@ def main(argv: list[str] | None = None) -> int:
     report_result = handle_report_command(args)
     if report_result is not None:
         return report_result
+
+    conformal_result = handle_conformal_command(args)
+    if conformal_result is not None:
+        return conformal_result
 
     smap_msl_data_result = handle_smap_msl_data_command(args)
     if smap_msl_data_result is not None:

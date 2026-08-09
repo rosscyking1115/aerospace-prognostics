@@ -90,10 +90,20 @@ dev = [
 # `pip-audit` in CI. Nothing in this repository changed: the same lockfile passed on
 # 2026-07-18 and the advisory database moved under it.
 #
-# 3.1.55 is the lowest version clearing all eight and sits well inside Streamlit's
+# 3.1.55 was the lowest version clearing all eight and sits well inside Streamlit's
 # own range, so this is a constraint rather than an override and no dependency is
 # forced past what its parent permits.
-constraint-dependencies = ["gitpython>=3.1.55"]
+#
+# 2026-08-09: the same thing happened again, and the recurrence is the point. Five
+# further advisories -- GHSA-9rj7-rf2p-w77r, GHSA-4gmw-gg2m-w46p, GHSA-hh9p-6wh2-4mfc,
+# GHSA-wvpp-8hx9-p66j and GHSA-jm78-9fvv-mhgr -- were published against 3.1.57, all
+# fixed in 3.1.58, and `pip-audit` went red on a branch that changed no dependency.
+# Nothing in this repository moved; the advisory database moved under a lockfile that
+# had been green for three weeks. That is the normal condition for a pinned transitive
+# dependency, not an incident, and the floor is expected to keep rising.
+# Streamlit's range is `gitpython!=3.1.19,<4,>=3.0.7`, so 3.1.58 remains a constraint
+# rather than an override.
+constraint-dependencies = ["gitpython>=3.1.58"]
 
 [tool.ruff]
 line-length = 100
@@ -126,6 +136,7 @@ warn_unused_ignores = true
 files = [
     "src/aerospace_prognostics/metrics.py",
     "src/aerospace_prognostics/evaluation.py",
+    "src/aerospace_prognostics/uncertainty/conformal.py",
     "src/aerospace_prognostics/features.py",
     "src/aerospace_prognostics/sequences.py",
     "src/aerospace_prognostics/preprocessing.py",

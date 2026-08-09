@@ -1,0 +1,5 @@
+design,seeds,mean_empirical_coverage,min_empirical_coverage,max_empirical_coverage,mean_interval_width,min_interval_width,max_interval_width,splits_meeting_nominal,mean_coverage_meets_nominal
+matched_unit_grouped,10,0.9480000000000001,0.86,0.99,56.32923938583205,39.68685648420785,75.87952721807437,8,True
+pooled_within_cap,10,0.909,0.85,0.97,48.577518380105786,43.9657260988582,54.01283173632828,5,True
+pooled_full_trajectory,10,1.0,1.0,1.0,157.45534253925914,124.3805993876409,199.74738897398518,10,True
+control_constant_predictor,10,0.818,0.69,0.93,120.8,100.0,136.0,3,False

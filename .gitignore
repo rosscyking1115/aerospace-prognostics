@@ -17,8 +17,27 @@ venv/
 # Data and model artifacts
 /data/
 /datasets/
-/artifacts/
 /models/
+
+# Run outputs are local by default. The exception is the conformal evidence bundle:
+# the writeup states that every conformal number traces to a committed artifact, and
+# a claim that traces to prose is an attestation rather than a check.
+#
+# The contents are excluded rather than the directory itself. Git will not descend
+# into an excluded directory, so `!/artifacts/conformal/x.json` under a `/artifacts/`
+# rule silently matches nothing -- the negation looks right and does nothing at all.
+# Excluding `/artifacts/*` keeps the directory itself reachable so the re-inclusions
+# below can fire. Verify with `git check-ignore -v` on a real path, never by reading
+# this file and assuming.
+#
+# Text results only: no model binaries, no raw C-MAPSS, no derived data. Anything
+# large or regenerable stays out and the writeup says how to rebuild it.
+/artifacts/*
+!/artifacts/conformal/
+/artifacts/conformal/*
+!/artifacts/conformal/*.json
+!/artifacts/conformal/*.csv
+!/artifacts/conformal/*.md
 /checkpoints/
 /runs/
 /mlruns/

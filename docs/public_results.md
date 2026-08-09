@@ -231,8 +231,39 @@ The project already proves more than model training:
 - The repository code is MIT licensed; dataset licenses are recorded separately
   (for example, ESA-ADB data is `CC BY 3.0 IGO`).
 
+## Conformal Prediction Intervals
+
+Distribution-free RUL intervals with unit-grouped calibration, added after the
+calibration work above. The full account, including two negative results, is in
+[writeup.md](writeup.md) §6; the numbers are read from git-tracked artifacts under
+`artifacts/conformal/`.
+
+| Subset | Nominal | Calibration units | Mean coverage over 10 splits | Mean width | Splits at or above nominal |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| FD001 | 0.90 | 30 | 0.948000 | 56.329239 | 8 / 10 |
+| FD002 | 0.99 | 99 | 0.916988 | 105.222252 | 0 / 10 |
+
+Coverage is always reported with width, because an infinite interval covers
+everything. Two results are worth more than the passing row:
+
+- **FD001 cannot support a distribution-free 99% guarantee at the unit level.** The
+  finite-sample rank needs 99 exchangeable calibration engines and FD001 has 100
+  training engines in total. The pipeline returns an infinite interval rather than a
+  plausible number. Row-pooled calibration — treating each of 3,780 cycles as an
+  independent draw — manufactures a finite `44.99`-cycle radius at `0.99` coverage on
+  the same data. That apparent success is the leak, not a result.
+- **FD002's `0.907336` is marginal coverage that describes no engine.** Zero of ten
+  splits reach the nominal `0.99`. Split by whether the truth is inside the range
+  the model can express: `0.985149` over 202 engines below the 125-cycle training
+  cap, `0.631579` over the 57 above it. Conformal prediction guarantees marginal,
+  not conditional, coverage, and cannot repair a systematically biased centre. A
+  marginal coverage figure quoted without a subgroup breakdown is not safe to act
+  on.
+
 ## Source Notes
 
+- The connected account of the whole project:
+  [writeup.md](writeup.md)
 - C-MAPSS classical baseline details:
   [phase1_cmapss_baseline_results.md](phase1_cmapss_baseline_results.md)
 - C-MAPSS deep baseline details:

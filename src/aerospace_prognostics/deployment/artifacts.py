@@ -1155,6 +1155,14 @@ def render_cmapss_model_card_markdown(
             "- Prediction intervals are train-residual calibration bands, not formal "
             "certification evidence."
         ),
+        (
+            "- `interval_confidence` is a target, not a coverage guarantee. The width is "
+            "the 0.90 absolute quantile of residuals on the model's own training rows, so "
+            "it is in-sample and optimistic; nothing bounds the probability that the band "
+            "contains the truth for a new engine. Intervals with a distribution-free "
+            "guarantee exist in this repository (unit-grouped split conformal) and are not "
+            "what this artifact carries."
+        ),
         "- Public deployment still requires TLS termination, secret rotation, and audit logging.",
         "",
         "## Rollback",
