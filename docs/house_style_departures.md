@@ -5,8 +5,9 @@ repositories. In three places that standard is wrong *for this project*, and thi
 departs from it deliberately. Each departure is recorded here rather than applied
 silently, because an undocumented departure is indistinguishable from an oversight.
 
-Each item below is written so it can be lifted into the standard verbatim. Two further
-notes at the end record defects found here whose class is wider than this repository.
+Each item below is written so it can be lifted into the standard verbatim. Three further
+notes at the end record findings whose class is wider than this repository: two defects and
+one pattern worth adopting.
 
 ---
 
@@ -94,10 +95,11 @@ carried the number. There is no `CHANGELOG.md`.
 
 ---
 
-## Two defects whose class is wider than this repository
+## Three notes whose class is wider than this repository
 
-Recorded here for the same routing. Neither is a departure from the standard; both are
-gaps the standard does not currently cover.
+Recorded here for the same routing. None is a departure from the standard; all three are
+gaps the standard does not currently cover. The first two are defects; the third is a
+pattern worth adopting.
 
 **The artifact is not the repository.** A built sdist here contained local-only files that
 no source-tree check could see: they are ignored via a *global* gitignore, which the build
@@ -119,3 +121,29 @@ stricter than the truth. Under-claiming is harder to notice, because nothing abo
 like a risk, and a reader who believes it simply thinks less of the work than it deserves.
 The check is the same in both directions: read what the other repository says about itself,
 and reconcile — but it has to be run for understatement as well as overstatement.
+
+**A note about a temporary state should name its own deletion condition.** Recording a
+known gap is the right move when closing it costs more than it buys — but a note that
+describes a temporary state and does not say when it stops being true becomes permanent by
+default. Nobody deletes a comment they are not sure is finished, so it accretes, and a file
+of stale notes teaches readers that the notes are not maintained, which costs more than the
+one note was ever worth.
+
+The fix is one sentence: state the condition under which the note should be removed, and
+put it where the person who satisfies that condition will be standing. Worked example here,
+`.github/workflows/ci.yml`: the advisory-not-blocking path had never run, and rather than
+manufacture a vulnerable pin to exercise it, the gap was recorded with the instruction to
+verify the behaviour when a real advisory lands — *before* fixing the advisory, because
+fixing it first destroys the only natural test case the path will get — and then to delete
+the note. It appears in three places ordered by when someone meets them: the job summary the
+failed run prints, the workflow comment beside the reasoning, and the contributing guide's
+advisory procedure. Three copies because the person who hits it will be trying to fix
+something else, and an instruction filed where it is not being read is not an instruction.
+
+**Proposed wording for the standard:**
+
+> A note recording a temporary state — an untested path, a pending upstream fix, a
+> deliberate gap — must state the condition under which it should be deleted. Without one it
+> is permanent by default, because nobody removes a note they cannot tell is finished. Put
+> the note where the person who satisfies the condition will be standing, not only where it
+> is tidy to file it.
