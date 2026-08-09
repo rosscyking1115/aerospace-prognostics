@@ -35,8 +35,9 @@ Three findings are worth stating up front, two of them negative.
 
 1. **On FD001 at 90% nominal, unit-grouped conformal intervals attain coverage
    on average across ten independent unit splits (mean `0.948`, range `0.86` to
-   `0.99`), at a mean width of `56.33` cycles against a label-only reference
-   width of `118.00`.** Eight of ten splits reach nominal individually; the
+   `0.99`), at a mean width of `56.33` cycles against a mean label-only
+   reference width of `120.80` over the same ten splits.** Eight of ten splits
+   reach nominal individually; the
    guarantee is an average over splits and is reported as one.
 2. **FD001 cannot support a distribution-free 99% guarantee at the unit level.**
    This is arithmetic, not a limitation of the model: 99% requires 99 exchangeable
@@ -279,6 +280,12 @@ retrained from scratch:
 | `pooled_within_cap` | `0.909000` | `0.850000` | `0.970000` | `48.577518` | 5 / 10 |
 | `pooled_full_trajectory` | `1.000000` | `1.000000` | `1.000000` | `157.455343` | 10 / 10 |
 | control: constant median | `0.818000` | `0.690000` | `0.930000` | `120.800000` | 3 / 10 |
+
+The control's mean width, `120.800000`, is also the mean label-only reference
+width across these ten splits, because the constant-median predictor and the
+reference are the same predictor by construction. The honest design's mean width
+of `56.329239` is therefore less than half of what the label distribution alone
+would give.
 
 The honest design attains nominal on average and over-covers, as small-`n`
 conformal prediction generally does. Two of ten splits fall below nominal
