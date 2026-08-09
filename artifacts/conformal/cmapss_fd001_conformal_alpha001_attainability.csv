@@ -1,0 +1,6 @@
+alpha,nominal_coverage,minimum_calibration_units,FD001_training_units,FD001_units_left_to_train_on,FD001_rank_attainable,FD002_training_units,FD002_units_left_to_train_on,FD002_rank_attainable,FD003_training_units,FD003_units_left_to_train_on,FD003_rank_attainable,FD004_training_units,FD004_units_left_to_train_on,FD004_rank_attainable
+0.2,0.8,4,100,96,True,260,256,True,100,96,True,249,245,True
+0.1,0.9,9,100,91,True,260,251,True,100,91,True,249,240,True
+0.05,0.95,19,100,81,True,260,241,True,100,81,True,249,230,True
+0.02,0.98,49,100,51,True,260,211,True,100,51,True,249,200,True
+0.01,0.99,99,100,1,True,260,161,True,100,1,True,249,150,True

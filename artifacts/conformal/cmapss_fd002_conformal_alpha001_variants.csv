@@ -1,0 +1,5 @@
+design,predictor,unit_grouped,score_regime,calibration_scores,calibration_units,alpha,nominal_coverage,quantile_rank,interval_radius,interval_width,empirical_coverage,coverage_gap,evaluation_units,evaluation_points,uncovered_points,is_finite,is_informative,uninformative_reason,reference_width
+matched_unit_grouped,hist_gradient_boosting,True,final_window,99,99,0.01,0.99,99,50.08976000151628,100.17952000303256,0.9073359073359073,-0.08266409266409269,259,259,24,True,True,,142.0
+pooled_within_cap,hist_gradient_boosting,False,full_trajectory,12474,99,0.01,0.99,12351,54.25709021203254,108.51418042406507,0.9305019305019305,-0.05949806949806946,259,259,18,True,True,,142.0
+pooled_full_trajectory,hist_gradient_boosting,False,full_trajectory,19962,99,0.01,0.99,19764,177.193200381208,354.386400762416,1.0,0.010000000000000009,259,259,0,True,False,no narrower than the label-only reference interval,142.0
+control_constant_predictor,constant_median_72,True,final_window,99,99,0.01,0.99,99,71.0,142.0,0.8301158301158301,-0.15988416988416987,259,259,44,True,False,no narrower than the label-only reference interval,142.0

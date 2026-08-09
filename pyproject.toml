@@ -126,6 +126,7 @@ warn_unused_ignores = true
 files = [
     "src/aerospace_prognostics/metrics.py",
     "src/aerospace_prognostics/evaluation.py",
+    "src/aerospace_prognostics/uncertainty/conformal.py",
     "src/aerospace_prognostics/features.py",
     "src/aerospace_prognostics/sequences.py",
     "src/aerospace_prognostics/preprocessing.py",
