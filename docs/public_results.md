@@ -252,10 +252,13 @@ everything. Two results are worth more than the passing row:
   plausible number. Row-pooled calibration — treating each of 3,780 cycles as an
   independent draw — manufactures a finite `44.99`-cycle radius at `0.99` coverage on
   the same data. That apparent success is the leak, not a result.
-- **FD002 misses its nominal 99%**, at `0.907336`, in zero of ten splits reaching
-  nominal. The cause is structural: 57 of 259 test engines have true RUL above the
-  125-cycle training cap, where coverage falls to `0.631579`. Conformal prediction
-  cannot repair a systematically biased centre.
+- **FD002's `0.907336` is marginal coverage that describes no engine.** Zero of ten
+  splits reach the nominal `0.99`. Split by whether the truth is inside the range
+  the model can express: `0.985149` over 202 engines below the 125-cycle training
+  cap, `0.631579` over the 57 above it. Conformal prediction guarantees marginal,
+  not conditional, coverage, and cannot repair a systematically biased centre. A
+  marginal coverage figure quoted without a subgroup breakdown is not safe to act
+  on.
 
 ## Source Notes
 

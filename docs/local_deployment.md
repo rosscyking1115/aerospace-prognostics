@@ -205,7 +205,11 @@ uv run aerospace-prognostics app-record-outcomes `
 ```
 
 After import, the History and Registry tabs report outcome availability, MAE,
-signed error, and interval coverage against observed RUL.
+signed error, and interval coverage against observed RUL. That coverage figure is
+a realised operational diagnostic — the fraction of served bands that happened to
+contain the imported outcome — not a guarantee, and not the conformal coverage
+measured in [writeup.md](writeup.md) §6. The served band carries no coverage
+guarantee at all; see [deployment.md](deployment.md).
 
 ## Operator Decisions
 

@@ -43,6 +43,20 @@ from aerospace_prognostics.app.store import (
 )
 from aerospace_prognostics.data.cmapss import CMAPSS_COLUMNS
 
+INTERVAL_CONFIDENCE_HELP = (
+    "A target, not a coverage guarantee. The served band is the 0.90 absolute quantile of "
+    "residuals on the model's own training rows, so it is in-sample and optimistic. "
+    "Nothing bounds the probability that it contains the truth for a new engine."
+)
+"""Operator-facing caption for the served interval confidence.
+
+The column reads "Confidence 0.90" to someone triaging a fleet, which is exactly
+the reading the number does not support. The repository does have intervals with
+a distribution-free guarantee -- unit-grouped split conformal -- and the serving
+artifact does not carry them, so the console says so where the number is shown
+rather than only in the docs.
+"""
+
 
 def render_system_tab(
     st: Any,
@@ -803,7 +817,11 @@ def render_history_tab(
             "predicted_rul_lower": st.column_config.NumberColumn("Lower", format="%.1f"),
             "predicted_rul_upper": st.column_config.NumberColumn("Upper", format="%.1f"),
             "interval_method": st.column_config.TextColumn("Interval"),
-            "interval_confidence": st.column_config.NumberColumn("Confidence", format="%.2f"),
+            "interval_confidence": st.column_config.NumberColumn(
+                "Confidence",
+                format="%.2f",
+                help=INTERVAL_CONFIDENCE_HELP,
+            ),
             "actual_rul": st.column_config.NumberColumn("Actual", format="%.1f"),
             "signed_error": st.column_config.NumberColumn("Error", format="%.1f"),
             "absolute_error": st.column_config.NumberColumn("Abs Error", format="%.1f"),

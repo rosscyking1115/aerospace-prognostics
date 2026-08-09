@@ -4,6 +4,15 @@ This note freezes the first Phase 3 C-MAPSS uncertainty and monotonicity
 decision after the FD001 audit and tail-fallback sweep. It summarizes the
 policy posture; the supporting run evidence is in the Evidence Snapshot below.
 
+**Every interval in this note is validation-fitted calibration and carries no
+coverage guarantee.** The coverage figures below are what was observed on the
+official test set at a requested confidence; nothing in the method bounds the
+probability that a band contains the truth on a new engine, and "reaches the
+requested coverage" should be read as an observation, not a property. Intervals
+with a distribution-free guarantee were added later — unit-grouped split
+conformal, measured in [writeup.md](writeup.md) §6 — and they do not supersede
+this recommendation, which still governs the deployed policy.
+
 ## Recommendation
 
 Keep the global validation-residual interval as the deployable baseline for the

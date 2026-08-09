@@ -49,7 +49,14 @@ Three findings are worth stating up front, two of them negative.
    the rank attainable and yields a radius of `44.99` cycles with `0.99`
    empirical coverage. It looks like a success. It is an artefact of counting one
    engine's correlated trajectory as thousands of engines, and it is the clearest
-   evidence in this document of what the exchangeability assumption is for.
+   evidence in this document of what the exchangeability assumption is for. The
+   two answers are set side by side in §6.6.
+
+A fourth result is about the method rather than the data: FD002's marginal
+coverage of `0.907` decomposes into `0.985` inside the model's expressible range
+and `0.632` outside it. No engine in that fleet experiences `0.907`. Conformal
+prediction guarantees marginal, not conditional, coverage, and §6.7 is that
+distinction measured rather than cited.
 
 ---
 
@@ -323,20 +330,64 @@ The pipeline behaves accordingly. At `alpha = 0.01` with 30 calibration units it
 returns rank 31 against 30 scores, an infinite radius, coverage `1.000000`, and
 an explicit uninformative flag. It refuses rather than inventing a number.
 
-**And this is where the leak becomes visible.** On the identical data and the
-identical model, the row-pooled design counts 3,780 calibration cycles as 3,780
-draws, makes rank 3,744 attainable, and returns a finite radius of `44.994157`
-with `0.990000` empirical coverage. A reader shown only that row would conclude
-that 99% coverage on FD001 is achievable and costs about 90 cycles of width. It
-is not achievable, and the number is an artefact of treating one engine's
-correlated trajectory as thousands of independent engines. The honest design's
-refusal and the naive design's confident answer are the same experiment.
+### 6.6 An apparent success that is the failure
 
-### 6.6 FD002 at 99% nominal: attainable, and it misses
+The two designs were run at 99% on the same data, the same split, and the same
+trained model. They differ in one thing: whether a calibration score belongs to
+an engine or to a cycle.
 
-FD002 has 260 training engines, so the arithmetic bar is clear. This is the
-control in the other direction: a subset where 99% is attainable, run to see
-whether attainability is sufficient. It is not.
+| | Honest design | Naive design |
+|---|---|---|
+| Calibration scores | 30, one per engine | 3,780, one per cycle |
+| Rank required, `⌈(n+1)·0.99⌉` | 31 | 3,744 |
+| Scores available | 30 | 3,780 |
+| Rank attainable? | **no** — 31 > 30 | yes |
+| Radius | **infinite** | `44.994157` cycles |
+| Empirical coverage | `1.000000`, vacuously | `0.990000` |
+| What it reports | *this dataset cannot answer at 99%* | *99% coverage, ±45 cycles* |
+
+Placed side by side, the naive row is the better-looking result by every
+conventional reading. It is finite, it is tight, it hits its nominal level, and
+it required no extra data. A reviewer skimming a results table would take it and
+move on. It is also wrong, and the mechanism is worth spelling out because
+nothing in the number itself reveals it.
+
+The 3,780 calibration scores come from 30 engines, roughly 126 cycles each.
+Consecutive cycles of one engine share a degradation trajectory, a
+unit-specific manufacturing offset, and nearly the same noise realisation, so
+their residuals move together: the 126 scores from engine 42 are close to one
+observation repeated 126 times, not 126 independent facts about how this model
+errs. Conformal prediction reads `n` as a count of exchangeable draws and sets
+the rank from it. Inflating `n` by a factor of 126 makes a high rank arithmetically
+reachable and shrinks the order statistic it lands on. The 99% interval is
+manufactured out of the *bookkeeping*, not out of evidence. Nothing was measured
+that justifies it.
+
+The honest design's infinity is the same fact told truthfully. Thirty engines
+cannot locate a 99th percentile: the most extreme of 30 draws is, in
+expectation, around the 97th percentile, and the finite-sample correction
+refuses to pretend otherwise. The interval is infinite because the data does not
+contain the answer.
+
+This is why coverage cannot be validated by inspecting coverage. Both designs
+report a coverage number near their nominal level; the difference between them
+is not visible in that number, on this split or on any other. It is visible only
+in the structure of the split, which is why the assumption is enforced in code —
+one score per unit, and `require_disjoint_units` raising — rather than checked by
+reading the output afterwards.
+
+The practical form of the warning: any conformal result whose calibration set is
+much larger than its number of independent units should be assumed to be this
+error until shown otherwise. In prognostics that is the default situation, not
+an edge case, because run-to-failure data arrives as long trajectories from few
+machines.
+
+### 6.7 FD002 at 99%: marginal coverage that describes no engine
+
+FD002 has 260 training engines, so the arithmetic bar of §6.5 is cleared. This is
+the control in the other direction: a subset where 99% is attainable, run to see
+whether attainability is sufficient. It is not, and the way it fails is the
+standard critique of conformal prediction, demonstrated rather than cited.
 
 Population: 161 engines for fitting (33,797 cycles), 99 held out for
 calibration, 259 official test engines, official-test RMSE `27.087121`,
@@ -352,23 +403,54 @@ maximum calibration score exactly, the boundary case.
 
 Empirical coverage of `0.907336` against a nominal `0.99` is a miss, and across
 ten splits it is systematic: mean `0.916988`, range `0.891892` to `0.965251`,
-**zero of ten splits at or above nominal**. The finite interval is attainable and
-the coverage claim is not met.
+**zero of ten splits at or above nominal**.
 
-The subgroup split locates the cause precisely. Within the training cap,
-coverage is `0.985149` over 202 engines — three uncovered, essentially nominal.
-Above the cap, coverage collapses to `0.631579` over 57 engines, 21 of them
-uncovered. FD002 puts 22% of its test fleet outside the range the model was
-trained to express, and a symmetric interval centred on a systematically capped
-prediction cannot reach a truth that sits beyond the cap however wide it is.
+**The conformal guarantee is marginal, and this is what marginal means.** Split
+the same measurement by whether the truth lies inside the range the model can
+express:
 
-This is a finding, not a knob. It could be made to pass by widening the interval,
-by excluding above-cap engines from the report, or by raising the cap — the first
-buys coverage with meaninglessness, the second is choosing the population after
-seeing the result, and the third is a change to the point predictor that would
-have to be re-evaluated on its own terms. None was done. What the failure
-actually says is that distribution-free calibration cannot repair a systematically
-biased centre, which is a limit of conformal prediction worth knowing.
+| Subgroup | Engines | Coverage | Uncovered | Interval width |
+|---|---:|---:|---:|---:|
+| true RUL ≤ 125 (training cap) | 202 | `0.985149` | 3 | `100.179520` |
+| true RUL > 125 | 57 | `0.631579` | 21 | `100.179520` |
+| **all test engines** | **259** | **`0.907336`** | **24** | `100.179520` |
+
+The headline `0.907` is an average over two populations the interval treats
+completely differently: one it serves at almost exactly its nominal level, and
+one where it fails more than a third of the time. **No engine in this fleet
+experiences 0.907 coverage.** The number describes the fleet composition as much
+as it describes the method — change the proportion of above-cap engines and the
+marginal figure moves without a single interval changing width.
+
+This is not a failure of the guarantee; the guarantee never promised otherwise.
+Conformal prediction assumes exchangeability and delivers **marginal** coverage —
+averaged over the population — and says nothing about coverage conditional on any
+feature, subgroup, or region of the target. Here the 125-cycle training cap
+carves out a subpopulation in which calibration and test are not exchangeable:
+calibration scores are drawn only from cycles at or below the cap, by the
+eligibility rule of §6.2, while 22% of the test fleet sits above it. A symmetric
+band centred on a prediction that is capped by construction cannot reach a truth
+beyond the cap however wide it is, so the shortfall is structural rather than
+statistical, and no amount of calibration data would fix it.
+
+Two things follow, and the second is the more useful one. First, distribution-free
+calibration cannot repair a systematically biased centre — conformal prediction
+inherits its predictor's blind spots and quantifies them rather than removing
+them. Second, **a marginal coverage figure is not safe to act on without a
+subgroup breakdown**, and in prognostics the subgroup that matters is usually the
+one nearest the operational decision. Here the failing subgroup is the healthy
+end of the fleet, which is comparatively benign; had the cap fallen at the other
+end, the same headline `0.907` would have concealed a near-failure population the
+intervals were systematically missing. Marginal validity is compatible with
+arbitrarily unequal treatment, and the only reason that is visible in this
+document is that the subgroup split was computed and reported.
+
+The result is reported as it came out. It could have been made to pass by
+widening the interval, by dropping above-cap engines from the population, or by
+raising the training cap: the first buys coverage with meaninglessness, the
+second is choosing the population after seeing the result, and the third is a
+change to the point predictor that would move every published FD002 number and
+needs its own evaluation. None was done.
 
 ---
 
@@ -409,10 +491,12 @@ decision, and none is certification evidence.
 **It does not establish that the intervals are conditionally valid.** Conformal
 coverage is *marginal*: averaged over the population. It does not promise that
 coverage holds for a specific engine, a specific operating regime, or a specific
-region of RUL. The FD002 subgroup result is a direct demonstration — marginal
-coverage of `0.907` decomposes into `0.985` below the cap and `0.632` above it.
-Marginal validity is compatible with badly unequal treatment of subgroups, and
-subgroup reporting is a partial mitigation, not conditional validity.
+region of RUL. §6.7 is the direct demonstration — marginal coverage of `0.907`
+decomposes into `0.985` below the cap and `0.632` above it, a figure no engine
+experiences. Marginal validity is compatible with badly unequal treatment of
+subgroups, and reporting one subgroup split is a partial mitigation, not
+conditional validity: nothing here rules out another partition of the fleet on
+which the same intervals fail just as badly.
 
 **It does not establish that the exchangeability assumption holds.** It shows
 that two specific violations were removed by construction and that a third —
@@ -463,8 +547,9 @@ that tracking is removed — so the claim is enforced rather than attested.
 | Figures | Artifact |
 |---|---|
 | §6.4 FD001 90% table, subgroups, seed sweep | `artifacts/conformal/cmapss_fd001_conformal.json`, `_variants.csv`, `_seed_sweep.csv`, `.md` |
-| §6.5 attainability table, FD001 99% refusal and the pooled 99% artefact | `artifacts/conformal/cmapss_fd001_conformal_attainability.csv`, `cmapss_fd001_conformal_alpha001.json`, `_variants.csv` |
-| §6.6 FD002 99% table, subgroups, seed sweep | `artifacts/conformal/cmapss_fd002_conformal_alpha001.json`, `_variants.csv`, `_seed_sweep.csv` |
+| §6.5 attainability table | `artifacts/conformal/cmapss_fd001_conformal_attainability.csv` |
+| §6.6 both sides of the 99% comparison — the honest refusal and the manufactured interval | `artifacts/conformal/cmapss_fd001_conformal_alpha001.json`, `_variants.csv` |
+| §6.7 FD002 99% table, subgroups, seed sweep | `artifacts/conformal/cmapss_fd002_conformal_alpha001.json`, `_variants.csv`, `_seed_sweep.csv` |
 
 **Grade B — traces to a git-tracked phase record, not to a committed artifact.**
 Every figure in sections 4 and 7. The repository's run outputs are local by
