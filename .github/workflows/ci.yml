@@ -68,6 +68,22 @@ jobs:
       # runs daily and emails the owner on failure. Non-blocking here does not
       # mean unseen: the step still shows as failed in the checks list, and the
       # next step raises a workflow annotation on the pull request.
+      #
+      # UNTESTED BRANCH -- READ THIS BEFORE FIXING THE NEXT ADVISORY.
+      # The failure path below has never run. Every CI run since it was added has
+      # had a clean audit, so `continue-on-error` has never actually held a merge
+      # open and the annotation step has only ever been skipped. Both were checked
+      # by reading the parsed workflow, not by observing them fire. That is a
+      # deliberate gap: manufacturing a vulnerable pin to exercise it costs more
+      # than it buys, and both failure modes are benign -- either the audit blocks
+      # a merge it should not, or the warning is missing from a step that is
+      # already visibly red.
+      #
+      # When a real advisory lands, VERIFY THE BEHAVIOUR BEFORE FIXING IT. Confirm
+      # the checks stay green overall, the step shows as failed, and the
+      # annotation and job summary appear. Fixing the advisory first destroys the
+      # only natural test case this path will ever get, and the next real
+      # advisory is an unknown number of weeks away.
       - name: Dependency audit (advisory)
         id: dependency_audit
         continue-on-error: true
@@ -83,6 +99,13 @@ jobs:
             echo "\`pip-audit\` reported advisories on this ref. This is **advisory, not blocking**:"
             echo "an advisory published against a transitive dependency is not a property of this"
             echo "pull request. Fix it in its own commit rather than as a rider here."
+            echo
+            echo "**If this is the first time you have seen this message, verify the behaviour"
+            echo "before fixing the advisory.** This failure path had never run when it was"
+            echo "written, and this run is the only natural test case it will get: check that the"
+            echo "checks stayed green overall, that the audit step shows as failed, and that the"
+            echo "annotation appeared. Then fix the advisory, and delete this paragraph and the"
+            echo "UNTESTED BRANCH note in \`.github/workflows/ci.yml\`."
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Generate SBOM

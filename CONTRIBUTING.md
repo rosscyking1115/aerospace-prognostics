@@ -59,6 +59,13 @@ history — a merge gate should test the change under review, and an advisory
 published overnight against a transitive dependency is not a property of the pull
 request. Fix advisories in their own commit, never as a rider on a feature branch.
 
+**Before you fix the next advisory, check `.github/workflows/ci.yml`.** The
+advisory-not-blocking path there has never actually run — every audit since it
+was written has been clean — and a real advisory is the only natural test case it
+will get. Verify the behaviour first, then fix. The instruction is repeated in
+the workflow and in the job summary the failed run prints, so you should meet it
+before you get here.
+
 When one lands, the fix depends on whether the affected package is one we
 actually import.
 
