@@ -4,10 +4,17 @@ name: Security audit
 # release leaves it silent, and the first sign would otherwise be a blocked PR.
 # This runs the same audit CI runs, on a schedule, so a disclosure surfaces as
 # a failed scheduled run (which GitHub emails to the repo owner) instead.
+#
+# 2026-08-09: this is now the *only* failing signal for dependency advisories.
+# The CI job's audit step became advisory on pull requests, so the cadence here
+# has to carry the load the merge gate used to. Weekly left up to seven days
+# between a disclosure and any notice of it, which was acceptable when a blocked
+# PR would have caught it sooner; daily is the honest replacement. It costs one
+# short job a day.
 on:
   schedule:
-    # Mondays, 08:00 UTC.
-    - cron: "0 8 * * 1"
+    # Daily, 08:00 UTC.
+    - cron: "0 8 * * *"
   workflow_dispatch:
 
 permissions:

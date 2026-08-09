@@ -54,8 +54,36 @@ jobs:
       - name: Test
         run: uv run pytest
 
-      - name: Dependency audit
+      # Advisory, not a merge gate. A merge gate should test the change under
+      # review, and an advisory published overnight against a transitive
+      # dependency is not a property of the pull request. This repository has the
+      # evidence: `main` went red twice in three weeks with nothing in the
+      # repository changing -- gitpython 3.1.55 on 2026-07-18 and 3.1.58 on
+      # 2026-08-09 -- and the second time a security bump had to ride on an
+      # unrelated feature branch because it blocked the merge signal. Polluting a
+      # feature branch's history with someone else's dependency fix is a worse
+      # outcome than a day-late bump.
+      #
+      # The failing signal moved to `.github/workflows/security-audit.yml`, which
+      # runs daily and emails the owner on failure. Non-blocking here does not
+      # mean unseen: the step still shows as failed in the checks list, and the
+      # next step raises a workflow annotation on the pull request.
+      - name: Dependency audit (advisory)
+        id: dependency_audit
+        continue-on-error: true
         run: uv run pip-audit
+
+      - name: Surface a failed dependency audit
+        if: steps.dependency_audit.outcome == 'failure'
+        run: |
+          echo "::warning title=Dependency audit failed::pip-audit reported advisories. This does not block the merge; fix it in its own commit. See the scheduled Security audit workflow."
+          {
+            echo "### Dependency audit failed"
+            echo
+            echo "\`pip-audit\` reported advisories on this ref. This is **advisory, not blocking**:"
+            echo "an advisory published against a transitive dependency is not a property of this"
+            echo "pull request. Fix it in its own commit rather than as a rider here."
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Generate SBOM
         run: uv run aerospace-prognostics generate-sbom --lockfile uv.lock --output-json artifacts/sbom/cyclonedx.json

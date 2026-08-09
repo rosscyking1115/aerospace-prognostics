@@ -165,7 +165,7 @@ class CmapssPrediction:
     predicted_rul_lower: float | None = None
     predicted_rul_upper: float | None = None
     interval_method: str | None = None
-    interval_confidence: float | None = None
+    interval_quantile_level: float | None = None
 
     def to_dict(self) -> dict[str, float | int | str | None]:
         """Return a JSON-serialisable dictionary."""
@@ -279,7 +279,7 @@ class CmapssHgbPolicyModelArtifact:
             predicted_rul_lower=interval.get("lower"),
             predicted_rul_upper=interval.get("upper"),
             interval_method=interval.get("method"),
-            interval_confidence=interval.get("confidence"),
+            interval_quantile_level=interval.get("quantile_level"),
         )
 
     def _build_features(self, frame: pd.DataFrame) -> pd.DataFrame:
@@ -1122,7 +1122,10 @@ def render_cmapss_model_card_markdown(
         f"- Feature columns after preprocessing: {len(artifact.feature_columns)}",
         f"- Prediction bounds: `[0, {artifact.rul_cap}]`",
         f"- Interval method: `{_markdown_inline(uncertainty.get('method'))}`",
-        f"- Interval confidence target: `{_markdown_inline(uncertainty.get('confidence'))}`",
+        (
+            "- Interval residual quantile level: "
+            f"`{_markdown_inline(_calibration_quantile_level(uncertainty))}`"
+        ),
         (
             "- Interval calibration rows: "
             f"`{_markdown_inline(uncertainty.get('calibration_count'))}`"
@@ -1156,12 +1159,12 @@ def render_cmapss_model_card_markdown(
             "certification evidence."
         ),
         (
-            "- `interval_confidence` is a target, not a coverage guarantee. The width is "
-            "the 0.90 absolute quantile of residuals on the model's own training rows, so "
-            "it is in-sample and optimistic; nothing bounds the probability that the band "
-            "contains the truth for a new engine. Intervals with a distribution-free "
-            "guarantee exist in this repository (unit-grouped split conformal) and are not "
-            "what this artifact carries."
+            "- `interval_quantile_level` is a quantile level, not a coverage probability. "
+            "The width is that quantile of the model's absolute residuals on its own "
+            "training rows, so it is in-sample and optimistic; nothing bounds the "
+            "probability that the band contains the truth for a new engine. Intervals with "
+            "a distribution-free guarantee exist in this repository (unit-grouped split "
+            "conformal) and are not what this artifact carries."
         ),
         "- Public deployment still requires TLS termination, secret rotation, and audit logging.",
         "",
@@ -1272,16 +1275,24 @@ def _fit_rul_interval_calibration(
     actual: np.ndarray,
     predicted: np.ndarray,
     rul_cap: float,
-    confidence: float = 0.9,
+    quantile_level: float = 0.9,
 ) -> dict[str, Any]:
+    """Fit the served RUL band as an absolute-residual quantile on training rows.
+
+    The level is named ``quantile_level`` rather than ``confidence`` because that
+    is what it is: the quantile of the model's own in-sample absolute residuals
+    at which the band is cut. It is not a coverage probability, and calling it
+    one -- as this code did until 2026-08-09 -- states a guarantee the method
+    does not provide. See `docs/deployment.md` and claims-ledger item D7.
+    """
     if len(actual) == 0 or len(actual) != len(predicted):
         return {}
     residuals = np.asarray(actual, dtype=float) - np.asarray(predicted, dtype=float)
     absolute_residuals = np.abs(residuals)
-    width = float(np.quantile(absolute_residuals, confidence))
+    width = float(np.quantile(absolute_residuals, quantile_level))
     return {
         "method": "train_residual_absolute_quantile",
-        "confidence": confidence,
+        "quantile_level": quantile_level,
         "calibration_count": int(len(absolute_residuals)),
         "absolute_error_quantile": width,
         "mean_error": float(np.mean(residuals)),
@@ -1299,20 +1310,33 @@ def _rul_prediction_interval(
     calibration: dict[str, Any],
 ) -> dict[str, float | str | None]:
     if not calibration:
-        return {"lower": None, "upper": None, "method": None, "confidence": None}
+        return {"lower": None, "upper": None, "method": None, "quantile_level": None}
     width = _optional_float(calibration.get("absolute_error_quantile"))
-    confidence = _optional_float(calibration.get("confidence"))
+    quantile_level = _optional_float(_calibration_quantile_level(calibration))
     method = calibration.get("method")
     if width is None or width < 0:
-        return {"lower": None, "upper": None, "method": None, "confidence": None}
+        return {"lower": None, "upper": None, "method": None, "quantile_level": None}
     lower = max(0.0, predicted_rul - width)
     upper = min(rul_cap, predicted_rul + width)
     return {
         "lower": float(lower),
         "upper": float(upper),
         "method": str(method) if method is not None else None,
-        "confidence": confidence,
+        "quantile_level": quantile_level,
     }
+
+
+def _calibration_quantile_level(calibration: dict[str, Any]) -> Any:
+    """Read the quantile level, accepting artifacts packaged before the rename.
+
+    The key was called ``confidence`` until 2026-08-09, and packaged ``.joblib``
+    artifacts carry whatever key they were written with. Reading both means an
+    artifact from before the rename still reports its quantile level instead of
+    silently serving ``None``; only the name changed, never the number.
+    """
+    if "quantile_level" in calibration:
+        return calibration.get("quantile_level")
+    return calibration.get("confidence")
 
 
 def _latency_distribution(values: list[float]) -> dict[str, float]:

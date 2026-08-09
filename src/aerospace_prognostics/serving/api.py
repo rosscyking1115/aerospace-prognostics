@@ -504,7 +504,7 @@ def _inference_schema_payload(
                     "nullable": True,
                 },
                 {"name": "interval_method", "type": "string", "nullable": True},
-                {"name": "interval_confidence", "type": "number", "nullable": True},
+                {"name": "interval_quantile_level", "type": "number", "nullable": True},
             ],
             "monitoring_fields": ["telemetry", "predictions"],
         },

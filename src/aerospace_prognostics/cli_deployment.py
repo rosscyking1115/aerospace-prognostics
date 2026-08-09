@@ -199,7 +199,7 @@ def handle_deployment_command(args: argparse.Namespace) -> int | None:
         print(f"feature_columns={input_contract['feature_column_count']}")
         print(f"reference_columns={reference_stats['column_count']}")
         print(f"uncertainty_method={uncertainty.get('method')}")
-        print(f"uncertainty_confidence={uncertainty.get('confidence')}")
+        print(f"uncertainty_quantile_level={uncertainty.get('quantile_level')}")
         check_summary = ",".join(
             f"{name}:{value}" for name, value in sorted(checks.items())
         )

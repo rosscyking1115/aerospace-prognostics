@@ -134,7 +134,7 @@ def model_artifact_report_card(
         "p95_latency_ms": latency_ms.get("p95"),
         "max_p95_latency_ms": benchmark.get("max_p95_latency_ms"),
         "interval_method": uncertainty.get("interval_method"),
-        "interval_confidence": uncertainty.get("interval_confidence"),
+        "interval_quantile_level": uncertainty.get("interval_quantile_level"),
         "interval_diagnostic_kind": "operational_interval_availability",
         "prediction_count_total": prediction_count_total,
         "interval_count_total": interval_count_total,

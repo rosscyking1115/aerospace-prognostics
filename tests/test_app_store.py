@@ -1694,7 +1694,7 @@ def _write_manual_prediction_run(
                 "predicted_rul_lower": predicted_rul,
                 "predicted_rul_upper": predicted_rul + 10,
                 "interval_method": "fixture",
-                "interval_confidence": 0.9,
+                "interval_quantile_level": 0.9,
             }
         ],
     }
@@ -1861,7 +1861,7 @@ def _write_fake_workspace(root):
         "promotion": {"stage": "candidate"},
         "uncertainty": {
             "interval_method": "train_residual_absolute_quantile",
-            "interval_confidence": 0.9,
+            "interval_quantile_level": 0.9,
         },
     }
     release_bundle = {

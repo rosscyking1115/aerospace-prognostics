@@ -60,7 +60,7 @@ def test_serving_api_health_version_and_predict(tmp_path) -> None:
     assert payload["predictions"][0]["predicted_rul_lower"] is not None
     assert payload["predictions"][0]["predicted_rul_upper"] is not None
     assert payload["predictions"][0]["interval_method"] == "train_residual_absolute_quantile"
-    assert payload["predictions"][0]["interval_confidence"] == 0.9
+    assert payload["predictions"][0]["interval_quantile_level"] == 0.9
     assert payload["monitoring"]["predictions"]["count"] == 2
     assert "sensor_1" in payload["monitoring"]["telemetry"]["columns"]
     assert metrics.status_code == 200
@@ -131,7 +131,7 @@ def test_serving_api_exposes_model_specific_inference_schema(tmp_path) -> None:
             "nullable": True,
         },
         {"name": "interval_method", "type": "string", "nullable": True},
-        {"name": "interval_confidence", "type": "number", "nullable": True},
+        {"name": "interval_quantile_level", "type": "number", "nullable": True},
     ]
 
 
