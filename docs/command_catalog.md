@@ -81,6 +81,17 @@ uv run aerospace-prognostics phase2-cmapss-verify-manifest --manifest artifacts/
 uv run aerospace-prognostics cmapss-phase3-audit --calibration-csv artifacts/PHASE2_RUN/results/cmapss_deep_validation_selection_predictions.csv --predictions-csv artifacts/PHASE2_RUN/results/cmapss_deep_predictions.csv --calibrated-predictions-csv artifacts/PHASE2_RUN/results/cmapss_deep_predictions_predicted_bin_nasa_shift_s500_calibrated.csv --output-json artifacts/PHASE2_RUN/results/cmapss_phase3_audit.json --output-markdown artifacts/PHASE2_RUN/results/cmapss_phase3_audit.md
 ```
 
+## Conformal Prediction Intervals
+
+Writes the git-tracked evidence bundle under `artifacts/conformal/`. CPU only; both
+commands finish in under three minutes. `--seed-sweep` re-runs across ten unit splits,
+retraining each time, because conformal coverage is an average over splits.
+
+```powershell
+uv run aerospace-prognostics cmapss-conformal --data-dir data/raw/cmapss --subset FD001 --alpha 0.10 --calibration-units 30 --seed-sweep
+uv run aerospace-prognostics cmapss-conformal --data-dir data/raw/cmapss --subset FD002 --alpha 0.01 --calibration-units 99 --seed-sweep --stem cmapss_fd002_conformal_alpha001
+```
+
 ## Phase 3 ESA-ADB Source Intake
 
 ```powershell

@@ -110,6 +110,7 @@ results need their datasets downloaded locally first — see
 | | |
 | --- | --- |
 | [claims.md](claims.md) | The claims ledger: every published number, what produced it, what it may claim, what is unresolved |
+| [docs/writeup.md](docs/writeup.md) | The single connected account of the work: method, results, and what the results do not establish |
 | [docs/public_results.md](docs/public_results.md) | All benchmark results with limitations, including the correction above |
 | [docs/datasets.md](docs/datasets.md) | Dataset provenance, licences, and what benchmark data does and does not entitle this repo to claim |
 | [docs/engineering_envelope.md](docs/engineering_envelope.md) | Serving, release gating, evidence artifacts, architecture, and the local Docker stack |
