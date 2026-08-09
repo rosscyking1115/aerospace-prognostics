@@ -44,7 +44,7 @@ def test_train_save_load_and_predict_cmapss_hgb_policy_artifact(tmp_path) -> Non
     assert "sensor_1" in loaded.reference_stats
     assert loaded.reference_stats["sensor_1"]["count"] == 6.0
     assert loaded.uncertainty_calibration["method"] == "train_residual_absolute_quantile"
-    assert loaded.uncertainty_calibration["confidence"] == 0.9
+    assert loaded.uncertainty_calibration["quantile_level"] == 0.9
     assert loaded.uncertainty_calibration["calibration_count"] == 6
     assert loaded.promotion_metadata["artifact_id"].startswith("fd001-")
     assert loaded.promotion_metadata["stage"] == "candidate"

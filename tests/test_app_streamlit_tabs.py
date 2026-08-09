@@ -603,7 +603,7 @@ def test_render_history_tab_surfaces_prediction_run_evidence(
                     "predicted_rul_lower": 15.0,
                     "predicted_rul_upper": 25.0,
                     "interval_method": "quantile",
-                    "interval_confidence": 0.9,
+                    "interval_quantile_level": 0.9,
                     "actual_rul": 18.0,
                     "signed_error": 2.0,
                     "absolute_error": 2.0,

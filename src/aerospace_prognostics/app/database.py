@@ -6,7 +6,20 @@ import sqlite3
 from datetime import UTC, datetime
 from pathlib import Path
 
-SCHEMA_VERSION = "aerospace-prognostics/app-db/v1"
+SCHEMA_VERSION = "aerospace-prognostics/app-db/v2"
+"""Schema identity, checked strictly on open.
+
+v2 (2026-08-09) renames ``predictions.interval_confidence`` to
+``interval_quantile_level``. The stored value is unchanged; the old name said
+"confidence" for what is a quantile level of in-sample residuals, and a name
+travels with the data into every consumer in a way a documented caveat does not.
+
+There is deliberately no migration. `validate_existing_database` already refuses
+a mismatched schema with a loud error naming both versions, and a v1 database
+holds nothing that is not regenerable: recreate it with `app-init-database` and
+re-run the prediction runs. Adding migration machinery for a local console
+database would be more code to keep correct than the thing it protects.
+"""
 REQUIRED_TABLES = (
     "app_metadata",
     "model_artifacts",
@@ -86,7 +99,7 @@ def initialize_app_database(database_path: str | Path) -> Path:
                 predicted_rul_lower real,
                 predicted_rul_upper real,
                 interval_method text,
-                interval_confidence real,
+                interval_quantile_level real,
                 created_at_utc text not null,
                 primary key (run_id, unit_number)
             );

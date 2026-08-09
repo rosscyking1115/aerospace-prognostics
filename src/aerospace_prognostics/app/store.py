@@ -274,7 +274,7 @@ def record_prediction_run(
                 predicted_rul_lower,
                 predicted_rul_upper,
                 interval_method,
-                interval_confidence,
+                interval_quantile_level,
                 created_at_utc
             )
             values (?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -288,7 +288,7 @@ def record_prediction_run(
                     row.get("predicted_rul_lower"),
                     row.get("predicted_rul_upper"),
                     row.get("interval_method"),
-                    row.get("interval_confidence"),
+                    row.get("interval_quantile_level"),
                     timestamp,
                 )
                 for row in predictions
@@ -1160,7 +1160,7 @@ def load_prediction_run(
                 predictions.predicted_rul_lower,
                 predictions.predicted_rul_upper,
                 predictions.interval_method,
-                predictions.interval_confidence,
+                predictions.interval_quantile_level,
                 prediction_outcomes.actual_rul,
                 predictions.predicted_rul - prediction_outcomes.actual_rul as signed_error,
                 abs(predictions.predicted_rul - prediction_outcomes.actual_rul)
@@ -1438,7 +1438,7 @@ def _upsert_fleet_assets_for_run(
             predicted_rul_lower,
             predicted_rul_upper,
             interval_method,
-            interval_confidence
+            interval_quantile_level
         from predictions
         where run_id = ?
         """,
@@ -1463,7 +1463,7 @@ def _upsert_fleet_assets_for_run(
             "source_name": run["source_name"],
             "input_sha256": run["content_sha256"],
             "interval_method": row["interval_method"],
-            "interval_confidence": row["interval_confidence"],
+            "interval_quantile_level": row["interval_quantile_level"],
         }
         cursor = connection.execute(
             """

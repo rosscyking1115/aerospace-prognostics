@@ -43,18 +43,19 @@ from aerospace_prognostics.app.store import (
 )
 from aerospace_prognostics.data.cmapss import CMAPSS_COLUMNS
 
-INTERVAL_CONFIDENCE_HELP = (
-    "A target, not a coverage guarantee. The served band is the 0.90 absolute quantile of "
-    "residuals on the model's own training rows, so it is in-sample and optimistic. "
-    "Nothing bounds the probability that it contains the truth for a new engine."
+INTERVAL_QUANTILE_LEVEL_HELP = (
+    "The quantile of the model's absolute residuals, on its own training rows, at which "
+    "the band is cut. Not a coverage probability: it is in-sample and optimistic, and "
+    "nothing bounds the probability that the band contains the truth for a new engine."
 )
-"""Operator-facing caption for the served interval confidence.
+"""Operator-facing caption for the served interval quantile level.
 
-The column reads "Confidence 0.90" to someone triaging a fleet, which is exactly
-the reading the number does not support. The repository does have intervals with
-a distribution-free guarantee -- unit-grouped split conformal -- and the serving
-artifact does not carry them, so the console says so where the number is shown
-rather than only in the docs.
+This column used to be headed "Confidence" and to read from a field called
+`interval_confidence`, which told a fleet triager the one thing the number does
+not support. The caption stays even though the name is now accurate, because the
+value still looks like a coverage probability to anyone who has met one. The
+repository does have intervals with a distribution-free guarantee -- unit-grouped
+split conformal -- and the serving artifact does not carry them.
 """
 
 
@@ -817,10 +818,10 @@ def render_history_tab(
             "predicted_rul_lower": st.column_config.NumberColumn("Lower", format="%.1f"),
             "predicted_rul_upper": st.column_config.NumberColumn("Upper", format="%.1f"),
             "interval_method": st.column_config.TextColumn("Interval"),
-            "interval_confidence": st.column_config.NumberColumn(
-                "Confidence",
+            "interval_quantile_level": st.column_config.NumberColumn(
+                "Quantile level",
                 format="%.2f",
-                help=INTERVAL_CONFIDENCE_HELP,
+                help=INTERVAL_QUANTILE_LEVEL_HELP,
             ),
             "actual_rul": st.column_config.NumberColumn("Actual", format="%.1f"),
             "signed_error": st.column_config.NumberColumn("Error", format="%.1f"),
@@ -1025,7 +1026,7 @@ def render_registry_tab(
                 "p95_latency_ms": report_card.get("p95_latency_ms"),
                 "max_p95_latency_ms": report_card.get("max_p95_latency_ms"),
                 "interval_method": report_card.get("interval_method"),
-                "interval_confidence": report_card.get("interval_confidence"),
+                "interval_quantile_level": report_card.get("interval_quantile_level"),
                 "interval_diagnostic_kind": report_card.get("interval_diagnostic_kind"),
                 "prediction_count_total": report_card.get("prediction_count_total"),
                 "interval_count_total": report_card.get("interval_count_total"),

@@ -50,8 +50,17 @@ make CI pass.**
 
 ## Dependency advisories
 
-`pip-audit` runs in CI and blocks on any known vulnerability. When one lands,
-the fix depends on whether the affected package is one we actually import.
+`pip-audit` runs in CI, and on pull requests it is **advisory rather than
+blocking**: a failed audit shows in the checks list and raises an annotation, but
+it does not stop a merge. The failing signal is the daily
+`.github/workflows/security-audit.yml` run, which emails the owner. The reasoning
+is recorded in `.github/workflows/ci.yml` and comes from this repository's own
+history — a merge gate should test the change under review, and an advisory
+published overnight against a transitive dependency is not a property of the pull
+request. Fix advisories in their own commit, never as a rider on a feature branch.
+
+When one lands, the fix depends on whether the affected package is one we
+actually import.
 
 **If it is a direct dependency**, raise the floor in `[project] dependencies`.
 
@@ -68,6 +77,11 @@ Worked example, committed 2026-07-28: eight advisories landed against
 repository had changed — the same lockfile passed CI on 18 July and the advisory
 database moved under it, because `pip-audit` queries that database live. The fix
 was `constraint-dependencies = ["gitpython>=3.1.55"]`.
+
+It happened again on 2026-08-09: five further advisories against `gitpython
+3.1.57`, fixed in `3.1.58`, and the floor moved again. Expect this rather than
+treating it as an incident — a pinned transitive dependency's lockfile decays on
+its own, and the recurrence is why the audit is no longer a merge gate.
 
 **Check the parent's own range before constraining.** Streamlit declares
 `gitpython!=3.1.19,<4,>=3.0.7`, so `3.1.55` sits comfortably inside it — making
