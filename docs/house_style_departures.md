@@ -128,6 +128,16 @@ entirely; its justification comment still opened by asserting that Streamlit req
 which had become false. Ask "what consumes this?" of configuration as well as code — the
 failure is silent, because an inert constraint looks exactly like a working one.
 
+The tempting response is the middle path: keep the entry as a defence in case the
+dependency returns, and rewrite the comment to explain that. **Weigh the prose against
+the thing it protects.** Twenty-three lines justifying a constraint that binds nothing is
+more to keep true than the constraint is worth, and every future reader pays to work out
+that it guards nothing. Delete it, and keep the history where someone will be reading when
+they need it — here, the contributing guide's advisory procedure rather than a comment on
+the dead entry. This generalises past dependency pins to any config kept "just in case":
+if the explanation costs more maintenance than the entry buys, the entry is the thing to
+remove.
+
 **A note about a temporary state should name its own deletion condition.** Recording a
 known gap is the right move when closing it costs more than it buys — but a note that
 describes a temporary state and does not say when it stops being true becomes permanent by
