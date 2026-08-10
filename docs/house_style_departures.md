@@ -5,9 +5,9 @@ repositories. In three places that standard is wrong *for this project*, and thi
 departs from it deliberately. Each departure is recorded here rather than applied
 silently, because an undocumented departure is indistinguishable from an oversight.
 
-Each item below is written so it can be lifted into the standard verbatim. Three further
-notes at the end record findings whose class is wider than this repository: two defects and
-one pattern worth adopting.
+Each item below is written so it can be lifted into the standard verbatim. Four further
+notes at the end record findings whose class is wider than this repository: three defects
+and one pattern worth adopting.
 
 ---
 
@@ -95,11 +95,11 @@ carried the number. There is no `CHANGELOG.md`.
 
 ---
 
-## Three notes whose class is wider than this repository
+## Four notes whose class is wider than this repository
 
-Recorded here for the same routing. None is a departure from the standard; all three are
-gaps the standard does not currently cover. The first two are defects; the third is a
-pattern worth adopting.
+Recorded here for the same routing. None is a departure from the standard; all four are
+gaps the standard does not currently cover. Three are defects; the last is a pattern worth
+adopting.
 
 **The artifact is not the repository.** A built sdist here contained local-only files that
 no source-tree check could see: they are ignored via a *global* gitignore, which the build
@@ -121,6 +121,12 @@ stricter than the truth. Under-claiming is harder to notice, because nothing abo
 like a risk, and a reader who believes it simply thinks less of the work than it deserves.
 The check is the same in both directions: read what the other repository says about itself,
 and reconcile — but it has to be run for understatement as well as overstatement.
+
+**A defensive config entry can outlive the dependency it defended, and say so falsely while
+it does.** A `gitpython` version constraint here stayed after the package left the graph
+entirely; its justification comment still opened by asserting that Streamlit requires it,
+which had become false. Ask "what consumes this?" of configuration as well as code — the
+failure is silent, because an inert constraint looks exactly like a working one.
 
 **A note about a temporary state should name its own deletion condition.** Recording a
 known gap is the right move when closing it costs more than it buys — but a note that
